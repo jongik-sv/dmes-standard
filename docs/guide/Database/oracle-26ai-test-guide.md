@@ -167,7 +167,7 @@ podman ps
 
 레인(워크트리)·자동 시험은 PDB 를 복제해 쓴다. 도구·이름 규칙·운용 규칙은 [`scripts/oracle/README.md`](../../../scripts/oracle/README.md), 스키마 소유표·연결 규약은 [`docs/oracle-1007/schema-owners.md`](../../oracle-1007/schema-owners.md) 에 있다.
 
-* 동시에 열린 PDB 수 상한은 환경 변수 `DMES_ORA_MAX_OPEN`(기본 **3** = FREEPDB1 + 템플릿 1 + 작업 1)으로 정한다. 기본값 3 은 VM 3GB 기준이라 그대로 쓰고(§4.3, §8-5), 4GB 이상·기본 SGA 인 PC 는 메모리 여유만큼 올릴 수 있다(예: `export DMES_ORA_MAX_OPEN=5`). 2GB 는 쓰지 않는다(2GB 에서 4개를 열자 인스턴스가 내려갔다, §8-7).
+* 동시에 열린 PDB 수 상한은 환경 변수 `DMES_ORA_MAX_OPEN`(기본 **4** = FREEPDB1 + 레인 PDB 1 + 시험 PDB 2, 2026-10-12 에 3 에서 올림 — 시험 자리 2개용, 컨테이너 3GB 실측 [`2026-10-12-oracle-test-seats-trial.md`](../../reports/2026-10-12-oracle-test-seats-trial.md))으로 정한다. VM 3GB 는 기본값을 그대로 쓰고(§4.3, §8-5), 4GB 이상·기본 SGA 인 PC 는 메모리 여유만큼 올릴 수 있다(예: `export DMES_ORA_MAX_OPEN=5`). 2GB 는 쓰지 않는다(2GB 에서 4개를 열자 인스턴스가 내려갔다, §8-7. 쓴다면 `DMES_ORA_MAX_OPEN=3`·`DMES_ORA_TEST_SEATS=1`).
 
 ### 6.4.2. 레인 PDB·시험 PDB 사용법
 
@@ -186,7 +186,7 @@ node scripts/oracle/pdb.mjs url L_ORA_MDM                 # JDBC URL 확인
 ./be-run.sh --mdm --pdb=L_ORA_MDM                         # 그 PDB 로 로컬 서버 기동(--pdb 가 없으면 종전 동작)
 node scripts/oracle/pdb.mjs close L_ORA_MDM               # 다 쓰면 닫는다(drop 은 데이터까지 지운다)
 
-# 자동 시험: 빌드 한 번에 T_<레인> 복제 → 시험 → 삭제
+# 자동 시험: 빌드 한 번에 T_<레인>_<자리> 복제 → 시험 → 삭제
 cd src/backend/mdm && ../gradlew test -Pdmes.ora.test=clone
 # 이미 있는 PDB 로 시험하려면(복제·삭제 없음). 시험이 표를 비우므로 일회용 T_* PDB 만 쓴다
 cd src/backend/mdm && ../gradlew test -Pdmes.ora.pdb=T_MY_TEST
@@ -198,10 +198,13 @@ cd src/backend/mdm && ../gradlew test -Pdmes.ora.pdb=T_MY_TEST
 
 ### 6.4.3. PC 잠금 규칙
 
-인스턴스 하나를 PC 의 모든 레인·시험이 나눠 쓰므로 무거운 작업은 PC 전체에서 한 번에 하나만 돈다(잠금 폴더 `$TMPDIR/dmes-ora-pdb.lock`).
+인스턴스 하나를 PC 의 모든 레인·시험이 나눠 쓴다. 잠금은 두 가지다(2026-10-12 잠금 세분화, 시험 결과 [`2026-10-12-oracle-test-seats-trial.md`](../../reports/2026-10-12-oracle-test-seats-trial.md)).
 
-* `clone`·`open`·`drop`·`template-*` 는 잠금을 잡고, 다른 작업이 쥐고 있으면 끝날 때까지 기다린다(기다리는 한도 `DMES_ORA_LOCK_WAIT_SEC`, 기본 900초).
-* `-Pdmes.ora.test=clone`(또는 `-Pdmes.ora.pdb=…`) 시험 빌드는 복제 직전부터 PDB 를 지울 때까지(시험 JVM 이 도는 구간 포함) 같은 잠금을 쥔다. 기다리는 한도는 `DMES_ORA_HARNESS_LOCK_WAIT_SEC`(기본 7200초)이다. Gradle 이 죽어도 잠금 주인이 스스로 놓는다.
+* **CDB 잠금**(`$TMPDIR/dmes-ora-pdb.lock`): `clone`·`open`·`drop`·`template-*`·`repair`·`migrate` 는 이 잠금을 잠깐 잡는다. 다른 작업이 쥐고 있으면 끝날 때까지 기다린다(기다리는 한도 `DMES_ORA_LOCK_WAIT_SEC`, 기본 900초). 열린 PDB 자리(`DMES_ORA_MAX_OPEN`)는 이 잠금 밖에서 기다린다.
+* **시험 자리**(`$TMPDIR/dmes-ora-seat-<i>.lock`, `DMES_ORA_TEST_SEATS` 개, 기본 2): `-Pdmes.ora.test=clone`(또는 `-Pdmes.ora.pdb=…`) 시험 빌드는 복제 직전부터 PDB 를 지울 때까지(시험 JVM 이 도는 구간 포함) 자리 하나를 쥐고, 복제·삭제 때만 CDB 잠금을 잡는다. 그래서 Oracle 시험 빌드가 PC 전체에서 자리 수만큼 함께 돈다. `DMES_ORA_TEST_SEATS=1` 이면 옛 동작(한 번에 하나)과 같다. 기다리는 한도는 `DMES_ORA_HARNESS_LOCK_WAIT_SEC`(기본 7200초)이다. Gradle 이 죽어도 자리 주인이 스스로 놓는다. 지금 주인은 `node scripts/oracle/pdb.mjs seats` 로 본다.
+* 시험 PDB 이름은 `T_<레인>_<자리 번호>` 다. 같은 워크트리에서 두 모듈 시험을 함께 걸어도 PDB 가 겹치지 않는다.
+* 자리 수는 `DMES_ORA_MAX_OPEN` − 늘 열려 있는 PDB 수(`FREEPDB1`·레인 `L_*`) 이하로 둔다(기본 4 − 2 = 2). 넘으면 두 번째 빌드의 복제가 열린 PDB 자리를 기다리며 heavy 슬롯을 놀린 채 쥔다.
+* `heavy.mjs` 는 Oracle 시험 명령이면 슬롯과 시험 자리를 한 번에 잡고(자리를 기다리는 동안 슬롯을 쥐지 않는다) `DMES_ORA_SEAT_HELD` 로 Gradle 에 넘긴다.
 * Oracle 시험(gradle)은 PC 전역 무거운 명령 슬롯(`heavy.sh`)도 거치며, 슬롯이 차 있으면 기본 90초 뒤 `HEAVY_BUSY`(exit 75)로 끝난다. Oracle 시험은 **`DFLOW_HEAVY_WAIT=1800`** 으로 걸어 차례를 기다린다(예: `DFLOW_HEAVY_WAIT=1800 .claude/skills/dflow-dev/scripts/heavy.sh ../gradlew test -Pdmes.ora.test=clone`).
 * `close` 는 잠금을 잡지 않고 바로 실행한다(열린 PDB 와 메모리를 줄이는 쪽이라 시험과 겹쳐도 안전하다).
 * 명령을 중간에 끊으면(SIGTERM·SIGINT) `pdb.mjs` 가 자식 `podman exec` 를 먼저 끊고 잠금을 놓는다. sqlplus 한 번이 `DMES_ORA_SQL_TIMEOUT_SEC`(기본 1200초)를 넘기면 끊고 실패로 본다.
@@ -358,7 +361,7 @@ python3 tools/oracle-free/sqlite_to_oracle.py --sqlite /tmp/ora-mig/mdm.db --sch
 7. **2GB VM 에서는 무거운 작업을 한 번에 하나만(스래싱 사례):**
    - 2026-10-07 18:24 여러 레인이 동시에 PDB 를 복제·삭제하고 시험 JVM 을 돌리자 VM 의 가용 메모리가 48MB, `kswapd` 38%, load 42 까지 올라 인스턴스가 스래싱했고 `sqlplus` 응답이 수 분씩 밀렸다. 같은 날 먼저 PDB 4개를 동시에 열었을 때는 서버 프로세스가 `ORA-03113` 으로 죽었다(`docs/oracle-1007/spike.md`).
    - 증상: `pdb.mjs list` 나 sqlplus 가 2분 넘게 응답이 없고 `podman exec` 세션이 쌓입니다. 이때 상태 확인을 더 보내지 않습니다(대기만 늘어납니다).
-   - 원칙: ① 동시에 열린 PDB 는 3개 이하(`DMES_ORA_MAX_OPEN`) ② `clone`·`drop`·`open`·`template-*`·Oracle 시험 빌드는 PC 전체에서 하나(§6.4.3 의 PC 잠금) ③ 레인 PDB 는 쓸 때만 열고 `close` ④ 시험 PDB 는 복제 직후 시험하고 바로 삭제 ⑤ 인스턴스 부하를 줄이려고 `job_queue_processes=0`(자동 작업·통계 수집 정지)을 쓴다.
+   - 원칙: ① 동시에 열린 PDB 는 4개 이하(`DMES_ORA_MAX_OPEN`, 10-12 에 3 → 4) ② `clone`·`drop`·`open`·`template-*` 는 PC 전체에서 하나(§6.4.3 의 CDB 잠금), Oracle 시험 빌드는 시험 자리 수만큼(기본 2) ③ 레인 PDB 는 쓸 때만 열고 `close` ④ 시험 PDB 는 복제 직후 시험하고 바로 삭제 ⑤ 인스턴스 부하를 줄이려고 `job_queue_processes=0`(자동 작업·통계 수집 정지)을 쓴다.
    - 복구: 조정자가 동결을 알리면 새 Oracle 명령을 멈추고, 진행 중인 `drop` 등 변경 작업은 끝나게 둡니다. 확인용으로 띄운 sqlplus 와 고아 `podman exec` 는 종료합니다. 인스턴스가 응답하면 재개합니다.
 8. **Oracle 오류가 났을 때: VM 때문인지 코드 때문인지 먼저 가립니다:**
    - Oracle 시험 실패·접속 실패·시간 초과가 나면 **다시 돌리기 전에** VM 상태를 한 번 잽니다(Oracle 명령이 아닙니다): `podman machine ssh -- 'free -m; cat /proc/loadavg'`. 시험 하니스는 시험이 실패하거나 PDB 준비가 실패했을 때 같은 값을 `[dmes-ora] … VM available=…MB load=…` 한 줄로 남기고 VM 신호면 「VM 의심」 을 붙입니다.

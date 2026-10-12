@@ -117,7 +117,9 @@
 
 
 
-### Oracle 시험 잠금 세분화 (2026-10-09 결정 대기)
+### Oracle 시험 잠금 세분화 (2026-10-13 반영)
+
+- 결과(10-12 실측·10-13 반영): CDB 잠금(복제·삭제 등 짧게) + 시험 자리 `DMES_ORA_TEST_SEATS`(기본 2) 로 나눔. VM 메모리는 그대로, PGA 400M→600M, 열린 PDB 상한 `DMES_ORA_MAX_OPEN` 3→4. 2 빌드 동시 183s→123~129s, ORA 메모리 오류 없음. 2GB VM PC 는 `DMES_ORA_MAX_OPEN=3`·`DMES_ORA_TEST_SEATS=1`. 기록 [docs/reports/2026-10-12-oracle-test-seats-trial.md](reports/2026-10-12-oracle-test-seats-trial.md).
 
 - 지금: Oracle 시험을 돌리는 빌드가 PC 전체 잠금(`$TMPDIR/dmes-ora-pdb.lock`) 하나를 PDB 복제→시험→삭제 전 구간 동안 쥔다. 다른 레인의 Oracle 시험은 그동안 줄을 선다(10-09 오전 16분 막힘, 사례 기록 [docs/reports/2026-10-09-oracle-test-turn-deadlock-heavy-slots.md](reports/2026-10-09-oracle-test-turn-deadlock-heavy-slots.md)).
 - 안: 잠금을 구간별로 쪼개(복제·삭제만 잠그고 시험은 PDB 별로 동시에) 여러 레인이 함께 시험하게 한다.

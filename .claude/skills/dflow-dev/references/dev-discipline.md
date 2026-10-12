@@ -491,13 +491,14 @@ Flyway `V<버전>__<설명>.sql` 처럼 파일명이 곧 버전인 migration은 
   - 명령이 6분을 넘을 것 같으면 그 호출만 `DFLOW_HEAVY_WAIT` 줄여(예: 명령 9분이면 `DFLOW_HEAVY_WAIT=30`) 합이 10분 안에 들게 함 — 못 얻으면 `HEAVY_BUSY` 로 곧 끝나 다시 부르면 됨.
   - 명령이 10분을 넘을 것 같으면 아래 분리 실행(`--detach`)으로 돌림.
   - `baseline.mjs` 는 측정 대기와 슬롯 대기가 마감 하나를 나눠 씀 → 90초 + 측정 시간이면 충분. 측정이 6분을 넘으면 그 호출만 `DFLOW_BASELINE_WAIT` 줄임(못 기다리면 `BASELINE_BUSY` 로 곧 끝나 다시 부르면 됨).
-- Oracle 시험 명령(`-Pdmes.ora.test=clone`·`-Pdmes.ora.pdb=<PDB>`)은 슬롯과 PC Oracle 잠금(`$TMPDIR/dmes-ora-pdb.lock`)을 한 번에 잡음(2026-10-12, 사례 `docs/reports/2026-10-09-oracle-test-turn-deadlock-heavy-slots.md` 대책 F).
-  - 인자에 위 속성이 있으면(또는 `gradlew` 에 `DMES_ORA_TEST=clone`·`DMES_ORA_PDB` 환경 변수) 저절로 켜짐. 속성 없이 잠금이 필요한 무거운 명령만 `heavy.mjs --oracle <명령>`. `pdb.mjs` 직접 호출은 가벼워 감싸지 않음(스스로 잠금을 잡음).
-  - `--exclusive` 와 함께면 잠금을 기다리는 동안 독점 양보 표식을 거둠(남의 일반 실행을 막지 않음).
-  - 잠금을 남이 쥐고 있으면 슬롯을 쥐지 않고 기다림(`HEAVY_ORA_WAIT pid=<주인> cwd=<주인 worktree>` 한 줄). 상한(90초) 넘기면 줄 끝에 ` Oracle 잠금 대기: pid=… cwd=…` 붙은 `HEAVY_BUSY`(exit 75) — 다시 호출.
-  - 잡으면 명령에 `DMES_ORA_LOCK_HELD=<heavy pid>` 넘김 → Gradle·`pdb.mjs` 는 그 잠금을 쓰고 다시 잡지 않음. 명령이 끝나거나 중단되면 슬롯과 함께 풂.
-  - Oracle 시험은 대개 10분 넘음 → `--detach` 로 돌림(분리된 자식 대기 상한 3600초 안에 잠금 차례를 기다림).
-  - 감싼 실행 안·`HEAVY_REUSE` 에서는 잠금을 잡지 않음(Gradle 이 옛 방식대로 직접 잡음).
+- Oracle 시험 명령(`-Pdmes.ora.test=clone`·`-Pdmes.ora.pdb=<PDB>`)은 슬롯과 PC Oracle 시험 자리(`$TMPDIR/dmes-ora-seat-<i>.lock`, `DMES_ORA_TEST_SEATS` 개 기본 2) 하나를 한 번에 잡음(2026-10-12, 사례 `docs/reports/2026-10-09-oracle-test-turn-deadlock-heavy-slots.md` 대책 F, 잠금 세분화 `docs/reports/2026-10-12-oracle-test-seats-trial.md`).
+  - 인자에 위 속성이 있으면(또는 `gradlew` 에 `DMES_ORA_TEST=clone`·`DMES_ORA_PDB` 환경 변수) 저절로 켜짐. 속성 없이 자리가 필요한 무거운 명령만 `heavy.mjs --oracle <명령>`. `pdb.mjs` 직접 호출은 가벼워 감싸지 않음(복제·삭제 때 스스로 CDB 잠금을 잠깐 잡음).
+  - `--exclusive` 와 함께면 자리를 기다리는 동안 독점 양보 표식을 거둠(남의 일반 실행을 막지 않음).
+  - 자리가 다 차 있으면 슬롯을 쥐지 않고 기다림(`HEAVY_ORA_WAIT pid=<주인> cwd=<주인 worktree>, …` 한 줄). 상한(90초) 넘기면 줄 끝에 ` Oracle 시험 자리 <N>개 모두 사용 중: pid=… cwd=…` 붙은 `HEAVY_BUSY`(exit 75) — 다시 호출.
+  - 잡으면 명령에 `DMES_ORA_SEAT_HELD=<heavy pid>` 넘김 → Gradle 하니스는 그 자리를 쓰고 다시 잡지 않음(CDB 잠금은 복제·삭제 때 `pdb.mjs` 가 잠깐 잡음). 명령이 끝나거나 중단되면 슬롯과 함께 풂.
+  - 자리 도입 전 워크트리(옛 `pclock.mjs`)에서는 예전처럼 CDB 잠금을 쥐고 `DMES_ORA_LOCK_HELD` 를 넘김.
+  - Oracle 시험은 대개 10분 넘음 → `--detach` 로 돌림(분리된 자식 대기 상한 3600초 안에 자리 차례를 기다림).
+  - 감싼 실행 안·`HEAVY_REUSE` 에서는 자리를 잡지 않음(Gradle 이 직접 잡음).
 ### 분리 실행·독점 실행
 
 - 분리 실행(한 번에 10분 넘는 명령): `heavy.mjs --detach <명령>` 으로 띄우고 `heavy.mjs wait <id>` 로 폴링. `run_in_background` 로 띄우지 않음(「포그라운드 실행」).

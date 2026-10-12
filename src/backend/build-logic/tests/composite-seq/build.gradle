@@ -36,25 +36,54 @@ tasks.register('probeRelease') {
     }
 }
 
-// 상위가 쥔 PC 잠금 인정(adoptParentLock) 확인 — ../run-lockheld.sh 가 환경변수·잠금을 준비하고 PROBE_EXPECT 로 기대(adopt|own)를 준다.
+// 시험 자리·상위 잠금 인정 확인(2026-10-12 잠금 세분화) — ../run-lockheld.sh 가 환경변수·잠금을 준비하고 PROBE_EXPECT 로 기대를 준다.
+//   own        직접 seat-hold 로 자리를 잡고(기존 PDB 모드라 사용 잠금도), 놓으면 둘 다 사라진다. CDB 잠금은 건드리지 않는다
+//   seatadopt  상위(heavy)가 DMES_ORA_SEAT_HELD 로 넘긴 자리 번호를 쓰고, 놓아도 상위 자리는 남는다
+//   mutex      옛 상위가 DMES_ORA_LOCK_HELD 로 넘긴 CDB 잠금을 쓰고 자리는 잡지 않는다(옛 동작)
 tasks.register('probeLockHeld') {
     doLast {
         def svc = gradle.sharedServices.registrations.getByName('dmesOraTestPdb').service.get()
         String expect = System.getenv('PROBE_EXPECT')
         // 잠금 폴더는 node 의 os.tmpdir() 기준이다. macOS 의 JVM 은 TMPDIR 를 무시하므로(java.io.tmpdir 이 달라진다) 환경변수 TMPDIR 를 먼저 본다.
-        File owner = new File(System.getenv('TMPDIR') ?: System.getProperty('java.io.tmpdir'), 'dmes-ora-pdb.lock/owner')
+        File tmp = new File(System.getenv('TMPDIR') ?: System.getProperty('java.io.tmpdir'))
+        File mutexOwner = new File(tmp, 'dmes-ora-pdb.lock/owner')
+        File use = new File(tmp, 'dmes-ora-use-T_FIXTURE.lock')
+        assert OraTestPdbService.testPdbName('dmes-standard', 1) == 'T_DMES_STANDARD_1'
+        assert OraTestPdbService.testPdbName('a-very-long-worktree-name-for-lane', 2) == 'T_A_VERY_LONG_WORKTREE_NA_2'
+        assert OraTestPdbService.testPdbName('a-very-long-worktree-name-for-lane', 2).length() <= 27
         svc.holdPcLock()
-        if (expect == 'adopt') {
+        if (expect == 'mutex') {
             long held = System.getenv('DMES_ORA_LOCK_HELD') as long
-            assert svc.lockHolder == null : 'adopt 인데 lock-hold 를 따로 띄웠다'
-            assert svc.lockPid == held
+            assert svc.lockHolder == null : 'mutex 인데 seat-hold 를 따로 띄웠다'
+            assert svc.lockPid == held && svc.parentMutex && svc.seatIndex == 0
             svc.releasePcLock()                     // 주인이 아니므로 놓지 않는다
-            assert owner.isFile() && owner.text.startsWith("${held} ") : '상위 잠금이 사라졌다'
-        } else {
-            assert svc.lockHolder != null : 'own 인데 직접 잠금을 잡지 않았다'
-            assert owner.isFile() && owner.text.startsWith("${svc.lockPid} ")
+            assert mutexOwner.isFile() && mutexOwner.text.startsWith("${held} ") : '상위 CDB 잠금이 사라졌다'
+        } else if (expect == 'seatadopt') {
+            long held = System.getenv('DMES_ORA_SEAT_HELD') as long
+            int seat = System.getenv('PROBE_SEAT') as int
+            File seatOwner = new File(tmp, "dmes-ora-seat-${seat}.lock/owner")
+            assert svc.lockHolder != null && !svc.parentMutex
+            assert svc.seatIndex == seat : "상위 자리 ${seat} 대신 ${svc.seatIndex}"
+            assert use.isDirectory() : '기존 PDB 모드인데 사용 잠금이 없다'
             svc.releasePcLock()
-            assert !owner.isFile() : '직접 잡은 잠금을 놓지 않았다'
+            assert seatOwner.isFile() && seatOwner.text.startsWith("${held} ") : '상위 자리가 사라졌다'
+            assert !use.exists() : '사용 잠금을 놓지 않았다'
+            assert !mutexOwner.exists() : 'CDB 잠금을 잡았다'
+        } else {
+            assert svc.lockHolder != null : 'own 인데 seat-hold 를 띄우지 않았다'
+            assert !svc.parentMutex && svc.seatIndex >= 1
+            File seatOwner = new File(tmp, "dmes-ora-seat-${svc.seatIndex}.lock/owner")
+            assert seatOwner.isFile() && seatOwner.text.startsWith("${svc.lockPid} ")
+            assert use.isDirectory() : '기존 PDB 모드인데 사용 잠금이 없다'
+            assert !mutexOwner.exists() : '자리만 잡아야 하는데 CDB 잠금을 잡았다'
+            // 자식 pdb.mjs 에 DMES_ORA_LOCK_HELD 를 넘기지 않는다(자식이 복제·삭제 때 CDB 잠금을 스스로 잡게)
+            def pb = new ProcessBuilder(['true'])
+            pb.environment().put('DMES_ORA_LOCK_HELD', '12345')
+            svc.childEnv(pb)
+            assert !pb.environment().containsKey('DMES_ORA_LOCK_HELD')
+            svc.releasePcLock()
+            assert !seatOwner.exists() : '직접 잡은 자리를 놓지 않았다'
+            assert !use.exists() : '사용 잠금을 놓지 않았다'
         }
         println "PROBE-LOCKHELD ${expect} ok"
     }

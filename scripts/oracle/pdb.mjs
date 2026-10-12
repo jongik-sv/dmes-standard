@@ -9,7 +9,10 @@ import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { dirname, join, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { LockTimeoutError, acquireLock as acquirePcLock, lockHeldByParent, releaseIfOwned, releaseLock, touchLock } from './pclock.mjs';
+import {
+  LockTimeoutError, acquireLock as acquirePcLock, acquireSeat, acquireUse, liveOwner, lockHeldByParent, LOCK_DIR, releaseIfOwned, releaseLock,
+  seatCount, seatHeldByParent, seatOwners, touchDir, touchLock, touchSeat, useDir,
+} from './pclock.mjs';
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 
@@ -22,9 +25,13 @@ const CFG = {
   dataDir: process.env.DMES_ORA_DATA_DIR || '/opt/oracle/oradata/FREE',
   host: process.env.DMES_ORA_HOST || 'localhost',
   port: process.env.DMES_ORA_PORT || '1521',
-  // 동시에 열려 있는 PDB 상한(FREEPDB1·시드 제외한 것까지 센다 — 시드는 세지 않는다). VM 2GB 에서는 3 이 한계다.
-  maxOpen: Number(process.env.DMES_ORA_MAX_OPEN || 3),
+  // 동시에 열려 있는 PDB 상한(FREEPDB1 까지 센다 — 시드는 세지 않는다). VM 2GB 에서는 3 이 한계였다.
+  // 기본 4(2026-10-12, 3 에서 올림): 시험 자리 2개 + 늘 열린 FREEPDB1·L_MAIN. 3 이면 둘째 시험 빌드가 열린 PDB 자리를 기다리며 heavy 슬롯을
+  // 놀린 채 쥔다. 컨테이너 3GB·sga 900M·pga 600M 에서 4개 열림 실측 정상(docs/reports/2026-10-12-oracle-test-seats-trial.md).
+  maxOpen: Number(process.env.DMES_ORA_MAX_OPEN || 4),
   lockWaitSec: Number(process.env.DMES_ORA_LOCK_WAIT_SEC || 900),
+  // 열린 PDB 자리를 기다리는 한도(CDB 잠금 밖에서 기다린다).
+  roomWaitSec: Number(process.env.DMES_ORA_ROOM_WAIT_SEC || 600),
   // sqlplus 한 번이 이 시간을 넘으면 자식(podman exec)을 끊고 실패로 본다. 인스턴스가 멈췄을 때 고아 세션이 남지 않게 한다.
   sqlTimeoutSec: Number(process.env.DMES_ORA_SQL_TIMEOUT_SEC || 1200),
 };
@@ -107,8 +114,8 @@ async function sql(text, opts) {
 // 실패해도 무시하는 SQL(이미 닫힌 PDB 를 닫는 경우 등).
 const sqlTry = (text, opts) => sqlplus(text, opts);
 
-// ── PC 전체 잠금(복제·열기·삭제는 한 번에 하나) ─────────────────────
-// 잠금 본체(mkdir 폴더·stale 판정·DMES_ORA_LOCK_HELD)는 pclock.mjs — heavy 이식판과 같은 잠금을 쓴다.
+// ── CDB 잠금(복제·열기·삭제는 PC 전체에서 한 번에 하나, 짧게) ──────────
+// 잠금 본체(mkdir 폴더·stale 판정·DMES_ORA_LOCK_HELD)와 시험 자리(seat)는 pclock.mjs — heavy·하니스와 같은 잠금을 쓴다.
 // 기다림 한도를 넘기면 예전처럼 die 한다.
 async function acquireLock(waitSec) {
   try {
@@ -123,6 +130,19 @@ async function withLock(fn) {
   if (lockHeldByParent()) return await fn();
   await acquireLock(CFG.lockWaitSec);
   try { return await fn(); } finally { releaseLock(); }
+}
+
+// 열린 PDB 를 extra 개 늘리는 작업. 열린 PDB 자리는 CDB 잠금 **밖에서** 기다린다: 잠금을 쥔 채 기다리면, 자리를 비울 다른 시험 빌드가
+// 자기 PDB 를 지우려고 이 잠금을 기다려 서로 멈춘다(시험 자리 2개 이상일 때, 2026-10-12). 잠금을 잡은 뒤 다시 세어 모자라면 놓고 다시 기다린다.
+const NO_ROOM = Symbol('no-room');
+async function withLockRoom(fn, extra = 1) {
+  const deadline = Date.now() + CFG.roomWaitSec * 1000;
+  for (;;) {
+    await waitForSlot(extra, Math.max(1, Math.round((deadline - Date.now()) / 1000)));
+    const r = await withLock(async () => ((await openCount()) + extra > CFG.maxOpen ? NO_ROOM : await fn()));
+    if (r !== NO_ROOM) return r;
+    log('잠금을 잡는 사이 다른 작업이 PDB 를 열었다 — 잠금을 놓고 다시 기다린다');
+  }
 }
 
 // ── PDB 조회 ───────────────────────────────────────────────────────
@@ -143,12 +163,13 @@ async function openCount() {
 // 열린 PDB 수가 상한 아래가 될 때까지 기다린다. 기다려도 안 되면 거절한다.
 async function waitForSlot(extraNeeded = 1, waitSec = 600) {
   const deadline = Date.now() + waitSec * 1000;
+  let said = false;
   for (;;) {
     const n = await openCount();
     if (n + extraNeeded <= CFG.maxOpen) return;
     if (Date.now() > deadline) die(`열린 PDB 가 ${n}개라 상한 ${CFG.maxOpen} 을 넘는다. 쓰지 않는 PDB 를 close 하거나 DMES_ORA_MAX_OPEN 을 올린다.`);
-    log(`열린 PDB ${n}개 — 상한 ${CFG.maxOpen}. 자리가 날 때까지 기다린다...`);
-    await new Promise((r) => setTimeout(r, 5000));
+    if (!said) { log(`열린 PDB ${n}개 — 상한 ${CFG.maxOpen}. 자리가 날 때까지 기다린다(최대 ${waitSec}초)...`); said = true; }
+    await new Promise((r) => setTimeout(r, 10000));
   }
 }
 
@@ -225,8 +246,8 @@ async function ensureQuiet(pdb) {
   log(`${pdb} AWR 자동 플러시 ${flush}, 스냅숏 간격 ${awrOff}${awrErr ? ` (${awrErr})` : ''}`);
   if (flush.toUpperCase() === 'TRUE') log(`경고: ${pdb} AWR 자동 플러시가 켜져 있다`);
 }
+// doCreate·doClone 은 열린 PDB 를 하나 늘린다 — 부르는 쪽이 withLockRoom 으로 자리를 확인한 뒤 부른다.
 async function doCreate(n) {
-  await waitForSlot(1);
   log(`시드에서 ${n} 생성(약 30초)...`);
   await sql(`create pluggable database ${n} admin user pdbadm identified by "${CFG.appPassword}" file_name_convert = ('/pdbseed/', '/${n}/');`);
   await sql(`alter pluggable database ${n} open;`);
@@ -242,7 +263,6 @@ async function doSeal(n) {
 
 // 템플릿 t 를 READ ONLY 로 잠깐 열어 n 으로 복제하고 n 을 연다. 동시에 열린 PDB 는 늘 하나만 늘어난다.
 async function doClone(t, n) {
-  await waitForSlot(1);
   const t0 = Date.now();
   await sqlTry(`alter pluggable database ${t} close immediate;`);
   await sql(`alter pluggable database ${t} open read only;`);
@@ -432,7 +452,7 @@ const commands = {
   async 'template-create'([name]) {
     const n = checkName(name);
     if (!n.startsWith('TPL_')) die('템플릿 이름은 TPL_ 로 시작한다.');
-    await withLock(async () => {
+    await withLockRoom(async () => {
       if (await find(n)) die(`이미 있다: ${n}`);
       await doCreate(n);
       log(`${n} 준비됨(READ WRITE). Flyway 를 적용한 뒤 'template-seal ${n}' 을 실행한다.`);
@@ -450,8 +470,7 @@ const commands = {
 
   async 'template-unseal'([name]) {
     const n = checkName(name);
-    await withLock(async () => {
-      await waitForSlot(1);
+    await withLockRoom(async () => {
       await sqlTry(`alter pluggable database ${n} close immediate;`);
       await sql(`alter pluggable database ${n} open;`);
       log(`${n} 이 READ WRITE 로 열렸다. 수정 뒤 'template-seal ${n}' 을 실행한다.`);
@@ -463,7 +482,7 @@ const commands = {
     const n = checkName(name);
     if (!t.startsWith('TPL_')) die('복제 원본은 TPL_ 템플릿이어야 한다.');
     if (n.startsWith('TPL_')) die('복제본 이름은 L_ 또는 T_ 로 시작한다.');
-    await withLock(async () => {
+    await withLockRoom(async () => {
       if (!(await find(t))) die(`템플릿이 없다: ${t}`);
       if (await find(n)) die(`이미 있다: ${n}`);
       await doClone(t, n);
@@ -477,7 +496,7 @@ const commands = {
     const rebuild = args.includes('--rebuild');
     const n = checkName(args.find((a) => !a.startsWith('--')) || 'TPL_SCHEMA');
     if (!n.startsWith('TPL_')) die('템플릿 이름은 TPL_ 로 시작한다.');
-    await withLock(async () => {
+    await withLockRoom(async () => {
       const { found } = findMigrations();
       if (!found.length) die('적용할 Oracle V 파일이 없다(dev 에 머지된 모듈 V1 이 필요하다).');
       if (await find(n)) {
@@ -500,7 +519,7 @@ const commands = {
     const rest = args.filter((a, i) => !a.startsWith('--') && i !== fi + 1);
     const n = checkName(rest[0] || 'TPL_DATA');
     if (!n.startsWith('TPL_') || !from.startsWith('TPL_')) die('템플릿 이름은 TPL_ 로 시작한다.');
-    await withLock(async () => {
+    await withLockRoom(async () => {
       if (!(await find(from))) die(`원본 템플릿이 없다: ${from} (먼저 template-schema)`);
       if (await find(n)) {
         if (!rebuild) die(`이미 있다: ${n} (다시 만들려면 --rebuild)`);
@@ -517,11 +536,14 @@ const commands = {
 
   async open([name]) {
     const n = checkName(name, { openCloseOnly: true });
-    await withLock(async () => {
+    // 이미 열려 있으면 자리를 기다리지 않는다
+    const p0 = await find(n);
+    if (!p0) die(`없다: ${n}`);
+    if (isOpen(p0)) { log(`${n} 이미 ${p0.mode}`); return; }
+    await withLockRoom(async () => {
       const p = await find(n);
       if (!p) die(`없다: ${n}`);
       if (isOpen(p)) { log(`${n} 이미 ${p.mode}`); return; }
-      await waitForSlot(1);
       await sql(`alter pluggable database ${n} open;`);
       log(`${n} 열었다.`);
     });
@@ -571,6 +593,55 @@ const commands = {
     process.stdin.on('close', done);
     process.stdin.resume();
     process.stdout.write(`LOCKED ${process.pid}\n`);
+  },
+
+  // 시험 하니스용: 시험 자리(seat) 하나를 잡고 "SEATED <pid> <자리 번호>" 한 줄을 낸 뒤, 표준 입력이 닫히거나 신호를 받을 때까지 쥔다.
+  // 상위(heavy)가 DMES_ORA_SEAT_HELD 로 자리를 넘겼으면 새로 잡지 않고 그 번호를 낸다(그 자리는 놓지 않는다).
+  // --pdb <PDB>: 기존 PDB 모드 — 자리를 잡은 뒤 그 PDB 의 사용 잠금도 쥔다(같은 PDB 를 두 빌드가 함께 비우지 않게).
+  // CDB 잠금은 잡지 않는다. 복제·삭제를 하는 pdb.mjs 명령이 그때만 잠깐 잡는다(순서: 자리 → 사용 잠금 → CDB 잠금).
+  async 'seat-hold'(args) {
+    const i = args.indexOf('--wait-sec');
+    const waitSec = i >= 0 ? Number(args[i + 1]) : CFG.lockWaitSec;
+    const pi = args.indexOf('--pdb');
+    const pdb = pi >= 0 ? upper(args[pi + 1]) : '';
+    const t0 = Date.now();
+    let seat = seatHeldByParent();
+    const adopted = seat > 0;
+    try {
+      if (!adopted) seat = await acquireSeat(waitSec);
+      if (pdb) await acquireUse(pdb, Math.max(1, waitSec - (Date.now() - t0) / 1000));
+    } catch (e) {
+      if (e instanceof LockTimeoutError) { releaseIfOwned(); die(e.message); }
+      throw e;
+    }
+    const beat = setInterval(() => { if (!adopted) touchSeat(seat); if (pdb) touchDir(useDir(pdb)); }, 60 * 1000);
+    const done = () => { clearInterval(beat); releaseIfOwned(); process.exit(0); };
+    process.on('SIGTERM', done);
+    process.on('SIGINT', done);
+    process.on('SIGHUP', done);
+    process.stdin.on('end', done);
+    process.stdin.on('close', done);
+    process.stdin.resume();
+    process.stdout.write(`SEATED ${process.pid} ${seat}${adopted ? ' adopted' : ''}\n`);
+  },
+
+  // 상위가 DMES_ORA_SEAT_HELD 로 알린 자리가 지금도 유효하면 "SEAT <번호>" 를 내고 exit 0, 아니면 exit 1.
+  async 'seat-held'() {
+    const s = seatHeldByParent();
+    if (s) process.stdout.write(`SEAT ${s}\n`);
+    process.exit(s ? 0 : 1);
+  },
+
+  // CDB 잠금과 시험 자리의 주인을 보여 준다(잠금 없이, Oracle 접속 없이).
+  async seats() {
+    const m = liveOwner(LOCK_DIR);
+    process.stdout.write(`cdb-lock ${m ? `pid=${m.pid} cwd=${m.cwd}` : '비었음'}\n`);
+    const owners = seatOwners();
+    for (let s = 1; s <= Math.max(seatCount(), ...owners.map((o) => o.seat)); s++) {
+      const o = owners.find((x) => x.seat === s);
+      process.stdout.write(`seat-${s}${s > seatCount() ? '(상한 밖)' : ''} ${o ? `pid=${o.pid} cwd=${o.cwd}` : '비었음'}\n`);
+    }
+    process.stdout.write(`자리 ${seatCount()}개(DMES_ORA_TEST_SEATS)\n`);
   },
 
   // 상위(Gradle·heavy)가 DMES_ORA_LOCK_HELD 로 알린 잠금이 지금도 유효한가 — 유효하면 exit 0, 아니면 exit 1(출력 없음). 시험 하니스가 쓴다.
@@ -697,10 +768,14 @@ const commands = {
   schema-users                  만드는 사용자 목록
   quiet <PDB>                   열린 PDB 의 autotask·AWR 자동 스냅숏을 끄고 확인(create·clone 은 자동으로 거친다)
   sessions <PDB>                열린 PDB 의 세션 수(max·limit·cur) 한 줄
-  lock-hold [--wait-sec N]      PC 잠금을 쥐고 LOCKED <pid> 를 낸 뒤 표준 입력이 닫힐 때까지 유지(시험 하니스용)
-  lock-held                     DMES_ORA_LOCK_HELD 가 가리키는 잠금이 지금도 유효하면 exit 0, 아니면 1(시험 하니스용)
+  lock-hold [--wait-sec N]      CDB 잠금을 쥐고 LOCKED <pid> 를 낸 뒤 표준 입력이 닫힐 때까지 유지(e2e 무거운 적재·옛 하니스용)
+  lock-held                     DMES_ORA_LOCK_HELD 가 가리키는 CDB 잠금이 지금도 유효하면 exit 0, 아니면 1(시험 하니스용)
+  seat-hold [--wait-sec N] [--pdb PDB]   시험 자리를 쥐고 SEATED <pid> <번호> 를 낸 뒤 표준 입력이 닫힐 때까지 유지(시험 하니스용)
+  seat-held                     DMES_ORA_SEAT_HELD 가 가리키는 자리가 유효하면 SEAT <번호>·exit 0, 아니면 1
+  seats                         CDB 잠금·시험 자리 주인 보기
 
-환경 변수: DMES_ORA_ENGINE·DMES_ORA_CONTAINER·DMES_ORA_SYS_PASSWORD·DMES_ORA_PASSWORD·DMES_ORA_HOST·DMES_ORA_PORT·DMES_ORA_MAX_OPEN
+환경 변수: DMES_ORA_ENGINE·DMES_ORA_CONTAINER·DMES_ORA_SYS_PASSWORD·DMES_ORA_PASSWORD·DMES_ORA_HOST·DMES_ORA_PORT·DMES_ORA_MAX_OPEN·
+  DMES_ORA_LOCK_WAIT_SEC·DMES_ORA_ROOM_WAIT_SEC·DMES_ORA_TEST_SEATS(시험 자리 수, 기본 2)
 `);
   },
 };

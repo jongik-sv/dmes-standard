@@ -13,11 +13,14 @@ import java.util.concurrent.TimeUnit
  *   -Pdmes.ora.pdb=L_ORA_MDM          이미 있는 PDB 를 그대로 쓴다(복제·삭제 없음)
  * 같은 값을 환경 변수 DMES_ORA_TEST(clone)·DMES_ORA_TEMPLATE·DMES_ORA_PDB 로도 줄 수 있다.
  *
- * 복제·삭제는 scripts/oracle/pdb.mjs 가 한다(PC 전체 잠금·열린 PDB 상한을 거친다). 이 클래스는 node 를 부를 뿐이다.
- * PC 잠금은 복제 직전부터 빌드가 끝나 PDB 를 지울 때까지(시험 JVM 이 도는 구간 포함) `pdb.mjs lock-hold` 가 쥔다.
- * 그래서 PC 전체에서 Oracle 을 쓰는 시험 빌드는 한 번에 하나만 돈다. 기존 PDB 를 쓰는 existing 모드도 같다.
- * 잠금 주인은 node 프로세스이고 표준 입력이 닫히면(Gradle 이 죽어도) 스스로 놓는다.
- * 상위(heavy)가 잠금을 먼저 쥐고 DMES_ORA_LOCK_HELD=<주인 pid> 를 주면 lock-hold 를 띄우지 않고 그 잠금을 쓴다(adoptParentLock) — 이 서비스는 그 잠금을 놓지 않는다.
+ * 복제·삭제는 scripts/oracle/pdb.mjs 가 한다(CDB 잠금·열린 PDB 상한을 거친다). 이 클래스는 node 를 부를 뿐이다.
+ * 잠금 세분화(2026-10-12, scripts/oracle/pclock.mjs): 복제 직전부터 빌드가 끝나 PDB 를 지울 때까지(시험 JVM 이 도는 구간 포함)
+ * `pdb.mjs seat-hold` 가 PC 시험 자리(seat, DMES_ORA_TEST_SEATS 개, 기본 2) 하나를 쥔다. CDB 잠금(dmes-ora-pdb.lock)은 복제·삭제를 하는
+ * pdb.mjs 자식이 그때만 잠깐 잡는다. 그래서 PC 전체에서 Oracle 시험 빌드가 자리 수만큼 함께 돈다. 시험 PDB 이름은 자리 번호를 붙인
+ * T_<레인>_<자리>라 같은 워크트리의 두 빌드도 겹치지 않는다. 기존 PDB 를 쓰는 existing 모드는 자리에 더해 그 PDB 의 사용 잠금도 쥔다.
+ * 자리 주인은 node 프로세스이고 표준 입력이 닫히면(Gradle 이 죽어도) 스스로 놓는다.
+ * 상위(heavy)가 자리를 먼저 쥐고 DMES_ORA_SEAT_HELD=<주인 pid> 를 주면 seat-hold 가 새로 잡지 않고 그 자리 번호를 쓴다(그 자리는 놓지 않는다).
+ * 옛 상위가 CDB 잠금을 쥐고 DMES_ORA_LOCK_HELD=<주인 pid> 를 주면 자리 없이 그 잠금을 쓴다(adoptParentLock, 옛 동작 — 이 서비스는 그 잠금을 놓지 않는다).
  *
  * included build 마다 Gradle 이 서비스 인스턴스를 따로 만든다(sharedServices 는 빌드마다 따로다). 그래서 모듈 여러 개를 한 번에 시험하면
  * 서비스가 여러 개 생기고, 각자 lock-hold 를 잡으면 먼저 잡은 쪽이 빌드가 끝날 때까지 쥐고 있어 나머지가 영원히 기다린다(교착, 2026-10-07 21:12).
@@ -47,8 +50,19 @@ abstract class OraTestPdbService implements BuildService<Parameters>, AutoClosea
     String pdbName
     boolean cloned = false
     boolean ownsLock = false
-    Process lockHolder = null
-    long lockPid = 0
+    Process lockHolder = null   // seat-hold 프로세스(자리 주인 또는 상위 자리를 받은 대리)
+    long lockPid = 0            // 살아 있는 동안 이 빌드가 시험 PDB 를 쓸 수 있는 프로세스(seat-hold 또는 상위 CDB 잠금 주인)
+    int seatIndex = 0           // 쥔 시험 자리 번호(1..N). 상위 CDB 잠금을 받았으면 0
+    boolean parentMutex = false // 상위가 쥔 CDB 잠금을 받았다(옛 동작) — 자식 pdb.mjs 에 DMES_ORA_LOCK_HELD 를 넘긴다
+
+    /** 시험 PDB 이름 T_<레인>_<자리>. pdb.mjs 의 이름 규칙(T_ 뒤 25자 이하)에 맞게 레인 부분을 먼저 자른다. */
+    static String testPdbName(String lane, int seat) {
+        String base = lane.toUpperCase().replaceAll('[^A-Z0-9_]', '_')
+        String suffix = '_' + seat
+        int max = 25 - suffix.length()
+        if (base.length() > max) base = base.substring(0, max)
+        return 'T_' + base + suffix
+    }
 
     String settingsKey() {
         return "${parameters.mode.get()}|${parameters.template.get().toUpperCase()}|${parameters.pdb.get().toUpperCase()}"
@@ -95,7 +109,7 @@ abstract class OraTestPdbService implements BuildService<Parameters>, AutoClosea
     }
 
     /**
-     * 주인이 올린 PDB 가 유효하면 그 이름, 없으면 null. 주인이 올렸는데 잠금을 쥔 lock-hold 가 죽었으면(누가 끝냈거나 비정상 종료) 예외다:
+     * 주인이 올린 PDB 가 유효하면 그 이름, 없으면 null. 주인이 올렸는데 자리를 쥔 seat-hold 가 죽었으면(누가 끝냈거나 비정상 종료) 예외다:
      * 이때 새 주인이 되면 다른 모듈이 쓰는 같은 이름의 PDB 를 지우고 다시 복제하게 되므로 이 빌드에서는 더 진행하지 않는다.
      * 속성은 주인이 닫을 때 지워지므로 다음 빌드에는 남지 않는다.
      */
@@ -108,7 +122,7 @@ abstract class OraTestPdbService implements BuildService<Parameters>, AutoClosea
             alive = ProcessHandle.of(pid as long).map { it.isAlive() }.orElse(false)
         } catch (Exception ignored) { }
         if (!alive) {
-            throw new org.gradle.api.GradleException("PC Oracle 잠금을 쥔 lock-hold(pid ${pid})가 빌드 도중 끝나 시험 PDB ${pdb} 를 더 쓸 수 없다. 다른 레인이 잠금을 가져갔을 수 있으니 PDB 를 지우거나 다시 만들지 않고 멈춘다. 빌드를 다시 실행한다.")
+            throw new org.gradle.api.GradleException("PC Oracle 시험 자리를 쥔 seat-hold(pid ${pid})가 빌드 도중 끝나 시험 PDB ${pdb} 를 더 쓸 수 없다. 다른 레인이 잠금을 가져갔을 수 있으니 PDB 를 지우거나 다시 만들지 않고 멈춘다. 빌드를 다시 실행한다.")
         }
         return pdb
     }
@@ -118,11 +132,14 @@ abstract class OraTestPdbService implements BuildService<Parameters>, AutoClosea
             pdbName = parameters.pdb.get().toUpperCase()
             return pdbName
         }
-        String name = 'T_' + parameters.lane.get().toUpperCase().replaceAll('[^A-Z0-9_]', '_')
-        if (name.length() > 28) name = name.substring(0, 28)
-        // 이전 시험이 비정상 종료돼 남긴 같은 이름 PDB 가 있으면 지운다(레인 하나가 이 이름 하나를 쓴다).
+        String name = testPdbName(parameters.lane.get(), seatIndex)
+        // 이전 시험이 비정상 종료돼 남긴 같은 이름 PDB 가 있으면 지운다(레인·자리 하나가 이 이름 하나를 쓰고, 그 자리는 지금 이 빌드가 쥐었다).
         runPdb(['drop', name], 600, true)
-        String cloneOut = runPdbOutput(['clone', parameters.template.get().toUpperCase(), name], 1800)
+        // 열린 PDB 자리(DMES_ORA_MAX_OPEN)가 모자라면 복제는 다른 시험 빌드가 PDB 를 지울 때까지 기다린다(CDB 잠금 밖에서). 자리 수가
+        // 열린 PDB 여유보다 많아도 실패하지 않고 줄을 서게 기다림 한도를 하니스 한도와 맞춘다.
+        long roomWait = (System.getenv('DMES_ORA_HARNESS_LOCK_WAIT_SEC') ?: '7200') as long
+        String cloneOut = runPdbOutput(['clone', parameters.template.get().toUpperCase(), name], roomWait + 1800,
+                ['DMES_ORA_ROOM_WAIT_SEC': String.valueOf(roomWait)])
         // 자동 작업(autotask·AWR) 끄기 확인 줄만 로그에 올린다.
         cloneOut.readLines().findAll { it.contains('자동 작업') || it.contains('autotask') || it.contains('AWR') || it.contains('복제·열기') }
                 .each { System.err.println("[dmes-ora] ${it.replaceFirst(/^\[pdb\]\s*/, '')}") }
@@ -131,22 +148,27 @@ abstract class OraTestPdbService implements BuildService<Parameters>, AutoClosea
         return pdbName
     }
 
-    /** PC 전체 Oracle 잠금을 쥔다(이미 쥐고 있으면 그대로). 기다리는 한도는 DMES_ORA_HARNESS_LOCK_WAIT_SEC(기본 7200초). */
+    /**
+     * PC Oracle 시험 자리를 쥔다(이미 쥐고 있으면 그대로). 기다리는 한도는 DMES_ORA_HARNESS_LOCK_WAIT_SEC(기본 7200초).
+     * 옛 상위가 CDB 잠금을 넘겼으면(DMES_ORA_LOCK_HELD) 그것을 쓰고 자리는 잡지 않는다(CDB 잠금 → 자리 순서로 기다리면 교착할 수 있다).
+     * 그 밖에는 `pdb.mjs seat-hold` 를 띄운다. 상위 heavy 가 자리를 넘겼으면(DMES_ORA_SEAT_HELD) seat-hold 가 그 번호를 그대로 낸다.
+     */
     void holdPcLock() {
         if (lockHolder != null || lockPid > 0) return
         File script = new File(parameters.repoRoot.get(), 'scripts/oracle/pdb.mjs')
         if (!script.isFile()) throw new org.gradle.api.GradleException("PDB 도구가 없다: ${script}")
         if (adoptParentLock(script)) return
         long waitSec = (System.getenv('DMES_ORA_HARNESS_LOCK_WAIT_SEC') ?: '7200') as long
-        Process p = new ProcessBuilder(['node', script.absolutePath, 'lock-hold', '--wait-sec', String.valueOf(waitSec)])
-                .redirectErrorStream(true).start()
-        // 첫 줄 "LOCKED <pid>" 가 오면 잠금을 쥔 것이다. 이후 출력은 버린다(파이프가 막히지 않게 읽는다).
+        List<String> cmd = ['node', script.absolutePath, 'seat-hold', '--wait-sec', String.valueOf(waitSec)]
+        if (parameters.mode.get() == 'existing') cmd += ['--pdb', parameters.pdb.get().toUpperCase()]
+        Process p = new ProcessBuilder(cmd).redirectErrorStream(true).start()
+        // 첫 줄 "SEATED <pid> <자리> [adopted]" 가 오면 자리를 쥔 것이다. 이후 출력은 버린다(파이프가 막히지 않게 읽는다).
         def first = new java.util.concurrent.LinkedBlockingQueue<String>()
         Thread.start {
             String last = ''
             try {
                 p.inputStream.eachLine { String l ->
-                    if (l.startsWith('LOCKED')) first.offer(l) else last = l
+                    if (l.startsWith('SEATED')) first.offer(l) else last = l
                 }
             } catch (Exception ignored) { }
             first.offer('종료: ' + last)
@@ -155,20 +177,24 @@ abstract class OraTestPdbService implements BuildService<Parameters>, AutoClosea
         try {
             line = first.poll(waitSec + 60, TimeUnit.SECONDS)
         } catch (InterruptedException ie) {
-            p.destroyForcibly()   // 취소돼도 lock-hold 가 남아 나중에 잠금을 쥐지 않게 한다
+            p.destroyForcibly()   // 취소돼도 seat-hold 가 남아 나중에 자리를 쥐지 않게 한다
             throw ie
         }
-        if (line == null || !line.startsWith('LOCKED')) {
+        if (line == null || !line.startsWith('SEATED')) {
             p.destroyForcibly()
-            throw new org.gradle.api.GradleException("PC Oracle 잠금을 잡지 못했다(${line ?: '시간 초과'}). 다른 레인의 Oracle 작업이 끝나지 않았을 수 있다.")
+            throw new org.gradle.api.GradleException("PC Oracle 시험 자리를 잡지 못했다(${line ?: '시간 초과'}). 다른 레인의 Oracle 시험이 끝나지 않았을 수 있다(node scripts/oracle/pdb.mjs seats).")
         }
+        String[] parts = line.trim().split(/\s+/)
         lockHolder = p
         lockPid = p.pid()
+        seatIndex = parts.length > 2 && parts[2].isInteger() ? parts[2] as int : 1
+        System.err.println("[dmes-ora] PC Oracle 시험 자리 seat-${seatIndex} 를 ${parts.length > 3 ? '상위(heavy)에게서 받았다' : '잡았다'}" +
+                "(자리 ${System.getenv('DMES_ORA_TEST_SEATS') ?: '2'}개, 복제·삭제 때만 CDB 잠금을 잠깐 잡는다)")
     }
 
     /**
-     * 상위(heavy 의 oracle 풀 등)가 이미 PC 잠금을 쥐고 환경변수 DMES_ORA_LOCK_HELD=<잠금 주인 pid> 로 알렸으면 그 잠금을 쓴다 —
-     * 잠금을 기다리는 동안 heavy 자리를 쥐지 않게 하려고 heavy 가 잠금을 먼저 잡는다. 주인 pid 가 잠금 owner 와 같고 살아 있는지는
+     * 옛 상위(자리 도입 전 heavy·e2e 등)가 이미 CDB 잠금을 쥐고 환경변수 DMES_ORA_LOCK_HELD=<잠금 주인 pid> 로 알렸으면 그 잠금을 쓴다 —
+     * 상위가 빌드 전 구간 CDB 잠금을 쥐므로 자리를 따로 잡지 않는다(옛 동작). 주인 pid 가 잠금 owner 와 같고 살아 있는지는
      * `pdb.mjs lock-held` 가 가린다(pdb.mjs 와 같은 잠금 코드, 임시 폴더 해석도 같다). 유효하지 않으면 false 라 기존대로 직접 잡는다.
      * 이 서비스는 그 잠금의 주인이 아니므로 놓지 않는다(lockHolder 는 null 로 둔다). 시스템 환경변수가 없으면 아무것도 하지 않는다.
      */
@@ -184,14 +210,15 @@ abstract class OraTestPdbService implements BuildService<Parameters>, AutoClosea
             if (!p.waitFor(30, TimeUnit.SECONDS)) { p.destroyForcibly(); return false }
             t.join(1000)
             if (p.exitValue() != 0) {
-                System.err.println("[dmes-ora] DMES_ORA_LOCK_HELD=${pid} 가 유효한 잠금이 아니라 PC 잠금을 직접 잡는다")
+                System.err.println("[dmes-ora] DMES_ORA_LOCK_HELD=${pid} 가 유효한 CDB 잠금이 아니라 시험 자리를 직접 잡는다")
                 return false
             }
         } catch (Exception e) {
             return false
         }
         lockPid = pid
-        System.err.println("[dmes-ora] 상위가 쥔 PC 잠금(pid ${pid})을 그대로 쓴다")
+        parentMutex = true
+        System.err.println("[dmes-ora] 상위가 쥔 CDB 잠금(pid ${pid})을 그대로 쓴다(시험 자리는 잡지 않는다)")
         return true
     }
 
@@ -201,6 +228,7 @@ abstract class OraTestPdbService implements BuildService<Parameters>, AutoClosea
         if (!lockHolder.waitFor(10, TimeUnit.SECONDS)) lockHolder.destroyForcibly()
         lockHolder = null
         lockPid = 0
+        parentMutex = false
     }
 
     static String jdbcUrl(String pdb) {
@@ -209,11 +237,21 @@ abstract class OraTestPdbService implements BuildService<Parameters>, AutoClosea
         return "jdbc:oracle:thin:@//${host}:${port}/${pdb}"
     }
 
+    /**
+     * 자식 pdb.mjs 의 환경. 시험 자리만 쥔 경우 DMES_ORA_LOCK_HELD 를 지워 자식이 복제·삭제 때 CDB 잠금을 스스로 잠깐 잡게 한다
+     * (Gradle 을 띄운 환경에 남은 값을 물려받지 않게). 옛 상위 CDB 잠금을 받았으면 그 pid 를 넘겨 다시 잡지 않게 한다.
+     */
+    void childEnv(ProcessBuilder pb) {
+        if (parentMutex && lockPid > 0) pb.environment().put('DMES_ORA_LOCK_HELD', String.valueOf(lockPid))
+        else pb.environment().remove('DMES_ORA_LOCK_HELD')
+    }
+
     /** runPdb 와 같지만 출력(표준 출력·오류 합침)을 돌려준다. 실패하면 예외. */
-    String runPdbOutput(List<String> args, long timeoutSec) {
+    String runPdbOutput(List<String> args, long timeoutSec, Map<String, String> env = [:]) {
         File script = new File(parameters.repoRoot.get(), 'scripts/oracle/pdb.mjs')
         ProcessBuilder pb = new ProcessBuilder(['node', script.absolutePath] + args).redirectErrorStream(true)
-        if (lockPid > 0) pb.environment().put('DMES_ORA_LOCK_HELD', String.valueOf(lockPid))
+        childEnv(pb)
+        pb.environment().putAll(env)
         Process p = pb.start()
         StringBuilder out = new StringBuilder()
         Thread t = Thread.start { p.inputStream.eachLine { out.append(it).append('\n') } }
@@ -231,8 +269,7 @@ abstract class OraTestPdbService implements BuildService<Parameters>, AutoClosea
         if (!script.isFile()) throw new org.gradle.api.GradleException("PDB 도구가 없다: ${script}")
         List<String> cmd = ['node', script.absolutePath] + args
         ProcessBuilder pb = new ProcessBuilder(cmd).redirectErrorStream(true)
-        // 이 서비스가 PC 잠금을 쥐고 있으니 자식 pdb.mjs 는 잠금을 다시 잡지 않고 지나간다.
-        if (lockPid > 0) pb.environment().put('DMES_ORA_LOCK_HELD', String.valueOf(lockPid))
+        childEnv(pb)
         Process p = pb.start()
         StringBuilder out = new StringBuilder()
         Thread t = Thread.start { p.inputStream.eachLine { out.append(it).append('\n') } }
@@ -279,7 +316,7 @@ abstract class OraTestPdbService implements BuildService<Parameters>, AutoClosea
         try {
             File script = new File(parameters.repoRoot.get(), 'scripts/oracle/pdb.mjs')
             ProcessBuilder pb = new ProcessBuilder(['node', script.absolutePath, 'sessions', pdbName]).redirectErrorStream(true)
-            if (lockPid > 0) pb.environment().put('DMES_ORA_LOCK_HELD', String.valueOf(lockPid))
+            childEnv(pb)
             Process p = pb.start()
             StringBuilder out = new StringBuilder()
             Thread t = Thread.start { try { p.inputStream.eachLine { out.append(it).append('\n') } } catch (Exception ignored) { } }
@@ -297,7 +334,8 @@ abstract class OraTestPdbService implements BuildService<Parameters>, AutoClosea
      * Oracle 을 쓰는 test 태스크의 차례를 받는다. 같은 빌드(같은 JVM)의 모듈들은 시험 PDB 를 공유하므로 한 번에 한 태스크만 돌려야 한다:
      * 모듈 시험 틀이 클래스 시작 때 스키마를 Flyway clean 하면 다른 모듈이 쓰던 표가 사라진다(2026-10-07 mcm-core·mcm 을 한 빌드에 묶었을 때
      * oracheck 21건 ORA-00942). --parallel 이어도 included build 사이에 같은 차례를 쓴다. 같은 키로 다시 부르면 그대로 통과한다.
-     * 순서는 늘 차례 → PC 잠금 → 시험 슬롯이다(차례를 쥔 쪽만 잠금·슬롯으로 가므로 서로 기다리며 멈추지 않는다).
+     * 순서는 늘 차례 → PC 시험 자리 → (복제·삭제 때만 CDB 잠금) → 시험 슬롯이다(차례를 쥔 쪽만 자리·슬롯으로 가므로 서로 기다리며 멈추지 않는다).
+     * 차례는 한 빌드(JVM) 안의 직렬화이고, 시험 자리는 빌드 사이의 동시 실행 상한이다.
      */
     boolean tryTurn(String key) {
         synchronized (JVM_MONITOR) {
@@ -352,7 +390,7 @@ abstract class OraTestPdbService implements BuildService<Parameters>, AutoClosea
     @Override
     void close() {
         // 빌드 종료(성공·실패·취소)에서 불린다. 모든 시험 태스크가 끝난 뒤에 불린다고 본다(합성 빌드로 확인: tests/run.sh).
-        // 주인만 정리한다: 복제한 PDB 를 지우고 PC 잠금을 놓는다. 서비스들은 빌드 끝에서 차례로 닫히며, 주인이 먼저 닫혀도 그때는 모든 시험이
+        // 주인만 정리한다: 복제한 PDB 를 지우고(CDB 잠금은 drop 이 잠깐 잡는다) 그다음 시험 자리를 놓는다. 서비스들은 빌드 끝에서 차례로 닫히며, 주인이 먼저 닫혀도 그때는 모든 시험이
         // 끝나 있다(tests/run.sh 가 정리 로그가 마지막 probe 뒤에 나오는지 확인한다).
         synchronized (JVM_MONITOR) {
             System.clearProperty(SHARED_FAILED)
@@ -365,7 +403,7 @@ abstract class OraTestPdbService implements BuildService<Parameters>, AutoClosea
             System.clearProperty(SHARED_PDB)
             System.clearProperty(SHARED_LOCK_PID)
             System.clearProperty(SHARED_KEY)
-            System.err.println("[dmes-ora] 정리: 시험 PDB ${pdbName}${cloned ? ' 삭제' : ' 유지(기존 PDB)'}·PC 잠금 해제")
+            System.err.println("[dmes-ora] 정리: 시험 PDB ${pdbName}${cloned ? ' 삭제' : ' 유지(기존 PDB)'}·시험 자리 seat-${seatIndex} 해제")
             if (cloned && pdbName != null) {
                 logSessions()
                 try {

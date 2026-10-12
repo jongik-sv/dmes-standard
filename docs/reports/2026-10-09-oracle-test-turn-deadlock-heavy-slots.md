@@ -48,7 +48,7 @@
 | C | Gradle `BuildService` + `maxParallelUsages=1` 로 Gradle 이 배타 실행 | 조사 후보. included build 사이에서는 서비스가 빌드마다 따로 생겨 막지 못할 수 있다 |
 | D | Oracle 시험을 모듈마다 따로 실행 | 급할 때 우회책 |
 | E | 차례 대기 상한 1시간 → 10분, 초과 메시지에 `gradlew --stop` 안내 | 반영(tx-5) |
-| F | Oracle 잠금을 기다리는 동안 heavy 슬롯을 쥐지 않게(잠금을 먼저 받고 슬롯을 받거나, 대기 중 슬롯 반납) | 반영(2026-10-12). `heavy.mjs` 가 Oracle 시험 명령(`dmes.ora.test=clone`·`dmes.ora.pdb`, 또는 `--oracle`)이면 슬롯과 PC 잠금을 한 번에 잡고, 잠금을 못 잡으면 슬롯을 곧바로 돌려주고 기다린다. 잡은 잠금은 `DMES_ORA_LOCK_HELD` 로 Gradle 에 넘긴다 |
+| F | Oracle 잠금을 기다리는 동안 heavy 슬롯을 쥐지 않게(잠금을 먼저 받고 슬롯을 받거나, 대기 중 슬롯 반납) | 반영(2026-10-12). `heavy.mjs` 가 Oracle 시험 명령(`dmes.ora.test=clone`·`dmes.ora.pdb`, 또는 `--oracle`)이면 슬롯과 PC Oracle 시험 자리(잠금 세분화로 생긴 seat, [2026-10-12 기록](2026-10-12-oracle-test-seats-trial.md))를 한 번에 잡고, 자리를 못 잡으면 슬롯을 곧바로 돌려주고 기다린다. 잡은 자리는 `DMES_ORA_SEAT_HELD` 로 Gradle 에 넘긴다 |
 | G | heavy.sh 대기 상한·`exit 75` 규약을 호출 쪽이 알게(기본 상한 재검토, 줄 선 상태를 보이게) | heavy.sh js 이식 때 |
 | H | be-run 이 한 모듈 재기동 때 다른 모듈을 내리지 않게(모듈 단위로 이전 인스턴스 정리) | be-run js 이식 때 |
 | J | heavy.sh 로 서버(be-run)를 감싸면 서버가 떠 있는 내내 자리를 쥔다(09:2x 조정자가 겪음). 빌드 구간만 자리를 쓰게(be-run 이 빌드 뒤 자리 반납, 또는 `--build-only` 만 heavy) | heavy.sh·be-run js 이식 때 |
