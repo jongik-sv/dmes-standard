@@ -441,7 +441,8 @@ export function clampPropsWidth(width: number, total: number): number {
 export type TreeColKey = "svc" | "start" | "time";
 export type TreeCols = Record<TreeColKey, number>;
 export const TREE_COL_KEYS: readonly TreeColKey[] = ["svc", "start", "time"];
-export const TREE_COL_DEFAULT: Readonly<TreeCols> = { svc: 420, start: 180, time: 100 };
+/** svc 는 화면에서 쓰지 않는다 — 서비스 칸은 최소 폭(TREE_COL_MIN.svc) 이상으로 남은 폭을 모두 차지한다. */
+export const TREE_COL_DEFAULT: Readonly<TreeCols> = { svc: 240, start: 180, time: 100 };
 export const TREE_COL_MIN: Readonly<TreeCols> = { svc: 160, start: 140, time: 60 };
 export const TREE_COL_MAX = 1600;
 

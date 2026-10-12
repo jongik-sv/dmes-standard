@@ -31,6 +31,7 @@ import {
   propsGridHeight,
   toTreeRequests,
   TREE_COL_DEFAULT,
+  TREE_COL_MIN,
   TREE_COL_KEYS,
   type PropGridRow,
   type TreeColKey,
@@ -264,12 +265,15 @@ function TreeTabComponent({ data, active, onSendToBinder }: TreeTabProps) {
     if (e.button !== 0) return;
     e.preventDefault();
     const startX = e.clientX;
-    const startW = colsRef.current[key];
+    // 서비스 칸은 늘 남은 폭을 채우므로, 서비스 오른쪽 경계를 끌면 시작일시 칸이 반대로 줄거나 는다.
+    const target: TreeColKey = key === "svc" ? "start" : key;
+    const sign = key === "svc" ? -1 : 1;
+    const startW = colsRef.current[target];
     let latest = startW;
     setResizingCol(key);
     const onMove = (ev: PointerEvent) => {
-      latest = clampTreeCol(key, startW + (ev.clientX - startX));
-      applyColVar(key, latest);
+      latest = clampTreeCol(target, startW + sign * (ev.clientX - startX));
+      applyColVar(target, latest);
     };
     const onUp = () => {
       window.removeEventListener("pointermove", onMove);
@@ -278,7 +282,7 @@ function TreeTabComponent({ data, active, onSendToBinder }: TreeTabProps) {
       document.body.style.userSelect = "";
       document.body.style.cursor = "";
       setResizingCol(null);
-      commitCols({ ...colsRef.current, [key]: latest });
+      commitCols({ ...colsRef.current, [target]: latest });
     };
     document.body.style.userSelect = "none";
     document.body.style.cursor = "col-resize";
@@ -289,12 +293,17 @@ function TreeTabComponent({ data, active, onSendToBinder }: TreeTabProps) {
   const onColKeyDown = (key: TreeColKey) => (e: React.KeyboardEvent<HTMLDivElement>) => {
     if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
     e.preventDefault();
-    const next = clampTreeCol(key, colsRef.current[key] + (e.key === "ArrowRight" ? COL_KEY_STEP : -COL_KEY_STEP));
-    commitCols({ ...colsRef.current, [key]: next });
+    const target: TreeColKey = key === "svc" ? "start" : key;
+    const step = (e.key === "ArrowRight" ? COL_KEY_STEP : -COL_KEY_STEP) * (key === "svc" ? -1 : 1);
+    commitCols({ ...colsRef.current, [target]: clampTreeCol(target, colsRef.current[target] + step) });
   };
-  const onColReset = (key: TreeColKey) => () => commitCols({ ...colsRef.current, [key]: TREE_COL_DEFAULT[key] });
+  const onColReset = (key: TreeColKey) => () => {
+    const target: TreeColKey = key === "svc" ? "start" : key;
+    commitCols({ ...colsRef.current, [target]: TREE_COL_DEFAULT[target] });
+  };
   const colVars = {
-    "--anl-col-svc": `${cols.svc}px`,
+    // 서비스 칸 최소 폭은 고정 — 저장된 svc 값은 쓰지 않는다(예전 저장값이 커도 화면을 넘치지 않게).
+    "--anl-col-svc": `${TREE_COL_MIN.svc}px`,
     "--anl-col-start": `${cols.start}px`,
     "--anl-col-time": `${cols.time}px`,
   } as React.CSSProperties;
