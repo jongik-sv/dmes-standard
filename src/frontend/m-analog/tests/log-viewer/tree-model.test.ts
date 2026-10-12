@@ -190,3 +190,58 @@ describe("characterization 모양 (Service·property.params)", () => {
     expect(flattenRows(req.root, new Set(), { query: "zzz", errOnly: false, bizOnly: false })).toEqual([]);
   });
 });
+
+describe("연속 MSG 묶음", () => {
+  const raw = [
+    {
+      property: { objectType: "Request" },
+      child: [
+        "req",
+        {
+          property: { objectType: "Process", objectName: "P" },
+          child: [
+            "a1",
+            "a2",
+            "a3",
+            { property: { objectType: "Query", query: "select 1 from t" } },
+            "binding parameter (1:BIGINT) <- [1]",
+            "solo",
+            { property: { objectType: "Task", objectName: "T" } },
+            "b1",
+            "b2",
+          ],
+        },
+      ],
+    },
+  ];
+  const [req] = toTreeRequests(raw);
+  const svc = req.root.children.find((c) => c.kind === "SVC") as TreeNode;
+
+  it("연속 2개 이상은 묶고, 단독은 두며, 다른 노드에서 끊는다. 개수 요약은 개별 MSG 수", () => {
+    expect(svc.children.map((c) => c.kind)).toEqual(["MSGS", "SQL", "MSG", "TSK", "MSGS"]);
+    expect(svc.children[0].children.map((m) => m.text)).toEqual(["a1", "a2", "a3"]);
+    expect(svc.children[0].label).toBe("a1");
+    expect(svc.children[1].children.every((c) => c.kind === "BND")).toBe(true);
+    expect(req.msgCount).toBe(7);
+  });
+
+  it("묶음은 접힌 기본, 검색 일치 시 펼침, 업무 노드만에서 숨김", () => {
+    const open = defaultExpanded(req.root);
+    const base = flattenRows(req.root, open, NO_FILTER);
+    expect(base.some((r) => r.node.text === "a2")).toBe(false);
+    expect(base.find((r) => r.node.kind === "MSGS")?.open).toBe(false);
+    const found = flattenRows(req.root, new Set(), { ...NO_FILTER, query: "a2" });
+    expect(found.map((r) => r.node.kind)).toEqual(["REQ", "SVC", "MSGS", "MSG"]);
+    const biz = flattenRows(req.root, open, { ...NO_FILTER, bizOnly: true });
+    expect(biz.some((r) => r.node.kind === "MSGS")).toBe(false);
+  });
+
+  it("실제 응답: 묶음 안 MSG 수 합 + 단독 MSG = 요약 MSG 수", () => {
+    const [big] = toTreeRequests(fixture("tree-real-bind.json"));
+    const groups = collect(big.root, "MSGS");
+    const inGroups = groups.reduce((s, g) => s + g.children.length, 0);
+    expect(groups.every((g) => g.children.length >= 2)).toBe(true);
+    expect(collect(big.root, "MSG")).toHaveLength(big.msgCount);
+    expect(inGroups).toBeLessThanOrEqual(big.msgCount);
+  });
+});

@@ -668,6 +668,29 @@
   color: var(--color-text-secondary);
 }
 
+.anl-log-viewer .anl-tree-group-count {
+  flex: none;
+  margin-right: 6px;
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--color-primary);
+}
+
+.anl-log-viewer .anl-tree-msg-list {
+  margin: 0;
+  padding: 4px 8px 4px 32px;
+  max-height: 320px;
+  overflow: auto;
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
+.anl-log-viewer .anl-tree-msg-list li {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 .anl-log-viewer .anl-tree-message {
   margin: 0;
   font-family: var(--font-family-mono);

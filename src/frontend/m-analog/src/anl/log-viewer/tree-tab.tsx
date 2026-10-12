@@ -20,6 +20,7 @@ import {
   formatRunTime,
   formatTimestamp,
   heatLevel,
+  MSG_GROUP,
   propsOf,
   toTreeRequests,
   type TreeNode,
@@ -59,7 +60,8 @@ interface TreeRowViewProps {
 
 const TreeRowView = memo(function TreeRowView({ row, selected, onToggle, onSelect }: TreeRowViewProps) {
   const { node, depth, open, hasKids, forced } = row;
-  const dim = node.kind === "MSG" || node.kind === "BND";
+  const isGroup = node.kind === MSG_GROUP;
+  const dim = isGroup || node.kind === "MSG" || node.kind === "BND";
   const cls = ["anl-tree-label", node.hasError && node.kind !== "REQ" ? "anl-tree-label-error" : "", dim ? "anl-tree-label-dim" : ""]
     .filter(Boolean)
     .join(" ");
@@ -84,7 +86,8 @@ const TreeRowView = memo(function TreeRowView({ row, selected, onToggle, onSelec
         ) : (
           <span className="anl-tree-toggle-gap" aria-hidden="true" />
         )}
-        <span className={badgeClass(node.kind)}>{node.kind}</span>
+        <span className={badgeClass(isGroup ? "MSG" : node.kind)}>{isGroup ? "MSG" : node.kind}</span>
+        {isGroup ? <span className="anl-tree-group-count">×{node.children.length}</span> : null}
         <button type="button" className={cls} title={node.label} onClick={() => onSelect(node.id)}>
           {node.label}
         </button>
@@ -194,6 +197,8 @@ function TreeTabComponent({ data, active, onSendToBinder }: TreeTabProps) {
       : (selected.sql ?? "")
     : "";
   const selectedText = selected?.text;
+  const isGroupSel = selected?.kind === MSG_GROUP;
+  const groupMsgs = isGroupSel ? (selected?.children ?? []) : [];
 
   if (!request || !root) {
     return <div className="anl-tree-empty">Tree 로 볼 데이터가 없습니다. 「JSON」 조회나 서비스 목록의 「트리」를 눌러 주세요.</div>;
@@ -285,7 +290,9 @@ function TreeTabComponent({ data, active, onSendToBinder }: TreeTabProps) {
         <section className="anl-tree-right" aria-label="속성">
           <div className="anl-tree-right-head">
             <span className="anl-tree-right-title">속성</span>
-            {selected ? <span className={badgeClass(selected.kind)}>{selected.kind}</span> : null}
+            {selected ? (
+              <span className={badgeClass(isGroupSel ? "MSG" : selected.kind)}>{isGroupSel ? "MSG" : selected.kind}</span>
+            ) : null}
           </div>
           <div className="anl-tree-prop anl-tree-prop-header">
             <span>속성</span>
@@ -302,6 +309,24 @@ function TreeTabComponent({ data, active, onSendToBinder }: TreeTabProps) {
                     <span className="anl-tree-prop-key">Message</span>
                     <pre className={`anl-tree-message ${selected.kind === "ERR" ? "anl-tree-error-text" : ""}`.trim()}>{selectedText}</pre>
                   </div>
+                ) : null}
+                {isGroupSel ? (
+                  <>
+                    <div className="anl-tree-prop">
+                      <span className="anl-tree-prop-key">첫 메시지</span>
+                      <pre className="anl-tree-message">{groupMsgs[0]?.text}</pre>
+                    </div>
+                    <div className="anl-tree-prop">
+                      <span className="anl-tree-prop-key">마지막 메시지</span>
+                      <pre className="anl-tree-message">{groupMsgs[groupMsgs.length - 1]?.text}</pre>
+                    </div>
+                    <div className="anl-tree-section">전체 메시지</div>
+                    <ol className="anl-tree-msg-list">
+                      {groupMsgs.map((m) => (
+                        <li key={m.id}>{m.text}</li>
+                      ))}
+                    </ol>
+                  </>
                 ) : null}
                 {isQuery ? (
                   <>

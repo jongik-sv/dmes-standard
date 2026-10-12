@@ -13,6 +13,9 @@
 /** 배지 코드. 모르는 objectType 은 원문이 들어가므로 string. */
 export type TreeKind = string;
 
+/** 연속 MSG 묶음 노드의 kind — 배지는 MSG 로 보이고 children 이 묶인 MSG 들이다. */
+export const MSG_GROUP = "MSGS";
+
 /** SQL 의 바인딩 값 하나. */
 export interface TreeParam {
   idx: number;
@@ -188,6 +191,36 @@ class Builder {
     };
   }
 
+  /** 같은 부모 아래 연달아 나온 MSG 2개 이상을 묶음 노드(MSGS) 하나로 줄인다. 1개짜리·다른 노드 사이는 그대로. */
+  private groupMessages(kids: TreeNode[]): TreeNode[] {
+    const out: TreeNode[] = [];
+    let run: TreeNode[] = [];
+    const flush = () => {
+      if (run.length >= 2) {
+        const first = run[0].text ?? "";
+        out.push({
+          id: this.nextId(),
+          kind: MSG_GROUP,
+          label: first.split("\n", 1)[0],
+          prop: {},
+          hasError: false,
+          searchText: "",
+          children: run,
+        });
+      } else out.push(...run);
+      run = [];
+    };
+    for (const k of kids) {
+      if (k.kind === "MSG") run.push(k);
+      else {
+        flush();
+        out.push(k);
+      }
+    }
+    flush();
+    return out;
+  }
+
   node(raw: unknown): TreeNode {
     if (typeof raw === "string") return this.leaf("MSG", raw);
     const rec = isRecord(raw) ? raw : {};
@@ -235,6 +268,7 @@ class Builder {
       else if (k.kind !== "MSG") lastSql = null;
       node.children.push(k);
     }
+    node.children = this.groupMessages(node.children);
     const exceptions = Array.isArray(prop.exception) ? prop.exception : prop.exception ? [prop.exception] : [];
     if (kind === "ERR") {
       // objectType 이 없고 exception 만 있는 노드 — 노드 자신이 오류이므로 같은 내용을 자식으로 또 만들지 않는다.
@@ -304,6 +338,12 @@ export interface TreeProp {
 
 export function propsOf(node: TreeNode): TreeProp[] {
   const out: TreeProp[] = [];
+  if (node.kind === MSG_GROUP) {
+    return [
+      { key: "ObjectType", value: "Message" },
+      { key: "Count", value: String(node.children.length) },
+    ];
+  }
   if (node.kind === "MSG" || node.kind === "BND" || node.kind === "ERR") {
     out.push({ key: "ObjectType", value: node.kind === "ERR" ? "Exception" : "Message" });
     return out;
