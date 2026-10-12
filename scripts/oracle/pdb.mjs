@@ -389,6 +389,27 @@ async function applyAllMigrations(pdb) {
   return found;
 }
 
+// 스키마마다 Flyway 이력(성공한 SQL 행)을 읽는다: Map<schema, [{rank, version, script, checksum}]>. 이력 표가 없으면 빠진다.
+async function readHistory(pdb) {
+  const schemas = [...new Set(findMigrations().found.map((m) => m.schema))];
+  const have = await sql(`select owner from dba_tables where table_name = 'flyway_schema_history' and owner in (${schemas.map((s) => `'${s}'`).join(',')});`, { service: pdb });
+  const out = new Map();
+  for (const owner of have.split('\n').map((l) => l.trim()).filter(Boolean)) {
+    const rows = await sql(`select "installed_rank" || '|' || "version" || '|' || "script" || '|' || "checksum" || '|' || "success" || '|' || "type" from ${owner}."flyway_schema_history" order by "installed_rank";`, { service: pdb });
+    out.set(owner, rows.split('\n').filter((l) => l.includes('|')).map((l) => {
+      const [rank, version, script, checksum, success, type] = l.trim().split('|');
+      return { rank: Number(rank), version, script, checksum: checksum === '' ? null : Number(checksum), success: success === '1', type };
+    }));
+  }
+  return out;
+}
+
+async function openPdbOrDie(n) {
+  const p = await find(n);
+  if (!p || !isOpen(p)) die(`${n} 이 열려 있지 않다. open 먼저.`);
+  if (p.mode !== 'READ WRITE') die(`${n} 이 ${p.mode} 다(봉인된 템플릿이면 template-unseal 먼저).`);
+}
+
 // ── 명령 ───────────────────────────────────────────────────────────
 const jdbcUrl = (pdb) => `jdbc:oracle:thin:@//${CFG.host}:${CFG.port}/${pdb}`;
 
@@ -589,6 +610,69 @@ const commands = {
     process.stdout.write(`${found.length}개\n`);
   },
 
+  // 바뀐 V 파일(예: 컬럼 순서를 다시 배열한 V1)의 체크섬만 Flyway 이력에 맞춘다(flyway repair 의 체크섬 부분과 같다).
+  // 버전·파일 이름이 같고 체크섬만 다른 성공 행만 고친다. 다른 행·실패 행·이력에 없는 V 파일은 건드리지 않는다.
+  //   repair <PDB> [--dry-run]
+  async repair(args) {
+    const dry = args.includes('--dry-run');
+    const n = checkName(args.find((a) => !a.startsWith('--')));
+    await withLock(async () => {
+      await openPdbOrDie(n);
+      const { found } = findMigrations();
+      const hist = await readHistory(n);
+      let fixed = 0;
+      for (const [schema, rows] of hist) {
+        const failed = rows.filter((r) => !r.success);
+        if (failed.length) log(`  ${schema}: 실패 행 ${failed.map((r) => `V${r.version}`).join(',')} — 손대지 않는다(flyway repair 로 따로 처리)`);
+        for (const mig of found.filter((m) => m.schema === schema)) {
+          const row = rows.find((r) => r.success && r.type === 'SQL' && r.version === mig.version);
+          if (!row) continue;
+          if (row.script !== mig.script) { log(`  ${schema} V${mig.version}: 이력 파일 이름 ${row.script} ≠ ${mig.script} — 건너뜀`); continue; }
+          const sum = flywayChecksum(readFileSync(mig.path, 'utf8'));
+          if (row.checksum === sum) continue;
+          log(`  ${schema} V${mig.version} ${mig.script}: 체크섬 ${row.checksum} → ${sum}${dry ? ' (dry-run)' : ''}`);
+          if (!dry) await sql(`update ${schema}."flyway_schema_history" set "checksum" = ${sum} where "installed_rank" = ${row.rank} and "checksum" ${row.checksum === null ? 'is null' : `= ${row.checksum}`};\ncommit;`, { service: n });
+          fixed++;
+        }
+      }
+      log(`${n}: 체크섬 ${dry ? '고칠' : '고친'} 행 ${fixed}개(이력 있는 스키마 ${hist.size}개).`);
+    });
+  },
+
+  // 이력에 없는(아직 적용하지 않은) V 파일을 스키마마다 버전 순으로 적용한다. 앱 Flyway 대신 쓸 수 있다(기동 없이 반영).
+  // 이력보다 낮은 버전이 새로 생긴 경우(out-of-order)는 적용하지 않고 멈춘다.
+  // --exclude <글자>: 파일 이름에 그 글자가 든 V 파일을 이번에는 건너뛴다(예: 재배치 V 직전 상태 확인용 --exclude column_order).
+  //   migrate <PDB> [--dry-run] [--exclude <글자>]
+  async migrate(args) {
+    const dry = args.includes('--dry-run');
+    const xi = args.indexOf('--exclude');
+    const exclude = xi >= 0 ? args[xi + 1] : null;
+    if (xi >= 0 && !exclude) die('--exclude 뒤에 글자가 필요하다.');
+    const skip = xi >= 0 ? xi + 1 : -1;
+    const n = checkName(args.find((a, i) => !a.startsWith('--') && i !== skip));
+    await withLock(async () => {
+      await openPdbOrDie(n);
+      const found = findMigrations().found.filter((m) => !exclude || !m.script.includes(exclude));
+      const hist = await readHistory(n);
+      const vkey = (v) => v.split('.').map((x) => x.padStart(8, '0')).join('.');
+      let applied = 0;
+      for (const schema of [...new Set(found.map((m) => m.schema))]) {
+        const rows = hist.get(schema) ?? [];
+        const done = new Set(rows.filter((r) => r.success).map((r) => r.version));
+        const top = rows.filter((r) => r.version).map((r) => r.version).sort((a, b) => vkey(a).localeCompare(vkey(b))).at(-1);
+        let rank = rows.reduce((m, r) => Math.max(m, r.rank), 0);
+        for (const mig of found.filter((m) => m.schema === schema && !done.has(m.version))) {
+          if (top && vkey(mig.version) < vkey(top)) die(`${schema} V${mig.version} 가 이력 최고 V${top} 보다 낮다(out-of-order) — 멈춤`);
+          if (dry) { log(`  ${schema} V${mig.version} ${mig.description} (dry-run)`); applied++; continue; }
+          const ms = await applyMigration(n, mig, ++rank);
+          log(`  ${schema.padEnd(11)} V${mig.version} ${mig.description} (${Math.round(ms / 100) / 10}초)`);
+          applied++;
+        }
+      }
+      log(`${n}: ${dry ? '적용할' : '적용한'} V 파일 ${applied}개.`);
+    });
+  },
+
   async 'schema-users'() {
     process.stdout.write(`${SCHEMA_USERS.join('\n')}\n`);
   },
@@ -608,6 +692,8 @@ const commands = {
   drop <PDB>                    닫고 데이터 파일까지 삭제
   users <PDB>                   운영 이름 사용자 (재)생성
   migrations                    적용 없이 V 파일 탐색 결과(스키마·경로)만 출력
+  repair <PDB> [--dry-run]      바뀐 V 파일의 체크섬만 Flyway 이력에 맞춤(다른 행 무변경. 예: 컬럼 순서 다시 배열한 V1)
+  migrate <PDB> [--dry-run] [--exclude <글자>]   이력에 없는 V 파일을 스키마마다 버전 순으로 적용(앱 기동 없이 반영)
   schema-users                  만드는 사용자 목록
   quiet <PDB>                   열린 PDB 의 autotask·AWR 자동 스냅숏을 끄고 확인(create·clone 은 자동으로 거친다)
   sessions <PDB>                열린 PDB 의 세션 수(max·limit·cur) 한 줄

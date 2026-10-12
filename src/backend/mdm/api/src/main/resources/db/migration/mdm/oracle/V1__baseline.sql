@@ -1,6 +1,8 @@
--- mdm Oracle 기준선 V1 — 자동 생성 파일. 직접 고치지 말고 생성기·보정 패치를 고친 뒤 다시 만든다.
---   생성기: src/backend/mdm/tools/oracle-baseline/gen_oracle_baseline.py
---   보정 패치: src/backend/mdm/tools/oracle-baseline/overrides.json · 결정표: DECISIONS.md
+-- mdm Oracle 기준선 V1 — 생성 파일. 직접 고치지 않는다.
+--   컬럼 줄 순서: scripts/db-order/gen.mjs v1 이 규칙 순서(PK → 엔티티 필드 → 버전 → 감사)로 다시 배열한다
+--     (2026-10-12, 규칙 = scripts/db-order/lib/rule.mjs). 컬럼 줄 내용·다른 문장은 아래 최초 생성 그대로다.
+--   최초 생성(보관, 다시 돌리지 않는다): src/backend/mdm/archive/oracle-baseline/gen_oracle_baseline.py
+--     · 보정 패치 같은 폴더 overrides.json · 결정표 src/backend/mdm/tools/oracle-baseline/DECISIONS.md
 --   원천: SQLite 마이그레이션 V1__baseline.sql ~ V23__rule_set_ver_call_set_ids.sql (19개)
 --   원천 SHA-256: 0804799aa3d456364a6a123c2846a7b8c060d7d0949d1da5d0745c8b524c0029
 -- 접속 사용자 = 스키마 주인(MDMAPUSER). SQL 에 스키마 접두를 두지 않는다.
@@ -25,6 +27,7 @@ CREATE TABLE TB_MDM_CODE (
     ATTR10_NAME            VARCHAR2(4000 BYTE),
     LVL_CNT                NUMBER(10) DEFAULT 0 NOT NULL,
     LAST_CHG_SEQ           NUMBER(19) DEFAULT 0 NOT NULL,
+    VER                    NUMBER(19),
     C_USR_ID               VARCHAR2(100 CHAR),
     C_AT                   TIMESTAMP(6),
     C_SVC_ID               VARCHAR2(100 CHAR),
@@ -33,7 +36,6 @@ CREATE TABLE TB_MDM_CODE (
     U_AT                   TIMESTAMP(6),
     U_SVC_ID               VARCHAR2(100 CHAR),
     U_PGM_ID               VARCHAR2(100 CHAR),
-    VER                    NUMBER(19),
     CONSTRAINT PK_TB_MDM_CODE PRIMARY KEY (MARU_CODE_ID),
     CONSTRAINT CK_TB_MDM_CODE_STATUS CHECK (STATUS IN ('CREATED','INUSE','DEPRECATED')),
     CONSTRAINT CK_TB_MDM_CODE_SRC_KIND CHECK (SOURCE_KIND IN ('MDM','EXTERNAL')),
@@ -51,6 +53,7 @@ CREATE TABLE TB_MDM_CODE_CATE (
     DEF_EXPR               VARCHAR2(4000 BYTE),
     DEF_TARGET             VARCHAR2(20 CHAR),
     DESCRIPTION            VARCHAR2(4000 BYTE),
+    VER                    NUMBER(19),
     C_USR_ID               VARCHAR2(100 CHAR),
     C_AT                   TIMESTAMP(6),
     C_SVC_ID               VARCHAR2(100 CHAR),
@@ -59,7 +62,6 @@ CREATE TABLE TB_MDM_CODE_CATE (
     U_AT                   TIMESTAMP(6),
     U_SVC_ID               VARCHAR2(100 CHAR),
     U_PGM_ID               VARCHAR2(100 CHAR),
-    VER                    NUMBER(19),
     CONSTRAINT PK_TB_MDM_CODE_CATE PRIMARY KEY (MARU_CODE_ID, CATE_ID, FROM_VER),
     CONSTRAINT CK_TB_MDM_CODE_CATE_KIND CHECK (DEF_KIND IN ('REGEX','TABLE')),
     CONSTRAINT CK_TB_MDM_CODE_CATE_DEF CHECK ((DEF_KIND = 'REGEX' AND DEF_EXPR IS NOT NULL AND DEF_TARGET IS NOT NULL) OR (DEF_KIND = 'TABLE' AND DEF_EXPR IS NULL AND DEF_TARGET IS NULL))
@@ -71,6 +73,7 @@ CREATE TABLE TB_MDM_CODE_CATE_ITEM (
     CODE                   VARCHAR2(50 CHAR) NOT NULL,
     FROM_VER               NUMBER(7,3) NOT NULL,
     TO_VER                 NUMBER(7,3) DEFAULT 9999 NOT NULL,
+    VER                    NUMBER(19),
     C_USR_ID               VARCHAR2(100 CHAR),
     C_AT                   TIMESTAMP(6),
     C_SVC_ID               VARCHAR2(100 CHAR),
@@ -79,7 +82,6 @@ CREATE TABLE TB_MDM_CODE_CATE_ITEM (
     U_AT                   TIMESTAMP(6),
     U_SVC_ID               VARCHAR2(100 CHAR),
     U_PGM_ID               VARCHAR2(100 CHAR),
-    VER                    NUMBER(19),
     CONSTRAINT PK_TB_MDM_CODE_CATE_ITEM PRIMARY KEY (MARU_CODE_ID, CATE_ID, CODE, FROM_VER)
 );
 
@@ -107,6 +109,7 @@ CREATE TABLE TB_MDM_CODE_ITEM (
     ATTR08                 VARCHAR2(4000 BYTE),
     ATTR09                 VARCHAR2(4000 BYTE),
     ATTR10                 VARCHAR2(4000 BYTE),
+    VER                    NUMBER(19),
     C_USR_ID               VARCHAR2(100 CHAR),
     C_AT                   TIMESTAMP(6),
     C_SVC_ID               VARCHAR2(100 CHAR),
@@ -115,7 +118,6 @@ CREATE TABLE TB_MDM_CODE_ITEM (
     U_AT                   TIMESTAMP(6),
     U_SVC_ID               VARCHAR2(100 CHAR),
     U_PGM_ID               VARCHAR2(100 CHAR),
-    VER                    NUMBER(19),
     CONSTRAINT PK_TB_MDM_CODE_ITEM PRIMARY KEY (MARU_CODE_ID, CODE, FROM_VER),
     CONSTRAINT CK_TB_MDM_CODE_ITEM_CODE CHECK (CODE NOT LIKE '% %' AND CODE NOT LIKE '%,%')
 );
@@ -130,9 +132,10 @@ CREATE TABLE TB_MDM_CODE_RECV (
     BODY                   CLOB NOT NULL,
     "RESULT"               VARCHAR2(20 CHAR),
     RESULT_DETAIL          VARCHAR2(4000 BYTE),
-    VER                    NUMBER(7,3),
     CHG_SEQ                NUMBER(19),
     PROCESSED_AT           TIMESTAMP(6),
+    VER                    NUMBER(7,3),
+    AUD_VER                NUMBER(19),
     C_USR_ID               VARCHAR2(100 CHAR),
     C_AT                   TIMESTAMP(6),
     C_SVC_ID               VARCHAR2(100 CHAR),
@@ -141,7 +144,6 @@ CREATE TABLE TB_MDM_CODE_RECV (
     U_AT                   TIMESTAMP(6),
     U_SVC_ID               VARCHAR2(100 CHAR),
     U_PGM_ID               VARCHAR2(100 CHAR),
-    AUD_VER                NUMBER(19),
     CONSTRAINT PK_TB_MDM_CODE_RECV PRIMARY KEY (RECV_ID),
     CONSTRAINT CK_TB_MDM_CODE_RECV_REQ CHECK (REQ_KIND IN ('VERSION','CANCEL','DEPRECATE')),
     CONSTRAINT CK_TB_MDM_CODE_RECV_RESULT CHECK ("RESULT" IS NULL OR "RESULT" IN ('OK','REJECTED','FAILED'))
@@ -151,6 +153,7 @@ CREATE TABLE TB_MDM_CODE_SYSTEM (
     MARU_CODE_ID           VARCHAR2(50 CHAR) NOT NULL,
     SYSTEM_CODE            VARCHAR2(20 CHAR) NOT NULL,
     DESCRIPTION            VARCHAR2(4000 BYTE),
+    VER                    NUMBER(19),
     C_USR_ID               VARCHAR2(100 CHAR),
     C_AT                   TIMESTAMP(6),
     C_SVC_ID               VARCHAR2(100 CHAR),
@@ -159,7 +162,6 @@ CREATE TABLE TB_MDM_CODE_SYSTEM (
     U_AT                   TIMESTAMP(6),
     U_SVC_ID               VARCHAR2(100 CHAR),
     U_PGM_ID               VARCHAR2(100 CHAR),
-    VER                    NUMBER(19),
     CONSTRAINT PK_TB_MDM_CODE_SYSTEM PRIMARY KEY (MARU_CODE_ID, SYSTEM_CODE)
 );
 
@@ -183,6 +185,7 @@ CREATE TABLE TB_MDM_CODE_VER (
     RELEASED_AT            TIMESTAMP(6),
     CANCELLED_AT           TIMESTAMP(6),
     CANCEL_REASON          VARCHAR2(4000 BYTE),
+    AUD_VER                NUMBER(19),
     ROW_VERSION            NUMBER(19) DEFAULT 0 NOT NULL,
     C_USR_ID               VARCHAR2(100 CHAR),
     C_AT                   TIMESTAMP(6),
@@ -192,7 +195,6 @@ CREATE TABLE TB_MDM_CODE_VER (
     U_AT                   TIMESTAMP(6),
     U_SVC_ID               VARCHAR2(100 CHAR),
     U_PGM_ID               VARCHAR2(100 CHAR),
-    AUD_VER                NUMBER(19),
     CONSTRAINT PK_TB_MDM_CODE_VER PRIMARY KEY (MARU_CODE_ID, VER),
     CONSTRAINT CK_TB_MDM_CODE_VER_KIND CHECK (VER_KIND IN ('MAJOR','MINOR')),
     CONSTRAINT CK_TB_MDM_CODE_VER_STATUS CHECK (STATUS IN ('DRAFT','REQUESTED','APPROVED','RELEASED','CANCELLED')),
@@ -217,6 +219,7 @@ CREATE TABLE TB_MDM_COLUMN (
     TERM_IDS               VARCHAR2(4000 BYTE),
     USAGE_NOTE             CLOB,
     CHG_SEQ                NUMBER(19) DEFAULT 0 NOT NULL,
+    VER                    NUMBER(19),
     C_USR_ID               VARCHAR2(100 CHAR),
     C_AT                   TIMESTAMP(6),
     C_SVC_ID               VARCHAR2(100 CHAR),
@@ -225,7 +228,6 @@ CREATE TABLE TB_MDM_COLUMN (
     U_AT                   TIMESTAMP(6),
     U_SVC_ID               VARCHAR2(100 CHAR),
     U_PGM_ID               VARCHAR2(100 CHAR),
-    VER                    NUMBER(19),
     CONSTRAINT PK_TB_MDM_COLUMN PRIMARY KEY (COLUMN_ID),
     CONSTRAINT UX_TB_MDM_COLUMN_PHYS_NAME UNIQUE (PHYS_NAME),
     CONSTRAINT CK_TB_MDM_COLUMN_TERM_IDS_JSON CHECK (TERM_IDS IS NULL OR TERM_IDS IS JSON STRICT),
@@ -238,6 +240,7 @@ CREATE TABLE TB_MDM_COLUMN_SYSTEM (
     PHYS_NAME              VARCHAR2(50 CHAR) NOT NULL,
     TRANSFORM              VARCHAR2(50 CHAR),
     NOTE                   VARCHAR2(4000 BYTE),
+    VER                    NUMBER(19),
     C_USR_ID               VARCHAR2(100 CHAR),
     C_AT                   TIMESTAMP(6),
     C_SVC_ID               VARCHAR2(100 CHAR),
@@ -246,7 +249,6 @@ CREATE TABLE TB_MDM_COLUMN_SYSTEM (
     U_AT                   TIMESTAMP(6),
     U_SVC_ID               VARCHAR2(100 CHAR),
     U_PGM_ID               VARCHAR2(100 CHAR),
-    VER                    NUMBER(19),
     CONSTRAINT PK_TB_MDM_COLUMN_SYSTEM PRIMARY KEY (COLUMN_ID, SYSTEM_CODE, PHYS_NAME)
 );
 
@@ -272,6 +274,7 @@ CREATE TABLE TB_MDM_DATA (
     CLOSED_AT              TIMESTAMP(6),
     LAST_CHG_SEQ           NUMBER(19) DEFAULT 0 NOT NULL,
     CHG_SEQ                NUMBER(19) DEFAULT 0 NOT NULL,
+    VER                    NUMBER(19),
     C_USR_ID               VARCHAR2(100 CHAR),
     C_AT                   TIMESTAMP(6),
     C_SVC_ID               VARCHAR2(100 CHAR),
@@ -280,7 +283,6 @@ CREATE TABLE TB_MDM_DATA (
     U_AT                   TIMESTAMP(6),
     U_SVC_ID               VARCHAR2(100 CHAR),
     U_PGM_ID               VARCHAR2(100 CHAR),
-    VER                    NUMBER(19),
     CONSTRAINT PK_TB_MDM_DATA PRIMARY KEY (MARU_DATA_ID),
     CONSTRAINT CK_TB_MDM_DATA_STATUS CHECK (STATUS IN ('INUSE','DEPRECATED')),
     CONSTRAINT CK_TB_MDM_DATA_SRC_KIND CHECK (SOURCE_KIND IN ('MDM','EXTERNAL')),
@@ -299,6 +301,7 @@ CREATE TABLE TB_MDM_DATA_CATE (
     DESCRIPTION            VARCHAR2(4000 BYTE),
     VALID_TO               TIMESTAMP(6) DEFAULT TIMESTAMP '9999-12-31 00:00:00' NOT NULL,
     CHG_SEQ                NUMBER(19) DEFAULT 0 NOT NULL,
+    VER                    NUMBER(19),
     C_USR_ID               VARCHAR2(100 CHAR),
     C_AT                   TIMESTAMP(6),
     C_SVC_ID               VARCHAR2(100 CHAR),
@@ -307,7 +310,6 @@ CREATE TABLE TB_MDM_DATA_CATE (
     U_AT                   TIMESTAMP(6),
     U_SVC_ID               VARCHAR2(100 CHAR),
     U_PGM_ID               VARCHAR2(100 CHAR),
-    VER                    NUMBER(19),
     CONSTRAINT PK_TB_MDM_DATA_CATE PRIMARY KEY (MARU_DATA_ID, CATE_ID, VALID_FROM),
     CONSTRAINT CK_TB_MDM_DATA_CATE_KIND CHECK (DEF_KIND IN ('REGEX','TABLE')),
     CONSTRAINT CK_TB_MDM_DATA_CATE_DEF CHECK ((DEF_KIND = 'REGEX' AND DEF_EXPR IS NOT NULL AND DEF_TARGET IS NOT NULL) OR (DEF_KIND = 'TABLE' AND DEF_EXPR IS NULL AND DEF_TARGET IS NULL)),
@@ -321,6 +323,7 @@ CREATE TABLE TB_MDM_DATA_CATE_ITEM (
     VALID_FROM             TIMESTAMP(6) NOT NULL,
     VALID_TO               TIMESTAMP(6) DEFAULT TIMESTAMP '9999-12-31 00:00:00' NOT NULL,
     CHG_SEQ                NUMBER(19) DEFAULT 0 NOT NULL,
+    VER                    NUMBER(19),
     C_USR_ID               VARCHAR2(100 CHAR),
     C_AT                   TIMESTAMP(6),
     C_SVC_ID               VARCHAR2(100 CHAR),
@@ -329,7 +332,6 @@ CREATE TABLE TB_MDM_DATA_CATE_ITEM (
     U_AT                   TIMESTAMP(6),
     U_SVC_ID               VARCHAR2(100 CHAR),
     U_PGM_ID               VARCHAR2(100 CHAR),
-    VER                    NUMBER(19),
     CONSTRAINT PK_TB_MDM_DATA_CATE_ITEM PRIMARY KEY (MARU_DATA_ID, CATE_ID, CODE, VALID_FROM)
 );
 
@@ -342,7 +344,6 @@ CREATE TABLE TB_MDM_DATA_ITEM (
     SEQ                    NUMBER(10),
     DESCRIPTION            VARCHAR2(4000 BYTE),
     VALID_TO               TIMESTAMP(6) DEFAULT TIMESTAMP '9999-12-31 00:00:00' NOT NULL,
-    ROW_VERSION            NUMBER(10) DEFAULT 0 NOT NULL,
     CHG_SEQ                NUMBER(19) DEFAULT 0 NOT NULL,
     LVL1                   VARCHAR2(50 CHAR),
     LVL2                   VARCHAR2(50 CHAR),
@@ -359,6 +360,8 @@ CREATE TABLE TB_MDM_DATA_ITEM (
     ATTR08                 VARCHAR2(4000 BYTE),
     ATTR09                 VARCHAR2(4000 BYTE),
     ATTR10                 VARCHAR2(4000 BYTE),
+    VER                    NUMBER(19),
+    ROW_VERSION            NUMBER(10) DEFAULT 0 NOT NULL,
     C_USR_ID               VARCHAR2(100 CHAR),
     C_AT                   TIMESTAMP(6),
     C_SVC_ID               VARCHAR2(100 CHAR),
@@ -367,7 +370,6 @@ CREATE TABLE TB_MDM_DATA_ITEM (
     U_AT                   TIMESTAMP(6),
     U_SVC_ID               VARCHAR2(100 CHAR),
     U_PGM_ID               VARCHAR2(100 CHAR),
-    VER                    NUMBER(19),
     CONSTRAINT PK_TB_MDM_DATA_ITEM PRIMARY KEY (MARU_DATA_ID, CODE, VALID_FROM)
 );
 
@@ -383,6 +385,7 @@ CREATE TABLE TB_MDM_DATA_RECV (
     RESULT_DETAIL          VARCHAR2(4000 BYTE),
     CHG_SEQ                NUMBER(19),
     PROCESSED_AT           TIMESTAMP(6),
+    VER                    NUMBER(19),
     C_USR_ID               VARCHAR2(100 CHAR),
     C_AT                   TIMESTAMP(6),
     C_SVC_ID               VARCHAR2(100 CHAR),
@@ -391,7 +394,6 @@ CREATE TABLE TB_MDM_DATA_RECV (
     U_AT                   TIMESTAMP(6),
     U_SVC_ID               VARCHAR2(100 CHAR),
     U_PGM_ID               VARCHAR2(100 CHAR),
-    VER                    NUMBER(19),
     CONSTRAINT PK_TB_MDM_DATA_RECV PRIMARY KEY (RECV_ID),
     CONSTRAINT CK_TB_MDM_DATA_RECV_RESULT CHECK ("RESULT" IS NULL OR "RESULT" IN ('OK','REJECTED','FAILED'))
 );
@@ -401,6 +403,7 @@ CREATE TABLE TB_MDM_DATA_RECV_ITEM (
     SEQ                    NUMBER(10) NOT NULL,
     CODE                   VARCHAR2(50 CHAR),
     "ACTION"               VARCHAR2(20 CHAR),
+    VER                    NUMBER(19),
     C_USR_ID               VARCHAR2(100 CHAR),
     C_AT                   TIMESTAMP(6),
     C_SVC_ID               VARCHAR2(100 CHAR),
@@ -409,7 +412,6 @@ CREATE TABLE TB_MDM_DATA_RECV_ITEM (
     U_AT                   TIMESTAMP(6),
     U_SVC_ID               VARCHAR2(100 CHAR),
     U_PGM_ID               VARCHAR2(100 CHAR),
-    VER                    NUMBER(19),
     CONSTRAINT PK_TB_MDM_DATA_RECV_ITEM PRIMARY KEY (RECV_ID, SEQ),
     CONSTRAINT CK_TB_MDM_DATA_RECV_ITEM_ACTION CHECK ("ACTION" IS NULL OR "ACTION" IN ('INSERT','UPDATE','CLOSE','REOPEN','NONE'))
 );
@@ -418,6 +420,7 @@ CREATE TABLE TB_MDM_DATA_SYSTEM (
     MARU_DATA_ID           VARCHAR2(50 CHAR) NOT NULL,
     SYSTEM_CODE            VARCHAR2(20 CHAR) NOT NULL,
     DESCRIPTION            VARCHAR2(4000 BYTE),
+    VER                    NUMBER(19),
     C_USR_ID               VARCHAR2(100 CHAR),
     C_AT                   TIMESTAMP(6),
     C_SVC_ID               VARCHAR2(100 CHAR),
@@ -426,7 +429,6 @@ CREATE TABLE TB_MDM_DATA_SYSTEM (
     U_AT                   TIMESTAMP(6),
     U_SVC_ID               VARCHAR2(100 CHAR),
     U_PGM_ID               VARCHAR2(100 CHAR),
-    VER                    NUMBER(19),
     CONSTRAINT PK_TB_MDM_DATA_SYSTEM PRIMARY KEY (MARU_DATA_ID, SYSTEM_CODE)
 );
 
@@ -441,6 +443,7 @@ CREATE TABLE TB_MDM_DICT_SYSTEM (
     DICT_CODE              VARCHAR2(20 CHAR) NOT NULL,
     SYSTEM_CODE            VARCHAR2(20 CHAR) NOT NULL,
     NOTE                   VARCHAR2(4000 BYTE),
+    VER                    NUMBER(19),
     C_USR_ID               VARCHAR2(100 CHAR),
     C_AT                   TIMESTAMP(6),
     C_SVC_ID               VARCHAR2(100 CHAR),
@@ -449,7 +452,6 @@ CREATE TABLE TB_MDM_DICT_SYSTEM (
     U_AT                   TIMESTAMP(6),
     U_SVC_ID               VARCHAR2(100 CHAR),
     U_PGM_ID               VARCHAR2(100 CHAR),
-    VER                    NUMBER(19),
     CONSTRAINT PK_TB_MDM_DICT_SYSTEM PRIMARY KEY (DICT_CODE, SYSTEM_CODE),
     CONSTRAINT CK_TB_MDM_DICT_SYSTEM_CODE CHECK (DICT_CODE = 'DOMAIN')
 );
@@ -474,6 +476,7 @@ CREATE TABLE TB_MDM_DOMAIN (
     EXAMPLES               VARCHAR2(4000 BYTE),
     TEST_CASES             CLOB,
     CHG_SEQ                NUMBER(19) DEFAULT 0 NOT NULL,
+    VER                    NUMBER(19),
     C_USR_ID               VARCHAR2(100 CHAR),
     C_AT                   TIMESTAMP(6),
     C_SVC_ID               VARCHAR2(100 CHAR),
@@ -482,7 +485,6 @@ CREATE TABLE TB_MDM_DOMAIN (
     U_AT                   TIMESTAMP(6),
     U_SVC_ID               VARCHAR2(100 CHAR),
     U_PGM_ID               VARCHAR2(100 CHAR),
-    VER                    NUMBER(19),
     CONSTRAINT PK_TB_MDM_DOMAIN PRIMARY KEY (DOMAIN_ID),
     CONSTRAINT CK_TB_MDM_DOMAIN_STD_AST_JSON CHECK (STD_AST IS NULL OR STD_AST IS JSON STRICT),
     CONSTRAINT CK_TB_MDM_DOMAIN_BIZ_AST_JSON CHECK (BIZ_AST IS NULL OR BIZ_AST IS JSON STRICT),
@@ -498,6 +500,7 @@ CREATE TABLE TB_MDM_EAI (
     ENCODING               VARCHAR2(20 CHAR) NOT NULL,
     PAD_RULE               VARCHAR2(4000 BYTE),
     HEADER_LAYOUT_ID       NUMBER(19),
+    VER                    NUMBER(19),
     C_USR_ID               VARCHAR2(100 CHAR),
     C_AT                   TIMESTAMP(6),
     C_SVC_ID               VARCHAR2(100 CHAR),
@@ -506,7 +509,6 @@ CREATE TABLE TB_MDM_EAI (
     U_AT                   TIMESTAMP(6),
     U_SVC_ID               VARCHAR2(100 CHAR),
     U_PGM_ID               VARCHAR2(100 CHAR),
-    VER                    NUMBER(19),
     CONSTRAINT PK_TB_MDM_EAI PRIMARY KEY (EAI_CODE)
 );
 
@@ -517,6 +519,7 @@ CREATE TABLE TB_MDM_LAYOUT (
     SND_SYSTEM             VARCHAR2(20 CHAR),
     RCV_SYSTEM             VARCHAR2(20 CHAR),
     STATUS                 VARCHAR2(20 CHAR) DEFAULT 'CREATED' NOT NULL,
+    VER                    NUMBER(19),
     C_USR_ID               VARCHAR2(100 CHAR),
     C_AT                   TIMESTAMP(6),
     C_SVC_ID               VARCHAR2(100 CHAR),
@@ -525,7 +528,6 @@ CREATE TABLE TB_MDM_LAYOUT (
     U_AT                   TIMESTAMP(6),
     U_SVC_ID               VARCHAR2(100 CHAR),
     U_PGM_ID               VARCHAR2(100 CHAR),
-    VER                    NUMBER(19),
     CONSTRAINT PK_TB_MDM_LAYOUT PRIMARY KEY (LAYOUT_ID),
     CONSTRAINT CK_TB_MDM_LAYOUT_KIND CHECK (LAYOUT_KIND IN ('HEADER','MESSAGE')),
     CONSTRAINT CK_TB_MDM_LAYOUT_STATUS CHECK (STATUS IN ('CREATED','INUSE','DEPRECATED'))
@@ -537,6 +539,7 @@ CREATE TABLE TB_MDM_LAYOUT_CONST (
     HEADER_LAYOUT_ID       NUMBER(19) NOT NULL,
     HEADER_COLUMN_PHYS     VARCHAR2(50 CHAR) NOT NULL,
     CONST_VALUE            VARCHAR2(50 CHAR) NOT NULL,
+    AUD_VER                NUMBER(19),
     C_USR_ID               VARCHAR2(100 CHAR),
     C_AT                   TIMESTAMP(6),
     C_SVC_ID               VARCHAR2(100 CHAR),
@@ -545,7 +548,6 @@ CREATE TABLE TB_MDM_LAYOUT_CONST (
     U_AT                   TIMESTAMP(6),
     U_SVC_ID               VARCHAR2(100 CHAR),
     U_PGM_ID               VARCHAR2(100 CHAR),
-    AUD_VER                NUMBER(19),
     CONSTRAINT PK_TB_MDM_LAYOUT_CONST PRIMARY KEY (LAYOUT_ID, VER, HEADER_LAYOUT_ID, HEADER_COLUMN_PHYS)
 );
 
@@ -554,6 +556,7 @@ CREATE TABLE TB_MDM_LAYOUT_HEADER (
     VER                    NUMBER(7,3) NOT NULL,
     SEQ                    NUMBER(10) NOT NULL,
     HEADER_LAYOUT_ID       NUMBER(19) NOT NULL,
+    AUD_VER                NUMBER(19),
     C_USR_ID               VARCHAR2(100 CHAR),
     C_AT                   TIMESTAMP(6),
     C_SVC_ID               VARCHAR2(100 CHAR),
@@ -562,7 +565,6 @@ CREATE TABLE TB_MDM_LAYOUT_HEADER (
     U_AT                   TIMESTAMP(6),
     U_SVC_ID               VARCHAR2(100 CHAR),
     U_PGM_ID               VARCHAR2(100 CHAR),
-    AUD_VER                NUMBER(19),
     CONSTRAINT PK_TB_MDM_LAYOUT_HEADER PRIMARY KEY (LAYOUT_ID, VER, SEQ),
     CONSTRAINT UX_TB_MDM_LAYOUT_HEADER_HDR UNIQUE (LAYOUT_ID, VER, HEADER_LAYOUT_ID)
 );
@@ -584,6 +586,7 @@ CREATE TABLE TB_MDM_LAYOUT_ITEM (
     UNIT_CODE              VARCHAR2(20 CHAR),
     SCALE                  NUMBER(10),
     PINNED_YN              VARCHAR2(1 CHAR) DEFAULT 'N' NOT NULL,
+    AUD_VER                NUMBER(19),
     C_USR_ID               VARCHAR2(100 CHAR),
     C_AT                   TIMESTAMP(6),
     C_SVC_ID               VARCHAR2(100 CHAR),
@@ -592,7 +595,6 @@ CREATE TABLE TB_MDM_LAYOUT_ITEM (
     U_AT                   TIMESTAMP(6),
     U_SVC_ID               VARCHAR2(100 CHAR),
     U_PGM_ID               VARCHAR2(100 CHAR),
-    AUD_VER                NUMBER(19),
     CONSTRAINT PK_TB_MDM_LAYOUT_ITEM PRIMARY KEY (LAYOUT_ID, VER, SEQ),
     CONSTRAINT CK_TB_MDM_LAYOUT_ITEM_FILL_KIND CHECK (FILL_KIND IN ('DATA','CONST','AUTO','FILLER')),
     CONSTRAINT CK_TB_MDM_LAYOUT_ITEM_UNIT CHECK (TRANS_UNIT IS NULL OR UNIT_ITEM IS NULL),
@@ -611,7 +613,6 @@ CREATE TABLE TB_MDM_LAYOUT_VER (
     REQUESTED_BY           VARCHAR2(50 CHAR),
     REQUESTED_AT           TIMESTAMP(6),
     RELEASED_AT            TIMESTAMP(6),
-    ROW_VERSION            NUMBER(19) DEFAULT 0 NOT NULL,
     EAI_CODE               VARCHAR2(20 CHAR),
     OWN_LENGTH             NUMBER(10) DEFAULT 0 NOT NULL,
     SWITCH_MODE            VARCHAR2(20 CHAR),
@@ -619,6 +620,8 @@ CREATE TABLE TB_MDM_LAYOUT_VER (
     CHANGE_SUMMARY         VARCHAR2(4000 BYTE),
     SNAPSHOT_JSON          CLOB,
     LEGACY_SNAPSHOT_YN     VARCHAR2(1 CHAR) DEFAULT 'N' NOT NULL,
+    AUD_VER                NUMBER(19),
+    ROW_VERSION            NUMBER(19) DEFAULT 0 NOT NULL,
     C_USR_ID               VARCHAR2(100 CHAR),
     C_AT                   TIMESTAMP(6),
     C_SVC_ID               VARCHAR2(100 CHAR),
@@ -627,7 +630,6 @@ CREATE TABLE TB_MDM_LAYOUT_VER (
     U_AT                   TIMESTAMP(6),
     U_SVC_ID               VARCHAR2(100 CHAR),
     U_PGM_ID               VARCHAR2(100 CHAR),
-    AUD_VER                NUMBER(19),
     CONSTRAINT PK_TB_MDM_LAYOUT_VER PRIMARY KEY (LAYOUT_ID, VER),
     CONSTRAINT CK_TB_MDM_LAYOUT_VER_SNAPSHOT_JSON CHECK (SNAPSHOT_JSON IS NULL OR SNAPSHOT_JSON IS JSON STRICT),
     CONSTRAINT CK_TB_MDM_LAYOUT_VER_STATUS CHECK (STATUS IN ('DRAFT','REQUESTED','APPROVED','RELEASED','CANCELLED')),
@@ -642,6 +644,7 @@ CREATE TABLE TB_MDM_META_REV (
     TARGET_TYPE            VARCHAR2(20 CHAR) NOT NULL,
     TARGET_KEY             VARCHAR2(100 CHAR) NOT NULL,
     CHANGE_KIND            VARCHAR2(10 CHAR) NOT NULL,
+    VER                    NUMBER(19),
     C_USR_ID               VARCHAR2(100 CHAR),
     C_AT                   TIMESTAMP(6),
     C_SVC_ID               VARCHAR2(100 CHAR),
@@ -650,7 +653,6 @@ CREATE TABLE TB_MDM_META_REV (
     U_AT                   TIMESTAMP(6),
     U_SVC_ID               VARCHAR2(100 CHAR),
     U_PGM_ID               VARCHAR2(100 CHAR),
-    VER                    NUMBER(19),
     CONSTRAINT PK_TB_MDM_META_REV PRIMARY KEY (REV_SEQ),
     CONSTRAINT CK_TB_MDM_META_REV_TYPE CHECK (TARGET_TYPE IN ('COLUMN','DOMAIN','RULE','RULE_SET','CODE','LAYOUT')),
     CONSTRAINT CK_TB_MDM_META_REV_KIND CHECK (CHANGE_KIND IN ('SAVE','EVICT','RELOAD'))
@@ -668,6 +670,7 @@ CREATE TABLE TB_MDM_RULE (
     LAST_VAR_ID            NUMBER(10) DEFAULT 0 NOT NULL,
     LAST_ROW_ID            NUMBER(10) DEFAULT 0 NOT NULL,
     LAST_CASE_ID           NUMBER(10) DEFAULT 0 NOT NULL,
+    VER                    NUMBER(19),
     C_USR_ID               VARCHAR2(100 CHAR),
     C_AT                   TIMESTAMP(6),
     C_SVC_ID               VARCHAR2(100 CHAR),
@@ -676,7 +679,6 @@ CREATE TABLE TB_MDM_RULE (
     U_AT                   TIMESTAMP(6),
     U_SVC_ID               VARCHAR2(100 CHAR),
     U_PGM_ID               VARCHAR2(100 CHAR),
-    VER                    NUMBER(19),
     CONSTRAINT PK_TB_MDM_RULE PRIMARY KEY (MARU_RULE_ID),
     CONSTRAINT CK_TB_MDM_RULE_KIND CHECK (RULE_KIND IN ('DECISION','DERIVE')),
     CONSTRAINT CK_TB_MDM_RULE_STATUS CHECK (STATUS IN ('CREATED','INUSE','DEPRECATED')),
@@ -694,8 +696,9 @@ CREATE TABLE TB_MDM_RULE_RECV (
     BODY                   CLOB NOT NULL,
     "RESULT"               VARCHAR2(20 CHAR),
     RESULT_DETAIL          VARCHAR2(4000 BYTE),
-    VER                    NUMBER(7,3),
     PROCESSED_AT           TIMESTAMP(6),
+    VER                    NUMBER(7,3),
+    AUD_VER                NUMBER(19),
     C_USR_ID               VARCHAR2(100 CHAR),
     C_AT                   TIMESTAMP(6),
     C_SVC_ID               VARCHAR2(100 CHAR),
@@ -704,7 +707,6 @@ CREATE TABLE TB_MDM_RULE_RECV (
     U_AT                   TIMESTAMP(6),
     U_SVC_ID               VARCHAR2(100 CHAR),
     U_PGM_ID               VARCHAR2(100 CHAR),
-    AUD_VER                NUMBER(19),
     CONSTRAINT PK_TB_MDM_RULE_RECV PRIMARY KEY (RECV_ID),
     CONSTRAINT CK_TB_MDM_RULE_RECV_REQ CHECK (REQ_KIND IN ('VERSION','CANCEL','DEPRECATE')),
     CONSTRAINT CK_TB_MDM_RULE_RECV_RESULT CHECK ("RESULT" IS NULL OR "RESULT" IN ('OK','REJECTED','FAILED'))
@@ -719,6 +721,7 @@ CREATE TABLE TB_MDM_RULE_ROW (
     CELLS                  CLOB NOT NULL,
     NOTE                   VARCHAR2(4000 BYTE),
     TAG                    VARCHAR2(50 CHAR),
+    AUD_VER                NUMBER(19),
     C_USR_ID               VARCHAR2(100 CHAR),
     C_AT                   TIMESTAMP(6),
     C_SVC_ID               VARCHAR2(100 CHAR),
@@ -727,7 +730,6 @@ CREATE TABLE TB_MDM_RULE_ROW (
     U_AT                   TIMESTAMP(6),
     U_SVC_ID               VARCHAR2(100 CHAR),
     U_PGM_ID               VARCHAR2(100 CHAR),
-    AUD_VER                NUMBER(19),
     CONSTRAINT PK_TB_MDM_RULE_ROW PRIMARY KEY (MARU_RULE_ID, VER, ROW_ID),
     CONSTRAINT CK_TB_MDM_RULE_ROW_CELLS_JSON CHECK (CELLS IS JSON STRICT),
     CONSTRAINT CK_TB_MDM_RULE_ROW_KIND CHECK (ROW_KIND IN ('NORMAL','DEFAULT'))
@@ -738,6 +740,7 @@ CREATE TABLE TB_MDM_RULE_SET (
     MARU_RULE_SET_NAME     VARCHAR2(4000 BYTE) NOT NULL,
     DESCRIPTION            VARCHAR2(4000 BYTE),
     STATUS                 VARCHAR2(20 CHAR) DEFAULT 'CREATED' NOT NULL,
+    VER                    NUMBER(19),
     C_USR_ID               VARCHAR2(100 CHAR),
     C_AT                   TIMESTAMP(6),
     C_SVC_ID               VARCHAR2(100 CHAR),
@@ -746,7 +749,6 @@ CREATE TABLE TB_MDM_RULE_SET (
     U_AT                   TIMESTAMP(6),
     U_SVC_ID               VARCHAR2(100 CHAR),
     U_PGM_ID               VARCHAR2(100 CHAR),
-    VER                    NUMBER(19),
     CONSTRAINT PK_TB_MDM_RULE_SET PRIMARY KEY (MARU_RULE_SET_ID),
     CONSTRAINT CK_TB_MDM_RULE_SET_STATUS CHECK (STATUS IN ('CREATED','INUSE','DEPRECATED'))
 );
@@ -759,6 +761,7 @@ CREATE TABLE TB_MDM_RULE_SET_TEST_CASE (
     EVAL_TS                VARCHAR2(19 CHAR),
     EXPECTED_JSON          CLOB,
     DESCRIPTION            VARCHAR2(4000 BYTE),
+    VER                    NUMBER(19),
     ROW_VERSION            NUMBER(19) DEFAULT 0 NOT NULL,
     C_USR_ID               VARCHAR2(100 CHAR),
     C_AT                   TIMESTAMP(6),
@@ -768,7 +771,6 @@ CREATE TABLE TB_MDM_RULE_SET_TEST_CASE (
     U_AT                   TIMESTAMP(6),
     U_SVC_ID               VARCHAR2(100 CHAR),
     U_PGM_ID               VARCHAR2(100 CHAR),
-    VER                    NUMBER(19),
     CONSTRAINT PK_TB_MDM_RULE_SET_TEST_CASE PRIMARY KEY (MARU_RULE_SET_ID, CASE_ID),
     CONSTRAINT CK_TB_MDM_RULE_SET_TEST_CASE_INPUT_JSON CHECK (INPUT_JSON IS JSON STRICT),
     CONSTRAINT CK_TB_MDM_RULE_SET_TEST_CASE_EXPECTED_JSON CHECK (EXPECTED_JSON IS NULL OR EXPECTED_JSON IS JSON STRICT)
@@ -787,8 +789,9 @@ CREATE TABLE TB_MDM_RULE_SET_VER (
     FLOW_JSON              CLOB,
     CALL_SET_IDS           CLOB DEFAULT '[]' NOT NULL,
     REQUESTED_BY           VARCHAR2(50 CHAR),
-    REQUESTED_AT           TIMESTAMP(6),
     RELEASED_AT            TIMESTAMP(6),
+    REQUESTED_AT           TIMESTAMP(6),
+    AUD_VER                NUMBER(19),
     ROW_VERSION            NUMBER(19) DEFAULT 0 NOT NULL,
     C_USR_ID               VARCHAR2(100 CHAR),
     C_AT                   TIMESTAMP(6),
@@ -798,7 +801,6 @@ CREATE TABLE TB_MDM_RULE_SET_VER (
     U_AT                   TIMESTAMP(6),
     U_SVC_ID               VARCHAR2(100 CHAR),
     U_PGM_ID               VARCHAR2(100 CHAR),
-    AUD_VER                NUMBER(19),
     CONSTRAINT PK_TB_MDM_RULE_SET_VER PRIMARY KEY (MARU_RULE_SET_ID, VER),
     CONSTRAINT CK_TB_MDM_RULE_SET_VER_RULE_IDS_JSON CHECK (RULE_IDS IS JSON STRICT),
     CONSTRAINT CK_TB_MDM_RULE_SET_VER_FLOW_JSON CHECK (FLOW_JSON IS NULL OR FLOW_JSON IS JSON STRICT),
@@ -813,6 +815,7 @@ CREATE TABLE TB_MDM_RULE_SYSTEM (
     SYSTEM_CODE            VARCHAR2(20 CHAR) NOT NULL,
     DEPLOY_KIND            VARCHAR2(20 CHAR) DEFAULT 'DEF' NOT NULL,
     DESCRIPTION            VARCHAR2(4000 BYTE),
+    VER                    NUMBER(19),
     C_USR_ID               VARCHAR2(100 CHAR),
     C_AT                   TIMESTAMP(6),
     C_SVC_ID               VARCHAR2(100 CHAR),
@@ -821,7 +824,6 @@ CREATE TABLE TB_MDM_RULE_SYSTEM (
     U_AT                   TIMESTAMP(6),
     U_SVC_ID               VARCHAR2(100 CHAR),
     U_PGM_ID               VARCHAR2(100 CHAR),
-    VER                    NUMBER(19),
     CONSTRAINT PK_TB_MDM_RULE_SYSTEM PRIMARY KEY (MARU_RULE_ID, SYSTEM_CODE),
     CONSTRAINT CK_TB_MDM_RULE_SYSTEM_KIND CHECK (DEPLOY_KIND IN ('DEF','RESULT'))
 );
@@ -833,6 +835,7 @@ CREATE TABLE TB_MDM_RULE_TEST_CASE (
     INPUT_JSON             CLOB NOT NULL,
     EXPECTED_JSON          CLOB,
     DESCRIPTION            VARCHAR2(4000 BYTE),
+    VER                    NUMBER(19),
     ROW_VERSION            NUMBER(19) DEFAULT 0 NOT NULL,
     C_USR_ID               VARCHAR2(100 CHAR),
     C_AT                   TIMESTAMP(6),
@@ -842,7 +845,6 @@ CREATE TABLE TB_MDM_RULE_TEST_CASE (
     U_AT                   TIMESTAMP(6),
     U_SVC_ID               VARCHAR2(100 CHAR),
     U_PGM_ID               VARCHAR2(100 CHAR),
-    VER                    NUMBER(19),
     CONSTRAINT PK_TB_MDM_RULE_TEST_CASE PRIMARY KEY (MARU_RULE_ID, CASE_ID),
     CONSTRAINT CK_TB_MDM_RULE_TEST_CASE_INPUT_JSON CHECK (INPUT_JSON IS JSON STRICT),
     CONSTRAINT CK_TB_MDM_RULE_TEST_CASE_EXPECTED_JSON CHECK (EXPECTED_JSON IS NULL OR EXPECTED_JSON IS JSON STRICT)
@@ -866,6 +868,7 @@ CREATE TABLE TB_MDM_RULE_VAR (
     SEQ                    NUMBER(10) NOT NULL,
     LABEL                  VARCHAR2(4000 BYTE),
     DESCRIPTION            VARCHAR2(4000 BYTE),
+    AUD_VER                NUMBER(19),
     C_USR_ID               VARCHAR2(100 CHAR),
     C_AT                   TIMESTAMP(6),
     C_SVC_ID               VARCHAR2(100 CHAR),
@@ -874,7 +877,6 @@ CREATE TABLE TB_MDM_RULE_VAR (
     U_AT                   TIMESTAMP(6),
     U_SVC_ID               VARCHAR2(100 CHAR),
     U_PGM_ID               VARCHAR2(100 CHAR),
-    AUD_VER                NUMBER(19),
     CONSTRAINT PK_TB_MDM_RULE_VAR PRIMARY KEY (MARU_RULE_ID, VER, VAR_ID),
     CONSTRAINT CK_TB_MDM_RULE_VAR_VAR_AST_JSON CHECK (VAR_AST IS NULL OR VAR_AST IS JSON STRICT),
     CONSTRAINT CK_TB_MDM_RULE_VAR_PRIO_LIST_JSON CHECK (PRIO_LIST IS NULL OR PRIO_LIST IS JSON STRICT),
@@ -907,6 +909,7 @@ CREATE TABLE TB_MDM_RULE_VER (
     RELEASED_AT            TIMESTAMP(6),
     CANCELLED_AT           TIMESTAMP(6),
     CANCEL_REASON          VARCHAR2(4000 BYTE),
+    AUD_VER                NUMBER(19),
     ROW_VERSION            NUMBER(19) DEFAULT 0 NOT NULL,
     C_USR_ID               VARCHAR2(100 CHAR),
     C_AT                   TIMESTAMP(6),
@@ -916,7 +919,6 @@ CREATE TABLE TB_MDM_RULE_VER (
     U_AT                   TIMESTAMP(6),
     U_SVC_ID               VARCHAR2(100 CHAR),
     U_PGM_ID               VARCHAR2(100 CHAR),
-    AUD_VER                NUMBER(19),
     CONSTRAINT PK_TB_MDM_RULE_VER PRIMARY KEY (MARU_RULE_ID, VER),
     CONSTRAINT CK_TB_MDM_RULE_VER_STATUS CHECK (STATUS IN ('DRAFT','REQUESTED','APPROVED','RELEASED','CANCELLED')),
     CONSTRAINT CK_TB_MDM_RULE_VER_KIND CHECK (VER_KIND IN ('MAJOR','MINOR')),
@@ -929,6 +931,7 @@ CREATE TABLE TB_MDM_SYSTEM (
     SYSTEM_CODE            VARCHAR2(20 CHAR) NOT NULL,
     SYSTEM_NAME            VARCHAR2(100 CHAR) NOT NULL,
     SELF_YN                VARCHAR2(1 CHAR) NOT NULL,
+    VER                    NUMBER(19),
     C_USR_ID               VARCHAR2(100 CHAR),
     C_AT                   TIMESTAMP(6),
     C_SVC_ID               VARCHAR2(100 CHAR),
@@ -937,7 +940,6 @@ CREATE TABLE TB_MDM_SYSTEM (
     U_AT                   TIMESTAMP(6),
     U_SVC_ID               VARCHAR2(100 CHAR),
     U_PGM_ID               VARCHAR2(100 CHAR),
-    VER                    NUMBER(19),
     CONSTRAINT PK_TB_MDM_SYSTEM PRIMARY KEY (SYSTEM_CODE),
     CONSTRAINT CK_TB_MDM_SYSTEM_SELF_YN CHECK (SELF_YN IN ('Y', 'N'))
 );
@@ -959,6 +961,7 @@ CREATE TABLE TB_MDM_TERM (
     SRC_ORIGIN             VARCHAR2(4000 BYTE),
     EMBEDDING              BLOB,
     EMBEDDING_MODEL        VARCHAR2(100 CHAR),
+    VER                    NUMBER(19),
     C_USR_ID               VARCHAR2(100 CHAR),
     C_AT                   TIMESTAMP(6),
     C_SVC_ID               VARCHAR2(100 CHAR),
@@ -967,7 +970,6 @@ CREATE TABLE TB_MDM_TERM (
     U_AT                   TIMESTAMP(6),
     U_SVC_ID               VARCHAR2(100 CHAR),
     U_PGM_ID               VARCHAR2(100 CHAR),
-    VER                    NUMBER(19),
     CONSTRAINT PK_TB_MDM_TERM PRIMARY KEY (TERM_ID),
     CONSTRAINT CK_TB_MDM_TERM_SYNONYMS_JSON CHECK (SYNONYMS IS NULL OR SYNONYMS IS JSON STRICT),
     CONSTRAINT CK_TB_MDM_TERM_ALIASES_JSON CHECK (ALIASES IS NULL OR ALIASES IS JSON STRICT),
@@ -980,6 +982,7 @@ CREATE TABLE TB_MDM_UNIT (
     BASE_UNIT              VARCHAR2(20 CHAR) NOT NULL,
     FACTOR                 NUMBER(18,9) NOT NULL,
     CHG_SEQ                NUMBER(19) DEFAULT 0 NOT NULL,
+    VER                    NUMBER(19),
     C_USR_ID               VARCHAR2(100 CHAR),
     C_AT                   TIMESTAMP(6),
     C_SVC_ID               VARCHAR2(100 CHAR),
@@ -988,7 +991,6 @@ CREATE TABLE TB_MDM_UNIT (
     U_AT                   TIMESTAMP(6),
     U_SVC_ID               VARCHAR2(100 CHAR),
     U_PGM_ID               VARCHAR2(100 CHAR),
-    VER                    NUMBER(19),
     CONSTRAINT PK_TB_MDM_UNIT PRIMARY KEY (UNIT_CODE)
 );
 

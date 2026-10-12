@@ -23,6 +23,8 @@ scripts\oracle\pdb.cmd <명령>           # Windows
 | `users <PDB>` | 운영 이름 사용자 (재)생성 |
 | `quiet <PDB>` | 열린 PDB 의 autotask(통계·공간·SQL 튜닝)와 AWR 자동 스냅숏을 끄고 확인. `template-create`·`clone` 은 자동으로 거친다 |
 | `sessions <PDB>` | 열린 PDB 의 세션 수(max·limit·cur) 한 줄. 시험 하니스가 끝에 로그로 남긴다 |
+| `repair <PDB> [--dry-run]` | 바뀐 V 파일의 체크섬만 각 스키마 `flyway_schema_history` 에 맞춘다(버전·파일 이름이 같고 체크섬만 다른 성공 행만. 다른 행·실패 행 무변경). 컬럼 순서를 다시 배열한 V1 을 기존 DB 에 받아들일 때 쓴다(`docs/db-column-order/runbook.md`). 봉인된 템플릿은 `template-unseal` 먼저 |
+| `migrate <PDB> [--dry-run] [--exclude <글자>]` | 이력에 없는 V 파일을 스키마마다 버전 순으로 적용하고 이력 행을 더한다(앱 기동 없이 반영). 이력 최고 버전보다 낮은 새 파일(out-of-order)은 멈춘다. `--exclude` = 파일 이름에 그 글자가 든 V 파일을 이번에는 건너뜀 |
 | `schema-users` | 만드는 사용자 목록 |
 | `lock-hold [--wait-sec N]` | PC 잠금을 쥐고 `LOCKED <pid>` 를 낸 뒤 표준 입력이 닫힐 때까지 유지(시험 하니스용) |
 
