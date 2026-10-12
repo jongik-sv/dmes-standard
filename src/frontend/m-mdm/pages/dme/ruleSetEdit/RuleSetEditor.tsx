@@ -773,7 +773,7 @@ export function RuleSetEditor({ tabKey, request, onStatus, active = true }: Rule
     () => (top ? debugOverlay(top.trace, top.flow, top.cursor) : debugging && fresh && last ? debugOverlay(last.trace, last.flow, sim.cursor) : null),
     [top, debugging, fresh, last, sim.cursor],
   );
-  linkSourceRef.current = top ? { trace: top.trace, cursor: top.cursor } : debugging && fresh && last ? { trace: last.trace, cursor: sim.cursor } : null;
+  linkSourceRef.current = top ? { trace: top.trace, flow: top.flow, cursor: top.cursor } : debugging && fresh && last ? { trace: last.trace, flow: last.flow, cursor: sim.cursor } : null;
   const frameValue = useMemo(() => (top ? frameValueAt(top) : null), [top]);
   const frameVarLabels = useMemo(() => (top ? varLabelsOf(top.rules) : null), [top]);
   const framePath = useMemo(() => stack.frames.map((f) => f.nodeId), [stack.frames]);

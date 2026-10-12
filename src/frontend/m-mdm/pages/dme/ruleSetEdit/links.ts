@@ -3,7 +3,7 @@
  *
  * 룰 → 룰 화면(`openRuleEdit`). 컬럼 사전 변수 → 컬럼 화면(파라미터 없음, D13). 결과 변수·앞 룰이 만든 조건 변수 → 그 이름을 만드는
  * 첫 룰(목록 순)의 룰 화면. 프로그램 변수·어디에도 없는 이름은 링크가 없다.
- * 디버깅 중 룰 링크는 그 룰 노드가 읽은 값을 함께 넘겨 룰 화면 값 테스트 칸을 채운다(`debugger/rule-link`).
+ * 디버깅 중 룰 링크는 그 룰 노드의 값(읽은 값 또는 커서 시점 변수 값)을 함께 넘겨 룰 화면 값 테스트 칸을 채운다(`debugger/rule-link`).
  */
 import { openRuleEdit } from "@/dme/rule-handoff";
 import { openMdmPage } from "@/shell";

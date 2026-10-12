@@ -7,7 +7,7 @@
  *
  * 버전은 소수 셋째 자리 문자열이다(`"1.001"`, D-144). 읽을 때 `normVer` 로 맞춰 옛 숫자 저장값(`2`)도 `"2.000"` 으로 받는다.
  *
- * 룰 세트 디버깅에서 넘어오면 그 룰 노드가 읽은 값(`NodeTrace.reads`)을 `inputs` 에 싣는다(`from: "ruleSetDebug"`). 룰 화면은 이 값으로
+ * 룰 세트 디버깅에서 넘어오면 그 룰 노드의 값(실행된 노드는 `NodeTrace.reads`, 커서 노드는 커서 시점 변수 값)을 `inputs` 에 싣는다(`from: "ruleSetDebug"`). 룰 화면은 이 값으로
  * 값 테스트 입력 칸을 채운다. 값이 없는 이동은 지금처럼 두 칸이 없다.
  */
 import type { TypedValue } from "@/contract/engine-contract.generated";

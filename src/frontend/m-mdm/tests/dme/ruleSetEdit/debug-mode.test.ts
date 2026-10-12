@@ -626,6 +626,31 @@ describe("디버그 모드 — 변수·조사식·식 평가·입력", () => {
     expect(mocks.openRuleEdit).toHaveBeenLastCalledWith("GT_FAST");
   });
 
+  it("13-2. 커서 노드(실행 전) 룰 링크는 커서 시점 변수 값을 넘긴다 — 캔버스 링크·우클릭", async () => {
+    await firstStep();
+    await run("dbg-step");
+    expect(status()).toBe("2/6 · r1 실행 전");
+    const r1Reads = FIRST.trace.nodes.find((n) => n.nodeId === "r1")!.reads!;
+    expect(Object.keys(r1Reads).length).toBeGreaterThan(0);
+
+    await click("flow-rule-open-r1");
+    expect(mocks.openRuleEdit).toHaveBeenLastCalledWith("GT_GRADE", undefined, { inputs: expect.objectContaining(r1Reads) });
+
+    mocks.openRuleEdit.mockClear();
+    await nodeMenu("r1");
+    await click("flow-menu-item-open-rule");
+    expect(mocks.openRuleEdit).toHaveBeenLastCalledWith("GT_GRADE", undefined, { inputs: expect.objectContaining(r1Reads) });
+
+    // 커서를 r2 로 — 앞 룰 r1 이 만든 GT_G 도 실린다.
+    await run("dbg-step");
+    await run("dbg-step");
+    expect(status()).toBe("4/6 · r2 실행 전");
+    const r2Reads = FIRST.trace.nodes.find((n) => n.nodeId === "r2")!.reads!;
+    await click("flow-rule-open-r2");
+    expect(mocks.openRuleEdit).toHaveBeenLastCalledWith("GT_FAST", undefined, { inputs: expect.objectContaining(r2Reads) });
+    expect(mocks.openRuleEdit.mock.lastCall?.[2]?.inputs).toHaveProperty("GT_G");
+  });
+
   it("기록이 없으면 변수 자리에 '실행하면 커서 시점 값이 보인다'", async () => {
     await openDebug();
     expect(visibleText(byTestId("var-panel"))).toContain("실행하면 커서 시점 값이 보인다");
