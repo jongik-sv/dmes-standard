@@ -90,21 +90,24 @@ const TreeRowView = memo(function TreeRowView({ row, selected, onToggle, onSelec
         ) : (
           <span className="anl-tree-toggle-gap" aria-hidden="true" />
         )}
-        {node.subMark ? (
-          <span className="anl-tree-mark anl-tree-mark-sub" title="서브서비스 호출" aria-label="서브서비스 호출">
-            S
-          </span>
-        ) : null}
-        {node.errorMark ? (
-          <span className="anl-tree-mark anl-tree-mark-err" title="오류(Exception) 있음" aria-label="오류(Exception) 있음">
-            !
-          </span>
-        ) : null}
-        {node.queryMark ? (
-          <span className="anl-tree-mark anl-tree-mark-query" title="쿼리 있음" aria-label="쿼리 있음">
-            ?
-          </span>
-        ) : null}
+        {/* 표식 칸은 표식이 없어도 같은 폭으로 둔다 — 같은 단계의 배지가 표식 유무로 밀리지 않게. */}
+        <span className="anl-tree-marks">
+          {node.subMark ? (
+            <span className="anl-tree-mark anl-tree-mark-sub" title="서브서비스 호출" aria-label="서브서비스 호출">
+              S
+            </span>
+          ) : null}
+          {node.errorMark ? (
+            <span className="anl-tree-mark anl-tree-mark-err" title="오류(Exception) 있음" aria-label="오류(Exception) 있음">
+              !
+            </span>
+          ) : null}
+          {node.queryMark ? (
+            <span className="anl-tree-mark anl-tree-mark-query" title="쿼리 있음" aria-label="쿼리 있음">
+              ?
+            </span>
+          ) : null}
+        </span>
         <span className={badgeClass(isGroup ? "MSG" : node.kind)}>{isGroup ? "MSG" : node.kind}</span>
         {isGroup ? <span className="anl-tree-group-count">×{node.children.length}</span> : null}
         <button type="button" className={cls} title={node.label} onClick={() => onSelect(node.id)}>

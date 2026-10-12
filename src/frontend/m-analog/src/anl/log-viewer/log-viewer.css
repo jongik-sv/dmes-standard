@@ -655,8 +655,20 @@
 }
 
 /* 노드 앞 표식: S(서브서비스 호출)·!(오류)·?(쿼리) */
+/* 표식(S·!·?) 고정 폭 칸 — 한 글자 폭, 배지 쪽(오른쪽)으로 붙인다.
+   표식이 둘 이상이면 flex-end 라 왼쪽(들여쓰기 여백)으로 넘친다. */
+.anl-log-viewer .anl-tree-marks {
+  flex: none;
+  display: inline-flex;
+  justify-content: flex-end;
+  gap: 1px;
+  width: 8px;
+  /* 행 칸 gap(6px)이 칸 양쪽에 붙으므로 일부를 상쇄해 토글과 배지 사이를 좁힌다. */
+  margin: 0 -4px 0 -4px;
+  overflow: visible;
+}
+
 .anl-log-viewer .anl-tree-mark {
-  margin-right: 3px;
   font-family: var(--font-family-mono);
   font-size: var(--font-size-xs);
   font-weight: 700;
