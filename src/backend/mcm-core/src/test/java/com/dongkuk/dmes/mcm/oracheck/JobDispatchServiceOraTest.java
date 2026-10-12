@@ -201,7 +201,9 @@ class JobDispatchServiceOraTest {
     @Test
     @DisplayName("놓친 회차 한 번 실행(Y): 3시간 늦은 회차는 SKIP 하지 않고 RUN 한 건(TRIGGER_TP='C', SCHED_AT=놓친 첫 회차) — 사이 회차 행은 없고 다음 시각은 미래, 다음 틱은 다시 실행하지 않는다")
     void misfireRunsLateSlotOnce() {
-        def("mf", "CODE", "*/10 * * * *", null, "{\"handlerId\":\"h\"}", null, -3 * 3600);
+        // 매시 (지금 분 + 30) % 60 분 — 놓친 회차는 3시간 안에 여럿이고, 다음 회차는 항상 약 30분 뒤라 30초 앞당김 창에 들어오지 않는다(*/10 이면 :x0 직전 30초에 흔들렸다).
+        String hourly = "%d * * * *".formatted((dbNow().getMinute() + 30) % 60);
+        def("mf", "CODE", hourly, null, "{\"handlerId\":\"h\"}", null, -3 * 3600);
         misfireOn("mf");
         Timestamp missedFirst = schedOf("mf");   // 놓친 첫 회차 = 지금의 NEXT_RUN_AT 을 초 단위로 버린 값
 
