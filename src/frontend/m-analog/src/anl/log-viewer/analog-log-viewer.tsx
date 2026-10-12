@@ -34,6 +34,7 @@ import { WorkspaceTabBar } from "./workspace-tab-bar";
 import { SearchSidebar } from "./search-sidebar";
 import { DocTabBar } from "./doc-tabs";
 import { JsonTreeView } from "./json-tree-view";
+import { TreeTab } from "./tree-tab";
 import {
   ServiceListPanel,
   type ServiceDrilldownHandler,
@@ -311,6 +312,29 @@ function LogViewerMain({ meta }: { meta: AnalogMeta }) {
     [],
   );
 
+  const drilldownTree = useCallback<ServiceDrilldownHandler>(
+    (serviceTag, startTime, endTime, action, runTime) => {
+      void runSearchRef.current({
+        type: "json",
+        serviceTag,
+        startTime,
+        endTime,
+        action,
+        runTime,
+      });
+      setActiveDocTab("tree");
+    },
+    [],
+  );
+
+  /** 쿼리 뷰어 「Binder 탭으로 보내기」 — Binder 편집 내용(bindData)에 SQL 을 채우고 Binder 탭으로 전환. */
+  const handleSendToBinder = useStableCallback((sql: string) => {
+    const workspaceId = activeWs.workspaceId;
+    ws.setBindData(workspaceId, sql);
+    binderRef.current?.setValue(sql);
+    setActiveDocTab("binder");
+  });
+
   // 아래 핸들러는 memo 한 자식(사이드바·탭바·Binder)에 넘기므로 참조를 고정한다 — 최신 클로저는 useStableCallback 이 부른다.
   const handleCondChange = useStableCallback((patch: Partial<SearchCond>) =>
     ws.updateCond(activeWs.workspaceId, patch),
@@ -377,6 +401,15 @@ function LogViewerMain({ meta }: { meta: AnalogMeta }) {
               <JsonTreeView data={activeWs.jsonData} />
             </div>
             <div
+              className={`anl-doc-pane ${activeDocTab === "tree" ? "" : "anl-pane-hidden"}`.trim()}
+            >
+              <TreeTab
+                data={activeWs.jsonData}
+                active={activeDocTab === "tree"}
+                onSendToBinder={handleSendToBinder}
+              />
+            </div>
+            <div
               className={`anl-doc-pane anl-binder-pane ${
                 activeDocTab === "binder" ? "" : "anl-pane-hidden"
               }`.trim()}
@@ -413,6 +446,7 @@ function LogViewerMain({ meta }: { meta: AnalogMeta }) {
           serviceList={activeWs.serviceList}
           onLogClick={drilldownLog}
           onJsonClick={drilldownJson}
+          onTreeClick={drilldownTree}
         />
       </FloatingPanel>
     </div>

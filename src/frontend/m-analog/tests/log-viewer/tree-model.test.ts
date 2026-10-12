@@ -1,0 +1,192 @@
+import { readFileSync } from "node:fs";
+import { describe, expect, it } from "vitest";
+import {
+  bindParams,
+  cleanSql,
+  defaultExpanded,
+  firstSelection,
+  flattenRows,
+  heatLevel,
+  normalizeRunTime,
+  propsOf,
+  sqlTitle,
+  toTreeRequests,
+  type TreeNode,
+} from "../../src/anl/log-viewer/tree-model";
+
+function fixture(name: string): unknown {
+  return JSON.parse(readFileSync(new URL(`./fixtures/${name}`, import.meta.url), "utf8"));
+}
+
+function collect(node: TreeNode, kind: string, out: TreeNode[] = []): TreeNode[] {
+  if (node.kind === kind) out.push(node);
+  node.children.forEach((c) => collect(c, kind, out));
+  return out;
+}
+
+const NO_FILTER = { query: "", errOnly: false, bizOnly: false };
+
+describe("toTreeRequests (실제 응답)", () => {
+  const [req] = toTreeRequests(fixture("tree-real-bind.json"));
+
+  it("Request 요약: 루트 라벨 = 첫 문자열, 수행시간 = 자식 Process runTime, 태그·스레드", () => {
+    expect(req.name).toBe("metaFeed/view");
+    expect(req.serviceTag).toBe("vPPB");
+    expect(req.thread).toBe("http-nio-8096-exec-7");
+    expect(req.runTime).toBe(589);
+    expect(req.start).toBe("2026-10-12 11:54:51.861");
+    expect(req.end).toBe("2026-10-12 11:54:52.450");
+    expect(req.sqlCount).toBe(5);
+    expect(req.errorCount).toBe(0);
+  });
+
+  it("objectType → 배지 대응: Request=REQ · Process=SVC · Task=TSK · Query=SQL", () => {
+    const svc = req.root.children.find((c) => c.kind === "SVC");
+    expect(req.root.kind).toBe("REQ");
+    expect(svc?.label).toBe("MDM 메타 제공 (metaFeed)");
+    expect(svc?.runTime).toBe(589); // 문자열 runTime → 숫자
+    const tsk = svc?.children.filter((c) => c.kind === "TSK") ?? [];
+    expect(tsk.length).toBe(4);
+    expect(collect(req.root, "ACT")).toHaveLength(0);
+  });
+
+  it("Query: SQL 정리·라벨·바인딩 값 추출, binding 문자열은 BND 자식으로 묶고 형제 MSG 에서는 빠진다", () => {
+    const sqls = collect(req.root, "SQL");
+    expect(sqls).toHaveLength(5);
+    const q = sqls.find((n) => (n.params?.length ?? 0) > 0) as TreeNode;
+    expect(q).toBeDefined();
+    expect(q.sql?.startsWith("select")).toBe(true);
+    expect(q.label).toMatch(/^SELECT · /);
+    expect(q.params?.[0]).toMatchObject({ idx: 1, type: expect.stringMatching(/^[A-Z_]+$/), value: expect.any(String) });
+    expect(q.children.every((c) => c.kind === "BND")).toBe(true);
+    expect(q.children).toHaveLength(q.params?.length ?? -1);
+    const bnd = collect(req.root, "BND").length;
+    const msgWithBinding = collect(req.root, "MSG").filter((m) => m.text?.startsWith("binding parameter"));
+    expect(bnd).toBeGreaterThan(0);
+    expect(msgWithBinding).toHaveLength(0);
+  });
+
+  it("작은 응답에서 Query runTime 숫자 그대로", () => {
+    const [small] = toTreeRequests(fixture("tree-real-small.json"));
+    const sql = collect(small.root, "SQL")[0];
+    expect(typeof sql.runTime).toBe("number");
+  });
+
+  it("읽을 수 없는 입력은 빈 배열", () => {
+    expect(toTreeRequests(null)).toEqual([]);
+    expect(toTreeRequests("x")).toEqual([]);
+  });
+});
+
+describe("합성 응답", () => {
+  const raw = [
+    {
+      property: { objectType: "Request", timestamp: "2026-10-12 10:00:00.000" },
+      child: [
+        "svc/run",
+        {
+          property: { objectType: "Process", objectName: "P", objectId: "p", runTime: "5", timestamp: "2026-10-12 10:00:00.001" },
+          child: [
+            {
+              property: { objectType: "Query", query: "\n   update tb_a set x = ?\n    where y = ?\n", runTime: 2 },
+            },
+            "binding parameter (1:VARCHAR) <- [it's]",
+            "binding parameter (2:INTEGER) <- [7]",
+            "More......",
+            { property: { objectType: "Weird" } },
+            { property: { exception: ["boom\n\tat a.B(B.java:1)"] } },
+          ],
+        },
+      ],
+    },
+  ];
+  const [req] = toTreeRequests(raw);
+
+  it("바인딩 문자열 묶기·모르는 종류 원문 배지·exception → ERR·More...... 는 MSG", () => {
+    const [sql] = collect(req.root, "SQL");
+    expect(sql.sql).toBe("update tb_a set x = ?\n where y = ?");
+    expect(sql.params).toHaveLength(2);
+    const weird = collect(req.root, "Weird");
+    expect(weird).toHaveLength(1);
+    expect(weird[0].hasError).toBe(false);
+    // objectType 없이 exception 만 있는 노드는 ERR 배지
+    const errs = collect(req.root, "ERR");
+    expect(errs).toHaveLength(1);
+    expect(errs.every((e) => e.children.length === 0)).toBe(true);
+    expect(req.errorCount).toBe(1);
+    expect(collect(req.root, "MSG").map((m) => m.text)).toEqual(["svc/run", "More......"]);
+  });
+
+  it("flattenRows: 접힘 · 검색 · 오류 경로만 · 업무 노드만", () => {
+    expect(flattenRows(req.root, new Set(), NO_FILTER)).toHaveLength(1);
+    const open = defaultExpanded(req.root);
+    expect(flattenRows(req.root, open, NO_FILTER).length).toBeGreaterThan(1);
+    const found = flattenRows(req.root, new Set(), { ...NO_FILTER, query: "tb_a" });
+    expect(found.map((r) => r.node.kind)).toEqual(["REQ", "SVC", "SQL"]);
+    const err = flattenRows(req.root, new Set(), { ...NO_FILTER, errOnly: true });
+    expect(err.map((r) => r.node.kind)).toEqual(["REQ", "SVC", "ERR"]);
+    const biz = flattenRows(req.root, open, { ...NO_FILTER, bizOnly: true });
+    expect(biz.some((r) => r.node.kind === "MSG" || r.node.kind === "BND")).toBe(false);
+  });
+
+  it("firstSelection = 첫 SQL", () => {
+    expect(firstSelection(req.root)?.kind).toBe("SQL");
+  });
+});
+
+describe("작은 변환 함수", () => {
+  it("cleanSql · sqlTitle", () => {
+    expect(cleanSql("\n    select a\n      from t\n")).toBe("select a\n  from t");
+    expect(sqlTitle("select a from tb_mdm_domain d")).toBe("SELECT · tb_mdm_domain");
+    expect(sqlTitle("insert into x.y (a) values (?)")).toBe("INSERT · x.y");
+  });
+
+  it("bindParams: 숫자 타입은 따옴표 없이, 나머지는 '값'(따옴표 이스케이프), 값이 모자라면 ?", () => {
+    const p = [
+      { idx: 1, type: "BIGINT", value: "185" },
+      { idx: 2, type: "VARCHAR", value: "it's" },
+    ];
+    expect(bindParams("a = ? and b = ? and c = ?", p)).toBe("a = 185 and b = 'it''s' and c = ?");
+  });
+
+  it("normalizeRunTime · heatLevel", () => {
+    expect(normalizeRunTime("12")).toBe(12);
+    expect(normalizeRunTime("x")).toBeUndefined();
+    expect([undefined, 999, 1000, 2000, 3000, 4000, 5000].map(heatLevel)).toEqual([0, 0, 1, 2, 3, 4, 5]);
+  });
+});
+
+describe("characterization 모양 (Service·property.params)", () => {
+  const raw = [
+    {
+      property: { objectType: "Request", timestamp: "2026-05-15 09:30:00.000" },
+      child: [
+        "POST /api/order/save",
+        {
+          property: { objectType: "Service", objectName: "SVC01", runTime: "100", timestamp: "2026-05-15 09:30:00.010" },
+          child: [
+            { property: { objectType: "Query", query: "select * from item where id = ? and n = ?", runTime: 10, params: ["A01", "7"] } },
+          ],
+        },
+      ],
+    },
+  ];
+  const [req] = toTreeRequests(raw);
+
+  it("Service → SVC, 요약 수행시간·기본 펼침", () => {
+    expect(req.root.children[1].kind).toBe("SVC");
+    expect(req.runTime).toBe(100);
+    expect(defaultExpanded(req.root).has(req.root.children[1].id)).toBe(true);
+  });
+
+  it("property.params → Param, 타입 모르면 숫자 모양만 따옴표 없이 바인딩", () => {
+    const sql = req.root.children[1].children[0];
+    expect(sql.params).toHaveLength(2);
+    expect(bindParams(sql.sql ?? "", sql.params ?? [])).toBe("select * from item where id = 'A01' and n = 7");
+    expect(propsOf(sql).some((p) => p.key === "Params")).toBe(false);
+  });
+
+  it("검색 결과가 없으면 행이 없다", () => {
+    expect(flattenRows(req.root, new Set(), { query: "zzz", errOnly: false, bizOnly: false })).toEqual([]);
+  });
+});

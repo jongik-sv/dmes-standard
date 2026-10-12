@@ -423,3 +423,409 @@
   background-color: var(--color-danger);
   color: var(--color-on-primary);
 }
+
+/* ============================================================
+   Tree 탭 (서비스 실행 트리 / 속성 패널 / 쿼리 뷰어)
+   ============================================================ */
+.anl-log-viewer .anl-tree-pane {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  font-size: var(--font-size-md);
+}
+
+.anl-log-viewer .anl-tree-empty,
+.anl-log-viewer .anl-tree-empty-inline {
+  padding: var(--spacing-xl);
+  color: var(--color-text-secondary);
+}
+
+.anl-log-viewer .anl-tree-empty {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.anl-log-viewer .anl-tree-muted {
+  color: var(--color-text-secondary);
+}
+
+.anl-log-viewer .anl-tree-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-sm) var(--spacing-xl);
+  padding: var(--spacing-md) var(--spacing-lg);
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-bg-header);
+}
+
+.anl-log-viewer .anl-tree-summary-name {
+  font-weight: 600;
+  font-size: var(--font-size-lg);
+}
+
+.anl-log-viewer .anl-tree-chip {
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-weight: 500;
+  background: var(--color-bg-light);
+}
+
+.anl-log-viewer .anl-tree-chip-error {
+  background: var(--color-danger);
+  color: var(--color-on-primary);
+}
+
+.anl-log-viewer .anl-tree-request-select {
+  height: 26px;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  background: var(--color-bg);
+  color: var(--color-text);
+}
+
+.anl-log-viewer .anl-tree-split {
+  display: flex;
+  flex-wrap: wrap;
+  flex: 1;
+  min-height: 0;
+}
+
+.anl-log-viewer .anl-tree-left {
+  flex: 999 1 560px;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--color-border);
+}
+
+.anl-log-viewer .anl-tree-right {
+  flex: 1 1 340px;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.anl-log-viewer .anl-tree-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-bottom: 1px solid var(--color-border-light);
+}
+
+.anl-log-viewer .anl-tree-search {
+  flex: 1 1 220px;
+  min-width: 0;
+}
+
+.anl-log-viewer .anl-tree-head,
+.anl-log-viewer .anl-tree-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 96px;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.anl-log-viewer .anl-tree-head {
+  padding: 6px var(--spacing-md);
+  border-bottom: 1px solid var(--color-border-light);
+  background: var(--color-bg-header);
+  color: var(--color-text-secondary);
+  font-weight: 500;
+}
+
+.anl-log-viewer .anl-tree-head-right {
+  text-align: right;
+}
+
+.anl-log-viewer .anl-tree-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.anl-log-viewer .anl-tree-row {
+  height: 26px;
+  padding: 0 var(--spacing-md);
+}
+
+.anl-log-viewer .anl-tree-row:hover {
+  background: var(--color-bg-hover);
+}
+
+.anl-log-viewer .anl-tree-row-selected,
+.anl-log-viewer .anl-tree-row-selected:hover {
+  background: var(--color-primary-soft);
+  box-shadow: inset 2px 0 0 var(--color-primary);
+}
+
+.anl-log-viewer .anl-tree-cell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.anl-log-viewer .anl-tree-toggle,
+.anl-log-viewer .anl-tree-toggle-gap {
+  flex: none;
+  width: 18px;
+  height: 18px;
+}
+
+.anl-log-viewer .anl-tree-toggle {
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--color-border);
+  border-radius: 2px;
+  background: var(--color-bg);
+  color: var(--color-text-secondary);
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-sm);
+  line-height: 1;
+  cursor: pointer;
+}
+
+.anl-log-viewer .anl-tree-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-text);
+  text-align: left;
+  font: inherit;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+
+.anl-log-viewer .anl-tree-row-selected .anl-tree-label {
+  font-weight: 600;
+}
+
+.anl-log-viewer .anl-tree-label-error,
+.anl-log-viewer .anl-tree-error-text {
+  color: var(--color-danger);
+}
+
+.anl-log-viewer .anl-tree-badge {
+  flex: none;
+  min-width: 34px;
+  padding: 1px 4px;
+  border-radius: 3px;
+  text-align: center;
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-xs);
+  font-weight: 500;
+  background: var(--color-bg-light);
+  color: var(--color-text-secondary);
+}
+
+.anl-log-viewer .anl-tree-badge-REQ {
+  background: var(--color-bg-hover);
+  color: var(--color-text);
+}
+
+.anl-log-viewer .anl-tree-badge-SVC {
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+}
+
+.anl-log-viewer .anl-tree-badge-TSK {
+  background: var(--color-warning-soft);
+  color: var(--color-warning);
+}
+
+.anl-log-viewer .anl-tree-badge-SQL {
+  background: var(--color-success-soft);
+  color: var(--color-success);
+}
+
+.anl-log-viewer .anl-tree-badge-MSG,
+.anl-log-viewer .anl-tree-badge-BND {
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+}
+
+.anl-log-viewer .anl-tree-badge-ERR {
+  background: var(--color-danger);
+  color: var(--color-on-primary);
+}
+
+.anl-log-viewer .anl-tree-label-dim {
+  color: var(--color-text-secondary);
+}
+
+.anl-log-viewer .anl-tree-message {
+  margin: 0;
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-sm);
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.anl-log-viewer .anl-tree-time,
+.anl-log-viewer .anl-tree-time-chip {
+  justify-self: end;
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
+.anl-log-viewer .anl-tree-time-chip {
+  justify-self: start;
+}
+
+/* 수행시간 히트맵 — 서비스 목록 anl-heat-N 과 같은 5단계 */
+.anl-log-viewer .anl-tree-heat-1 {
+  background: color-mix(in srgb, var(--color-danger) 16%, transparent);
+  color: var(--color-text);
+}
+
+.anl-log-viewer .anl-tree-heat-2 {
+  background: color-mix(in srgb, var(--color-danger) 32%, transparent);
+  color: var(--color-text);
+}
+
+.anl-log-viewer .anl-tree-heat-3 {
+  background: color-mix(in srgb, var(--color-danger) 48%, transparent);
+  color: var(--color-text);
+}
+
+.anl-log-viewer .anl-tree-heat-4 {
+  background: color-mix(in srgb, var(--color-danger) 64%, transparent);
+  color: var(--color-text);
+}
+
+.anl-log-viewer .anl-tree-heat-5 {
+  background: var(--color-danger);
+  color: var(--color-on-primary);
+}
+
+.anl-log-viewer .anl-tree-right-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 49px;
+  padding: 0 var(--spacing-lg);
+  border-bottom: 1px solid var(--color-border-light);
+}
+
+.anl-log-viewer .anl-tree-right-title {
+  font-weight: 600;
+}
+
+.anl-log-viewer .anl-tree-props {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.anl-log-viewer .anl-tree-prop {
+  display: grid;
+  grid-template-columns: 104px minmax(0, 1fr);
+  gap: var(--spacing-sm);
+  padding: 7px var(--spacing-lg);
+  border-bottom: 1px solid var(--color-border-light);
+  word-break: break-all;
+}
+
+.anl-log-viewer .anl-tree-prop-header {
+  padding: 6px var(--spacing-lg);
+  background: var(--color-bg-header);
+  color: var(--color-text-secondary);
+  font-weight: 500;
+}
+
+.anl-log-viewer .anl-tree-prop-key {
+  color: var(--color-text-secondary);
+}
+
+.anl-log-viewer .anl-tree-mono {
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-sm);
+}
+
+.anl-log-viewer .anl-tree-sql-box {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+  min-width: 0;
+}
+
+.anl-log-viewer .anl-tree-sql {
+  margin: 0;
+  max-height: 92px;
+  overflow: hidden;
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-sm);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.anl-log-viewer .anl-tree-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.anl-log-viewer .anl-tree-section {
+  padding: 6px var(--spacing-lg);
+  background: var(--color-bg-light);
+  border-bottom: 1px solid var(--color-border-light);
+  font-weight: 600;
+}
+
+.anl-log-viewer .anl-tree-no-params {
+  padding: var(--spacing-sm) var(--spacing-lg);
+}
+
+/* 쿼리 뷰어 — 떠 있는 창(포털)에 그려지므로 .anl-log-viewer 범위 밖에서도 적용한다. */
+.anl-tree-viewer {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.anl-tree-viewer-bar,
+.anl-tree-viewer-foot {
+  display: flex;
+  gap: 6px;
+  padding: var(--spacing-sm) var(--spacing-md);
+}
+
+.anl-tree-viewer-foot {
+  justify-content: flex-end;
+  border-top: 1px solid var(--color-border-light);
+}
+
+.anl-tree-viewer-text {
+  flex: 1;
+  min-height: 0;
+  margin: 0;
+  padding: var(--spacing-lg);
+  overflow: auto;
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-md);
+  line-height: 1.6;
+  background: var(--color-bg-light);
+  color: var(--color-text);
+  white-space: pre-wrap;
+  word-break: break-all;
+}

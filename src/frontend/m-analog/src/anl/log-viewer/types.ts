@@ -77,10 +77,10 @@ export interface Workspace {
   serviceList: ServiceItem[];
 }
 
-/** 문서 탭 키 (LOG / JSON / Binder). */
-export type DocTabKey = "text" | "json" | "binder";
+/** 문서 탭 키 (LOG / JSON / Binder / Tree). */
+export type DocTabKey = "text" | "json" | "binder" | "tree";
 
-/** 검색 실행 종류. */
+/** 검색 실행 종류 — json 은 JSON 탭·Tree 탭이 같이 쓰는 tree 응답 조회. */
 export type SearchType = "search" | "json" | "download";
 
 /** 검색 실행 옵션 — serviceTag 가 있으면 서비스 태그 드릴다운. */

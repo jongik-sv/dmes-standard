@@ -244,6 +244,19 @@ export const SCREENS = [
     formPrepare: ['[data-testid^="erd-model-"]', '.react-flow__node'],
     formInput: 'input[data-testid="erd-grid-input"]',
   },
+  {
+    id: "logViewer",
+    label: "로그 뷰어(Tree 탭)",
+    trail: [/^로그 분석$/, /^로그 조회$/, /^로그 뷰어$/],
+    breadcrumb: "로그 분석 > 로그 조회 > 로그 뷰어",
+    /**
+     * 그리드는 「서비스 목록」 떠 있는 창에만 있고 조회 조건(모듈·일시)이 필요하다. 렌더 점검은 Tree 탭 쪽을 본다:
+     * 서비스 목록의 「트리」(또는 사이드바 JSON 조회) → `log/range/time/tree` 응답 → Tree 탭 전환,
+     * 트리 검색 입력·모두 펼치기·선택 이동·쿼리 뷰어 열기 동안 이상 재렌더가 없는지.
+     */
+    searchUrlPattern: /\/log\/range\/time\/tree/,
+    needsSearch: false,
+  },
 ];
 
 /** id 로 화면 정의를 찾는다. 없으면 undefined. */

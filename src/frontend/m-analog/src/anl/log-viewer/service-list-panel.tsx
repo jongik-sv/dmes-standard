@@ -7,7 +7,7 @@
  *  - 수행시간 히트맵: 원본의 연속 rgba alpha(cellStyle) 대신 cellClassRules 로 이산 버킷 구현
  *    (>=5초 진빨강+흰글씨, 4~5초 α0.64, 3~4초 α0.48, 2~3초 α0.32, 1~2초 α0.16).
  *  - 오류 행: 빨간 글씨 (getRowClassExtra). 오류 셀 표기는 true→"오류" 한국어로 정리.
- *  - 로그/JSON 링크 버튼 → 서비스 태그 드릴다운 콜백.
+ *  - 로그/JSON/트리 링크 버튼 → 서비스 태그 드릴다운 콜백(트리 = JSON 과 같은 조회 뒤 Tree 탭).
  *  - 다시 그리기 억제: 컴포넌트를 memo 로 감싸고, 컬럼·행·행 클래스 콜백을 안정 참조로 둔다.
  *    상위(탭 전환·로그 조회로 상태가 바뀌는 화면)가 다시 그려져도 serviceList 와 콜백 참조가 같으면
  *    그리드가 columnDefs 를 새로 만들지 않는다. 콜백은 상위가 useCallback 으로 고정해 넘긴다.
@@ -30,6 +30,7 @@ interface ServiceListPanelProps {
   serviceList: ServiceItem[];
   onLogClick: ServiceDrilldownHandler;
   onJsonClick: ServiceDrilldownHandler;
+  onTreeClick: ServiceDrilldownHandler;
 }
 
 function rowRunTime(row: Record<string, unknown>): number {
@@ -70,6 +71,7 @@ function ServiceListPanelComponent({
   serviceList,
   onLogClick,
   onJsonClick,
+  onTreeClick,
 }: ServiceListPanelProps) {
   const columns = useMemo<GridColumn[]>(
     () => [
@@ -95,7 +97,7 @@ function ServiceListPanelComponent({
       {
         key: "link",
         header: "",
-        width: 110,
+        width: 150,
         sortable: false,
         render: (_value, row) => (
           <span>
@@ -113,11 +115,18 @@ function ServiceListPanelComponent({
             >
               JSON
             </button>
+            <button
+              type="button"
+              className="anl-link-button"
+              onClick={() => onTreeClick(...toHandlerArgs(row))}
+            >
+              트리
+            </button>
           </span>
         ),
       },
     ],
-    [onLogClick, onJsonClick],
+    [onLogClick, onJsonClick, onTreeClick],
   );
 
   const rows = useMemo(() => {
