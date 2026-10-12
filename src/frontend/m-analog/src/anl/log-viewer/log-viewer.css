@@ -881,10 +881,34 @@
 }
 
 .anl-log-viewer .anl-tree-detail {
-  flex: 0 1 auto;
+  flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
   border-top: 1px solid var(--color-border);
+}
+
+/* SQL·Message 하나만 보일 때 — 상세 영역이 패널의 남은 높이를 채우고 SQL 편집기·메시지가 그 높이를 다 쓴다. */
+.anl-log-viewer .anl-tree-detail-fill {
+  display: flex;
+  flex-direction: column;
+  min-height: 240px;
+  overflow: hidden;
+}
+
+.anl-log-viewer .anl-tree-detail-fill .anl-tree-sql-box {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.anl-log-viewer .anl-tree-sql-editor {
+  flex: 1 1 auto;
+  min-height: 200px;
+}
+
+.anl-log-viewer .anl-tree-detail-fill .anl-tree-message-fill {
+  flex: 1 1 auto;
+  min-height: 160px;
+  overflow: auto;
 }
 
 .anl-log-viewer .anl-tree-sql-box {

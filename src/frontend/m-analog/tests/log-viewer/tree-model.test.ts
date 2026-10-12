@@ -463,10 +463,10 @@ describe("속성 표 줄 · 속성 패널 폭", () => {
     });
   });
 
-  it("propsGridHeight: 행 수만큼, 최소 3칸", () => {
-    expect(propsGridHeight(0)).toBe(80);
-    expect(propsGridHeight(2)).toBe(80);
-    expect(propsGridHeight(3)).toBe(80);
-    expect(propsGridHeight(8)).toBe(210);
+  it("propsGridHeight: 머리글 + 행 수만큼, 최소 10칸", () => {
+    expect(propsGridHeight(0)).toBe(290);
+    expect(propsGridHeight(3)).toBe(290);
+    expect(propsGridHeight(10)).toBe(290);
+    expect(propsGridHeight(12)).toBe(342);
   });
 });

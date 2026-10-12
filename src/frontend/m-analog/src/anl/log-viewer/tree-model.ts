@@ -468,11 +468,12 @@ export function parseTreeCols(raw: string | null | undefined): TreeCols {
   return out;
 }
 
-/** 속성 표 높이 — 행 수만큼(최소 3칸). 머리줄 없는 표라 행 높이 × 칸 수 + 테두리. */
+/** 속성 표 높이 — 행 수만큼(최소 10칸). 그리드 머리글 줄(속성|값) + 행 높이 × 칸 수 + 테두리. */
 export const PROP_ROW_HEIGHT = 26;
-export const PROP_ROWS_MIN = 3;
+export const PROP_HEADER_HEIGHT = 28;
+export const PROP_ROWS_MIN = 10;
 export function propsGridHeight(rowCount: number): number {
-  return Math.max(PROP_ROWS_MIN, rowCount) * PROP_ROW_HEIGHT + 2;
+  return PROP_HEADER_HEIGHT + Math.max(PROP_ROWS_MIN, rowCount) * PROP_ROW_HEIGHT + 2;
 }
 
 /** 서비스 노드(최상위 SVC · 중첩 SUB). */

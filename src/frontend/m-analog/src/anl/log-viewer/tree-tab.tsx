@@ -515,11 +515,11 @@ function TreeTabComponent({ data, active, onSendToBinder }: TreeTabProps) {
             />
           </div>
           {selected && (selectedText !== undefined || isGroupSel || isQuery) ? (
-            <div className="anl-tree-detail">
+            <div className={`anl-tree-detail ${isGroupSel ? "" : "anl-tree-detail-fill"}`.trim()}>
               {selectedText !== undefined ? (
                 <>
                   <div className="anl-tree-section">Message</div>
-                  <pre className={`anl-tree-message ${selected.kind === "ERR" ? "anl-tree-error-text" : ""}`.trim()}>{selectedText}</pre>
+                  <pre className={`anl-tree-message anl-tree-message-fill ${selected.kind === "ERR" ? "anl-tree-error-text" : ""}`.trim()}>{selectedText}</pre>
                 </>
               ) : null}
               {isGroupSel ? (
@@ -540,14 +540,16 @@ function TreeTabComponent({ data, active, onSendToBinder }: TreeTabProps) {
                 <>
                   <div className="anl-tree-section">SQL</div>
                   <div className="anl-tree-sql-box">
-                    <SqlCodeEditor
-                      value={selected.sql ?? ""}
-                      readOnly
-                      expandable={false}
-                      height={140}
-                      ariaLabel="SQL"
-                      testId="anl-tree-sql"
-                    />
+                    <div className="anl-tree-sql-editor">
+                      <SqlCodeEditor
+                        value={selected.sql ?? ""}
+                        readOnly
+                        expandable={false}
+                        height="100%"
+                        ariaLabel="SQL"
+                        testId="anl-tree-sql"
+                      />
+                    </div>
                     <div className="anl-tree-actions">
                       <Button
                         size="sm"
