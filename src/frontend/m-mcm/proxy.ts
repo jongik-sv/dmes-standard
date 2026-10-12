@@ -67,8 +67,10 @@ const RBAC_POLICY: RbacPolicyConfig = {
     "/api/mcm/oasis/secFavorite/toggle",
     "/api/mcm/oasis/secFavorite/addFolder", // 사이드바 즐겨찾기 그룹 추가
     "/api/mcm/oasis/secFavorite/deleteFolder", // 사이드바 즐겨찾기 그룹 삭제
+    "/api/mcm/oasis/secFavorite/reorder", // 사이드바 즐겨찾기 끌어 놓기 순서 저장(본인 행만) — BE EndpointPermissionFilter 와 동기화
     "/api/mcm/oasis/secStartPgm/search", // 포털 기본 화면 조회 (BE EndpointPermissionFilter 와 동기화)
     "/api/mcm/oasis/secStartPgm/toggle", // 탭 우클릭 기본 화면 등록/해제
+    "/api/mcm/oasis/secStartPgm/reorder", // 사이드바 기본 화면 끌어 놓기 순서 저장(본인 행만) — BE EndpointPermissionFilter 와 동기화
     // 화면 사용 구간 기록(포털 PortalShell) — 로그인한 모든 사용자. 서버가 인증 정보로 사용자·부서를 채운다.
     // BE EndpointPermissionFilter.AUTH_ONLY_OBJ_ACTION_PREFIXES 의 "screenusage/record" 와 동기화.
     "/api/mcm/oasis/screenUsage/record",

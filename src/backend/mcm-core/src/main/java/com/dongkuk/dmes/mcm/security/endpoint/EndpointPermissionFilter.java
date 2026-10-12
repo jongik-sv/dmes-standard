@@ -85,8 +85,10 @@ public class EndpointPermissionFilter extends OncePerRequestFilter {
             "secfavorite/toggle",
             "secfavorite/addfolder",    // 사이드바 즐겨찾기 그룹 추가
             "secfavorite/deletefolder", // 사이드바 즐겨찾기 그룹 삭제
+            "secfavorite/reorder",      // 사이드바 즐겨찾기 끌어 놓기 순서 저장 — 본인 행만 (2026-10-12)
             "secstartpgm/search",       // 포털 기본 화면 조회
             "secstartpgm/toggle",       // 탭 우클릭 기본 화면 등록/해제
+            "secstartpgm/reorder",      // 사이드바 기본 화면 끌어 놓기 순서 저장 — 본인 행만 (2026-10-12)
             "secwidget/",               // 포털 홈 위젯 탭·배치(search/saveTab/deleteTab/reorderTabs/resetHome) — 본인 데이터 (2026-10-02)
             "secsrchdflt/",             // 조회 칸 사용자 기본값(search/savePage/resetPage) — 본인 데이터 (2026-10-07). BFF proxy.ts 와 동기화
             // 위젯 B·C·D 사용자용(스펙 2026-10-02-widget-admin-generic §5.1) — 관리자용 commWidgetMng 은 RBAC.

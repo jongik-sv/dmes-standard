@@ -81,6 +81,39 @@ class EndpointPermissionFilterAuthOnlyTest {
         assertThat(chain.getRequest()).isNull();
     }
 
+    /** 포털 사이드바 끌어 놓기 순서 저장 — 메뉴 권한 없는 사용자도 통과(2026-10-12 403 보고). 본인 행 제한은 서비스가 맡는다. */
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "/oasis/secStartPgm/reorder",
+            "/mcm/oasis/secStartPgm/reorder",
+            "/api/mcm/oasis/secStartPgm/reorder",
+            "/oasis/secFavorite/reorder",
+            "/mcm/oasis/secFavorite/reorder",
+            "/api/mcm/oasis/secFavorite/reorder"
+    })
+    void 메뉴_권한이_없어도_기본_화면과_즐겨찾기_순서_저장은_통과한다(String uri) throws Exception {
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", uri);
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        MockFilterChain chain = new MockFilterChain();
+
+        filter.doFilter(request, response, chain);
+
+        assertThat(response.getStatus()).isEqualTo(200);
+        assertThat(chain.getRequest()).isSameAs(request);
+    }
+
+    @Test
+    void 면제_목록에_없는_secFavorite_save_는_권한이_없으면_403() throws Exception {
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/oasis/secFavorite/save");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        MockFilterChain chain = new MockFilterChain();
+
+        filter.doFilter(request, response, chain);
+
+        assertThat(response.getStatus()).isEqualTo(403);
+        assertThat(chain.getRequest()).isNull();
+    }
+
     @Test
     void ruleCalc_view_execute_search_는_AUTH_ONLY_이고_다른_action_은_아니다() {
         for (String action : new String[] {"view", "execute", "search"}) {
