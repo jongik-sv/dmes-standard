@@ -4,7 +4,7 @@
 
 - import: `import { ReactFlow, ReactFlowProvider, ViewportGuard, ContextMenu, FindWidget, shortcutOf, CANVAS_SHORTCUTS } from "@dk-oasis/shared/react-flow";` (CSS import 없음 — xyflow 스타일시트는 이 서브패스가 불러오고, 부품은 자기 `<style>` 을 넣는다)
 - 소스: `src/frontend/shared/src/components/react-flow/` (`index.ts` 배럴)
-- 내부 구현: 룰 세트 편집기(`m-mdm/pages/dme/ruleSetEdit/canvas/`) 부품의 복사본이다. 합치기는 `docs/erd-tool/deferred.md` 15번. 의존성 `@xyflow/react` 12.12.0·`@dagrejs/dagre` 3.1.1(shared `dependencies`).
+- 내부 구현: 룰 세트 편집기(`m-mdm/pages/dme/ruleSetEdit/canvas/`) 부품을 옮긴 것이다. 선 경로(`route-path.ts`)는 룰 세트 편집기·ERD 편집기가 함께 이것을 쓴다(사본 없음). 나머지 부품의 사본 합치기는 `docs/erd-tool/deferred.md` 15번. 의존성 `@xyflow/react` 12.12.0·`@dagrejs/dagre` 3.1.1(shared `dependencies`).
 - Part B 허용 목록(§1): `react-flow` SHOULD.
 
 ## 언제 쓰나
@@ -50,7 +50,7 @@ export function Canvas({ find, onFit }: { find: FindState; onFit(): void }) {
 | 묶음 | 이름 |
 |---|---|
 | React Flow | `@xyflow/react` 의 모든 export(`ReactFlow`, `useStore`, `Position` …). xyflow 의 `Box` 는 그대로 xyflow 뜻이다 |
-| 선 경로(순수) | `routePath`, `routeMidpoint`, `insertRoutePoint`, `smoothStepPoints`, `autoRoute`, `finishRoute`, `simplifyRoute`, `roundPoint`, `segmentAxis`, `segmentHandles`, `isClear`, `moveSegment`, `snapRoutePoint`, `snapSegmentDelta`, 상수 `ROUTE_RADIUS`, `AUTO_ROUTE_OFFSET`, `ROUTE_STUB`, `SEGMENT_MIN_PX`, `SEGMENT_CLEAR_PX`, `SEGMENT_SNAP_PX`, `ROUTE_GUIDE_OVERHANG`, 형 `FlowPos`, `Side`, `SmoothStepInput`, `SegmentAxis`, `SegmentHandle`, `RoutePointGuide` |
+| 선 경로(순수) | `routePath`, `routeMidpoint`, `insertRoutePoint`, `smoothStepPoints`, `autoRoute`, `finishRoute`, `simplifyRoute`, `roundPoint`, `segmentAxis`, `segmentHandles`, `isClear`, `moveSegment`, `clampSegmentDelta`(안쪽 선분을 옮길 때 노드에 붙은 이웃이 stub 밑으로 줄지 않게 자름), `snapRoutePoint`, `snapSegmentDelta`, 상수 `ROUTE_RADIUS`, `AUTO_ROUTE_OFFSET`, `ROUTE_STUB`, `SEGMENT_MIN_PX`, `SEGMENT_CLEAR_PX`, `SEGMENT_SNAP_PX`, `ROUTE_GUIDE_OVERHANG`, 형 `FlowPos`, `Side`, `SmoothStepInput`, `SegmentAxis`, `SegmentHandle`, `RoutePointGuide` |
 | 끌기 스냅(순수) | `snapIndex`, `snapHitIn`, `snapMoveIn`, `snapMove`, `snapThreshold`, `boundsOf`, `SNAP_THRESHOLD_PX`, 형 `SnapBox`(xyflow `Box` 와 겹쳐 이름을 바꿨다), `Guide`, `GuideAxis`, `SnapResult`, `SnapIndex`, `SnapHit`. 안내선 규칙은 `SnapGuideStyle` |
 | 자동 배치(순수) | `autoLayout`, `AUTO_LAYOUT_DEFAULTS`, 형 `LayoutNode`, `LayoutEdge`, `LayoutDirection`, `AutoLayoutOptions`. dagre 로 층을 나눠 왼쪽 위 좌표(정수)를 준다 |
 | 화면 길잡이 | `ViewportGuard`, `RECHECK_MS`(400), `LOST_DELAY_MS`(300), 계산 `boundsOfRects`, `panExtentOf`, `sameExtent`, `visibleRect`, `insideExtent`, `allOutside`, `KEEP_VISIBLE_PX`(80), `NO_EXTENT` |

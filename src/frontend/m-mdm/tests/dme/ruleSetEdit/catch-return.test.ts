@@ -10,7 +10,7 @@ import {
 } from "../../../pages/dme/ruleSetEdit/flow-edit";
 import { NODE_SIZE, autoLayout, clearLayoutCache, drawnPositions, endingRoutes } from "../../../pages/dme/ruleSetEdit/flow-layout";
 import { parseFlow, returnOf, type Guarded } from "../../../pages/dme/ruleSetEdit/flow-model";
-import { smoothStepPoints } from "../../../pages/dme/ruleSetEdit/canvas/route-path";
+import { smoothStepPoints } from "@dk-oasis/shared/react-flow";
 import { editMenu } from "../../../pages/dme/ruleSetEdit/canvas/menus/edit-menu";
 import type { CanvasActions, MenuContext } from "../../../pages/dme/ruleSetEdit/canvas/context-menu";
 

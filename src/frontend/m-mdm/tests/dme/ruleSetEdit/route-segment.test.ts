@@ -8,7 +8,7 @@ import {
   AUTO_ROUTE_OFFSET, ROUTE_RADIUS, ROUTE_STUB, SEGMENT_CLEAR_PX, SEGMENT_MIN_PX, SEGMENT_SNAP_PX,
   autoRoute, finishRoute, isClear, moveSegment, routePath, segmentAxis, segmentHandles, simplifyRoute, smoothStepPoints, snapSegmentDelta,
   type Side, type SmoothStepInput,
-} from "../../../pages/dme/ruleSetEdit/canvas/route-path";
+} from "@dk-oasis/shared/react-flow";
 import { ROUTE_LIMIT_MESSAGE, setRoute, toEditFlow, type FlowPos } from "../../../pages/dme/ruleSetEdit/flow-edit";
 
 const P = (x: number, y: number): FlowPos => ({ x, y });

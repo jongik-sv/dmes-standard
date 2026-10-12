@@ -9,7 +9,7 @@ import { DmesUiProvider } from "@dk-oasis/shared/ui-provider";
 import { FlowCanvas, type FlowCanvasProps } from "../../../pages/dme/ruleSetEdit/canvas/FlowCanvas";
 import { buildMenu, type CanvasActions, type MenuContext } from "../../../pages/dme/ruleSetEdit/canvas/context-menu";
 import { MENU_PROVIDERS } from "../../../pages/dme/ruleSetEdit/canvas/menus";
-import { insertRoutePoint, routeMidpoint, routePath, snapRoutePoint } from "../../../pages/dme/ruleSetEdit/canvas/route-path";
+import { insertRoutePoint, routeMidpoint, routePath, snapRoutePoint } from "@dk-oasis/shared/react-flow";
 import {
   EMPTY_VIEW, addNote, clearRoutes, dissolveSplit, flowJsonOf, insertSplit, moveNode, removeNode, setRoute, toEditFlow, updateEdge,
   type EditFlow, type EditResult, type FlowPos,

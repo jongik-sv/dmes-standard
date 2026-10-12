@@ -4,7 +4,7 @@ export * from "@xyflow/react";
 import "./react-flow";
 export {
   AUTO_ROUTE_OFFSET, ROUTE_GUIDE_OVERHANG, ROUTE_RADIUS, ROUTE_STUB, SEGMENT_CLEAR_PX, SEGMENT_MIN_PX, SEGMENT_SNAP_PX,
-  autoRoute, finishRoute, insertRoutePoint, isClear, moveSegment, roundPoint, routeMidpoint, routePath, segmentAxis, segmentHandles,
+  autoRoute, clampSegmentDelta, finishRoute, insertRoutePoint, isClear, moveSegment, roundPoint, routeMidpoint, routePath, segmentAxis, segmentHandles,
   simplifyRoute, smoothStepPoints, snapRoutePoint, snapSegmentDelta,
 } from "./route-path";
 export type { FlowPos, RoutePointGuide, SegmentAxis, SegmentHandle, Side, SmoothStepInput } from "./route-path";

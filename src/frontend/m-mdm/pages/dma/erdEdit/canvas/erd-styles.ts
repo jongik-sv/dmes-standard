@@ -54,8 +54,17 @@ export const ERD_CSS = `
 .erd-rel[data-state="INFERRED"] .erd-rel__zero { stroke: var(--color-warning); }
 .erd-rel__sel { cursor: pointer; }
 .erd-rel[data-selected] .erd-rel__line, .erd-rel[data-selected] .erd-rel__end { stroke: var(--color-primary); stroke-width: 2.4; }
-.erd-rel__bend, .erd-rel__mid { fill: var(--color-bg); stroke: var(--color-primary); stroke-width: 1.5; cursor: move; pointer-events: all; }
-.erd-rel__mid { fill: var(--color-primary-soft); cursor: copy; }
+.erd-rel__pt, .erd-rel__seg { fill: var(--color-bg); stroke: var(--color-primary); stroke-width: 1.5; pointer-events: all; touch-action: none; }
+.erd-rel__pt { cursor: grab; }
+.erd-rel__pt:hover, .erd-rel__seg:hover, .erd-rel__seg[data-dragging] { fill: var(--color-primary-soft); }
+.erd-rel__pt[data-selected] { fill: var(--color-primary); }
+.erd-rel__pt[data-dragging] { cursor: grabbing; }
+.erd-rel__pt[data-auto] { stroke-dasharray: 2 2; }
+.erd-rel__seg[data-axis="h"] { cursor: ns-resize; }
+.erd-rel__seg[data-axis="v"] { cursor: ew-resize; }
+/* 손잡이가 뜬 선을 다른 선 위로 — xyflow 는 선마다 따로 svg 이고 고른 선을 올리지 않아(elevateEdgesOnSelect false) 뒤에 그린 선의 투명 고르기 영역이 손잡이를 덮는다. */
+.react-flow__edges > svg:has(.erd-rel[data-handles]) { z-index: 1000 !important; }
+.erd-rel__guide { stroke: var(--color-primary); stroke-width: 1; stroke-dasharray: 4 3; pointer-events: none; }
 .erd-rel__label { position: absolute; padding: 0 var(--spacing-xs); font-size: var(--font-size-xs); color: var(--color-warning);
   background: var(--color-bg); border: 1px solid var(--color-border); border-radius: var(--radius-sm); }
 .erd-app { display: flex; flex-direction: column; height: 100%; min-height: 560px; border: 1px solid var(--color-border); background: var(--color-bg); }

@@ -93,9 +93,9 @@ import type { RuleIoMap, RuleSetCheck, SetCallIoMap, VarDisplay } from "../types
 import { FOLD_EDGE_PREFIX, collapseView } from "./collapse";
 import { boundsOf, snapHitIn, snapIndex, snapThreshold, type Box, type Guide, type SnapIndex } from "./snap";
 import {
-  ROUTE_RADIUS, ROUTE_STUB, autoRoute, finishRoute, insertRoutePoint, isClear, moveSegment, roundPoint, routeMidpoint, routePath, segmentAxis, segmentHandles,
-  snapRoutePoint, snapSegmentDelta, type SegmentHandle,
-} from "./route-path";
+  ROUTE_RADIUS, autoRoute, clampSegmentDelta, finishRoute, insertRoutePoint, isClear, moveSegment, roundPoint, routeMidpoint, routePath, segmentAxis,
+  segmentHandles, snapRoutePoint, snapSegmentDelta, type SegmentHandle,
+} from "@dk-oasis/shared/react-flow";
 import { SEG_BAR_LONG, SEG_BAR_SHORT } from "../styles/route";
 import type { MenuTarget } from "./context-menu";
 import { NoteSizeContext, createNoteSizeStore, dragNoteSize, sameNoteSize, type NoteSizeApi } from "./note-size";
@@ -181,33 +181,6 @@ export function segmentBox(s: SegmentHandle): CenterBox {
   return s.axis === "h"
     ? { x: s.at.x, y: s.at.y, w: SEG_BAR_LONG, h: SEG_BAR_SHORT }
     : { x: s.at.x, y: s.at.y, w: SEG_BAR_SHORT, h: SEG_BAR_LONG };
-}
-/**
- * 안쪽 선분(노드에 붙지 않은 선분)을 옮길 때의 delta 제한(W1). 노드에 붙은 이웃 선분이 원래 길이가 stub 이상이면 stub 밑으로,
- * 더 짧으면 그 길이 밑으로 줄거나 뒤집히지 않게 자른다 — 뒤집히면 선이 노드 반대쪽으로 나간다. 노드에 붙은 선분(첫·끝)은 moveSegment 가 stub 을 끼운다.
- */
-export function clampSegmentDelta(full: readonly FlowPos[], seg: number, delta: number, stub = ROUTE_STUB): number {
-  const last = full.length - 1;
-  const a = full[seg];
-  const b = full[seg + 1];
-  if (!a || !b || seg < 1 || seg + 1 >= last) return delta;
-  const axis = segmentAxis(a, b);
-  if (!axis) return delta;
-  const c: "x" | "y" = axis === "h" ? "y" : "x";
-  let out = delta;
-  // 앞 이웃: full[0] → full[seg] 선분의 끝이 움직인다(seg === 1 일 때만 노드에 붙는다).
-  if (seg === 1) {
-    const dir = Math.sign(full[1][c] - full[0][c]);
-    const keep = Math.min(stub, Math.abs(full[1][c] - full[0][c]));
-    if (dir !== 0) out = dir > 0 ? Math.max(out, full[0][c] + keep - full[1][c]) : Math.min(out, full[0][c] - keep - full[1][c]);
-  }
-  // 뒤 이웃: full[seg + 1] → full[last] 선분의 시작이 움직인다(seg + 2 === last 일 때만 노드에 붙는다).
-  if (seg + 2 === last) {
-    const dir = Math.sign(full[last][c] - full[seg + 1][c]);
-    const keep = Math.min(stub, Math.abs(full[last][c] - full[seg + 1][c]));
-    if (dir !== 0) out = dir > 0 ? Math.min(out, full[last][c] - keep - full[seg + 1][c]) : Math.max(out, full[last][c] + keep - full[seg + 1][c]);
-  }
-  return out;
 }
 const FLASH_MS = 1200;
 /** 화면 맞춤 여백·확대 한계. 최소 배율 0.1 — 노드 24~27개(높이 약 2050px) 흐름이 400px 대 캔버스에 들어가려면 약 0.17 이 필요하다. */

@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 import { Position, getSmoothStepPath } from "../../src/components/react-flow/react-flow";
 import {
   AUTO_ROUTE_OFFSET, ROUTE_RADIUS, ROUTE_STUB, SEGMENT_CLEAR_PX, SEGMENT_MIN_PX, SEGMENT_SNAP_PX,
-  autoRoute, finishRoute, isClear, moveSegment, routePath, segmentAxis, segmentHandles, simplifyRoute, smoothStepPoints, snapSegmentDelta,
+  autoRoute, clampSegmentDelta, finishRoute, isClear, moveSegment, routePath, segmentAxis, segmentHandles, simplifyRoute, smoothStepPoints, snapSegmentDelta,
   type Side, type SmoothStepInput,
 } from "../../src/components/react-flow/route-path";
 import type { FlowPos } from "../../src/components/react-flow/route-path";
@@ -239,5 +239,18 @@ describe("snapSegmentDelta — 끄는 동안 일직선 맞춤", () => {
     const moved = moveSegment(full, 3, snapSegmentDelta(full, 3, -146, 1))!;
     expect(moved.points).toEqual([P(0, 100), P(200, 100), P(200, 100), P(400, 100)]);
     expect(finishRoute(full[0], moved.points, full[5])).toEqual([P(0, 100), P(400, 100)]);
+  });
+
+  it("clampSegmentDelta — 안쪽 선분을 옮길 때 노드에 붙은 이웃 선분이 stub(20) 밑으로 줄지 않게 자른다", () => {
+    const full = [P(116, 72), P(116, 150), P(300, 150), P(300, 250), P(716, 250), P(716, 396)];
+    expect(clampSegmentDelta(full, 1, -200)).toBe(-58); // 앞 이웃: 72 → 92 에서 멈춤
+    expect(clampSegmentDelta(full, 1, 500)).toBe(500); // 뒤 이웃(선분 2)은 노드에 붙지 않았다
+    expect(clampSegmentDelta(full, 3, 500)).toBe(126); // 끝 이웃: 396 - 20 = 376 → 376 - 250
+    expect(clampSegmentDelta(full, 0, -999)).toBe(-999); // 노드에 붙은 선분은 moveSegment 가 stub 을 끼운다
+  });
+
+  it("clampSegmentDelta — 원래 stub 보다 짧은 이웃은 그 길이 밑으로 줄지 않는다", () => {
+    expect(clampSegmentDelta([P(0, 0), P(0, 10), P(50, 10), P(50, 100)], 1, -999)).toBe(0);
+    expect(clampSegmentDelta([P(0, 0), P(0, 10), P(50, 10), P(50, 100)], 1, -999, 5)).toBe(-5);
   });
 });

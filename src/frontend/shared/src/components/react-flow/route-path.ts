@@ -1,6 +1,5 @@
-// 룰 세트 편집기 m-mdm/pages/dme/ruleSetEdit/canvas/route-path.ts 의 복사본(ERD 단계 1 Task 6). 합치기는 docs/erd-tool/deferred.md 15번.
 /**
- * 선 경로 편집(3단계 계획 Task 15, C14) 순수 함수 — React 의존이 없다.
+ * 선 경로 편집(3단계 계획 Task 15, C14) 순수 함수 — React 의존이 없다. 룰 세트 편집기(ruleSetEdit)·ERD 편집기(erdEdit)가 함께 쓴다(ERD 2차 erd-route r1).
  * `pts` 는 시작 손잡이 → 꺾는 점들 → 끝 손잡이 전체 꺾은선이다(흐름 좌표).
  * 4단계 W1: 자동 경로 점(xyflow getPoints 이식)·선분 손잡이.
  */
@@ -296,6 +295,34 @@ export function moveSegment(full: readonly FlowPos[], index: number, delta: numb
     seg += 2;
   } else pts[index] = shift(pts[index]);
   return { points: pts.slice(1, -1), seg };
+}
+
+/**
+ * 안쪽 선분(노드에 붙지 않은 선분)을 옮길 때의 delta 제한(W1). 노드에 붙은 이웃 선분이 원래 길이가 stub 이상이면 stub 밑으로,
+ * 더 짧으면 그 길이 밑으로 줄거나 뒤집히지 않게 자른다 — 뒤집히면 선이 노드 반대쪽으로 나간다. 노드에 붙은 선분(첫·끝)은 moveSegment 가 stub 을 끼운다.
+ */
+export function clampSegmentDelta(full: readonly FlowPos[], seg: number, delta: number, stub = ROUTE_STUB): number {
+  const last = full.length - 1;
+  const a = full[seg];
+  const b = full[seg + 1];
+  if (!a || !b || seg < 1 || seg + 1 >= last) return delta;
+  const axis = segmentAxis(a, b);
+  if (!axis) return delta;
+  const c: "x" | "y" = axis === "h" ? "y" : "x";
+  let out = delta;
+  // 앞 이웃: full[0] → full[seg] 선분의 끝이 움직인다(seg === 1 일 때만 노드에 붙는다).
+  if (seg === 1) {
+    const dir = Math.sign(full[1][c] - full[0][c]);
+    const keep = Math.min(stub, Math.abs(full[1][c] - full[0][c]));
+    if (dir !== 0) out = dir > 0 ? Math.max(out, full[0][c] + keep - full[1][c]) : Math.min(out, full[0][c] - keep - full[1][c]);
+  }
+  // 뒤 이웃: full[seg + 1] → full[last] 선분의 시작이 움직인다(seg + 2 === last 일 때만 노드에 붙는다).
+  if (seg + 2 === last) {
+    const dir = Math.sign(full[last][c] - full[seg + 1][c]);
+    const keep = Math.min(stub, Math.abs(full[last][c] - full[seg + 1][c]));
+    if (dir !== 0) out = dir > 0 ? Math.min(out, full[last][c] - keep - full[seg + 1][c]) : Math.max(out, full[last][c] + keep - full[seg + 1][c]);
+  }
+  return out;
 }
 
 /** 꺾는 점 끌기 맞춤 안내선 — axis "x" 는 x = at 세로선(from~to 는 y), "y" 는 y = at 가로선(from~to 는 x). snap.ts 의 Guide 와 같은 모양. */

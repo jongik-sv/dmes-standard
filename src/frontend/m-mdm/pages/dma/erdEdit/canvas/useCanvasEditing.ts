@@ -40,7 +40,9 @@ import { PASTE_GAP, copyTables, nextPasteRound, pasteTablesPlan, readClip, write
 import { nextExpiry, viewersAt, type ErdFlowEdge, type ErdFlowNode, type InlineEdit } from "./erd-flow";
 import { NODE_WIDTH, ZOOM_NAMES_ONLY, ZOOM_OVERVIEW, lodTier, nodeHeight, type LodTier } from "./erd-geometry";
 import { autoLayoutCommand, type Size } from "./erd-layout";
-import { handlePressedRecently, routeBusOf, selectRoute, setRouteHandlers } from "./erd-route";
+import {
+  MAX_ROUTE_POINTS, ROUTE_LIMIT_TEXT, handlePressedRecently, resetRouteHover, routeBusOf, selectRoute, selectRoutePoint, setRouteHandlers,
+} from "./erd-route";
 import {
   ALIGN_LABEL, ALIGN_MIN, ALIGN_MODES, DISTRIBUTE_LABEL, DISTRIBUTE_MIN, alignBoxes, alreadyIn, arrangeLabel, bulkColumnCommands, bulkColumnPlan,
   distributeBoxes, placeIntoCommand, type ArrangeKind, type BulkColumnInput, type NodeBox,
@@ -284,6 +286,8 @@ export function useCanvasEditing(ctx: ErdEditContext, rf: ReactFlowInstance<ErdF
 
   // ── 끌기 ──
   const onNodesChange = useCallback((changes: NodeChange<ErdFlowNode>[]) => {
+    // 표를 고르면(끌어 고르기·상자 고르기·모두 고르기 등 누르기 없는 고르기 포함) 고른 선·꺾임점을 푼다 — Delete 가 방금 고른 표에 가게 한다.
+    if (changes.some((c) => c.type === "select" && c.selected)) selectRoute(routeBus, null);
     let next: Map<string, XYPosition> | null = null;
     for (const c of changes) {
       if (c.type !== "position" || !c.position) continue;
@@ -297,7 +301,7 @@ export function useCanvasEditing(ctx: ErdEditContext, rf: ReactFlowInstance<ErdF
       dragRef.current = next;
       setDrag(next);
     }
-  }, []);
+  }, [routeBus]);
 
   /** 놓기 token 이 아직 그 노드의 마지막 놓기인 덮개만 지운다(token 없이 부르면 모두). */
   const clearDrag = useCallback((ids: readonly string[], token?: number) => {
@@ -919,6 +923,33 @@ export function useCanvasEditing(ctx: ErdEditContext, rf: ReactFlowInstance<ErdF
   }, [send, closeProps]);
   const newKeyId = useCallback(() => newElementId("k"), []);
 
+  // 고른 꺾임점 빼기(Delete·Backspace, 룰 세트 편집기 C14 와 같다) — 뺐으면 true. 뺀 뒤 이웃 점을 고른 채로 둬 연속 Delete 가 표 빼기로 새지 않는다.
+  // 점은 지금 투영 상태(낙관 반영)에서 읽는다. 보내기는 버스의 commit(= commitRoute)으로 한다(마지막 점이면 clearRoutes).
+  // 앞 빼기가 아직 반영(낙관 투영) 전이면 그 선의 Delete 는 삼킨다 — 낡은 점 목록에서 빼면 뺀 점이 되살아난다(초안 만들기 왕복 중).
+  const routeSending = useRef(new Set<string>());
+  const removeRoutePoint = useCallback((): boolean => {
+    const sel = routeBus.point;
+    const c = ctxRef.current;
+    if (!sel || !routeBus.editable || !routeBus.handlers || !c.diagramId) return false;
+    // 점을 고른 뒤 표를 골랐으면 표가 먼저다(손잡이를 누르면 고른 표를 푼다).
+    if (selectedIds().length > 0) {
+      selectRoutePoint(routeBus, null);
+      return false;
+    }
+    if (routeSending.current.has(sel.relation)) return true;
+    const points = c.state.routes[routeKey(c.diagramId, sel.relation)]?.points;
+    if (!points || sel.index >= points.length) {
+      // 고른 점이 이미 사라졌다 — 이 키는 삼킨다(표 빼기로 새지 않게).
+      selectRoutePoint(routeBus, null);
+      return true;
+    }
+    const rest = points.filter((_, k) => k !== sel.index).map((p) => ({ x: p.x, y: p.y }));
+    routeSending.current.add(sel.relation);
+    void Promise.resolve(routeBus.handlers.commit(sel.relation, rest)).finally(() => routeSending.current.delete(sel.relation));
+    selectRoutePoint(routeBus, rest.length > 0 ? { relation: sel.relation, index: Math.min(sel.index, rest.length - 1) } : null);
+    return true;
+  }, [routeBus, selectedIds]);
+
   // ── 키 ──
   const onKeyDown = useCallback((e: KeyboardEvent) => {
     if (inDialog(e.target)) return;
@@ -927,7 +958,7 @@ export function useCanvasEditing(ctx: ErdEditContext, rf: ReactFlowInstance<ErdF
       toolTable: () => chooseTool("table"),
       toolRelation: () => chooseTool("relation"),
       toolIdentifying: () => chooseTool("identifying"),
-      delete: () => (removeTables() ? undefined : UNHANDLED),
+      delete: () => (removeRoutePoint() || removeTables() ? undefined : UNHANDLED),
       deleteModel: () => (askDelete() ? undefined : UNHANDLED),
       selectAll: () => {
         const ids = rf.getNodes().map((n) => n.id);
@@ -961,7 +992,7 @@ export function useCanvasEditing(ctx: ErdEditContext, rf: ReactFlowInstance<ErdF
       },
     };
     dispatchShortcut(e, handlers, mac, ERD_CANVAS_SHORTCUTS);
-  }, [chooseTool, removeTables, askDelete, goNeighbor, escape, fitTo, rf, storeApi, selectedIds, mac, copySelected, paste, renameSelected, openProps]);
+  }, [chooseTool, removeRoutePoint, removeTables, askDelete, goNeighbor, escape, fitTo, rf, storeApi, selectedIds, mac, copySelected, paste, renameSelected, openProps]);
 
   // ── 관계선 경유점(2차 c5) — 선 누르기 = 고르기, 손잡이 끌기·두 번 누르기 = setRoute / clearRoutes(한 번 = 되돌리기 1번) ──
   const commitRoute = useCallback(async (relation: string, points: { x: number; y: number }[]) => {
@@ -969,6 +1000,10 @@ export function useCanvasEditing(ctx: ErdEditContext, rf: ReactFlowInstance<ErdF
     if (!c.diagramId) return;
     if (!c.rights.diagram.ok) {
       deny(c.rights.diagram);
+      return;
+    }
+    if (points.length > MAX_ROUTE_POINTS) {
+      c.notify(ROUTE_LIMIT_TEXT, "warn");
       return;
     }
     if (points.length === 0) {
@@ -990,7 +1025,10 @@ export function useCanvasEditing(ctx: ErdEditContext, rf: ReactFlowInstance<ErdF
     setMenu({
       at: { x: e.clientX, y: e.clientY },
       items: [{
-        id: "route-reset", label: "자동 경로로 되돌리기", run: () => void commitRoute(edge.id, []),
+        id: "route-reset", label: "자동 경로로 되돌리기", run: () => {
+          selectRoutePoint(routeBus, null);
+          void commitRoute(edge.id, []);
+        },
         ...(routed ? offIf(c.rights.diagram) : { disabled: true, title: "꺾임점이 없습니다" }),
       }],
     });
@@ -999,9 +1037,14 @@ export function useCanvasEditing(ctx: ErdEditContext, rf: ReactFlowInstance<ErdF
     setRouteHandlers(routeBus, {
       commit: commitRoute,
       canEdit: canDiagram,
+      pressed: () => {
+        if (selectedIds().length > 0) storeApi.getState().unselectNodesAndEdges(); // select 변경으로 CanvasPane → ErdViewer 선택이 비워진다
+        focusHost();
+      },
     });
     return () => setRouteHandlers(routeBus, null, true);
-  }, [routeBus, commitRoute, canDiagram]);
+  }, [routeBus, commitRoute, canDiagram, focusHost, selectedIds, storeApi]);
+  useEffect(() => () => resetRouteHover(routeBus), [routeBus]);
 
   // ── 누르기·우클릭 ──
   const onPaneClick = useCallback<NonNullable<FlowProps["onPaneClick"]>>((e) => {

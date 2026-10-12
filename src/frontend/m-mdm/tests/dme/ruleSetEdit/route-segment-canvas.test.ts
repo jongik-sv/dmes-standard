@@ -17,9 +17,9 @@ vi.mock("@dagrejs/dagre", async (importOriginal) => {
   return { ...real, default: wrapped };
 });
 
-import { ADD_HOVER_GRACE_MS, FlowCanvas, addSpot, clampSegmentDelta, segmentBox, type FlowCanvasProps } from "../../../pages/dme/ruleSetEdit/canvas/FlowCanvas";
+import { ADD_HOVER_GRACE_MS, FlowCanvas, addSpot, segmentBox, type FlowCanvasProps } from "../../../pages/dme/ruleSetEdit/canvas/FlowCanvas";
 import { Position, getSmoothStepPath } from "../../../pages/dme/ruleSetEdit/canvas/react-flow";
-import { ROUTE_RADIUS } from "../../../pages/dme/ruleSetEdit/canvas/route-path";
+import { ROUTE_RADIUS, clampSegmentDelta } from "@dk-oasis/shared/react-flow";
 import { ROUTE_LIMIT_MESSAGE, setPositions, setRoute, toEditFlow, type EditFlow, type EditResult, type FlowPos } from "../../../pages/dme/ruleSetEdit/flow-edit";
 import { RSF_CSS } from "../../../pages/dme/ruleSetEdit/rsf-styles";
 import { flush, installDomStorage } from "../helpers/render";

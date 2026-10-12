@@ -62,7 +62,7 @@ export const ERD_EDIT_CSS = `
 .react-flow[data-lod="overview"] .erd-rel__label { display: none; }
 .react-flow[data-lod="overview"] .erd-rel .erd-rel__line { stroke-width: min(calc(1.5px / var(--erd-zoom, 1)), 8px); }
 .react-flow[data-lod="overview"] .erd-rel[data-selected] .erd-rel__line { stroke-width: min(calc(2.4px / var(--erd-zoom, 1)), 12px); }
-.react-flow[data-lod="overview"] .erd-rel__bend, .react-flow[data-lod="overview"] .erd-rel__mid { display: none; }
+.react-flow[data-lod="overview"] .erd-rel__pt, .react-flow[data-lod="overview"] .erd-rel__seg { display: none; }
 .erd-minimap-slot { display: contents; }
 .erd-minimap.react-flow__minimap { background: var(--color-bg); border: 1px solid var(--color-border); border-radius: var(--radius-sm); }
 .erd-minimap .react-flow__minimap-mask { fill: var(--color-bg-hover); fill-opacity: 0.6; }
