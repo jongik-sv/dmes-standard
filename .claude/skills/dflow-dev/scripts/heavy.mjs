@@ -3,8 +3,15 @@
 // 동작·출력·종료 코드·잠금 폴더 형식은 heavy.sh 와 같다. 전환 중 옛 heavy.sh 와 같은 잠금 폴더를 섞어 써도 안전하다.
 //
 // 사용법
-//   heavy.mjs [--pool docker | --exclusive] [--detach] [--] <명령> [인자…]
+//   heavy.mjs [--pool docker | --exclusive] [--detach] [--oracle] [--] <명령> [인자…]
 //                      슬롯을 얻어 명령을 돌린다. 끝나거나 INT·TERM·HUP 이면 슬롯을 푼다. exit = 명령의 exit.
+//   --oracle           PC Oracle 잠금(scripts/oracle/pclock.mjs, $TMPDIR/dmes-ora-pdb.lock)도 슬롯과 한 번에 잡는다(대책 F, 2026-10-12).
+//                      잠금을 못 잡으면 잡은 슬롯을 곧바로 돌려주고 기다린다(잠금을 기다리는 동안 슬롯을 쥐지 않는다). 대기 상한은 WAIT 그대로.
+//                      명령 인자에 Gradle Oracle 시험 속성(dmes.ora.test=clone·dmes.ora.pdb=<PDB>)이 있거나, gradlew 명령이고
+//                      DMES_ORA_TEST=clone·DMES_ORA_PDB 가 있으면 저절로 켜진다. 잡으면 명령에 DMES_ORA_LOCK_HELD=<이 heavy pid> 를 넘기고
+//                      (Gradle·pdb.mjs 는 그 잠금을 쓰고 다시 잡지 않는다) 1분마다 touchLock, 명령이 끝나거나 신호면 놓는다.
+//                      --detach 와 함께 쓰면 슬롯을 쥐는 손자가 잠금도 쥔다. 감싼 실행 안·HEAVY_REUSE 는 잠금을 잡지 않는다(Gradle 이 직접 잡는다).
+//                      pclock.mjs 를 못 읽으면 HEAVY_WARN 후 잠금 없이 돌린다.
 //   heavy.mjs acquire <이름> | release      세션(OWNER)이 E2E 풀 슬롯(e2e-<i>)을 붙잡는다 / 푼다.
 //   heavy.mjs status    stdout 정확히 한 줄 `HEAVY_STATUS slots=<K> held=<N> waiting=<M>`, 세부는 stderr. exit 0.
 //   heavy.mjs snapshot  stdout 탭 구분 `PC K held waiting load1|- cpus|-` · `RUN start kind pool cwd cmd` · `WAIT start pool cwd cmd`. exit 0.
@@ -13,7 +20,8 @@
 // 종료 코드: 75 HEAVY_BUSY·HEAVY_DOCKER_BUSY(대기 상한 초과 — 다시 부른다) · 2 사용 오류·HEAVY_EXCL_NESTED·HEAVY_JOB_UNKNOWN
 //   wait: 명령 rc · 76 HEAVY_JOB_RUNNING(다시 wait) · 77 HEAVY_JOB_BUSY(다시 --detach) · 78 HEAVY_JOB_FAILED(잡 rc 76) · 1 HEAVY_JOB_LOST
 // 출력(stderr): HEAVY_WAIT · HEAVY_LOAD_WAIT · HEAVY_SLOT · HEAVY_REUSE · HEAVY_RECLAIM · HEAVY_BUSY · HEAVY_ACQUIRED · HEAVY_RELEASED ·
-//   HEAVY_DOCKER_WAIT · HEAVY_DOCKER_SLOT · HEAVY_DOCKER_BUSY · HEAVY_EXCL_WAIT · HEAVY_EXCL · HEAVY_EXCL_NESTED · HEAVY_UNLOCKED · HEAVY_WARN
+//   HEAVY_DOCKER_WAIT · HEAVY_DOCKER_SLOT · HEAVY_DOCKER_BUSY · HEAVY_EXCL_WAIT · HEAVY_EXCL · HEAVY_EXCL_NESTED · HEAVY_UNLOCKED · HEAVY_WARN ·
+//   HEAVY_ORA_WAIT(Oracle 잠금 주인 pid·cwd) · HEAVY_ORA_LOCK(잡음). 잠금 때문에 못 얻은 BUSY 줄 끝에는 ` Oracle 잠금 대기: pid=… cwd=…`
 // 출력(stdout): HEAVY_DETACHED · HEAVY_JOB_DONE · HEAVY_JOB_BUSY · HEAVY_JOB_FAILED · HEAVY_JOB_RUNNING · HEAVY_JOB_LOST (와 로그 끝 30줄)
 //
 // 잠금 폴더 <DIR>(기본 ~/.dflow/locks/heavy): slot-<i>·docker-<i>·e2e-<i> 폴더(mkdir 원자성) 안 owner 파일
@@ -29,7 +37,7 @@ import { spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const ENV = process.env;
 const IS_WIN = process.platform === 'win32';
@@ -473,18 +481,28 @@ async function waitSlot(kind, pid, cmd, pre = 'slot', n = K) {
   WAIT_T0 = now();
   const deadline = WAIT_T0 + WAIT;
   let announced = false;
+  // 슬롯 + (ORA 면) Oracle 잠금을 함께. 잠금을 못 잡으면 잡은 슬롯을 그 자리에서 돌려준다
+  const grab = () => {
+    ORAWHY = '';
+    if (oraBusy()) { LOADWHY = ''; return false; }
+    if (!takeNew(kind, pid, cmd, pre, n)) return false;
+    if (oraTake()) return true;
+    rmrf(SLOT); SLOT = '';
+    return false;
+  };
   for (;;) {
-    if (takeNew(kind, pid, cmd, pre, n)) { waitUnmark(); return 0; }
+    if (grab()) { waitUnmark(); return 0; }
     for (const i of nums(n)) { const d = path.join(DIR, `${pre}-${i}`); if (stale(d)) reclaim(d); }
-    if (takeNew(kind, pid, cmd, pre, n)) { waitUnmark(); return 0; }
-    const note = pre === 'slot' ? `${exclNote()}${loadNote(LOADWHY)}` : '';
+    if (grab()) { waitUnmark(); return 0; }
+    const note = pre === 'slot' ? `${exclNote()}${loadNote(LOADWHY)}${oraNote()}` : '';
     if (now() >= deadline) {
       waitUnmark();
       err(`HEAVY_BUSY ${tag} wait=${WAIT}s 보유: ${holders(pre, n)}${note}`);
       return 1;
     }
     waitMark(pool, cmd);
-    if (!announced) { err(`HEAVY_WAIT ${tag} 보유: ${holders(pre, n)}${note}`); announced = true; }
+    if (ORAWHY) oraAnnounce();
+    else if (!announced) { err(`HEAVY_WAIT ${tag} 보유: ${holders(pre, n)}${note}`); announced = true; }
     loadAnnounce(LOADWHY, tag);
     await sleep(POLL);
   }
@@ -496,11 +514,17 @@ async function waitDocker(pid, cmd, need) {
   const deadline = WAIT_T0 + WAIT;
   let announced = false;
   for (;;) {
-    DSLOT = ''; SLOT = ''; LOADWHY = '';
+    DSLOT = ''; SLOT = ''; LOADWHY = ''; ORAWHY = '';
     if (need && loadDefer()) {
       LOADWHY = LOADMSG;
+    } else if (oraBusy()) {
+      // Oracle 잠금 주인이 살아 있다 — 슬롯을 잡지 않고 기다린다
     } else if (take('run', pid, `[docker] ${cmd}`, 'docker', KD)) {
-      if (!need || take('run', pid, `[docker] ${cmd}`, 'slot', K)) { waitUnmark(); return 0; }
+      if (!need || take('run', pid, `[docker] ${cmd}`, 'slot', K)) {
+        if (oraTake()) { waitUnmark(); return 0; }
+        if (SLOT) rmrf(SLOT);
+        SLOT = '';
+      }
       rmrf(DSLOT); DSLOT = '';
     }
     for (const i of nums(KD)) { const d = path.join(DIR, `docker-${i}`); if (stale(d)) reclaim(d); }
@@ -508,11 +532,12 @@ async function waitDocker(pid, cmd, need) {
     const desc = `k=${K} docker=${KD}`;
     if (now() >= deadline) {
       waitUnmark();
-      err(`HEAVY_DOCKER_BUSY ${desc} wait=${WAIT}s 도커: ${holders('docker', KD)} 일반: ${holders()}${exclNote()}${loadNote(LOADWHY)}`);
+      err(`HEAVY_DOCKER_BUSY ${desc} wait=${WAIT}s 도커: ${holders('docker', KD)} 일반: ${holders()}${exclNote()}${loadNote(LOADWHY)}${oraNote()}`);
       return 1;
     }
     waitMark('docker', cmd);
-    if (!announced) { err(`HEAVY_DOCKER_WAIT ${desc} 도커: ${holders('docker', KD)} 일반: ${holders()}${exclNote()}${loadNote(LOADWHY)}`); announced = true; }
+    if (ORAWHY) oraAnnounce();
+    else if (!announced) { err(`HEAVY_DOCKER_WAIT ${desc} 도커: ${holders('docker', KD)} 일반: ${holders()}${exclNote()}${loadNote(LOADWHY)}`); announced = true; }
     loadAnnounce(LOADWHY, desc);
     await sleep(POLL);
   }
@@ -533,6 +558,93 @@ function mineRelease() {
   if (DSLOT && field(DSLOT, 'pid') === MYPID) rmrf(DSLOT);
   SLOT = ''; DSLOT = '';
   waitUnmark();
+}
+
+// ── Oracle 잠금(대책 F) ──────────────────────────────────────────────────
+// 슬롯과 PC Oracle 잠금을 한 번에 잡는다. 잠금을 기다리는 동안 슬롯을 쥐지 않는다(waitDocker 와 같은 불변식).
+let PCL = null, ORA_FLAG = false, ORA = false, ORA_HELD = false, ORAWHY = '', ORA_ANNOUNCED = false;
+// Gradle Oracle 시험 명령인가. 켜는 값은 dmes.test-conventions 와 같다(dmes.ora.test=clone 또는 dmes.ora.pdb=<PDB>)
+function isOracleCmd(argv) {
+  for (const a of argv) {
+    if (/dmes\.ora\.test=["']?clone\b/.test(a) || /dmes\.ora\.pdb=["']?[A-Za-z0-9_]/.test(a)) return true;
+  }
+  return /(^|[\\/])gradlew?(\.bat)?$/i.test(argv[0] ?? '') && (ENV.DMES_ORA_TEST === 'clone' || !!ENV.DMES_ORA_PDB);
+}
+// pclock.mjs 는 cwd 에서 위로(워크트리의 것), 없으면 이 파일 기준 리포 루트에서 찾는다
+async function loadPclock() {
+  const cands = [];
+  for (let d = process.cwd(); ;) {
+    cands.push(path.join(d, 'scripts', 'oracle', 'pclock.mjs'));
+    const p = path.dirname(d);
+    if (p === d) break;
+    d = p;
+  }
+  cands.push(path.resolve(path.dirname(SELF), '..', '..', '..', '..', 'scripts', 'oracle', 'pclock.mjs'));
+  const f = cands.find(isFile);
+  if (!f) { err('HEAVY_WARN Oracle 명령이지만 scripts/oracle/pclock.mjs 를 찾지 못했다 — 잠금 없이 돌린다(Gradle 이 직접 잡는다)'); return null; }
+  try { return await import(pathToFileURL(f).href); } catch (e) {
+    err(`HEAVY_WARN pclock.mjs 를 읽지 못했다(${f}: ${e.message}) — 잠금 없이 돌린다(Gradle 이 직접 잡는다)`);
+    return null;
+  }
+}
+// 실행 경로(cmdRun·도커·독점)가 슬롯 대기 전에 부른다
+async function oraSetup(argv, flag) {
+  if (!flag && !isOracleCmd(argv)) return;
+  PCL = await loadPclock();
+  if (!PCL) return;
+  if (PCL.lockHeldByParent()) return; // 상위가 이미 쥐고 넘겨줬다
+  ORA = true;
+  process.on('exit', oraRelease);
+}
+function oraOwner() {
+  const [pid = '', ...rest] = readFileSafe(path.join(PCL.LOCK_DIR, 'owner')).trim().split(' ');
+  return { pid, cwd: rest.join(' ') };
+}
+function oraSeen() { const o = oraOwner(); ORAWHY = `pid=${o.pid || '?'} cwd=${o.cwd || '?'}`; }
+// 남이 쥔 살아 있는 잠금이면 true — 슬롯을 잡았다 돌려주는 헛걸음 없이 이번 차례를 넘긴다. stale 판정은 tryAcquireLock 몫
+function oraBusy() {
+  if (!ORA) return false;
+  let age;
+  try { age = Date.now() - fs.statSync(PCL.LOCK_DIR).mtimeMs; } catch { return false; }
+  const { pid } = oraOwner();
+  if (!isDigits(pid) || pid === ME || !alive(pid) || age > 30 * 60 * 1000) return false;
+  oraSeen();
+  return true;
+}
+// 슬롯을 쥔 뒤 잠금을 한 번 시도한다. false 면 호출자가 슬롯을 돌려준다
+function oraTake() {
+  if (!ORA) return true;
+  try {
+    if (PCL.tryAcquireLock()) { ORA_HELD = true; return true; }
+  } catch (e) {
+    err(`HEAVY_WARN Oracle 잠금을 시도하지 못했다(${e.message}) — 잠금 없이 돌린다(Gradle 이 직접 잡는다)`);
+    ORA = false;
+    return true;
+  }
+  oraSeen();
+  return false;
+}
+const oraNote = () => (ORA && ORAWHY ? ` Oracle 잠금 대기: ${ORAWHY}` : '');
+function oraAnnounce() {
+  if (!ORAWHY || ORA_ANNOUNCED) return;
+  err(`HEAVY_ORA_WAIT ${ORAWHY} lock=${PCL.LOCK_DIR} — Oracle 잠금을 기다리는 동안 슬롯을 쥐지 않는다(잡은 슬롯은 곧바로 돌려준다)`);
+  ORA_ANNOUNCED = true;
+}
+// 슬롯·잠금을 다 잡은 뒤: 명령에 잠금 주인 pid 를 넘기고 1분마다 잠금 시각을 갱신한다(30분 stale 방지)
+function oraStart() {
+  if (!ORA_HELD) return;
+  ENV.DMES_ORA_LOCK_HELD = ME;
+  setInterval(() => PCL.touchLock(), 60 * 1000).unref();
+  err(`HEAVY_ORA_LOCK pid=${ME} lock=${PCL.LOCK_DIR}`);
+}
+// 내가 쥔 잠금만 놓는다(stale 로 치워진 뒤 남이 잡은 잠금을 지우지 않게). exit 훅이라 신호 경로도 여기로 온다
+function oraRelease() {
+  if (!ORA_HELD) return;
+  ORA_HELD = false;
+  try {
+    const o = PCL.ownerPid(); // 0 = owner 를 못 씀(내가 mkdir 한 직후 실패) — 그래도 내 것
+    if (PCL.ownsLock() && (o === process.pid || o === 0)) PCL.releaseLock();
+  } catch { /* 무시 */ }
 }
 
 // ── 명령 실행 ────────────────────────────────────────────────────────────
@@ -619,7 +731,7 @@ async function execLike(argv) {
 }
 
 function usage() {
-  err('사용법: heavy.mjs [--pool docker | --exclusive] [--detach] <명령> [인자…] | acquire <이름> | release | status | snapshot | wait <id> [--max <초>]');
+  err('사용법: heavy.mjs [--pool docker | --exclusive] [--detach] [--oracle] <명령> [인자…] | acquire <이름> | release | status | snapshot | wait <id> [--max <초>]');
   process.exit(2);
 }
 const HELD = () => ENV.DFLOW_HEAVY_HELD && isDir(ENV.DFLOW_HEAVY_HELD);
@@ -634,9 +746,10 @@ async function cmdRun(argv) {
   MYPID = ME; SLOT = '';
   slotSignals();
   process.on('exit', mineRelease);
+  await oraSetup(argv, ORA_FLAG);
   const rc = await waitSlot('run', MYPID, argv.join(' '));
   if (rc === 1) process.exit(BUSY_RC);
-  if (rc === 0) { err(`HEAVY_SLOT ${path.basename(SLOT)} k=${K} ${waited()}`); ENV.DFLOW_HEAVY_HELD = SLOT; }
+  if (rc === 0) { err(`HEAVY_SLOT ${path.basename(SLOT)} k=${K} ${waited()}`); ENV.DFLOW_HEAVY_HELD = SLOT; oraStart(); }
   { const rc = await runChild(argv); process.exit(SIG_RC ?? rc); }
 }
 
@@ -652,12 +765,14 @@ async function cmdRunDocker(argv) {
   MYPID = ME; SLOT = ''; DSLOT = '';
   slotSignals();
   process.on('exit', mineRelease);
+  await oraSetup(argv, ORA_FLAG);
   const rc = await waitDocker(MYPID, argv.join(' '), need);
   if (rc === 1) process.exit(BUSY_RC);
   if (rc === 0) {
     err(`HEAVY_DOCKER_SLOT ${path.basename(DSLOT)} docker=${KD}${SLOT ? ` + ${path.basename(SLOT)} k=${K}` : ''} ${waited()}`);
     ENV.DFLOW_HEAVY_DOCKER_HELD = DSLOT;
     if (SLOT) ENV.DFLOW_HEAVY_HELD = SLOT;
+    oraStart();
   }
   { const rc = await runChild(argv); process.exit(SIG_RC ?? rc); }
 }
@@ -706,6 +821,7 @@ async function cmdRunExclusive(argv) {
   MYPID = ME; SLOT = ''; EXSLOTS = []; EXCL_RUN = true;
   slotSignals(exclUnmark);
   process.on('exit', () => { exclReleaseAll(); waitUnmark(); });
+  await oraSetup(argv, ORA_FLAG);
   const t0 = now();
   const deadline = t0 + WAIT;
   let announced = false;
@@ -716,6 +832,20 @@ async function cmdRunExclusive(argv) {
       exclUnmark(); exclDropGap(o); waitUnmark();
       err(`HEAVY_BUSY k=${K} wait=${now() - t0}s 독점 불가: E2E hold 보유 중 ${gh} — 일반 슬롯을 붙잡은 E2E 서버(acquire)가 release 된 뒤 다시 부른다`);
       process.exit(BUSY_RC);
+    }
+    // Oracle 잠금 주인이 살아 있으면 양보 표식도 거둔다 — 잠금을 기다리는 동안 남의 일반 실행을 막지 않는다(start 는 MYXST 로 이어진다)
+    ORAWHY = '';
+    if (oraBusy()) {
+      exclUnmark();
+      if (now() >= deadline) {
+        waitUnmark(); exclDropGap(o);
+        err(`HEAVY_BUSY k=${K} wait=${WAIT}s 독점 대기(표식 없음) 보유: ${holders()}${oraNote()}`);
+        process.exit(BUSY_RC);
+      }
+      waitMark('general', cmd);
+      oraAnnounce();
+      await sleep(POLL);
+      continue;
     }
     exclMark(o, cmd);
     const list = exclLive();
@@ -728,23 +858,28 @@ async function cmdRunExclusive(argv) {
     }
     if (ahead === 0 || ahead === 'x') {
       for (const i of nums(K)) { const d = path.join(DIR, `slot-${i}`); if (stale(d)) reclaim(d); }
-      if (takeAll(cmd)) { waitUnmark(); break; }
+      if (takeAll(cmd)) {
+        if (oraTake()) { waitUnmark(); break; }
+        exclReleaseAll(); // 잠금을 못 잡았다 — K개를 쥔 채 기다리지 않는다
+      }
     }
     const idx = list.findIndex((x) => x.name === me);
     const pos = idx >= 0 ? String(idx + 1) : '?';
     if (now() >= deadline) {
       waitUnmark();
       exclMark(o, cmd, '-'); // 재호출 대기(gap)로 남긴다 — TTL 안에 다시 부르면 순번을 이어받는다
-      err(`HEAVY_BUSY k=${K} wait=${WAIT}s 독점 대기(순번 ${pos}/${list.length}, 표식은 남긴다) 보유: ${holders()}`);
+      err(`HEAVY_BUSY k=${K} wait=${WAIT}s 독점 대기(순번 ${pos}/${list.length}, 표식은 남긴다) 보유: ${holders()}${oraNote()}`);
       process.exit(BUSY_RC);
     }
     waitMark('general', cmd);
+    if (ORAWHY) oraAnnounce();
     if (!announced) { err(`HEAVY_EXCL_WAIT k=${K} 순번 ${pos}/${list.length} 보유: ${holders()}`); announced = true; }
     await sleep(POLL);
   }
   WAIT_T0 = t0;
   err(`HEAVY_EXCL k=${K} 일반 슬롯 ${K}개를 모두 잡았다 ${waited()}`);
   ENV.DFLOW_HEAVY_HELD = EXSLOTS[0] ?? '';
+  oraStart();
   const rc = await runChild(argv);
   exclUnmark();
   process.exit(SIG_RC ?? rc);
@@ -981,7 +1116,7 @@ async function cmdWait(args) {
 async function main() {
   let argv = process.argv.slice(2);
   if (argv.length === 1 && (argv[0] === '--help' || argv[0] === '-h')) {
-    out('사용법: heavy.mjs [--pool docker | --exclusive] [--detach] [--] <명령> [인자…] | acquire <이름> | release | status | snapshot | wait <id> [--max <초>]');
+    out('사용법: heavy.mjs [--pool docker | --exclusive] [--detach] [--oracle] [--] <명령> [인자…] | acquire <이름> | release | status | snapshot | wait <id> [--max <초>]');
     out('종료 코드: 75 슬롯 대기 상한 초과(다시 부른다) · 2 사용 오류 · wait: 76 아직 도는 중 · 77 잡 BUSY · 78 잡 rc 76 · 1 잡 유실. 자세한 것은 머리 주석.');
     process.exit(0);
   }
@@ -989,15 +1124,15 @@ async function main() {
   // 앞쪽 옵션만 읽는다(감싼 명령의 옵션은 건드리지 않는다)
   for (;;) {
     const a = argv[0] ?? '';
-    if (a === '--pool') { pool = argv[1] ?? ''; argv = argv.slice(argv.length >= 2 ? 2 : argv.length); } else if (a.startsWith('--pool=')) { pool = a.slice(7); argv = argv.slice(1); } else if (a === '--detach') { detach = true; argv = argv.slice(1); } else if (a === '--exclusive') { excl = true; argv = argv.slice(1); } else break;
+    if (a === '--pool') { pool = argv[1] ?? ''; argv = argv.slice(argv.length >= 2 ? 2 : argv.length); } else if (a.startsWith('--pool=')) { pool = a.slice(7); argv = argv.slice(1); } else if (a === '--detach') { detach = true; argv = argv.slice(1); } else if (a === '--exclusive') { excl = true; argv = argv.slice(1); } else if (a === '--oracle') { ORA_FLAG = true; argv = argv.slice(1); } else break;
   }
   if (pool !== 'general' && pool !== 'docker') { err(`사용법: heavy.mjs --pool general|docker … (모르는 풀: ${pool})`); process.exit(2); }
   if (excl && pool === 'docker') { err('사용법: --exclusive 와 --pool docker 는 함께 쓰지 않는다'); process.exit(2); }
-  if (pool === 'docker' || excl || detach) {
+  if (pool === 'docker' || excl || detach || ORA_FLAG) {
     // 옵션은 명령 실행에만 붙는다
     const a = argv[0] ?? '';
     if (['acquire', 'release', 'status', 'snapshot', 'wait', '__job', ''].includes(a)) {
-      err('사용법: heavy.mjs [--pool docker | --exclusive] [--detach] <명령> [인자…] (이 옵션은 명령 실행만 받는다)');
+      err('사용법: heavy.mjs [--pool docker | --exclusive] [--detach] [--oracle] <명령> [인자…] (이 옵션은 명령 실행만 받는다)');
       process.exit(2);
     }
     if (a === '--') { argv = argv.slice(1); if (!argv.length) usage(); }
@@ -1007,6 +1142,7 @@ async function main() {
     let pass = argv;
     if (pool !== 'general') pass = ['--pool', pool, ...pass];
     if (excl) pass = ['--exclusive', ...pass];
+    if (ORA_FLAG) pass = ['--oracle', ...pass]; // 슬롯을 쥐는 손자가 잠금도 쥔다
     return cmdDetach(shown, pass);
   }
   if (excl) return cmdRunExclusive(argv);

@@ -1,4 +1,4 @@
-// PC 전체 Oracle 잠금 — pdb.mjs 와(앞으로) heavy 이식판이 같은 잠금을 쓰도록 한 곳에 둔다.
+// PC 전체 Oracle 잠금 — pdb.mjs 와 heavy.mjs(--oracle, 2026-10-12)가 같은 잠금을 쓰도록 한 곳에 둔다.
 // 잠금 = <임시 폴더>/dmes-ora-pdb.lock 폴더(mkdir 은 원자적이다, Windows 도 같다). 안의 owner 파일 = "<주인 pid> <cwd>".
 // 주인 프로세스가 죽었거나 30분 넘게 갱신되지 않은 잠금은 stale 로 보고 치운다. 오래 쥐는 쪽은 1분마다 폴더 mtime 을 갱신한다(touchLock).
 // 시험 하니스(Gradle)·heavy 가 전 구간 잠금을 쥐고 그 아래에서 부르는 명령에 DMES_ORA_LOCK_HELD=<잠금 주인 pid> 를 넘긴다(lockHeldByParent).
