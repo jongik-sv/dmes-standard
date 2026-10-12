@@ -29,11 +29,11 @@ A 는 B 와 C 가 공통으로 딛는 기반이다. 업무 모듈이 MDM 메타�
 | # | 결정 | 내용 |
 |---|---|---|
 | D1 | 배포 구조: 하이브리드 | 정의는 MDM 서버에 HTTP 로 요청해 받고, 업무 모듈은 받은 정의를 자기 로컬 캐시에 두고 엔진 jar 로 직접 검증한다 |
-| D2 | 무효화: 리비전 확인 | MDM 이 변경 기록(증가 순번)을 남기고, 업무 모듈은 짧은 주기로 "순번 N 이후 변경"을 받아 해당 키만 지운다 |
+| D2 | 무효화: 리비전 확인 | MDM 이 변경 기록(증가 순번)을 남기고, 업무 모듈은 "순번 N 이후 변경"을 받아 해당 키만 지운다. 확인 시점은 2026-10-12 부터 MDM 변경 신호(커밋 뒤 `POST /internal/mdm/metaSignal`) + 5분 안전망 폴링이다([ADR-0007 D7](../../mdm/adr/0007-mdm-meta-hybrid-cache-revision.md)) — 처음의 짧은 주기(10초) 폴링을 대체 |
 | D3 | FE 경로: 업무 BE 경유 | 화면 → 업무 모듈 BFF → 업무 BE(로컬 캐시). 화면과 BE 검증이 같은 캐시를 본다 |
 | D4 | 캐시 위치: MES 모듈에만 | MDM 서버에는 캐시를 두지 않는다. 늘 DB 최신 값을 돌려준다. 이전에 고른 "MDM 캐시 + 모듈 반영 상태"는 이 결정으로 대체됐다 |
 | D5 | 관리 화면: MES 포털 | 캐시 관리 화면은 m-mcm 시스템관리(csa) 메뉴에 둔다. 모듈별 캐시 상태와 항목을 보여 준다 |
-| D6 | 삭제·재등록 범위: 모든 모듈 | 화면의 삭제·재등록은 MDM 변경 기록에 강제 기록을 추가하는 방식이다. 그 키를 가진 모든 모듈·인스턴스가 다음 폴링에서 반영한다 |
+| D6 | 삭제·재등록 범위: 모든 모듈 | 화면의 삭제·재등록은 MDM 변경 기록에 강제 기록을 추가하는 방식이다. 그 키를 가진 모든 모듈·인스턴스가 다음 확인(변경 신호로 곧바로, 놓치면 정기 확인)에서 반영한다 |
 | D7 | 화면 연결 키: 자동 매칭 + 명시 우선 | 그리드 key·폼 필드명을 물리명으로 바꿔(`codeNm` → `CODE_NM`) 컬럼사전 `PHYS_NAME` 과 맞춘다. 화면이 `meta="..."` 로 명시하면 그것이 우선한다(B 에서 구현) |
 | D8 | 검증 분담: 엔진 계약 §10 | 필수·타입·길이·코드 허용값·도메인 표준식은 화면에서 즉시 검사한다. 비즈니스식·룰·룰세트·화면 미지원 식은 업무 BE 가 한다. 저장 시 BE 가 전부 다시 검증하고, 다르면 서버가 기준이다(C 에서 구현) |
 | D9 | 구현 위치: cactus-core | 업무 모듈 쪽 클라이언트는 새 모듈이 아니라 cactus-core 의 `com.dongkuk.dmes.cactus.mdm` 패키지에 둔다. 모든 MES 모듈이 이미 cactus-core 를 소스로 포함하므로 모듈별 빌드 배선이 필요 없다 |
@@ -44,7 +44,7 @@ A 는 B 와 C 가 공통으로 딛는 기반이다. 업무 모듈이 MDM 메타�
 [MDM 서버 8096]                               [업무 모듈 mcm·mls·… (인스턴스 N개)]
  원장 저장·버전 확정 서비스                       cactus-core  com.dongkuk.dmes.cactus.mdm
    └ 본문에서 MetaRevisionRecorder 호출          ├ MdmMetaCache (대상별, 요청 시 적재)
- TB_MDM_META_REV                                ├ MdmRevisionPoller (기본 10초) ── changes(since) ─┐
+ TB_MDM_META_REV                                ├ MdmRevisionPoller (신호·5분) ── changes(since) ─┐
   (REV_SEQ·TARGET_TYPE·TARGET_KEY·CHANGE_KIND) ◀──────────────────────────────────────────────────┘
  OASIS dmf/metaFeed  ◀───────── 캐시에 없는 키를 묶어서 조회 ── MdmMetaClient (RestClient)
   changes · columns · domains · rules ·          ├ MdmDefinitionLookup (엔진 spi 구현)
@@ -174,7 +174,7 @@ cactus:
     enabled: true                 # 기본 false. 업무 모듈이 켠다. MDM 서버 자신은 켜지 않는다
     base-url: ${MDM_WAS_URL:http://localhost:8096}
     client-key: ${BACKEND_CLIENT_KEY:...}
-    poll-interval: 10s
+    poll-interval: 5m             # 안전망 정기 확인(2026-10-12 10s → 5m). 변경은 MDM 신호로 곧바로 확인한다 — [ADR-0007 D7](../../mdm/adr/0007-mdm-meta-hybrid-cache-revision.md)
     max-entries: 20000            # 대상 합계 상한
     max-age: 24h                  # 적재 뒤 절대 상한 — 기록 누락 대비 안전망(조회가 많아도 이 시간 뒤에는 다시 받는다)
     max-idle: 60m                 # 마지막 조회 뒤 유휴 수명 — 조회될 때마다 연장
@@ -195,9 +195,9 @@ cactus:
 | 클래스 | 역할 |
 |---|---|
 | `MdmMetaClient` | `RestClient` 로 `POST {base-url}/oasis/metaFeed/{action}` 호출. 인증 헤더 3종, 요청 UUID(`X-Tx-Id`) 부착. OASIS 응답 봉투를 풀어 DTO 로 돌려준다. 선례는 caravan-hub 클라이언트 |
-| `MdmMetaCache` | 대상 종류별 `ConcurrentHashMap<String, Entry>`. Entry 는 값 또는 "없음", 적재 시각, 마지막 조회 시각, 조회 수, 추정 크기. 수명(§5.1 — 유휴 `max-idle`·절대 상한 `max-age`)이 지난 항목은 조회 때 버리고, 다시 조회되지 않는 항목도 남지 않게 폴링마다(`markApplied`, 약 10초) 쓸어 낸다(`remove(key, entry)` — 살아 있는 항목·지움 기록·세대는 그대로). 폴링이 실패해 쓸지 못하는 동안에도 상태의 항목 수·추정 크기(`sizes`·`bytes`)는 만료 항목을 세지 않는다(목록 `entries` 와 같은 기준). 합계가 `max-entries` 를 넘으면 한 번에 95% 까지 줄인다 — 만료 항목을 먼저 지우고, 그다음 오래 조회되지 않은 순(LRU, 마지막 조회 시각 스냅샷으로 정렬)으로 지운다. 추정 크기는 적재 때 값을 `MdmJson` 으로 직렬화한 UTF-8 바이트 수(잠금 밖에서 한 번 잰다, "없음" 0, 직렬화 실패 -1 — 합계에서 뺀다). JVM 실제 점유는 객체 머리·참조 때문에 이보다 크다 |
+| `MdmMetaCache` | 대상 종류별 `ConcurrentHashMap<String, Entry>`. Entry 는 값 또는 "없음", 적재 시각, 마지막 조회 시각, 조회 수, 추정 크기. 수명(§5.1 — 유휴 `max-idle`·절대 상한 `max-age`)이 지난 항목은 조회 때 버리고, 다시 조회되지 않는 항목도 남지 않게 확인이 성공할 때마다(`markApplied`) 쓸어 낸다(`remove(key, entry)` — 살아 있는 항목·지움 기록·세대는 그대로). 폴링이 실패해 쓸지 못하는 동안에도 상태의 항목 수·추정 크기(`sizes`·`bytes`)는 만료 항목을 세지 않는다(목록 `entries` 와 같은 기준). 합계가 `max-entries` 를 넘으면 한 번에 95% 까지 줄인다 — 만료 항목을 먼저 지우고, 그다음 오래 조회되지 않은 순(LRU, 마지막 조회 시각 스냅샷으로 정렬)으로 지운다. 추정 크기는 적재 때 값을 `MdmJson` 으로 직렬화한 UTF-8 바이트 수(잠금 밖에서 한 번 잰다, "없음" 0, 직렬화 실패 -1 — 합계에서 뺀다). JVM 실제 점유는 객체 머리·참조 때문에 이보다 크다 |
 | `MdmMetaService` | 조회 입구. `columns(names)` 처럼 여러 키를 받아 캐시에 없는 키만 모아 MDM 에 한 번 요청하고, 응답에 없는 키는 "없음"으로 캐시한다. 같은 키 동시 적재는 한 번만 한다 |
-| `MdmRevisionPoller` | `poll-interval` 마다 `changes(since=appliedSeq)`. 받은 키를 지우고, `RELOAD` 는 지운 뒤 바로 다시 적재한다. `appliedSeq`, 마지막 성공 시각, 연속 실패 수를 상태로 둔다 |
+| `MdmRevisionPoller` | MDM 변경 신호(`requestPoll`)와 `poll-interval`(기본 5분) 마다 `changes(since=appliedSeq)`([ADR-0007 D7](../../mdm/adr/0007-mdm-meta-hybrid-cache-revision.md)). 받은 키를 지우고, `RELOAD` 는 지운 뒤 바로 다시 적재한다. `appliedSeq`, 마지막 성공 시각, 연속 실패 수를 상태로 둔다 |
 | `MdmDefinitionLookup` | 엔진 spi `DefinitionLookup`·`CodeLookup` 구현. `rule(id, evalTs)` 는 캐시된 RELEASED 버전 중 적용 기간이 `evalTs` 를 포함하는 것을 고른다(`RuleVersions.currentReleased` 와 같은 규칙) |
 | `MdmMetaController` | `/api/{module}/mdmMeta/{action}` 엔드포인트(§5.5). 등록 방식은 `DmomReceiveController` 선례(클래스 레벨 `@RequestMapping` + `@ResponseBody`, 자동 설정에서 `@Bean`) |
 
@@ -249,7 +249,7 @@ cactus:
 - 항목 상세(2026-10-02 사용자 결정): 항목 행을 누르면 오른쪽 상세 패널에 요약(대상·키·상태·적재 시각·적재 순번·추정 크기·조회 수·마지막 조회·남은 수명)과 캐시 값 전체(`entry`, shared `JsonView` 트리)를 보인다. 404 는 "캐시에 없음(만료·삭제됨)"으로 보이고 로그인 화면으로 보내지 않는다. 삭제·재등록·등록·조회 뒤 열린 상세를 다시 받는다(강제 기록은 다음 확인 때 반영되므로 바로 다시 받은 값은 옛 값일 수 있다).
 - 버튼:
   - **등록**: 대상 종류와 키를 입력해 선택한 모듈 인스턴스에 미리 적재(`load`).
-  - **삭제**: 선택 항목을 MDM `force(kind=EVICT)` 로 기록. 모든 모듈·인스턴스가 다음 폴링에서 지운다.
+  - **삭제**: 선택 항목을 MDM `force(kind=EVICT)` 로 기록. 모든 모듈·인스턴스가 다음 확인(변경 신호로 곧바로)에서 지운다.
   - **재등록**: MDM `force(kind=RELOAD)`. 모든 모듈·인스턴스가 지운 뒤 다시 적재한다.
   - 삭제·재등록은 확인 대화 상자를 거친다(Local-Rules 중요 액션 UX).
 - 화면은 shared 컴포넌트만 쓴다(`mantine-aggrid-ui` 스킬, 커밋 전 audit 0건).
@@ -270,7 +270,7 @@ cactus:
 | cactus 엔드포인트 | status 의 `bytes`·`totalBytes`·`heap`·`maxIdleSeconds`(만료 항목은 counts·bytes 에서 빠짐), entries `sort`(bytes·hits·잘못된 값 400, 쪽 자르기 전 정렬), entry·entries 의 `bytes`·`lastAccessAt`(읽기만 해서 옮기지 않음) | MockMvc 단위 테스트 |
 | 엔진 연동 | `MdmDefinitionLookup` 으로 `DomainValidator.validate` 가 도는지, 적용 기간 경계 | 단위 테스트 |
 | 화면 | 캐시 관리 화면 API 매핑(크기·힙·마지막 조회·sort, 옛 모듈 응답), `formatBytes`·수명 도움말 | Vitest, audit 2종 0건 |
-| 통합 | 로컬 mdm + mls 기동, MDM 에서 컬럼 표시명 변경 → 10초 안에 mls 캐시 반영, 화면에서 재등록 | 수동 E2E(ego-browser), 끝나면 브라우저 닫기 |
+| 통합 | 로컬 mdm + mls 기동, MDM 에서 컬럼 표시명 변경 → 변경 신호로 몇 초 안에 mls 캐시 반영, 화면에서 재등록 | 수동 E2E(ego-browser), 끝나면 브라우저 닫기 |
 
 - 도커는 쓰지 않는다. DB 는 SQLite 만 쓴다.
 - MES 모듈 OASIS 를 건드리면 `oasis-contract-check` 를 ERROR 0 으로 통과시킨다.
