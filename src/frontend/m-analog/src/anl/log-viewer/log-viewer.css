@@ -490,22 +490,27 @@
 
 .anl-log-viewer .anl-tree-split {
   display: flex;
-  flex-wrap: wrap;
   flex: 1;
+  min-width: 0;
   min-height: 0;
 }
 
 .anl-log-viewer .anl-tree-left {
-  flex: 999 1 560px;
+  flex: 1 1 0;
   min-width: 0;
   min-height: 0;
   display: flex;
   flex-direction: column;
-  border-right: 1px solid var(--color-border);
+}
+
+/* 트리 ↔ 속성 폭 조절 막대 — 모양은 shared 분할 막대(.content-split-bar)를 따르고, 여기서는 이웃 영역 위에 걸치게만 한다. */
+.anl-log-viewer .anl-tree-splitbar {
+  border-left: 1px solid var(--color-border);
+  margin: 0 -5px 0 -5px;
 }
 
 .anl-log-viewer .anl-tree-right {
-  flex: 1 1 340px;
+  flex: 0 0 auto;
   min-width: 0;
   min-height: 0;
   display: flex;
@@ -718,6 +723,7 @@
 
 .anl-log-viewer .anl-tree-message {
   margin: 0;
+  padding: 6px var(--spacing-lg);
   font-family: var(--font-family-mono);
   font-size: var(--font-size-sm);
   white-space: pre-wrap;
@@ -777,35 +783,27 @@
   font-weight: 600;
 }
 
-.anl-log-viewer .anl-tree-props {
-  flex: 1;
-  min-height: 0;
-  overflow: auto;
-}
 
-.anl-log-viewer .anl-tree-prop {
-  display: grid;
-  grid-template-columns: 104px minmax(0, 1fr);
-  gap: var(--spacing-sm);
-  padding: 7px var(--spacing-lg);
-  border-bottom: 1px solid var(--color-border-light);
-  word-break: break-all;
-}
 
-.anl-log-viewer .anl-tree-prop-header {
-  padding: 6px var(--spacing-lg);
-  background: var(--color-bg-header);
-  color: var(--color-text-secondary);
-  font-weight: 500;
-}
 
-.anl-log-viewer .anl-tree-prop-key {
-  color: var(--color-text-secondary);
-}
 
 .anl-log-viewer .anl-tree-mono {
   font-family: var(--font-family-mono);
   font-size: var(--font-size-sm);
+}
+
+/* 속성 표 — 남은 높이의 위쪽을 쓰고, 긴 글 상세 영역이 있으면 아래 절반까지만 양보한다. */
+.anl-log-viewer .anl-tree-props-grid {
+  flex: 1 1 0;
+  min-height: 120px;
+}
+
+.anl-log-viewer .anl-tree-detail {
+  flex: 0 1 auto;
+  max-height: 55%;
+  min-height: 0;
+  overflow-y: auto;
+  border-top: 1px solid var(--color-border);
 }
 
 .anl-log-viewer .anl-tree-sql-box {
@@ -813,17 +811,7 @@
   flex-direction: column;
   gap: var(--spacing-sm);
   min-width: 0;
-}
-
-.anl-log-viewer .anl-tree-sql {
-  margin: 0;
-  max-height: 92px;
-  overflow: hidden;
-  font-family: var(--font-family-mono);
-  font-size: var(--font-size-sm);
-  line-height: 1.5;
-  white-space: pre-wrap;
-  word-break: break-all;
+  padding: var(--spacing-sm) var(--spacing-lg);
 }
 
 .anl-log-viewer .anl-tree-actions {
@@ -840,7 +828,7 @@
 }
 
 .anl-log-viewer .anl-tree-no-params {
-  padding: var(--spacing-sm) var(--spacing-lg);
+  padding: 0;
 }
 
 /* 쿼리 뷰어 — 떠 있는 창(포털)에 그려지므로 .anl-log-viewer 범위 밖에서도 적용한다. */
@@ -863,17 +851,10 @@
   border-top: 1px solid var(--color-border-light);
 }
 
-.anl-tree-viewer-text {
+
+/* 쿼리 뷰어 편집기(Monaco) — 창 남은 높이를 채운다. */
+.anl-tree-viewer-editor {
   flex: 1;
   min-height: 0;
-  margin: 0;
-  padding: var(--spacing-lg);
-  overflow: auto;
-  font-family: var(--font-family-mono);
-  font-size: var(--font-size-md);
-  line-height: 1.6;
-  background: var(--color-bg-light);
-  color: var(--color-text);
-  white-space: pre-wrap;
-  word-break: break-all;
+  border-top: 1px solid var(--color-border-light);
 }

@@ -394,6 +394,49 @@ export function propsOf(node: TreeNode): TreeProp[] {
   return out;
 }
 
+/** 속성 표(AgDataGrid) 한 줄 — 속성 + Time + Param 을 한 표에 담는다. */
+export interface PropGridRow {
+  id: string;
+  key: string;
+  value: string;
+  mono: boolean;
+  /** RunTime 줄만 — 값 칸에 수행시간 색 칩을 그린다. */
+  runTime?: number;
+}
+
+/**
+ * 선택 노드의 속성 표 줄. 순서: propsOf → StartTime/EndTime/RunTime → Param(`#순번 타입` → 값).
+ * 길고 줄바꿈이 필요한 값(Message·SQL·그룹 메시지)은 표 밖 상세 영역이 맡으므로 여기에 넣지 않는다.
+ */
+export function propRowsOf(node: TreeNode): PropGridRow[] {
+  const rows: PropGridRow[] = propsOf(node).map((p) => ({ id: `p:${p.key}`, key: p.key, value: p.value, mono: !!p.mono }));
+  if (node.startMs !== undefined) {
+    rows.push({ id: "t:start", key: "StartTime", value: formatTimestamp(node.startMs), mono: true });
+    if (node.runTime !== undefined) {
+      rows.push({ id: "t:end", key: "EndTime", value: formatTimestamp(node.startMs + node.runTime), mono: true });
+      rows.push({ id: "t:run", key: "RunTime", value: formatRunTime(node.runTime), mono: true, runTime: node.runTime });
+    }
+  }
+  if (node.kind === "SQL") {
+    (node.params ?? []).forEach((pm, i) =>
+      rows.push({ id: `b:${i}`, key: `#${pm.idx} ${pm.type}`.trim(), value: pm.value, mono: true }),
+    );
+  }
+  return rows;
+}
+
+export const PROPS_WIDTH_DEFAULT = 340;
+export const PROPS_WIDTH_MIN = 240;
+/** 트리(왼쪽)에 남겨 둘 최소 폭. */
+export const TREE_WIDTH_MIN = 320;
+
+/** 속성 패널 폭을 [최소, 전체 − 트리 최소] 안으로 맞춘다. 전체 폭이 너무 좁으면 최소 폭을 지킨다. */
+export function clampPropsWidth(width: number, total: number): number {
+  const max = Math.max(PROPS_WIDTH_MIN, total - TREE_WIDTH_MIN);
+  const w = Number.isFinite(width) ? width : PROPS_WIDTH_DEFAULT;
+  return Math.round(Math.min(Math.max(w, PROPS_WIDTH_MIN), max));
+}
+
 /** 서비스 노드(최상위 SVC · 중첩 SUB). */
 const isService = (k: TreeKind) => k === "SVC" || k === "SUB";
 

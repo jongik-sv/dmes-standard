@@ -10,27 +10,31 @@
 import { memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { Button, Input, copyText } from "@dk-oasis/shared/form";
 import { FloatingPanel } from "@dk-oasis/shared/floating-panel";
+import { AgDataGrid, type GridColumn } from "@dk-oasis/shared/grid";
+import { SqlCodeEditor } from "@dk-oasis/shared/code-editor";
 import {
   allExpandable,
   bindParams,
+  clampPropsWidth,
   defaultExpanded,
   findNode,
   firstSelection,
   flattenRows,
   formatRunTime,
-  formatTimestamp,
   heatLevel,
   MSG_GROUP,
-  propsOf,
+  PROPS_WIDTH_DEFAULT,
+  propRowsOf,
   toTreeRequests,
-  type TreeNode,
-  type TreeProp,
+  type PropGridRow,
   type TreeRow,
 } from "./tree-model";
 
 const ROW_HEIGHT = 26;
 const OVERSCAN = 8;
 const VIEWER_STORAGE_KEY = "analog-log-viewer:tree-query-viewer";
+const PROPS_WIDTH_KEY = "analog-log-viewer:tree-props-width";
+const SPLIT_KEY_STEP = 16;
 const VIEWER_DEFAULT_RECT = { x: 160, y: 200, width: 480, height: 380 };
 
 interface TreeTabProps {
@@ -112,31 +116,40 @@ const TreeRowView = memo(function TreeRowView({ row, selected, onToggle, onSelec
   );
 });
 
-function PropRow({ prop }: { prop: TreeProp }) {
-  return (
-    <div className="anl-tree-prop">
-      <span className="anl-tree-prop-key">{prop.key}</span>
-      <span className={prop.mono ? "anl-tree-mono" : undefined}>{prop.value}</span>
-    </div>
-  );
+/** 속성 표 열 — 가로 비율 1 : 2.4, 사용자가 머리 경계를 끌어 바꾸면 gridId 로 저장된다(컬럼 개인화). */
+const PROP_COLUMNS: GridColumn[] = [
+  { key: "key", header: "속성", width: 110, meta: false, sortable: false },
+  {
+    key: "value",
+    header: "값",
+    width: 260,
+    meta: false,
+    sortable: false,
+    render: (_v, row) => {
+      const r = row as unknown as PropGridRow;
+      if (r.runTime !== undefined) return <RunTimeCell runTime={r.runTime} className="anl-tree-mono anl-tree-time-chip" />;
+      return r.mono ? <span className="anl-tree-mono">{r.value}</span> : <span>{r.value}</span>;
+    },
+  },
+];
+const PROP_PERSONALIZE = { sort: false } as const;
+
+/** 속성 패널 폭을 localStorage 에서 읽는다(막히거나 값이 이상하면 기본값). */
+function readPropsWidth(): number {
+  try {
+    const n = Number(window.localStorage.getItem(PROPS_WIDTH_KEY));
+    return Number.isFinite(n) && n > 0 ? n : PROPS_WIDTH_DEFAULT;
+  } catch {
+    return PROPS_WIDTH_DEFAULT;
+  }
 }
 
-function TimeProps({ node }: { node: TreeNode }) {
-  if (node.startMs === undefined) return null;
-  return (
-    <>
-      <PropRow prop={{ key: "StartTime", value: formatTimestamp(node.startMs), mono: true }} />
-      {node.runTime !== undefined ? (
-        <>
-          <PropRow prop={{ key: "EndTime", value: formatTimestamp(node.startMs + node.runTime), mono: true }} />
-          <div className="anl-tree-prop">
-            <span className="anl-tree-prop-key">RunTime</span>
-            <RunTimeCell runTime={node.runTime} className="anl-tree-mono anl-tree-time-chip" />
-          </div>
-        </>
-      ) : null}
-    </>
-  );
+function writePropsWidth(width: number) {
+  try {
+    window.localStorage.setItem(PROPS_WIDTH_KEY, String(width));
+  } catch {
+    /* 저장소를 못 쓰면 이번 세션 폭만 유지한다. */
+  }
 }
 
 function TreeTabComponent({ data, active, onSendToBinder }: TreeTabProps) {
@@ -153,6 +166,48 @@ function TreeTabComponent({ data, active, onSendToBinder }: TreeTabProps) {
   const [viewerOpen, setViewerOpen] = useState(false);
   const [viewerBound, setViewerBound] = useState(false);
   const deferredQuery = useDeferredValue(query);
+
+  // 속성 패널 폭 — 트리와 속성 사이 막대를 끌어 바꾼다. 마지막 값은 브라우저에 저장한다.
+  const splitRef = useRef<HTMLDivElement>(null);
+  const [propsWidth, setPropsWidth] = useState(PROPS_WIDTH_DEFAULT);
+  const propsWidthRef = useRef(propsWidth);
+  propsWidthRef.current = propsWidth;
+  useEffect(() => setPropsWidth(readPropsWidth()), []);
+  const splitTotal = () => splitRef.current?.clientWidth ?? 0;
+  const onSplitPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    const startX = e.clientX;
+    const startW = propsWidthRef.current;
+    let latest = startW;
+    const onMove = (ev: PointerEvent) => {
+      // 막대를 왼쪽으로 끌수록 속성 패널이 넓어진다.
+      latest = clampPropsWidth(startW + (startX - ev.clientX), splitTotal());
+      setPropsWidth(latest);
+    };
+    const onUp = () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      document.body.style.userSelect = "";
+      document.body.style.cursor = "";
+      writePropsWidth(latest);
+    };
+    document.body.style.userSelect = "none";
+    document.body.style.cursor = "col-resize";
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  };
+  const onSplitKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+    e.preventDefault();
+    const next = clampPropsWidth(propsWidthRef.current + (e.key === "ArrowLeft" ? SPLIT_KEY_STEP : -SPLIT_KEY_STEP), splitTotal());
+    setPropsWidth(next);
+    writePropsWidth(next);
+  };
+  const onSplitReset = () => {
+    setPropsWidth(PROPS_WIDTH_DEFAULT);
+    writePropsWidth(PROPS_WIDTH_DEFAULT);
+  };
 
   useEffect(() => setRequestIdx(0), [data]);
   // 새 조회 결과(또는 다른 Request)로 바뀌면 펼침·선택을 처음 상태로 되돌린다.
@@ -211,6 +266,7 @@ function TreeTabComponent({ data, active, onSendToBinder }: TreeTabProps) {
       ? bindParams(selected.sql ?? "", params)
       : (selected.sql ?? "")
     : "";
+  const propRows = useMemo(() => (selected ? propRowsOf(selected) : []), [selected]);
   const selectedText = selected?.text;
   const isGroupSel = selected?.kind === MSG_GROUP;
   const groupMsgs = isGroupSel ? (selected?.children ?? []) : [];
@@ -255,7 +311,7 @@ function TreeTabComponent({ data, active, onSendToBinder }: TreeTabProps) {
           </select>
         ) : null}
       </div>
-      <div className="anl-tree-split">
+      <div ref={splitRef} className="anl-tree-split">
         <section className="anl-tree-left" aria-label="실행 트리">
           <div className="anl-tree-toolbar">
             <Input
@@ -302,90 +358,104 @@ function TreeTabComponent({ data, active, onSendToBinder }: TreeTabProps) {
             </div>
           </div>
         </section>
-        <section className="anl-tree-right" aria-label="속성">
+        <div
+          className="content-split-bar content-split-bar--row anl-tree-splitbar"
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="속성 패널 폭 조절"
+          tabIndex={0}
+          title="드래그하여 속성 패널 폭 조절 · 더블클릭하면 기본 폭"
+          onPointerDown={onSplitPointerDown}
+          onKeyDown={onSplitKeyDown}
+          onDoubleClick={onSplitReset}
+        >
+          <div className="content-split-bar__grip" />
+        </div>
+        <section className="anl-tree-right" aria-label="속성" style={{ width: propsWidth }}>
           <div className="anl-tree-right-head">
             <span className="anl-tree-right-title">속성</span>
             {selected ? (
               <span className={badgeClass(isGroupSel ? "MSG" : selected.kind)}>{isGroupSel ? "MSG" : selected.kind}</span>
             ) : null}
           </div>
-          <div className="anl-tree-prop anl-tree-prop-header">
-            <span>속성</span>
-            <span>값</span>
+          {/* 속성·Time·Param 은 짧은 이름-값 짝이라 표(AgDataGrid) 한 장으로, 줄바꿈이 필요한 긴 글은 아래 상세 영역이 맡는다. */}
+          <div className="anl-tree-props-grid">
+            <AgDataGrid
+              columns={PROP_COLUMNS}
+              data={propRows as unknown as Record<string, unknown>[]}
+              rowKey="id"
+              columnSizing="fit"
+              header={false}
+              settingsMenu={false}
+              excelExport={false}
+              sortable={false}
+              gridId="anl-tree-props"
+              personalize={PROP_PERSONALIZE}
+              emptyMessage="선택한 노드가 없습니다."
+              ariaLabel="속성"
+            />
           </div>
-          <div className="anl-tree-props">
-            {selected ? (
-              <>
-                {propsOf(selected).map((p) => (
-                  <PropRow key={p.key} prop={p} />
-                ))}
-                {selectedText !== undefined ? (
-                  <div className="anl-tree-prop">
-                    <span className="anl-tree-prop-key">Message</span>
-                    <pre className={`anl-tree-message ${selected.kind === "ERR" ? "anl-tree-error-text" : ""}`.trim()}>{selectedText}</pre>
+          {selected && (selectedText !== undefined || isGroupSel || isQuery) ? (
+            <div className="anl-tree-detail">
+              {selectedText !== undefined ? (
+                <>
+                  <div className="anl-tree-section">Message</div>
+                  <pre className={`anl-tree-message ${selected.kind === "ERR" ? "anl-tree-error-text" : ""}`.trim()}>{selectedText}</pre>
+                </>
+              ) : null}
+              {isGroupSel ? (
+                <>
+                  <div className="anl-tree-section">첫 메시지</div>
+                  <pre className="anl-tree-message">{groupMsgs[0]?.text}</pre>
+                  <div className="anl-tree-section">마지막 메시지</div>
+                  <pre className="anl-tree-message">{groupMsgs[groupMsgs.length - 1]?.text}</pre>
+                  <div className="anl-tree-section">전체 메시지</div>
+                  <ol className="anl-tree-msg-list">
+                    {groupMsgs.map((m) => (
+                      <li key={m.id}>{m.text}</li>
+                    ))}
+                  </ol>
+                </>
+              ) : null}
+              {isQuery ? (
+                <>
+                  <div className="anl-tree-section">SQL</div>
+                  <div className="anl-tree-sql-box">
+                    <SqlCodeEditor
+                      value={selected.sql ?? ""}
+                      readOnly
+                      expandable={false}
+                      height={140}
+                      ariaLabel="SQL"
+                      testId="anl-tree-sql"
+                    />
+                    <div className="anl-tree-actions">
+                      <Button
+                        size="sm"
+                        variant="primary"
+                        onClick={() => {
+                          setViewerBound(false);
+                          setViewerOpen(true);
+                        }}
+                      >
+                        쿼리 보기
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={() => {
+                          setViewerBound(true);
+                          setViewerOpen(true);
+                        }}
+                      >
+                        값 바인딩 보기
+                      </Button>
+                    </div>
+                    {params.length === 0 ? <div className="anl-tree-muted anl-tree-no-params">바인딩 값 없음</div> : null}
                   </div>
-                ) : null}
-                {isGroupSel ? (
-                  <>
-                    <div className="anl-tree-prop">
-                      <span className="anl-tree-prop-key">첫 메시지</span>
-                      <pre className="anl-tree-message">{groupMsgs[0]?.text}</pre>
-                    </div>
-                    <div className="anl-tree-prop">
-                      <span className="anl-tree-prop-key">마지막 메시지</span>
-                      <pre className="anl-tree-message">{groupMsgs[groupMsgs.length - 1]?.text}</pre>
-                    </div>
-                    <div className="anl-tree-section">전체 메시지</div>
-                    <ol className="anl-tree-msg-list">
-                      {groupMsgs.map((m) => (
-                        <li key={m.id}>{m.text}</li>
-                      ))}
-                    </ol>
-                  </>
-                ) : null}
-                {isQuery ? (
-                  <>
-                    <div className="anl-tree-prop">
-                      <span className="anl-tree-prop-key">SQL</span>
-                      <div className="anl-tree-sql-box">
-                        <pre className="anl-tree-sql">{selected.sql}</pre>
-                        <div className="anl-tree-actions">
-                          <Button
-                            size="sm"
-                            variant="primary"
-                            onClick={() => {
-                              setViewerBound(false);
-                              setViewerOpen(true);
-                            }}
-                          >
-                            쿼리 보기
-                          </Button>
-                          <Button
-                            size="sm"
-                            onClick={() => {
-                              setViewerBound(true);
-                              setViewerOpen(true);
-                            }}
-                          >
-                            값 바인딩 보기
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="anl-tree-section">Param</div>
-                    {params.length === 0 ? (
-                      <div className="anl-tree-muted anl-tree-no-params">바인딩 값 없음</div>
-                    ) : (
-                      params.map((pm, i) => (
-                        <PropRow key={i} prop={{ key: `#${pm.idx} ${pm.type}`.trim(), value: pm.value, mono: true }} />
-                      ))
-                    )}
-                  </>
-                ) : null}
-                <TimeProps node={selected} />
-              </>
-            ) : null}
-          </div>
+                </>
+              ) : null}
+            </div>
+          ) : null}
         </section>
       </div>
       <FloatingPanel
@@ -407,7 +477,17 @@ function TreeTabComponent({ data, active, onSendToBinder }: TreeTabProps) {
               값 바인딩
             </Button>
           </div>
-          <pre className="anl-tree-viewer-text">{viewerText}</pre>
+          <div className="anl-tree-viewer-editor">
+            <SqlCodeEditor
+              value={viewerText}
+              readOnly
+              expandable={false}
+              bordered={false}
+              height="100%"
+              ariaLabel="쿼리 뷰어"
+              testId="anl-tree-viewer-editor"
+            />
+          </div>
           <div className="anl-tree-viewer-foot">
             <Button size="sm" onClick={() => void copyText(viewerText)}>
               복사

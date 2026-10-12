@@ -3,13 +3,17 @@ import { describe, expect, it } from "vitest";
 import {
   allExpandable,
   bindParams,
+  clampPropsWidth,
   cleanSql,
   defaultExpanded,
   firstSelection,
   flattenRows,
   heatLevel,
   normalizeRunTime,
+  propRowsOf,
   propsOf,
+  PROPS_WIDTH_DEFAULT,
+  PROPS_WIDTH_MIN,
   sqlTitle,
   toTreeRequests,
   type TreeNode,
@@ -396,5 +400,39 @@ describe("노드 앞 표식 (queryMark·errorMark)", () => {
     const leaves = all.filter((x) => ["REQ", "SQL", "ERR", "MSG", "MSGS", "BND"].includes(x.kind));
     expect(leaves.length).toBeGreaterThanOrEqual(4);
     for (const n of leaves) expect([n.kind, n.subMark, n.queryMark, n.errorMark]).toEqual([n.kind, false, false, false]);
+  });
+});
+
+describe("속성 표 줄 · 속성 패널 폭", () => {
+  it("SQL 노드: 속성 → Start/End/RunTime → Param(#순번 타입) 순서, RunTime 줄만 runTime 을 가진다", () => {
+    const r = toTreeRequests(fixture("tree-real-bind.json"));
+    const sqls = collect(r[0].root, "SQL").filter((n) => (n.params?.length ?? 0) > 0 && n.startMs !== undefined);
+    expect(sqls.length).toBeGreaterThan(0);
+    const n = sqls[0];
+    const rows = propRowsOf(n);
+    const keys = rows.map((x) => x.key);
+    expect(keys[0]).toBe("ObjectType");
+    const start = keys.indexOf("StartTime");
+    expect(start).toBeGreaterThan(0);
+    expect(rows.filter((x) => x.runTime !== undefined).map((x) => x.key)).toEqual(n.runTime !== undefined ? ["RunTime"] : []);
+    const paramRows = rows.filter((x) => x.id.startsWith("b:"));
+    expect(paramRows).toHaveLength(n.params!.length);
+    expect(rows.indexOf(paramRows[0])).toBeGreaterThan(start);
+    expect(paramRows[0].key).toBe(`#${n.params![0].idx} ${n.params![0].type}`.trim());
+    expect(new Set(rows.map((x) => x.id)).size).toBe(rows.length);
+  });
+
+  it("MSG 그룹·메시지 노드는 속성만(긴 글은 상세 영역), Param 없음", () => {
+    const r = toTreeRequests(fixture("tree-real-small.json"));
+    const msg = collect(r[0].root, "MSG")[0];
+    if (msg) expect(propRowsOf(msg).map((x) => x.key)).toEqual(["ObjectType"]);
+  });
+
+  it("clampPropsWidth: 최소·최대 안으로 맞춘다", () => {
+    expect(clampPropsWidth(100, 1000)).toBe(PROPS_WIDTH_MIN);
+    expect(clampPropsWidth(900, 1000)).toBe(680);
+    expect(clampPropsWidth(400, 1000)).toBe(400);
+    expect(clampPropsWidth(400, 400)).toBe(PROPS_WIDTH_MIN);
+    expect(clampPropsWidth(Number.NaN, 1000)).toBe(PROPS_WIDTH_DEFAULT);
   });
 });
