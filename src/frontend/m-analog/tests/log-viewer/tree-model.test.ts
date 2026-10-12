@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
+  allExpandable,
   bindParams,
   cleanSql,
   defaultExpanded,
@@ -243,5 +244,58 @@ describe("연속 MSG 묶음", () => {
     expect(groups.every((g) => g.children.length >= 2)).toBe(true);
     expect(collect(big.root, "MSG")).toHaveLength(big.msgCount);
     expect(inGroups).toBeLessThanOrEqual(big.msgCount);
+  });
+});
+
+describe("SubService (Task 안에서 부른 서비스)", () => {
+  const raw = [
+    {
+      property: { objectType: "Request" },
+      child: [
+        "req",
+        {
+          property: { objectType: "Process", objectName: "Main" },
+          child: [
+            {
+              property: { objectType: "Task", objectName: "call", objectId: "callTask" },
+              child: [
+                {
+                  property: { objectType: "SubService", objectName: "Sub", runTime: 3 },
+                  child: [
+                    "m1",
+                    "m2",
+                    {
+                      property: { objectType: "Task", objectName: "inner" },
+                      child: [
+                        { property: { objectType: "SubService", objectName: "Deep" }, child: [{ property: { objectType: "Query", query: "select 1 from deep_t" } }] },
+                      ],
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    },
+  ];
+  const [req] = toTreeRequests(raw);
+
+  it("SubService → SVC 로 Task 밑에 재귀로 이어 붙고 SQL·MSG 개수에 합산", () => {
+    const tsk = collect(req.root, "TSK")[0];
+    expect(tsk.children[0].kind).toBe("SVC");
+    expect(collect(req.root, "SVC").map((n) => n.label)).toEqual(["Main", "Sub", "Deep"]);
+    expect(req.sqlCount).toBe(1);
+    expect(req.msgCount).toBe(3);
+  });
+
+  it("기본 펼침·검색·업무 노드만이 하위까지 동작", () => {
+    const open = defaultExpanded(req.root);
+    expect(open.has(collect(req.root, "TSK")[0].id)).toBe(true);
+    const found = flattenRows(req.root, new Set(), { ...NO_FILTER, query: "deep_t" });
+    expect(found.map((r) => r.node.kind)).toEqual(["REQ", "SVC", "TSK", "SVC", "TSK", "SVC", "SQL"]);
+    const biz = flattenRows(req.root, allExpandable(req.root), { ...NO_FILTER, bizOnly: true });
+    expect(biz.some((r) => r.node.kind.startsWith("MSG"))).toBe(false);
+    expect(biz.some((r) => r.node.label === "Deep")).toBe(true);
   });
 });

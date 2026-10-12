@@ -4,7 +4,7 @@
  * 보이는 행 계산·검색·값 바인딩 같은 순수 함수를 둔다(화면 코드는 tree-tab.tsx).
  *
  * 응답 노드 = `{ property: { objectType, … }, child: [ 노드 | 문자열 ] }`. 실제 계층은 Request → Process → Task → Query.
- *  - objectType 대응: Request→REQ, Process→SVC, Task→TSK, Query→SQL. 모르는 objectType 은 원문 그대로 배지.
+ *  - objectType 대응: Request→REQ, Process→SVC(이름에 Service·Process 가 든 모르는 종류도 SVC, 예 SubService), Task→TSK, Query→SQL. 모르는 objectType 은 원문 그대로 배지.
  *  - child 의 문자열 → MSG. Query 바로 뒤의 `binding parameter (1:BIGINT) <- [185]` 문자열은 그 SQL 의 Param 이 되고
  *    트리에서는 그 SQL 아래 BND 자식으로 묶는다. property.exception → ERR 자식.
  *  - runTime 은 문자열·숫자로 모두 와서 숫자로 맞춘다. 문자열 "More......" 는 생략 표식이지만 일반 MSG 로 둔다.
@@ -73,6 +73,8 @@ const KIND_BY_TYPE: Record<string, TreeKind> = {
   Query: "SQL",
 };
 
+/** 알려진 종류 밖이어도 이름에 Service·Process 가 들면 서비스 노드(예: SubService). */
+const SERVICE_LIKE_RE = /service|process/i;
 const BIND_RE = /^binding parameter \((\d+):([A-Za-z_]+)\) <- \[(.*)\]$/s;
 const NUM_TYPES = /INT|NUMERIC|DECIMAL|DOUBLE|FLOAT|REAL|NUMBER/i;
 const TS_RE = /^(\d{4})-(\d\d)-(\d\d)[ T](\d\d):(\d\d):(\d\d)(?:[.,](\d{1,3}))?/;
@@ -226,7 +228,9 @@ class Builder {
     const rec = isRecord(raw) ? raw : {};
     const prop = isRecord(rec.property) ? rec.property : {};
     const objectType = str(prop.objectType);
-    const kind = KIND_BY_TYPE[objectType] ?? (prop.exception ? "ERR" : objectType || "?");
+    const kind =
+      KIND_BY_TYPE[objectType] ??
+      (prop.exception ? "ERR" : SERVICE_LIKE_RE.test(objectType) ? "SVC" : objectType || "?");
     const node: TreeNode = {
       id: this.nextId(),
       kind,
@@ -361,12 +365,12 @@ export function propsOf(node: TreeNode): TreeProp[] {
   return out;
 }
 
-/** 기본 펼침: 뿌리, 그리고 SVC 와 SQL 을 가진 TSK. */
+/** 기본 펼침: 뿌리, 그리고 SVC·SQL(서브서비스 포함)을 가진 TSK. */
 export function defaultExpanded(root: TreeNode | undefined): Set<string> {
   const open = new Set<string>();
   if (!root) return open;
   const walk = (n: TreeNode) => {
-    if (n.kind === "REQ" || n.kind === "SVC" || (n.kind === "TSK" && n.children.some((k) => k.kind === "SQL"))) {
+    if (n.kind === "REQ" || n.kind === "SVC" || (n.kind === "TSK" && n.children.some((k) => k.kind === "SQL" || k.kind === "SVC"))) {
       open.add(n.id);
     }
     n.children.forEach(walk);
