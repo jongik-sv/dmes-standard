@@ -135,6 +135,34 @@ class ErdApplyDiffTest extends AbstractMdmSharedDbTest {
         assertThat(model().at("/columns/" + cid + "/length").asInt()).isEqualTo(len - 1);
     }
 
+    static List<String> physOrder(JsonNode model, String table) {
+        List<String> out = new ArrayList<>();
+        model.at("/tables/" + tableId(model, table) + "/columnOrder").forEach(id -> out.add(model.at("/columns/" + id.asText() + "/phys").asText()));
+        return out;
+    }
+
+    /** DB 컬럼 순서 회차 D5 — 모델 컬럼 순서만 바꾸면 차이는 COLUMN_ORDER 한 건이고, 반영하면 DB 순서로 돌아가 차이가 없다. */
+    @Test
+    void applyDiffRestoresDbColumnOrder() throws Exception {
+        String order = "COLUMN_ORDER:TB_MDM_ERD_CLAIM";
+        JsonNode imported = c.call("import", "owner", Map.of("modelId", "mdm", "kind", "FROM_DB", "baseRev", 0,
+                "session", "ui-owner", "source", "UI"));
+        assertThat(imported.at("/data/result/applied").asBoolean()).as(imported.toString()).isTrue();
+        List<String> dbOrder = physOrder(model(), "TB_MDM_ERD_CLAIM");
+        String first = columnId(model(), "TB_MDM_ERD_CLAIM", dbOrder.get(0));
+        JsonNode moved = c.call("save", "owner", Map.of("modelId", "mdm", "baseRev", 1, "session", "ui-owner", "source", "UI",
+                "commandsJson", "[{\"op\":\"moveColumn\",\"id\":\"" + first + "\",\"position\":2}]"));
+        assertThat(moved.at("/data/result/applied").asBoolean()).as(moved.toString()).isTrue();
+        assertThat(physOrder(model(), "TB_MDM_ERD_CLAIM")).isNotEqualTo(dbOrder);
+        assertThat(diffIds()).containsExactly(order);
+
+        JsonNode ok = applyDiff(2, List.of(order)).at("/data/result");
+        assertThat(ok.path("applied").asBoolean()).as(ok.toString()).isTrue();
+        assertThat(ok.at("/summary/items").asInt()).isEqualTo(1);
+        assertThat(physOrder(model(), "TB_MDM_ERD_CLAIM")).isEqualTo(dbOrder);
+        assertThat(diffIds()).isEmpty();
+    }
+
     static String tableId(JsonNode model, String table) {
         for (var it = model.path("tables").fields(); it.hasNext(); ) {
             var e = it.next();

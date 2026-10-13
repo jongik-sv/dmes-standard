@@ -79,6 +79,34 @@ class ErdDbDiffTest {
         assertThat(ErdDbDiff.diff(created, meta)).isEmpty();
     }
 
+    /** 양쪽 컬럼의 상대 순서가 다르면 표당 한 건(COLUMN_ORDER, 컬럼·전후 값 없음). 한쪽에만 있는 컬럼은 순서 판정에 넣지 않는다. */
+    @Test
+    void columnOrderIsOneItemPerTableOverSharedColumns() {
+        ErdModel model = imported(before());
+        ErdDbMeta moved = new ErdDbMeta("S", List.of(
+                tb("TB_P", "부모", col("ID", 1, "VARCHAR2", 10, null, null, false)),
+                tb("TB_C", "자식",
+                        col("AMT", 1, "NUMBER", 22, 15, 2, true),
+                        col("ID", 2, "NUMBER", 22, 19, 0, false),
+                        col("P_ID", 3, "VARCHAR2", 10, null, null, true),
+                        col("RATE", 4, "FLOAT", 22, 126, null, true),
+                        col("NOTE", 5, "VARCHAR2", 10, null, null, true),
+                        col("OLD", 6, "CHAR", 1, null, null, true),
+                        col("AT", 7, "TIMESTAMP(6)", 11, null, 6, true)),
+                tb("TB_GONE", null, col("A", 1, "DATE", 7, null, null, true))),
+            before().constraints(), List.of());
+        List<ErdDbDiffItem> items = ErdDbDiff.diff(model, moved);
+        assertThat(items).extracting(ErdDbDiffItem::id).containsExactly("COLUMN_ORDER:TB_C");
+        assertThat(items.get(0).kind()).isEqualTo(ErdDbDiff.COLUMN_ORDER);
+        assertThat(items.get(0).column()).isNull();
+        assertThat(items.get(0).before()).isNull();
+        assertThat(items.get(0).after()).isNull();
+
+        // 모델에만 있는 컬럼(X)이 가운데 있어도, DB 에만 있는 컬럼(Y)이 있어도 양쪽 순서가 같으면 차이가 아니다
+        assertThat(ErdDbDiff.orderDiffers(List.of("A", "X", "B"), List.of("A", "Y", "B"))).isFalse();
+        assertThat(ErdDbDiff.orderDiffers(List.of("A", "X", "B"), List.of("B", "A"))).isTrue();
+    }
+
     static ErdDbMeta composite(List<String> childCols, List<String> parentCols) {
         return new ErdDbMeta("S", List.of(
                 tb("TB_P", null, col("X", 1, "VARCHAR2", 10, null, null, false), col("Y", 2, "VARCHAR2", 10, null, null, false)),

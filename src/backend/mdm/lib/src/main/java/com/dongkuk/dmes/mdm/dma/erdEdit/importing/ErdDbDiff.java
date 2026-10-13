@@ -1,17 +1,20 @@
 package com.dongkuk.dmes.mdm.dma.erdEdit.importing;
 
 import com.dongkuk.dmes.mdm.dma.erdEdit.dbmeta.ErdDbMeta;
+import com.dongkuk.dmes.mdm.dma.erdEdit.engine.ErdAuditColumns;
 import com.dongkuk.dmes.mdm.dma.erdEdit.model.ErdColumn;
 import com.dongkuk.dmes.mdm.dma.erdEdit.model.ErdModel;
 import com.dongkuk.dmes.mdm.dma.erdEdit.model.ErdRelation;
 import com.dongkuk.dmes.mdm.dma.erdEdit.model.ErdTable;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 
 /** DB 와 모델의 차이(README S4, 스펙 D10). 읽기 전용 순수 함수. 반영(applyDbDiff)은 단계 2 다. */
 public final class ErdDbDiff {
@@ -23,8 +26,39 @@ public final class ErdDbDiff {
     public static final String COLUMN_CHANGED = "COLUMN_CHANGED";
     public static final String FK_ADDED = "FK_ADDED";
     public static final String FK_REMOVED = "FK_REMOVED";
+    /** 표 하나의 컬럼 순서 차이. 모델·DB 양쪽에 있는 컬럼의 상대 순서만 본다(한쪽에만 있는 컬럼은 COLUMN_ADDED·REMOVED 몫). */
+    public static final String COLUMN_ORDER = "COLUMN_ORDER";
 
     private ErdDbDiff() {
+    }
+
+    /** 양쪽에 있는 컬럼(물리명)의 상대 순서가 모델과 DB 에서 다른가. */
+    static boolean orderDiffers(List<String> modelOrder, List<String> dbOrder) {
+        Set<String> inModel = new HashSet<>(modelOrder), inDb = new HashSet<>(dbOrder);
+        return !modelOrder.stream().filter(inDb::contains).toList()
+                .equals(dbOrder.stream().filter(inModel::contains).toList());
+    }
+
+    /**
+     * COLUMN_ORDER 반영 뒤 순서: 양쪽에 있는 컬럼은 DB 순서로, 모델에만 있는 컬럼은 기존 상대 순서로 감사 묶음 바로 앞에
+     * (ErdAuditColumns.endInsertIndex, 엔진 addColumn 과 같은 규칙). 반영 뒤에는 orderDiffers 가 false 다.
+     *
+     * @param columnOrder 모델 표의 컬럼 id 순서
+     * @param physOf      컬럼 id → 물리명
+     * @param dbOrder     DB 컬럼 물리명 순서
+     */
+    public static List<String> targetOrder(List<String> columnOrder, Function<String, String> physOf, List<String> dbOrder) {
+        Map<String, String> idByPhys = new HashMap<>();
+        for (String cid : columnOrder) idByPhys.putIfAbsent(physOf.apply(cid), cid);
+        List<String> out = new ArrayList<>();
+        for (String phys : dbOrder) {
+            String cid = idByPhys.get(phys);
+            if (cid != null) out.add(cid);
+        }
+        Set<String> placed = new HashSet<>(out);
+        List<String> modelOnly = columnOrder.stream().filter(cid -> !placed.contains(cid)).toList();
+        out.addAll(ErdAuditColumns.endInsertIndex(out, physOf), modelOnly);
+        return out;
     }
 
     public static List<ErdDbDiffItem> diff(ErdModel model, ErdDbMeta meta) {
@@ -62,6 +96,10 @@ public final class ErdDbDiff {
                     out.add(item(COLUMN_REMOVED, t.name(), mc.phys, type(mc.dataType, mc.length, mc.scale, mc.notNull), null,
                             t.name() + "." + mc.phys));
                 }
+            }
+            List<String> dbOrder = t.columns().stream().map(ErdDbMeta.Column::name).toList();
+            if (orderDiffers(new ArrayList<>(modelCols.keySet()), dbOrder)) {   // 물리명 null 이 있을 수 있어 List.copyOf 를 쓰지 않는다
+                out.add(item(COLUMN_ORDER, t.name(), null, null, null, t.name()));
             }
         }
         for (String phys : modelTables.keySet()) {

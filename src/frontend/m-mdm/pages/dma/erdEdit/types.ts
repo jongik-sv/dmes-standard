@@ -132,7 +132,7 @@ export interface ErdStatusView {
 }
 
 export type ErdDbDiffKind =
-  | "TABLE_ADDED" | "TABLE_REMOVED" | "COLUMN_ADDED" | "COLUMN_REMOVED" | "COLUMN_CHANGED" | "FK_ADDED" | "FK_REMOVED";
+  | "TABLE_ADDED" | "TABLE_REMOVED" | "COLUMN_ADDED" | "COLUMN_REMOVED" | "COLUMN_CHANGED" | "COLUMN_ORDER" | "FK_ADDED" | "FK_REMOVED";
 export interface ErdColumnSpec { dataType: string | null; length: number | null; scale: number | null; notNull: boolean }
 export interface ErdDbDiffItem {
   id: string; kind: ErdDbDiffKind; table: string; column: string | null; before: ErdColumnSpec | null; after: ErdColumnSpec | null;

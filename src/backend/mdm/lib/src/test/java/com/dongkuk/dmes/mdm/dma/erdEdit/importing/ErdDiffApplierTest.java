@@ -231,6 +231,68 @@ class ErdDiffApplierTest {
         assertThat(t.columnOrder.stream().map(id -> next.columns.get(id).phys).toList()).containsExactly("N_ID", "P_ID");
     }
 
+    static Column uAt(int pos) {
+        return col("U_AT", pos, "TIMESTAMP(6)", 11, null, 6, true);
+    }
+
+    static List<String> physOrder(ErdModel m, String table) {
+        return m.tables.get(tableId(m, table)).columnOrder.stream().map(id -> m.columns.get(id).phys).toList();
+    }
+
+    /**
+     * COLUMN_ORDER: 양쪽 컬럼은 DB 순서로, 모델에만 있는 컬럼(OLD)은 감사 묶음(U_AT) 바로 앞으로. 같은 묶음의 COLUMN_ADDED 는
+     * DB 자리로 간다. 반영 뒤 다시 계산한 차이에 순서 항목이 없다.
+     */
+    @Test
+    void columnOrderFollowsDbAndDiffHasNoOrderItemAfter() {
+        ErdDbMeta was = new ErdDbMeta("S", List.of(
+                tb("TB_C", col("ID", 1, "NUMBER", 22, 19, 0, false), col("P_ID", 2, "VARCHAR2", 10, null, null, true),
+                        col("NOTE", 3, "VARCHAR2", 10, null, null, true), col("OLD", 4, "CHAR", 1, null, null, true), uAt(5))),
+            List.of(PK_C), List.of());
+        ErdDbMeta now = new ErdDbMeta("S", List.of(
+                tb("TB_C", col("NOTE", 1, "VARCHAR2", 10, null, null, true), col("ID", 2, "NUMBER", 22, 19, 0, false),
+                        col("P_ID", 3, "VARCHAR2", 10, null, null, true), col("NEWC", 4, "CHAR", 1, null, null, true), uAt(5))),
+            List.of(PK_C), List.of());
+        ErdModel m = imported(was, List.of());
+        assertThat(ErdDbDiff.diff(m, now)).extracting(ErdDbDiffItem::id)
+                .containsExactly("COLUMN_ADDED:TB_C.NEWC", "COLUMN_ORDER:TB_C", "COLUMN_REMOVED:TB_C.OLD");
+
+        var built = ErdDiffApplier.build(m, now, DICT, List.of("COLUMN_ORDER:TB_C", "COLUMN_ADDED:TB_C.NEWC"), 1, seq());
+        assertThat(built.staleIds()).isEmpty();
+        assertThat(built.summary().items()).isEqualTo(2);
+        ErdModel next = apply(m, 1, 2, "s-a", built.restore());
+        assertThat(physOrder(next, "TB_C")).containsExactly("NOTE", "ID", "P_ID", "NEWC", "OLD", "U_AT");
+        assertThat(ErdDbDiff.diff(next, now)).extracting(ErdDbDiffItem::id).containsExactly("COLUMN_REMOVED:TB_C.OLD");
+
+        // 순서만 고르면 새 컬럼은 들어오지 않고, 남은 컬럼만 DB 순서가 된다
+        ErdModel only = apply(m, 1, 2, "s-a", ErdDiffApplier.build(m, now, DICT, List.of("COLUMN_ORDER:TB_C"), 1, seq()).restore());
+        assertThat(physOrder(only, "TB_C")).containsExactly("NOTE", "ID", "P_ID", "OLD", "U_AT");
+        assertThat(ErdDbDiff.diff(only, now)).extracting(ErdDbDiffItem::id)
+                .containsExactly("COLUMN_ADDED:TB_C.NEWC", "COLUMN_REMOVED:TB_C.OLD");
+    }
+
+    /** 같은 묶음의 COLUMN_REMOVED 뒤에 순서를 맞춘다. 감사 묶음이 없는 표면 모델에만 있는 컬럼은 맨 끝이다. */
+    @Test
+    void columnOrderAfterRemovalAndModelOnlyAtEndWithoutAudit() {
+        ErdModel m = imported(before(false), List.of());
+        ErdDbMeta now = new ErdDbMeta("S", List.of(
+                tb("TB_P", col("ID", 1, "VARCHAR2", 10, null, null, false)),
+                tb("TB_C", col("NOTE", 1, "VARCHAR2", 10, null, null, true), col("P_ID", 2, "VARCHAR2", 10, null, null, true),
+                        col("ID", 3, "NUMBER", 22, 19, 0, false)),
+                tb("TB_GONE", col("A", 1, "DATE", 7, null, null, true))),
+            List.of(PK_P, PK_C), List.of());
+        assertThat(ErdDbDiff.diff(m, now)).extracting(ErdDbDiffItem::id)
+                .containsExactly("COLUMN_ORDER:TB_C", "COLUMN_REMOVED:TB_C.OLD");
+
+        ErdModel both = apply(m, 1, 2, "s-a",
+                ErdDiffApplier.build(m, now, DICT, List.of("COLUMN_ORDER:TB_C", "COLUMN_REMOVED:TB_C.OLD"), 1, seq()).restore());
+        assertThat(physOrder(both, "TB_C")).containsExactly("NOTE", "P_ID", "ID");
+        assertThat(ErdDbDiff.diff(both, now)).isEmpty();
+
+        ErdModel kept = apply(m, 1, 2, "s-a", ErdDiffApplier.build(m, now, DICT, List.of("COLUMN_ORDER:TB_C"), 1, seq()).restore());
+        assertThat(physOrder(kept, "TB_C")).containsExactly("NOTE", "P_ID", "ID", "OLD");
+    }
+
     /** 부모가 새 표인 FK_ADDED 는 그 표의 TABLE_ADDED 를 함께 골라야 들어간다. */
     @Test
     void foreignKeyToUnselectedNewTableIsStale() {

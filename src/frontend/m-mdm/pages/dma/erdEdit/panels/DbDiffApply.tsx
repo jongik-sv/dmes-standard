@@ -24,7 +24,7 @@ import type { ErdColumnSpec, ErdDbDiffItem, ErdDbDiffView, ErdDiffApplySummary, 
 
 export const DIFF_LABEL: Record<ErdDbDiffItem["kind"], string> = {
   TABLE_ADDED: "DB 에 생긴 표", TABLE_REMOVED: "DB 에서 사라진 표", COLUMN_ADDED: "DB 에 생긴 컬럼", COLUMN_REMOVED: "DB 에서 사라진 컬럼",
-  COLUMN_CHANGED: "컬럼 다름", FK_ADDED: "DB 에 생긴 FK", FK_REMOVED: "DB 에서 사라진 FK",
+  COLUMN_CHANGED: "컬럼 다름", COLUMN_ORDER: "컬럼 순서 다름", FK_ADDED: "DB 에 생긴 FK", FK_REMOVED: "DB 에서 사라진 FK",
 };
 const KIND_ORDER = Object.keys(DIFF_LABEL) as ErdDbDiffItem["kind"][];
 

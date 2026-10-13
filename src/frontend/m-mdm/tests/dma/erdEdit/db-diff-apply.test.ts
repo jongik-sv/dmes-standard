@@ -61,6 +61,10 @@ describe("다시 가져오기 반영 — 순수 함수", () => {
       { id: COL, kind: "컬럼 다름", table: "TB_MCM_SEC_MENU", column: "MENU_NM", before: "VARCHAR2(200)", after: "VARCHAR2(300)" },
     ]);
     expect(diffRows(null)).toEqual([]);
+    const order = { id: "COLUMN_ORDER:TB_MCM_SEC_MENU", kind: "COLUMN_ORDER" as const, table: "TB_MCM_SEC_MENU", column: null, before: null, after: null };
+    expect(diffRows({ ...DIFF, items: [order] })).toEqual([
+      { id: order.id, kind: "컬럼 순서 다름", table: "TB_MCM_SEC_MENU", column: "", before: "", after: "" },
+    ]);
   });
 
   it("고른 항목은 차이 목록 순서로 보내고, 종류별 수로 줄이고, 지우는 항목을 센다", () => {

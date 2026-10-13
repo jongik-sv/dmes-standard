@@ -35,8 +35,9 @@ import java.util.function.Supplier;
  * restore 요소로 만든다. 요소는 (kind, id) 마다 하나다 — 엔진 restore 는 같은 묶음 안에서 앞 요소가 찍은 rev 도 "sinceRev 뒤의
  * 변경" 으로 보므로, 같은 요소를 두 번 적으면 스스로 충돌한다. 지운 요소는 delete 하나로 끝난다(지움이 고침보다 앞선다).
  *
- * <p>적용 순서: TABLE_ADDED → COLUMN_ADDED → 새 표의 DB FK → COLUMN_CHANGED → FK_ADDED → COLUMN_REMOVED → TABLE_REMOVED →
- * FK_REMOVED. 새 표·새 컬럼을 먼저 넣어야 FK 의 부모·컬럼이 풀린다.
+ * <p>적용 순서: TABLE_ADDED → COLUMN_ADDED → 새 표의 DB FK → COLUMN_CHANGED → FK_ADDED → COLUMN_REMOVED → COLUMN_ORDER →
+ * TABLE_REMOVED → FK_REMOVED. 새 표·새 컬럼을 먼저 넣어야 FK 의 부모·컬럼이 풀린다. COLUMN_ORDER 는 같은 묶음에서 넣고 지운 컬럼을
+ * 본 뒤에 순서를 맞춘다.
  *
  * <p>검사 나눔: 항목 수(1~500)와 "모델에 표가 없음" 은 서비스가 본다. 여기서는 잠근 모델 기준으로 항목 id 를 본다.
  */
@@ -57,7 +58,7 @@ public final class ErdDiffApplier {
     private static final String REV = "_rev";
     private static final List<String> ADD_KINDS = List.of(ErdDbDiff.TABLE_ADDED, ErdDbDiff.COLUMN_ADDED);
     private static final List<String> OTHER_KINDS = List.of(ErdDbDiff.COLUMN_CHANGED, ErdDbDiff.FK_ADDED,
-            ErdDbDiff.COLUMN_REMOVED, ErdDbDiff.TABLE_REMOVED, ErdDbDiff.FK_REMOVED);
+            ErdDbDiff.COLUMN_REMOVED, ErdDbDiff.COLUMN_ORDER, ErdDbDiff.TABLE_REMOVED, ErdDbDiff.FK_REMOVED);
 
     private record Key(String kind, String id) {}
 
@@ -121,6 +122,7 @@ public final class ErdDiffApplier {
                 return addForeignKey(it);
             }
             case ErdDbDiff.COLUMN_REMOVED -> removeColumn(it.table(), it.column());
+            case ErdDbDiff.COLUMN_ORDER -> reorderColumns(it.table());
             case ErdDbDiff.TABLE_REMOVED -> removeTable(it.table());
             case ErdDbDiff.FK_REMOVED -> clearForeignKey(it);
             default -> throw new IllegalStateException("모르는 차이 종류입니다: " + it.kind());
@@ -205,6 +207,23 @@ public final class ErdDiffApplier {
         touched.add(new Key("relation", existing));
         dbFkSet++;
         return true;
+    }
+
+    /** COLUMN_ORDER: 표 columnOrder 를 DB 순서로(ErdDbDiff.targetOrder). 이미 같으면 건드리지 않는다. */
+    private void reorderColumns(String table) {
+        String tid = tableId(table);
+        if (tid == null) return;
+        ErdTable t = work.tables.get(tid);
+        List<String> dbOrder = meta.tables().stream().filter(x -> x.name().equals(table)).findFirst()
+                .map(x -> x.columns().stream().map(ErdDbMeta.Column::name).toList()).orElse(List.of());
+        // 끊어진 id(컬럼 없음)는 물리명 null — 모델에만 있는 컬럼처럼 감사 묶음 앞에 남는다
+        List<String> target = ErdDbDiff.targetOrder(t.columnOrder, cid -> {
+            ErdColumn c = work.columns.get(cid);
+            return c == null ? null : c.phys;
+        }, dbOrder);
+        if (target.equals(t.columnOrder)) return;
+        t.columnOrder = new ArrayList<>(target);
+        touched.add(new Key("table", tid));
     }
 
     // ---- 지우기·끄기 ----
