@@ -300,6 +300,54 @@ if command -v zsh >/dev/null 2>&1; then
 fi
 note "15) 래퍼 셸 보호: bash -c·heavy.sh·zsh -c 아래 be-run 이 있어도 새 be-run 이 래퍼를 끝내지 않음"
 
+# ── 16) 빌드 구간만 무거운 명령 슬롯을 쓴다(대책 J, 2026-10-13) ──
+# 가짜 heavy.mjs: 첫 호출은 exit 75(대기 상한 초과), 다음 호출은 명령을 돌리고 끝나면 released 를 남긴다.
+# 볼 것: be-run 이 75 를 받고 다시 줄 선다 · 빌드에 DMES_ORA_PDB·DMES_ORA_TEST 가 넘어가지 않는다(Oracle 시험 자리 오인 방지) ·
+#   빌드(가짜 gradlew 8초) 동안 이전 mcm 이 그대로 돈다 · 서버가 뜰 때는 슬롯이 이미 풀렸다 · 감싼 실행에서 서버를 띄우면 경고한다.
+mkdir -p "$root/.claude/skills/dflow-dev/scripts" "$tmp/fake-slot"
+cat > "$root/.claude/skills/dflow-dev/scripts/heavy.mjs" <<'HJ'
+import { spawnSync } from 'node:child_process';
+import fs from 'node:fs';
+const log = process.env.FAKE_HEAVY_LOG;
+let n = 0;
+try { n = Number(fs.readFileSync(`${log}.n`, 'utf8')); } catch {}
+fs.writeFileSync(`${log}.n`, String(n + 1));
+fs.appendFileSync(log, `call ${n} args=${process.argv.slice(2).join(' ')} ora=${process.env.DMES_ORA_PDB ?? ''} test=${process.env.DMES_ORA_TEST ?? ''}\n`);
+if (n === 0) { process.stderr.write('HEAVY_BUSY fake\n'); process.exit(75); }
+const a = process.argv.slice(2);
+const i = a[0] === '--' ? 1 : 0;
+const r = spawnSync(a[i], a.slice(i + 1), { stdio: 'inherit', env: { ...process.env, DFLOW_HEAVY_HELD: process.env.FAKE_HEAVY_SLOT } });
+fs.appendFileSync(log, 'released\n');
+process.exit(r.status ?? 1);
+HJ
+export FAKE_HEAVY_LOG="$tmp/heavy-calls.log" FAKE_HEAVY_SLOT="$tmp/fake-slot"
+runbg --mcm --mdm >"$tmp/HA.log" 2>&1 & HA=$!
+pids_to_kill="$pids_to_kill $HA"
+wait_up mcm && wait_up mdm || bad "16 HA: 기동 실패"
+hmcm1="$(port_pid mcm)"; hmdm1="$(port_pid mdm)"
+DMES_ORA_TEST=clone BE_PREBUILD=1 bash -c 'exec bash "$0" --mcm --pdb=L_FAKE' "$root/be-run.sh" >"$tmp/HB.log" 2>&1 & HB=$!
+pids_to_kill="$pids_to_kill $HB"
+sleep 5   # 가짜 빌드(8초) 도중
+grep -q '^call 1 ' "$FAKE_HEAVY_LOG" 2>/dev/null || bad "16: exit 75 뒤 다시 줄 서지 않았다: $(cat "$FAKE_HEAVY_LOG" 2>/dev/null)"
+[ "$(port_pid mcm)" = "$hmcm1" ] && up mcm || bad "16: 빌드 도중 이전 mcm 이 내려갔다(빌드를 이전 서버를 내린 뒤에 했다)"
+for _ in $(seq 1 60); do hmcm2="$(port_pid mcm)"; [ -n "$hmcm2" ] && [ "$hmcm2" != "$hmcm1" ] && up mcm && break; sleep 0.5; done
+[ -n "${hmcm2:-}" ] && [ "$hmcm2" != "$hmcm1" ] || bad "16: 빌드 뒤 mcm 이 새 JVM 으로 바뀌지 않았다"
+[ "$(port_pid mdm)" = "$hmdm1" ] && up mdm || bad "16: mcm 재기동이 mdm 을 내렸다"
+grep -q 'args=-- .*gradlew :api:beRunClasspath' "$FAKE_HEAVY_LOG" || bad "16: 빌드가 heavy.mjs -- <gradlew …> 로 불리지 않았다: $(cat "$FAKE_HEAVY_LOG")"
+grep -q 'ora=[^ ]' "$FAKE_HEAVY_LOG" && bad "16: 빌드에 DMES_ORA_PDB 가 넘어갔다(heavy 가 Oracle 시험 자리를 잡는다)"
+grep -q 'test=[^ ]' "$FAKE_HEAVY_LOG" && bad "16: 빌드에 DMES_ORA_TEST 가 넘어갔다"
+grep -q '^released$' "$FAKE_HEAVY_LOG" || bad "16: 서버가 뜬 뒤에도 heavy 가 끝나지 않았다(서버가 슬롯을 쥔다)"
+alive "$HB" || bad "16: HB be-run 이 끝났다"
+BE_PREBUILD=0 DFLOW_HEAVY_HELD="$tmp/fake-slot" bash "$root/be-run.sh" --mdm >"$tmp/HW.log" 2>&1 & HW=$!
+pids_to_kill="$pids_to_kill $HW"
+for _ in $(seq 1 40); do grep -q 'heavy.mjs 로 감싸 띄웠다' "$tmp/HW.log" && break; sleep 0.5; done
+grep -q 'heavy.mjs 로 감싸 띄웠다' "$tmp/HW.log" || bad "16: 감싼 실행(DFLOW_HEAVY_HELD)에서 서버를 띄우는데 경고가 없다"
+wait_up mdm || bad "16 HW: mdm 안 뜸"
+kill -TERM "$HA" "$HB" "$HW" 2>/dev/null; wait "$HA" "$HB" "$HW" 2>/dev/null
+settle_down
+rm -rf "$root/.claude"; unset FAKE_HEAVY_LOG FAKE_HEAVY_SLOT
+note "16) heavy 빌드: 75 뒤 재대기, Oracle 값 미전달, 빌드 동안 이전 서버 유지, 서버 기동 때 슬롯 해제, 감싼 실행 경고"
+
 # ── 7) 소유 기록 없이 뜬 예전 버전 be-run 은 종전처럼 끝내고 이어받는다 ──
 if [ -n "${OLD_BE_RUN_SRC:-}" ] && [ -f "$OLD_BE_RUN_SRC" ]; then
   new_copy="$tmp/be-run.new.sh"; cp "$root/be-run.sh" "$new_copy"

@@ -337,8 +337,11 @@ be-run.sh 는 Gradle 로 **빌드만 하고 앱은 `java` 로 직접 띄운다.*
 1. **빌드** — `scripts/lib/be-run-classpath.init.gradle` 을 `-I` 로 줘서 `<모듈>/api/build/be-run/classpath.txt`(1행 main class, 2행 classpath)를 만든다.
    값은 bootRun 이 쓰는 것과 같다. 모듈이 2개 이상이면 `src/backend` 루트 composite 에서 한 번(공유 includeBuild 를 Gradle 하나가 빌드해 경합이 없다),
    1개면 그 모듈 폴더에서 한다. 기본은 `--no-daemon` 이라 빌드가 끝나면 Gradle 프로세스가 남지 않는다. 코드를 고친 뒤 다시 띄우면 늘 최신 코드로 빌드된다.
+   빌드는 PC 전역 무거운 명령 슬롯(`heavy.mjs`) 하나를 쓰고, 끝나면 슬롯을 놓는다. 슬롯이 차 있으면 기다린다. 서버는 슬롯 밖에서 돈다.
+   빌드는 이전 서버를 내리기 **전에** 한다. 그래서 슬롯을 기다리거나 빌드가 실패해도 이전 서버는 계속 돈다. 단 빌드가 다시 쓰는 jar 를 이전 서버가 늦게 읽으면 오류가 날 수 있다(Windows Git Bash·`BE_GRADLE_RUN=1` 은 종전처럼 내린 뒤 슬롯 없이 빌드).
 2. **기동** — 모듈 폴더(`src/backend/<모듈>`)에서 `java <JVM 옵션> -cp <classpath> <main class> --spring.profiles.active=local …`.
 
+- be-run 자체를 heavy 로 감싸지 않는다(`node heavy.mjs ./be-run.sh …` 금지). 감싸면 서버가 떠 있는 내내 슬롯을 쥐어 다른 세션의 빌드·시험이 줄을 선다. 감싼 실행에서 서버를 띄우면 be-run 이 경고한다. `--build-only` 는 감싸도 된다.
 - 빌드가 실패하면 **아무 모듈도 띄우지 않고** exit 1 로 끝난다. 이전 빌드의 classpath.txt 는 빌드 직전에 지우므로 낡은 값으로 뜨지 않는다.
   `local-run` 은 be-run 종료를 보고 FE 까지 정리하고, `dmes-up.ps1 -Detach` 는 함께 띄운 FE 를 정리한 뒤 `1` 로 끝난다.
 - 빌드 도중 Ctrl+C·TERM 을 받으면 빌드 프로세스(단일 사용 데몬 포함)까지 정리하고 130·143 으로 끝난다.
@@ -352,6 +355,7 @@ be-run.sh 는 Gradle 로 **빌드만 하고 앱은 `java` 로 직접 띄운다.*
 | `BE_GRADLE_RUN` | `1` | **되돌리기** — 종전처럼 모듈별 `gradlew :api:bootRun` 으로 띄운다(아래 선빌드 설명 참고) |
 | `BE_PREBUILD` | `0` | 빌드를 건너뛰고 직전 빌드의 classpath.txt 로 바로 띄운다(코드를 고쳤다면 최신이 아니다) |
 | `BE_PREBUILD_CONTINUE` | `1` | 빌드가 실패해도 classpath.txt 가 만들어진 모듈은 띄운다 |
+| `BE_HEAVY_BUILD` | `0` | 빌드를 무거운 명령 슬롯 없이 돌린다(슬롯을 기다리지 않는다) |
 
 `BE_GRADLE_RUN=1` 이면 종전 동작이다. 모듈이 2개 이상일 때만 `src/backend` 루트 composite 로 `gradlew :<모듈>:api:bootRun … -m -q`(계획)를 돌려 `bootRun` 을 뺀
 태스크를 Gradle 1회(`--continue`)로 선빌드한 뒤 모듈별 bootRun 을 띄운다. 계획·선빌드가 실패하면 아무 모듈도 띄우지 않으며(`BE_PREBUILD_CONTINUE=1` 이면 계속), `BE_PREBUILD=0` 이면 선빌드를 건너뛴다.

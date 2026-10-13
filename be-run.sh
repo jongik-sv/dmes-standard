@@ -28,7 +28,19 @@
 #   BE_GRADLE_RUN=1      종전처럼 모듈별 gradlew :api:bootRun 으로 띄운다(되돌리기용. 아래 BE_PREBUILD* 는 이때의 선빌드 설정)
 #   BE_PREBUILD=0        빌드를 건너뛰고 직전 빌드가 남긴 classpath.txt 로 바로 띄운다(코드를 고쳤다면 최신이 아니다)
 #   BE_PREBUILD_CONTINUE=1  빌드가 실패해도 classpath.txt 가 만들어진 모듈은 띄운다 (모듈 하나의 오류가 나머지를 막지 않게)
-# 빌드가 실패하면 아무 모듈도 띄우지 않고 exit 1 로 끝난다.
+# 빌드가 실패하면 아무 모듈도 띄우지 않고 exit 1 로 끝난다. 이전 서버는 내리기 전이라 그대로 돈다(아래 「빌드 순서」).
+#
+# 무거운 명령 슬롯(heavy.mjs, 2026-10-13 대책 J): 빌드 구간만 PC 전역 슬롯 하나를 쓰고, 서버는 슬롯 밖에서 돈다.
+#   be-run 이 Gradle 빌드를 node .claude/skills/dflow-dev/scripts/heavy.mjs -- <gradlew …> 로 스스로 줄 세운다.
+#   슬롯이 차 있으면 기다린다(heavy 의 exit 75 는 다시 불러 계속 줄을 선다). node·heavy.mjs 가 없으면 슬롯 없이 빌드한다.
+#   빌드에는 DMES_ORA_PDB·DMES_ORA_TEST 를 넘기지 않는다 — 넘기면 heavy 가 Oracle 시험으로 보고 PC Oracle 시험 자리까지 잡는다.
+#   BE_HEAVY_BUILD=0     슬롯 없이 빌드한다(종전 동작)
+#   be-run 자체를 heavy 로 감싸지 않는다(node heavy.mjs ./be-run.sh … 금지). 감싸면 서버가 떠 있는 내내 슬롯을 쥔다
+#   (2026-10-09 조정자 사례). 감싼 실행(DFLOW_HEAVY_HELD)에서 서버를 띄우면 경고를 낸다. --build-only 는 감싸도 된다.
+# 빌드 순서: 이전 서버를 내리기 **전에** 빌드한다. 그래서 슬롯을 기다리거나 빌드가 실패해도 이전 서버는 계속 돈다.
+#   단 빌드가 다시 쓰는 jar(lib·mcm-core·cactus-core 등)를 이전 JVM 이 늦게 읽으면 영향을 받을 수 있다(다른 모듈 JVM 도 종전부터 같다).
+#   예외 — 종전 bootRun 방식(BE_GRADLE_RUN=1)과 Windows(Git Bash: 실행 중인 JVM 이 쥔 jar 를 덮어쓰지 못한다)는 종전처럼
+#   이전 서버를 내린 뒤 빌드한다. 이 두 경우는 슬롯을 기다리는 동안 서버가 내려가 있게 되므로 슬롯 없이 빌드한다(--build-only 는 슬롯 사용).
 #
 # 앱 JVM 옵션(메모리 절약 기본값. 종전 서버 1개의 점유는 힙 밖 포함 383~472MB 였다):
 #   기본 -XX:TieredStopAtLevel=1 -Xmx768m -XX:+UseSerialGC -Xss512k -XX:ReservedCodeCacheSize=40m
@@ -375,6 +387,34 @@ be_prebuild_continue() {
   [ "${BE_PREBUILD_CONTINUE:-0}" = "1" ]
 }
 
+# ── 무거운 명령 슬롯(대책 J) ─────────────────────────────────
+be_heavy_script() { printf '%s' "$ROOT_DIR/.claude/skills/dflow-dev/scripts/heavy.mjs"; }
+
+# 실행 중인 JVM 이 쥔 jar 를 덮어쓰지 못하는 OS(Windows 의 Git Bash·MSYS·Cygwin)인지.
+be_jar_lock_os() {
+  case "$(uname -s 2>/dev/null)" in MINGW*|MSYS*|CYGWIN*) return 0 ;; esac
+  return 1
+}
+
+# 이전 서버를 내리기 전에 빌드하는지. 종전 bootRun 방식과 jar 잠금 OS 는 종전처럼 내린 뒤 빌드한다.
+be_build_first() {
+  ! be_legacy_mode && ! be_jar_lock_os
+}
+
+# heavy 로 감싼 실행 안인지(heavy.mjs 가 슬롯 폴더 경로를 DFLOW_HEAVY_HELD 로 넘긴다).
+be_wrapped_by_heavy() {
+  [ -n "${DFLOW_HEAVY_HELD:-}" ] && [ -d "$DFLOW_HEAVY_HELD" ]
+}
+
+# 빌드를 heavy 슬롯에 넣는지. 이전 서버를 내린 뒤 빌드하는 경우(서버 실행)는 슬롯 대기 = 서버 정지 시간이라 넣지 않는다.
+# 이미 감싼 실행 안(그 슬롯으로 돈다)·BE_HEAVY_BUILD=0·node 나 heavy.mjs 가 없으면(fail-open) 넣지 않는다.
+be_heavy_build_enabled() {
+  [ "${BE_HEAVY_BUILD:-1}" != "0" ] || return 1
+  [ "${BUILD_ONLY:-0}" = "1" ] || be_build_first || return 1
+  be_wrapped_by_heavy && return 1
+  [ -f "$(be_heavy_script)" ] && command -v node >/dev/null 2>&1
+}
+
 be_prebuild_print_plan_failure() {
   dev_log_error "선빌드 계획(gradlew -m) 실패 — 아래 출력에서 원인을 확인하세요."
   printf '%s\n' "$BE_PREBUILD_PLAN_OUTPUT" | tail -n 15 | dev_log_prefix_stream "be-build" >&2
@@ -433,16 +473,33 @@ be_run_prebuild() {
     done
   fi
 
-  dev_log_print "be" "선빌드 시작 (태스크 ${#BE_PREBUILD_TASKS[@]}개, Gradle 1회) — cwd=$BE_BUILD_DIR"
-  # src/backend/gradlew 는 bootRun 이 아닌 실행을 PC 전역 무거운 명령 슬롯(heavy.mjs)에 줄 세운다. 선빌드는
-  # 종전에 bootRun 7개가 슬롯 없이 하던 컴파일을 한 번으로 모은 것이라, 슬롯을 기다리게 하면 다른 세션의
-  # 테스트가 많을 때 서버 기동이 수십 분 밀린다(종전엔 없던 대기). 그래서 종전처럼 슬롯 없이 돈다.
-  # 백그라운드로 띄우고 wait 한다 — 그래야 아래 임시 트랩이 신호를 받는 즉시 트리를 정리할 수 있다.
-  # 바깥 서브셸은 gradlew 의 종료 코드(PIPESTATUS[0])로 끝나므로 wait 가 그 값을 돌려준다.
+  local heavy=""
+  if be_heavy_build_enabled; then
+    heavy="$(be_heavy_script)"
+    dev_log_print "be" "선빌드 시작 (태스크 ${#BE_PREBUILD_TASKS[@]}개, Gradle 1회, 무거운 명령 슬롯 안에서 — 끝나면 슬롯을 놓는다) — cwd=$BE_BUILD_DIR"
+  else
+    dev_log_print "be" "선빌드 시작 (태스크 ${#BE_PREBUILD_TASKS[@]}개, Gradle 1회) — cwd=$BE_BUILD_DIR"
+  fi
+  # 빌드 구간만 PC 전역 무거운 명령 슬롯(heavy.mjs)에 줄 세운다(대책 J, 머리말 「무거운 명령 슬롯」). 서버는 슬롯 밖에서 띄운다.
+  # 직접 기동 방식은 이전 서버를 내리기 전에 빌드하므로, 슬롯을 기다리는 동안에도 이전 서버는 돈다.
+  # 안쪽 gradlew 의 자체 줄 세우기는 끈다(DFLOW_GRADLEW_NO_HEAVY=1) — 이 함수가 heavy 를 직접 부른다. heavy 안에서는
+  # DFLOW_HEAVY_HELD 가 서므로 어차피 지나간다. analog 처럼 모듈 전용 gradlew(줄 세우기 블록 없음)를 써도 슬롯에 든다.
+  # DMES_ORA_PDB·DMES_ORA_TEST 는 빌드에 넘기지 않는다: heavy 가 gradlew 명령 + 이 값을 Oracle 시험으로 보고 시험 자리를 잡는다.
+  # 백그라운드로 띄우고 wait 한다 — 그래야 아래 임시 트랩이 신호를 받는 즉시 트리(heavy 포함, heavy 는 TERM 에 슬롯을 놓는다)를 정리한다.
+  # 바깥 서브셸은 빌드의 종료 코드(PIPESTATUS[0])로 끝나므로 wait 가 그 값을 돌려준다.
   (
     (
       cd "$BE_BUILD_DIR" || exit 1
       export DFLOW_GRADLEW_NO_HEAVY=1
+      unset DMES_ORA_PDB DMES_ORA_TEST
+      if [ -n "$heavy" ]; then
+        while :; do
+          dev_log_run node "$heavy" -- "$BE_BUILD_GRADLEW" "${BE_PREBUILD_TASKS[@]}" "${BE_BUILD_FLAGS[@]}" 2>&1
+          rc=$?
+          [ "$rc" -eq 75 ] || exit "$rc"
+          echo "무거운 명령 슬롯을 계속 기다린다(이전 서버는 그대로 돈다) — 보유자: node $heavy status · 슬롯 없이: BE_HEAVY_BUILD=0"
+        done
+      fi
       dev_log_run "$BE_BUILD_GRADLEW" "${BE_PREBUILD_TASKS[@]}" "${BE_BUILD_FLAGS[@]}" 2>&1
     ) | dev_log_prefix_stream "be-build"
     exit "${PIPESTATUS[0]}"
@@ -680,7 +737,16 @@ if [ "$DRY_RUN" = "1" ]; then
   if ! be_legacy_mode; then
     if be_prebuild_enabled; then
       be_build_setup
-      dev_log_print "be" "[dry-run] 1) 빌드 (Gradle 1회, 태스크 ${#BE_PREBUILD_TASKS[@]}개, classpath.txt 산출): (cd $BE_BUILD_DIR && DFLOW_GRADLEW_NO_HEAVY=1 $BE_BUILD_GRADLEW ${BE_PREBUILD_TASKS[*]} ${BE_BUILD_FLAGS[*]})"
+      if be_heavy_build_enabled; then
+        dev_log_print "be" "[dry-run] 1) 빌드 (Gradle 1회, 태스크 ${#BE_PREBUILD_TASKS[@]}개, classpath.txt 산출, 무거운 명령 슬롯 안 — exit 75 면 다시 줄 선다): (cd $BE_BUILD_DIR && DFLOW_GRADLEW_NO_HEAVY=1 node $(be_heavy_script) -- $BE_BUILD_GRADLEW ${BE_PREBUILD_TASKS[*]} ${BE_BUILD_FLAGS[*]})"
+      else
+        dev_log_print "be" "[dry-run] 1) 빌드 (Gradle 1회, 태스크 ${#BE_PREBUILD_TASKS[@]}개, classpath.txt 산출, 슬롯 없음): (cd $BE_BUILD_DIR && DFLOW_GRADLEW_NO_HEAVY=1 $BE_BUILD_GRADLEW ${BE_PREBUILD_TASKS[*]} ${BE_BUILD_FLAGS[*]})"
+      fi
+      if be_build_first; then
+        dev_log_print "be" "[dry-run]    빌드는 이전 서버를 내리기 전에 한다 — 슬롯 대기·빌드 실패 동안 이전 서버는 그대로 돈다."
+      else
+        dev_log_print "be" "[dry-run]    빌드는 이전 서버를 내린 뒤에 한다(Windows: 실행 중인 JVM 이 쥔 jar 를 덮어쓰지 못한다)."
+      fi
       if be_prebuild_continue; then
         dev_log_print "be" "[dry-run]    빌드가 실패해도 classpath.txt 가 만들어진 모듈은 기동한다 (BE_PREBUILD_CONTINUE=1)."
       else
@@ -751,6 +817,22 @@ fi
 # 빌드를 건너뛰는데(BE_PREBUILD=0) 직전 빌드의 classpath.txt 가 없으면, 이전 서버를 끄기 전에 알리고 끝낸다.
 if ! be_legacy_mode && ! be_prebuild_enabled; then
   be_check_classpath_files || exit 1
+fi
+
+# be-run 을 heavy 로 감싼 실행이면(node heavy.mjs ./be-run.sh …) 서버가 떠 있는 내내 그 슬롯을 쥔다 — 알리고 이어 간다(대책 J).
+if be_wrapped_by_heavy; then
+  dev_log_error "be-run 을 heavy.mjs 로 감싸 띄웠다($(basename "$DFLOW_HEAVY_HELD")) — 서버가 떠 있는 내내 이 무거운 명령 슬롯을 쥔다."
+  dev_log_error "  be-run 은 감싸지 않고 부른다: 빌드 구간만 be-run 이 스스로 슬롯에 넣는다(서버는 슬롯 밖). 빌드만 감쌀 때는 --build-only."
+fi
+
+# ── 빌드(이전 서버를 내리기 전) ──────────────────────────────
+# 직접 기동 방식은 이전 서버를 내리기 전에 빌드한다: 슬롯을 기다리는 동안·빌드가 실패해도 이전 서버는 계속 돈다.
+# 이 시점에는 띄운 모듈이 없으므로 빌드 중 Ctrl+C·TERM 은 be_run_prebuild 의 임시 트랩이 빌드 트리만 정리하고 끝낸다.
+# 빌드가 실패하면 여기서 exit 1(BE_PREBUILD_CONTINUE=1 이면 계속). 종전 bootRun 방식·Windows 는 아래 「포트 회수」 뒤에서 빌드한다.
+BE_BUILT_EARLY=0
+if be_prebuild_enabled && be_build_first; then
+  be_run_prebuild
+  BE_BUILT_EARLY=1
 fi
 
 # local 프로파일 SQLite 파일 위치 — 모든 모듈의 application.yml 이 ../data/{모듈}.db 를 가리킨다.
@@ -1037,9 +1119,9 @@ for m in "${SELECTED_MODULES[@]}"; do
   reclaim_backend_port "$(be_module_port "$m")" "be-$m" || exit 1
 done
 
-# 종료 트랩보다 앞에서 돈다 — 띄운 모듈이 아직 없으므로 선빌드 중 Ctrl+C·TERM 은 be_run_prebuild 의
-# 임시 트랩이 선빌드 트리만 정리하고 끝낸다. 선빌드가 실패하면 여기서 exit 1(BE_PREBUILD_CONTINUE=1 이면 계속).
-if be_prebuild_enabled; then
+# 종전 bootRun 방식·Windows 의 선빌드(이전 서버를 내린 뒤). 종료 트랩보다 앞에서 돈다 — 띄운 모듈이 아직 없으므로 선빌드 중
+# Ctrl+C·TERM 은 be_run_prebuild 의 임시 트랩이 선빌드 트리만 정리하고 끝낸다. 선빌드가 실패하면 여기서 exit 1(BE_PREBUILD_CONTINUE=1 이면 계속).
+if be_prebuild_enabled && [ "$BE_BUILT_EARLY" = "0" ]; then
   be_run_prebuild
 fi
 
