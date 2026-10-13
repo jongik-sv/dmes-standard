@@ -1,7 +1,7 @@
 // DB 컬럼 순서 생성기 시험: 엔티티 파서·규칙·V1 다시 쓰기·재배치 V 흉내(멱등).
 import assert from "node:assert/strict";
 import test from "node:test";
-import { parseSqlFile, simulate } from "../lib/ddl.mjs";
+import { liveViews, maskSql, parenBalance, parseSqlFile, simulate, splitColumnLine, splitLineComment, splitTopComma } from "../lib/ddl.mjs";
 import { flattenEntities, parseJavaClass } from "../lib/java-entities.mjs";
 import { relocationSql, relocationTargets } from "../lib/relocate.mjs";
 import { rewriteV1 } from "../lib/rewrite.mjs";
@@ -153,4 +153,78 @@ test("DDL 파서: 주석 뒤 create + 같은 파일 ALTER 순서 유지 · 문�
   assert.equal(t.dropped, false);
   assert.equal(p.issues.length, 1);
   assert.match(p.issues[0], /이해하지 못한 ALTER: drop column C/);
+});
+
+test("DDL 파서: q'[..]' 등 대체 인용 리터럴 안 따옴표·세미콜론·괄호·drop 을 가린다", () => {
+  for (const [o, c] of [["[", "]"], ["{", "}"], ["(", ")"], ["<", ">"], ["!", "!"]]) {
+    const sql = `create table T (\n  A number\n);\ninsert into Q values (q'${o}it's; drop table T; ) ( ${c}');\nalter table T add (B number);\n`;
+    const p = parseSqlFile(sql);
+    const t = simulate([{ file: "V1", parsed: p }]).get("T");
+    assert.deepEqual(t.cols, ["A", "B"], o);
+    assert.equal(t.dropped, false, o);
+    assert.deepEqual(p.issues, [], o);
+  }
+  assert.equal(maskSql("select nq'[a'b]' x, faq'z' from d").includes("a'b"), false);
+  assert.equal(maskSql("select faq'z' from d"), "select faq' ' from d"); // 식별자 끝의 q 는 대체 인용이 아니라 일반 리터럴
+});
+
+test("DDL 파서: 동적 execute immediate 는 읽지 않고 알린다 · 고정 문자열은 그대로 읽는다", () => {
+  const sql =
+    "create table T (\n  A number\n);\nbegin\n  execute immediate 'drop table T_' || v;\n  execute immediate v_sql;\n  execute immediate 'alter table T add (B number)';\nend;\n/\n";
+  const p = parseSqlFile(sql, "V9.sql");
+  const t = simulate([{ file: "V9.sql", parsed: p }]).get("T");
+  assert.deepEqual(t.cols, ["A", "B"]);
+  assert.equal(t.dropped, false);
+  assert.equal(p.issues.length, 2);
+  assert.match(p.issues[0], /V9\.sql:5 동적 execute immediate/);
+  assert.match(p.issues[1], /V9\.sql:6 동적 execute immediate/);
+});
+
+test("DDL 파서: 괄호 없는 MODIFY <컬럼> not null 등은 알림 없이 넘기고 INVISIBLE 만 순서에 반영", () => {
+  const sql =
+    "create table T (\n  A number,\n  B number\n);\nalter table T modify B not null;\nalter table T modify B varchar2(10) default 'x' not null;\nalter table T modify A invisible;\nalter table T modify B invisible not null;\n";
+  const p = parseSqlFile(sql, "V1.sql");
+  assert.equal(p.issues.length, 1);
+  assert.match(p.issues[0], /V1\.sql:8 .*modify B invisible not null/);
+  assert.deepEqual(simulate([{ file: "V1", parsed: p }]).get("T").cols, ["B"]);
+});
+
+test("뷰: 뒤 파일에서 drop view 된 뷰는 컴파일 대상에서 뺀다 · 다시 만든 뷰는 남긴다", () => {
+  const files = [
+    { text: "create or replace view V_A as select 1 from dual;\ncreate view V_B as select 1 from dual;\ncreate view V_C as select 1 from dual;" },
+    { text: "drop view V_A;\nbegin execute immediate 'drop view V_B'; end;\n/\n-- drop view V_C;\ncreate or replace force view V_D as select 1 from dual;" },
+    { text: "create view V_A as select 2 from dual;" },
+  ];
+  assert.deepEqual(liveViews(files).sort(), ["V_A", "V_C", "V_D"]);
+});
+
+const QS = [["[", "]"], ["{", "}"], ["(", ")"], ["<", ">"], ["!", "!"]];
+
+test("splitLineComment: q-quote 안 '--' 는 주석이 아니다(모든 구분자·nq)", () => {
+  for (const [o, c] of QS) {
+    assert.deepEqual(splitLineComment(`X varchar2(5) default q'${o}a--b'(,${c}' -- 진짜`), { code: `X varchar2(5) default q'${o}a--b'(,${c}' `, comment: "-- 진짜" }, o);
+  }
+  assert.equal(splitLineComment("D default nq'[--]'").comment, "");
+  assert.equal(splitLineComment("A faq'x' -- c").comment, "-- c");
+  assert.equal(splitColumnLine("  X varchar2(9) default q'[a,--)]', -- 메모").core, "X varchar2(9) default q'[a,--)]'");
+});
+
+test("parenBalance: q-quote 안 괄호는 세지 않는다", () => {
+  for (const [o, c] of QS) assert.equal(parenBalance(`A varchar2(5) default q'${o}) ( '${c}' check (A > 1`), 1, o);
+  assert.equal(parenBalance("A default nq'[((]'"), 0);
+});
+
+test("splitTopComma: q-quote 안 쉼표·괄호·따옴표로 쪼개지지 않는다", () => {
+  for (const [o, c] of QS) {
+    const body = `A varchar2(5) default q'${o}x,)(it's${c}', B number check (B in (1,2))`;
+    assert.deepEqual(splitTopComma(body), [`A varchar2(5) default q'${o}x,)(it's${c}'`, "B number check (B in (1,2))"], o);
+  }
+  assert.deepEqual(splitTopComma("A default nq'[,]', B"), ["A default nq'[,]'", "B"]);
+});
+
+test("DDL 파서: DEFAULT·CHECK 의 q-quote 안 '--'·괄호·쉼표가 있어도 컬럼을 바로 읽는다", () => {
+  const sql = "create table T (\n  A varchar2(5) default q'[--(,)']' not null, -- 메모\n  B varchar2(9) check (B <> q'{a,b)}'),\n  C number\n);\n";
+  const p = parseSqlFile(sql);
+  assert.deepEqual(p.issues, []);
+  assert.deepEqual(simulate([{ file: "V1", parsed: p }]).get("T").cols, ["A", "B", "C"]);
 });

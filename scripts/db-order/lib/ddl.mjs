@@ -4,38 +4,52 @@
 
 const CONSTRAINT_HEAD = /^(constraint|primary|unique|check|foreign)\b/i;
 
-const splitTopComma = (s) => {
+/** 다음 위치: 문자열 리터럴(일반·q'x..x')이면 그 끝, 아니면 null. maskSql 과 같은 규칙(isQQuoteStart·literalAt). */
+const litEnd = (s, i) => (s[i] === "'" || isQQuoteStart(s, i) ? literalAt(s, i).end : null);
+
+export const splitTopComma = (s) => {
   const parts = [];
   let depth = 0;
   let cur = "";
-  let q = null;
-  for (const c of s) {
-    if (q) {
+  let dq = false;
+  for (let i = 0; i < s.length; ) {
+    const c = s[i];
+    if (dq) {
       cur += c;
-      if (c === q) q = null;
+      if (c === '"') dq = false;
+      i++;
       continue;
     }
-    if (c === "'" || c === '"') q = c;
+    const e = litEnd(s, i);
+    if (e !== null) {
+      cur += s.slice(i, e);
+      i = e;
+      continue;
+    }
+    if (c === '"') dq = true;
     else if (c === "(") depth++;
     else if (c === ")") depth--;
     if (c === "," && depth === 0) {
       parts.push(cur);
       cur = "";
     } else cur += c;
+    i++;
   }
   if (cur.trim()) parts.push(cur);
   return parts.map((p) => p.trim()).filter(Boolean);
 };
 
-const parenBalance = (s) => {
+export const parenBalance = (s) => {
   let d = 0;
-  let q = null;
-  for (const c of s) {
-    if (q) {
-      if (c === q) q = null;
-    } else if (c === "'") q = c;
-    else if (c === "(") d++;
-    else if (c === ")") d--;
+  for (let i = 0; i < s.length; ) {
+    const e = litEnd(s, i);
+    if (e !== null) {
+      i = e;
+      continue;
+    }
+    if (s[i] === "(") d++;
+    else if (s[i] === ")") d--;
+    i++;
   }
   return d;
 };
@@ -44,13 +58,14 @@ const unquote = (n) => n.replace(/"/g, "").toUpperCase();
 
 /** 줄 끝 '--' 주석을 떼어 낸다(문자열 안 '--' 는 그대로). */
 export function splitLineComment(line) {
-  let q = null;
-  for (let i = 0; i < line.length; i++) {
-    const c = line[i];
-    if (q) {
-      if (c === q) q = null;
-    } else if (c === "'") q = c;
-    else if (c === "-" && line[i + 1] === "-") return { code: line.slice(0, i), comment: line.slice(i) };
+  for (let i = 0; i < line.length; ) {
+    const e = litEnd(line, i);
+    if (e !== null) {
+      i = e;
+      continue;
+    }
+    if (line[i] === "-" && line[i + 1] === "-") return { code: line.slice(0, i), comment: line.slice(i) };
+    i++;
   }
   return { code: line, comment: "" };
 }
@@ -95,15 +110,83 @@ export function maskSql(text) {
       const stop = e < 0 ? n : e + 2;
       blank(i, stop);
       i = stop;
-    } else if (text[i] === "'") {
-      let j = i + 1;
-      while (j < n && !(text[j] === "'" && text[j + 1] !== "'")) j += text[j] === "'" ? 2 : 1;
+    } else if (text[i] === "'" || isQQuoteStart(text, i)) {
+      const lit = literalAt(text, i);
       const keep = /execute\s+immediate\s*$/i.test(out.slice(Math.max(0, i - 40), i).join(""));
-      if (!keep) blank(i + 1, j);
-      i = j + 1;
+      if (!keep) blank(lit.innerStart, lit.innerEnd);
+      i = lit.end;
     } else i++;
   }
   return out.join("");
+}
+
+const Q_CLOSE = { "[": "]", "{": "}", "(": ")", "<": ">" };
+
+/** `q'[..]'` · `nq'{..}'` 같은 Oracle 대체 인용 리터럴의 시작(q 글자) 위치인지. */
+function isQQuoteStart(text, i) {
+  const c = text[i];
+  if ((c !== "q" && c !== "Q") || text[i + 1] !== "'") return false;
+  const d = text[i + 2];
+  if (d === undefined || /\s/.test(d) || d === "'") return false;
+  const prev = text[i - 1];
+  const prev2 = text[i - 2];
+  if (prev && /[nN]/.test(prev) && !(prev2 && /[\w$#]/.test(prev2))) return true; // nq'…'
+  return !(prev && /[\w$#"]/.test(prev));
+}
+
+/** i 에서 시작하는 문자열 리터럴(일반 '…' 또는 q'x…x'): 안쪽 범위와 끝(마지막 따옴표 다음) 위치. */
+function literalAt(text, i) {
+  const n = text.length;
+  if (text[i] !== "'") {
+    const q = text.indexOf("'", i);
+    const d = text[q + 1];
+    const close = (Q_CLOSE[d] ?? d) + "'";
+    const e = text.indexOf(close, q + 2);
+    const innerEnd = e < 0 ? n : e;
+    return { innerStart: q + 2, innerEnd, end: e < 0 ? n : e + 2 };
+  }
+  let j = i + 1;
+  while (j < n && !(text[j] === "'" && text[j + 1] !== "'")) j += text[j] === "'" ? 2 : 1;
+  return { innerStart: i + 1, innerEnd: j, end: j + 1 };
+}
+
+/**
+ * `execute immediate` 뒤가 단일 문자열 리터럴이 아니면(변수·`||` 이어 붙임) 실제 SQL 을 알 수 없다.
+ * 그 식(다음 ';' 까지)을 가려 잘못 읽지 않게 하고 issues 에 알린다. 위치·줄 수는 그대로.
+ */
+function blankDynamicImmediate(masked, orig, file, issues) {
+  const out = masked.split("");
+  const re = /\bexecute\s+immediate\s*/gi;
+  for (let m; (m = re.exec(masked)); ) {
+    const start = m.index + m[0].length;
+    let p = start;
+    if (masked[p] === "'" || isQQuoteStart(masked, p)) {
+      p = literalAt(masked, p).end;
+      if (!/^\s*(;|using\b|into\b|returning\b|bulk\b)/i.test(masked.slice(p, p + 20))) {
+        // 리터럴 뒤에 `||` 등이 이어진다 → 동적
+      } else continue;
+    }
+    let e = masked.indexOf(";", p);
+    if (e < 0) e = masked.length;
+    for (let k = start; k < e; k++) if (out[k] !== "\n") out[k] = " ";
+    const line = orig.slice(0, m.index).split("\n").length;
+    issues.push(`${file}:${line} 동적 execute immediate(변수·문자열 이어 붙임)는 읽지 않음: ${orig.slice(start, e).replace(/\s+/g, " ").trim().slice(0, 50)}`);
+  }
+  return out.join("");
+}
+
+/** 파일들(버전 순)을 차례로 읽어 마지막에 남은 뷰 이름. 뒤 파일에서 drop view 된 것은 뺀다. */
+export function liveViews(files) {
+  const live = new Set();
+  const re = /\b(?:create\s+(?:or\s+replace\s+)?(?:(?:no\s+)?force\s+)?(view)|drop\s+(view))\s+(?:"?\w+"?\.)?"?(\w+)"?/gi;
+  for (const f of files) {
+    for (const m of maskSql(f.text).matchAll(re)) {
+      const name = m[3].toUpperCase();
+      if (m[1]) live.add(name);
+      else live.delete(name);
+    }
+  }
+  return [...live];
 }
 
 const nameOf = (x) => unquote(/^("?[\w$#]+"?)/.exec(x)?.[1] ?? "?");
@@ -117,10 +200,10 @@ const nameOf = (x) => unquote(/^("?[\w$#]+"?)/.exec(x)?.[1] ?? "?");
  */
 export function parseSqlFile(text, file = "") {
   const lines = text.split("\n");
-  const masked = maskSql(text);
-  const mlines = masked.split("\n");
   const stmts = [];
   const issues = [];
+  const masked = blankDynamicImmediate(maskSql(text), text, file, issues);
+  const mlines = masked.split("\n");
   const lineStart = [];
   let pos = 0;
   for (const l of lines) {
@@ -217,6 +300,15 @@ export function parseSqlFile(text, file = "") {
       continue;
     }
     // 순서와 무관한 제약·상태 변경은 넘긴다. 그 밖(괄호 없는 ADD/MODIFY, DROP COLUMN, RENAME COLUMN, SET UNUSED, DROP PRIMARY KEY …)은 알린다.
+    // 괄호 없는 MODIFY <컬럼> …: INVISIBLE|VISIBLE 만이면 순서 변경, 그 밖(NOT NULL·DEFAULT·타입)은 순서와 무관해 넘긴다.
+    const pm = /^modify\s+(?!partition\b|subpartition\b|lob\b|nested\b|varray\b|constraint\b|default\b|storage\b)("?[\w$#]+"?)\s+([\s\S]*)$/i.exec(rest);
+    if (pm) {
+      const vis = /^(INVISIBLE|VISIBLE)\s*$/i.exec(pm[2]);
+      if (vis) stmts.push({ kind: "modify", table, cols: [{ name: unquote(pm[1]), vis: vis[1].toUpperCase() }], at });
+      else if (!/\b(invisible|visible)\b/i.test(pm[2])) continue;
+      else issues.push(`${file}:${masked.slice(0, at).split("\n").length} ${table} 이해하지 못한 ALTER: ${rest.replace(/\s+/g, " ").slice(0, 60)}`);
+      continue;
+    }
     if (/^(add\s+(constraint|unique|check|foreign)\b|modify\s+constraint\b|drop\s+constraint\b|rename\s+constraint\b|enable\b|disable\b|move\b|compile\b)/i.test(rest)) continue;
     const line = masked.slice(0, at).split("\n").length;
     issues.push(`${file}:${line} ${table} 이해하지 못한 ALTER: ${rest.replace(/\s+/g, " ").slice(0, 60)}`);

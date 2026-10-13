@@ -3,7 +3,7 @@ import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { ENTITY_ROOTS, RELOCATE_SUFFIX, SCHEMAS } from "../config.mjs";
-import { byVersion, maskSql, parseSqlFile, simulate, versionOf } from "./ddl.mjs";
+import { byVersion, liveViews, parseSqlFile, simulate, versionOf } from "./ddl.mjs";
 import { flattenEntities, scanJava } from "./java-entities.mjs";
 import { ruleOrder, sameOrder } from "./rule.mjs";
 
@@ -61,9 +61,10 @@ export function buildModel(root, opts = {}) {
     return {
       ...s,
       files,
+      baseIssues: base ? base.flatMap((f) => f.parsed.issues.map((i) => `(기준 ${opts.base}) ${i}`)) : [],
       reloc,
       baseHasReloc: baseAll.some((f) => isRelocFile(f.name)),
-      views: [...new Set(files.flatMap((f) => [...maskSql(f.text).matchAll(/\bcreate\s+(?:or\s+replace\s+)?(?:(?:no\s+)?force\s+)?view\s+(?:"?\w+"?\.)?"?(\w+)"?/gi)].map((m) => m[1].toUpperCase())))],
+      views: liveViews(files),
       issues: [] /* 아래에서 채운다 */,
       pre: simulate(pre),
       post: simulate(files),
@@ -72,7 +73,7 @@ export function buildModel(root, opts = {}) {
     };
   });
   for (const s of schemas) {
-    s.issues = [...s.files.flatMap((f) => f.parsed.issues), ...s.pre.issues, ...s.post.issues, ...(s.basePost?.issues ?? [])];
+    s.issues = [...s.files.flatMap((f) => f.parsed.issues), ...s.pre.issues, ...s.post.issues, ...s.baseIssues, ...(s.basePost?.issues ?? []).map((i) => `(기준 ${opts.base}) ${i}`)];
   }
   // PK 없는 사본 표(MCMAPUSER 의 TB_MCM_CODE_* 등)는 같은 이름 표의 PK 순서를 빌린다 — SELECT * 복사 사본끼리 순서가 같아야 하므로.
   const pkByTable = new Map();
