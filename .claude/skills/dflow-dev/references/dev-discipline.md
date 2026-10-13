@@ -480,9 +480,14 @@ Flyway `V<버전>__<설명>.sql` 처럼 파일명이 곧 버전인 migration은 
   - exit 는 명령의 것. 명령이 끝나거나 중단되면 슬롯을 풂. 소유 프로세스가 죽어 남은 슬롯은 다음 대기자가 회수.
   - 스크립트가 없는 옛 체크아웃이면 감싸지 않고 그대로 돌림.
 - `HEAVY_BUSY` 면 같은 명령을 그대로 다시 호출. 실패 아님.
-  - 슬롯을 90초(`DFLOW_HEAVY_WAIT`) 안에 못 얻으면 명령을 돌리지 않고 `HEAVY_BUSY k=<K> wait=90s 보유: [slot-1 pid=… 12분 run] <명령> | …` 한 줄과 exit 75 로 끝남.
+  - 슬롯을 90초(`DFLOW_HEAVY_WAIT`) 안에 못 얻으면 명령을 돌리지 않고 `HEAVY_BUSY k=<K> wait=90s 보유: [slot-1 pid=… 12분 run] <명령> | … — 줄 <번째>/<전체> waited=<초>s queued=<초>s · exit 75 = 나중에 다시(실패 아님): …` 한 줄과 exit 75 로 끝남.
+    - `줄` = 일반 줄에서 내 자리, `waited` = 이번 호출이 기다린 초, `queued` = 처음 줄 선 뒤 지난 초. 이 꼬리는 2026-10-13 에 줄 끝에 붙임(판독은 줄 머리 `HEAVY_BUSY` 만 봄).
+  - 줄 자리 이어받기: BUSY 로 끝난 호출은 줄 자리(`qgap-<키>`)를 남김. 같은 cwd 에서 같은 명령을 180초(`DFLOW_HEAVY_QUEUE_TTL`) 안에 다시 부르면 처음 줄 선 시각을 이어받음 → 다시 불러도 줄 맨 뒤로 가지 않음. 명령 줄을 바꾸면 새로 줄 섬.
   - 기준선·게이트 판정에 넣지 않음. Build 게이트·Verify 재시도 1회에도 세지 않음. `.issues` 에도 적지 않음(한 시간 넘게 이어지면 `env` 로 한 줄).
-  - 대기 상한 이유 = heartbeat 끊겨 팀장이 무응답으로 오판하지 않게(90초면 Bash 기본 timeout 120초 안에 돌아옴).
+  - 대기 상한 이유 = heartbeat 끊겨 팀장이 무응답으로 오판하지 않게(90초면 Bash 기본 timeout 120초 안에 돌아옴). 다시 부르면 줄 자리를 이어받으므로 상한이 짧아도 순서를 잃지 않음 → 기본값 90초 유지(2026-10-13 재검토, 사례 대책 G).
+  - `gradlew` 는 `heavy.mjs` 로 감싸 부름(감싼 실행 안에서는 `src/backend/gradlew` 가 그냥 지나가 90초·exit 75 규약이 그대로 적용됨).
+    - 감싸지 않고 부른 `src/backend/gradlew` 는 스스로 `heavy.mjs` 로 감싸고 exit 75 면 같은 명령을 다시 부름(줄 자리 이어받음). 슬롯을 얻을 때까지 상한 없이 돌아오지 않으므로 Bash timeout 에 걸릴 수 있음.
+  - `be-run.sh` 는 `heavy.mjs` 로 감싸지 않음. `be-run.sh` 가 Gradle 빌드만 스스로 `node heavy.mjs -- <gradlew …>` 로 감싸고(exit 75 면 다시 불러 줄 자리를 이어받음, `BE_HEAVY_BUILD=0` 이면 끔) 서버는 슬롯 밖에서 띄움. `be-run.sh --build-only` 는 감싸도 됨.
   - 슬롯을 얻은 뒤 명령 실행 시간에는 상한 없음.
 - Bash timeout: Bash 도구 timeout 을 300000-600000 으로 줌(팀원 세션은 가드 훅이 이보다 짧으면 거부).
   - 값 = 대기 상한(90초) + 명령 예상 시간. 단 10분(600000ms)을 넘기지 않음(「포그라운드 실행」 3번).
@@ -531,7 +536,14 @@ Flyway `V<버전>__<설명>.sql` 처럼 파일명이 곧 버전인 migration은 
 ### 슬롯 수·부하·오피스 표시
 
 - K: 기본 max(1, ⌊RAM_GB / 8⌋) — 16GB 면 2, 32GB 면 4. 사람이 `DFLOW_HEAVY_SLOTS` 로 덮음. 워커는 안 바꿈.
-  - `heavy.mjs status` = `HEAVY_STATUS slots=K held=N waiting=M` + 지금 슬롯을 쥔 명령.
+  - `heavy.mjs status` = `HEAVY_STATUS slots=K held=N waiting=M` + 지금 슬롯을 쥔 명령. stdout 은 이 한 줄뿐(기계가 읽음).
+  - 줄 선 대기자는 stderr 의 `HEAVY_QUEUE <풀> <번째>/<전체> queued=<초>s state=<까닭> pid=… cwd=… cmd=…` 줄로 봄(오래 기다린 순). `snapshot` 의 `WAIT` 줄 끝 칸도 같은 state.
+- 줄 순서(2026-10-13, 사례 대책 K): 일반 슬롯(과 E2E 풀)은 오래 기다린 순으로 줌.
+  - 빈 슬롯이 n개일 때 나보다 먼저 줄 선 「받을 수 있는」 대기자가 n명 이상이면 양보함. 받을 수 있는 대기자 = state 가 `slot`(빈 슬롯 없음)·`queue`(양보 중)·`load`(부하 대기)·`yield`(독점 표식에 양보).
+  - 막지 않는 대기자: `ora`(Oracle 시험 자리 대기 — 자리가 없어 슬롯을 받아도 못 씀), `excl`(독점 대기 — 양보 표식이 따로 순서를 정함), `docker`(도커 슬롯 대기), 30초 넘게 표식을 고치지 않은 대기자(멈춘 프로세스), 옛 `heavy.sh` 표식.
+  - 일반 슬롯도 필요한 도커 호출(`--pool docker`)은 도커 슬롯이 비어 있을 때만 일반 줄에서 순서를 가짐. 도커 슬롯끼리는 순서 없음(기본 1개).
+  - 독점 실행은 이 순서를 따르지 않음(양보 표식이 새 일반 take 를 모두 멈춤 — 기존 규칙 그대로).
+  - 앞 대기자가 빈 슬롯을 30초(`DFLOW_HEAVY_FAIR_GRACE`) 넘게 가져가지 않으면 순서를 건너뛰고 잡음(`HEAVY_FAIR_SKIP` 한 줄) — 순서 규칙이 아무도 오래 막지 못함.
 - 부하를 보고 슬롯을 줌: K 는 RAM 기준이라 CPU 바닥나도 슬롯이 남을 수 있음.
   - `heavy.mjs` 는 새 일반 슬롯을 줄 때 1분 부하 평균이 코어 수 × `DFLOW_HEAVY_LOAD_MAX`(기본 1.5, `0` 이면 끔)를 넘으면 배정을 미룸.
   - 미루는 것도 같은 대기 상한(90초) 안. 못 얻으면 줄 끝에 ` 부하 대기: load=23.4>cap=15.0` 붙은 `HEAVY_BUSY`(exit 75) — 다른 `HEAVY_BUSY` 와 똑같이 다시 호출. 대기 중 `HEAVY_LOAD_WAIT` 줄이 한 번 나옴.

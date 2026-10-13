@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // heavy.mjs — PC 전역 무거운 명령 슬롯(세마포어). heavy.sh(backup/scripts/heavy.sh)의 node 판. 규칙 정본: ../references/dev-discipline.md 「무거운 명령 줄 세우기」.
-// 동작·출력·종료 코드·잠금 폴더 형식은 heavy.sh 와 같다. 전환 중 옛 heavy.sh 와 같은 잠금 폴더를 섞어 써도 안전하다.
+// 동작·출력·종료 코드·잠금 폴더 형식은 heavy.sh 와 같고, 줄 순서(대책 K)·BUSY 설명과 줄 자리 이어받기(대책 G)를 더했다
+// (2026-10-13, 근거 docs/reports/2026-10-09-oracle-test-turn-deadlock-heavy-slots.md). 옛 heavy.sh 와 같은 잠금 폴더를 섞어 써도 안전하다.
 //
 // 사용법
 //   heavy.mjs [--pool docker | --exclusive] [--detach] [--oracle] [--] <명령> [인자…]
@@ -15,28 +16,38 @@
 //                      --detach 와 함께 쓰면 슬롯을 쥐는 손자가 자리도 쥔다. 감싼 실행 안·HEAVY_REUSE 는 자리를 잡지 않는다(Gradle 이 직접 잡는다).
 //                      pclock.mjs 를 못 읽으면 HEAVY_WARN 후 자리 없이 돌린다.
 //   heavy.mjs acquire <이름> | release      세션(OWNER)이 E2E 풀 슬롯(e2e-<i>)을 붙잡는다 / 푼다.
-//   heavy.mjs status    stdout 정확히 한 줄 `HEAVY_STATUS slots=<K> held=<N> waiting=<M>`, 세부는 stderr. exit 0.
-//   heavy.mjs snapshot  stdout 탭 구분 `PC K held waiting load1|- cpus|-` · `RUN start kind pool cwd cmd` · `WAIT start pool cwd cmd`. exit 0.
+//   heavy.mjs status    stdout 정확히 한 줄 `HEAVY_STATUS slots=<K> held=<N> waiting=<M>`, 세부는 stderr
+//                      (대기자는 `HEAVY_QUEUE <풀> <번째>/<전체> queued=<초>s state=<까닭> pid= cwd= cmd=` 줄, 오래 기다린 순). exit 0.
+//   heavy.mjs snapshot  stdout 탭 구분 `PC K held waiting load1|- cpus|-` · `RUN start kind pool cwd cmd` · `WAIT start pool cwd cmd state`
+//                      (WAIT 의 start = 줄 선 시각, 이어받은 자리면 첫 호출 시각. state 칸은 2026-10-13 에 끝에 붙였다). exit 0.
 //   heavy.mjs wait <id> [--max <초 0~240>]   분리 실행(--detach)을 기다린다.
 //
-// 종료 코드: 75 HEAVY_BUSY·HEAVY_DOCKER_BUSY(대기 상한 초과 — 다시 부른다) · 2 사용 오류·HEAVY_EXCL_NESTED·HEAVY_JOB_UNKNOWN
+// 종료 코드: 75 HEAVY_BUSY·HEAVY_DOCKER_BUSY(대기 상한 초과 — 실패가 아니다. 다시 부르면 줄 자리를 이어받는다, 대책 G) · 2 사용 오류·HEAVY_EXCL_NESTED·HEAVY_JOB_UNKNOWN
 //   wait: 명령 rc · 76 HEAVY_JOB_RUNNING(다시 wait) · 77 HEAVY_JOB_BUSY(다시 --detach) · 78 HEAVY_JOB_FAILED(잡 rc 76) · 1 HEAVY_JOB_LOST
 // 출력(stderr): HEAVY_WAIT · HEAVY_LOAD_WAIT · HEAVY_SLOT · HEAVY_REUSE · HEAVY_RECLAIM · HEAVY_BUSY · HEAVY_ACQUIRED · HEAVY_RELEASED ·
 //   HEAVY_DOCKER_WAIT · HEAVY_DOCKER_SLOT · HEAVY_DOCKER_BUSY · HEAVY_EXCL_WAIT · HEAVY_EXCL · HEAVY_EXCL_NESTED · HEAVY_UNLOCKED · HEAVY_WARN ·
 //   HEAVY_ORA_WAIT(자리 주인 pid·cwd) · HEAVY_ORA_SEAT(자리 잡음, 옛 판은 HEAVY_ORA_LOCK). 자리 때문에 못 얻은 BUSY 줄 끝에는
-//   ` Oracle 시험 자리 <N>개 모두 사용 중: pid=… cwd=…, …`(옛 판 ` Oracle 잠금 대기: pid=… cwd=…`)
+//   ` Oracle 시험 자리 <N>개 모두 사용 중: pid=… cwd=…, …`(옛 판 ` Oracle 잠금 대기: pid=… cwd=…`). 일반·도커 BUSY 줄 맨 끝에는
+//   ` — 줄 <번째>/<전체> waited=<초>s queued=<초>s · exit 75 = 나중에 다시(실패 아님): …`(앞 부분 형식은 그대로 — 판독은 줄 머리만 본다).
+//   HEAVY_FAIR_SKIP(앞 대기자가 빈 슬롯을 FAIR_GRACE 초 넘게 안 가져가 순서를 건너뜀). 이어받은 자리로 잡으면 HEAVY_SLOT 줄 끝에 ` queued=<초>s`.
 // 출력(stdout): HEAVY_DETACHED · HEAVY_JOB_DONE · HEAVY_JOB_BUSY · HEAVY_JOB_FAILED · HEAVY_JOB_RUNNING · HEAVY_JOB_LOST (와 로그 끝 30줄)
 //
 // 잠금 폴더 <DIR>(기본 ~/.dflow/locks/heavy): slot-<i>·docker-<i>·e2e-<i> 폴더(mkdir 원자성) 안 owner 파일
-//   (pid·kind run|hold·start·pstart·host·cwd·cmd), 회수 뮤텍스 <슬롯>.reclaim, 대기 표식 wait-<pid>(pid·pool·start·pstart·cwd·cmd),
+//   (pid·kind run|hold·start·pstart·host·cwd·cmd), 회수 뮤텍스 <슬롯>.reclaim, 대기 표식 wait-<pid>(pid·pool·start·pstart·cwd·cmd·state·seen·gq,
+//   폴링마다 다시 씀), 줄 자리 qgap-<키>(start·seen·pool·cwd·cmd, BUSY 뒤 QUEUE_TTL 초), 임시 .qtmp.*·.qdel.*,
 //   독점 표식 excl-<소유PID>-<pid>(pid·pstart·hpid·hpstart·start·seen·cwd·cmd), 임시 .wtmp.*·.xtmp.*·.xdel.*.
 //   pstart = unix `LC_ALL=C ps -o lstart= -p <pid>`(앞뒤 공백만 제거), win32 Win32_Process.CreationDate(CIM).
 // 잡 폴더 <JOBS>/<id>/(기본 ~/.dflow/jobs): cmd·cwd·start·log·pid·pstart·runpid·runpstart·rc.
+// 줄 순서(대책 K): 일반·E2E 슬롯은 오래 기다린 순으로 준다. 규칙·교착 없음의 근거는 아래 「대기 표식·줄 순서」 주석.
+// 기본 대기 상한 90초를 그대로 두는 까닭(대책 G): Bash 도구 기본 timeout(120초)·baseline 공유 마감(90초) 안에 돌아와야 하고,
+//   다시 부르면 줄 자리를 이어받으므로 짧은 상한이 순서를 잃게 하지 않는다. 오래 기다릴 명령은 --detach(상한 DETACH_WAIT).
 // 환경 변수: DFLOW_HEAVY_SLOTS·DOCKER_SLOTS·E2E_SLOTS·DIR·WAIT(기본 90)·POLL(2)·HOLD_TTL(3600)·EXCL_TTL(180)·JOBS·DETACH_WAIT(3600)·
+//   QUEUE_TTL(180, 줄 자리 보관)·FAIR_GRACE(30, 빈 슬롯 양보 최대 초)·
 //   OWNER(기본 CLAUDE_PID, 없으면 부모 PID)·LOAD_MAX(1.5, 0 끔)·LOADAVG·CPUS(시험용 덮어쓰기). 이름은 모두 DFLOW_HEAVY_ 접두.
 // 설계 근거(교착 불변식·부하 검사·독점 양보 표식·옛 판 공존)의 긴 설명은 backup/scripts/heavy.sh 머리 주석.
 
 import { spawn, spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -81,6 +92,9 @@ const RUNNING_RC = 76;
 const JOB_WAIT_MAX = 240;
 const JOB_BUSY_RC = 77;
 const JOB_RC76_RC = 78;
+const QUEUE_TTL = intOr(ENV.DFLOW_HEAVY_QUEUE_TTL, 180); // BUSY 뒤 줄 자리를 남겨 두는 시간(초)
+const FAIR_GRACE = isNumText(ENV.DFLOW_HEAVY_FAIR_GRACE) ? Number(ENV.DFLOW_HEAVY_FAIR_GRACE) : 30; // 빈 슬롯을 앞 대기자에게 양보하는 최대 시간(초)
+const SEEN_STALE = Math.max(30, Math.ceil(POLL * 10)); // 대기 표식 seen 이 이보다 낡으면 그 대기자에게 양보하지 않는다(멈춘 프로세스)
 
 // RAM(GB) — heavy.sh ram_gb 와 같은 반올림. 못 읽으면 null
 function ramGb() {
@@ -234,18 +248,106 @@ const oneLine = (s) => s.replace(/\n/g, ' ');
 const tabless = (s) => s.replace(/[\t\n]/g, ' ');
 const ageMin = (st) => (isDigits(st) ? String(Math.floor((now() - Number(st)) / 60)) : '?');
 
-// ── 대기 표식 ────────────────────────────────────────────────────────────
-let WAITF = '';
-function waitMark(pool, cmd) {
-  if (WAITF) return;
+// ── 대기 표식·줄 순서(대책 K) ────────────────────────────────────────────
+// 대기 표식 wait-<pid> 는 기다리는 동안 폴링마다 다시 쓴다(state·seen 갱신, start 는 그대로). start = 줄 선 시각.
+// 줄 순서: 빈 슬롯이 free 개일 때, 나보다 먼저 줄 선(start, 같으면 pid 순) 「받을 수 있는」 대기자가 free 개 이상이면 양보한다.
+//   받을 수 있는 대기자 = state 가 slot·queue·load·yield(모두에게 같은 조건)이고 seen 이 SEEN_STALE 초 안이며 pid 가 살아 있다.
+//   state=ora(Oracle 자리 대기)·excl(독점 대기, 양보 표식이 따로 순서를 정한다)·docker(도커 슬롯 대기)는 받을 수 없어 뒤 대기자를 막지 않는다.
+//   단 나도 Oracle 자리가 필요하면 먼저 줄 선 ora 대기자에게는 양보한다(자리가 비면 Oracle 대기자끼리도 오래 기다린 순).
+//   state·seen 이 없는 옛 heavy.sh 표식도 막지 않는다(옛 판은 순서를 모르고 먼저 잡는다 — 섞여도 교착 없음).
+//   양보가 FAIR_GRACE 초 넘게 이어지면(앞 대기자가 빈 슬롯을 안 가져감) 양보를 멈추고 잡는다(HEAVY_FAIR_SKIP) — 순서 규칙이 아무도 영원히 막지 못한다.
+// 줄 자리 이어받기: HEAVY_BUSY(exit 75)로 끝날 때 qgap-<키>(start·seen·pool·cwd·cmd, 키 = pool·cwd·cmd 해시)를 남긴다.
+//   기다리다 신호(INT·TERM·HUP — Bash timeout 등)로 끝날 때도 남긴다. QUEUE_TTL 초 안에 같은 cwd 에서 같은 명령을 다시 부르면
+//   그 start 를 이어받는다(다시 불러도 줄 맨 뒤로 가지 않는다).
+//   qgap 은 순서 판정에 끼지 않는다(다시 부르지 않은 호출자가 남을 막지 않는다). 옛 heavy.sh 는 qgap-* 를 모른다.
+let WAITF = '', QSTART = null, QKEEP = null, MYWPS = null, DEFER_T0 = null, FAIR_SKIPPED = false;
+const ELIGIBLE = new Set(['slot', 'queue', 'load', 'yield']);
+function waitMark(pool, cmd, state = '', gq = false) {
+  if (QSTART == null) QSTART = now();
+  if (MYWPS == null) MYWPS = pstart(ME) || '-';
   const t = path.join(DIR, `.wtmp.${ME}`);
-  const p = pstart(ME);
-  const body = `pid=${ME}\npool=${pool}\nstart=${now()}\npstart=${p || '-'}\ncwd=${CWD}\ncmd=${oneLine(cmd)}\n`;
+  const body = `pid=${ME}\npool=${pool}\nstart=${QSTART}\npstart=${MYWPS}\ncwd=${CWD}\ncmd=${oneLine(cmd)}\nstate=${state}\nseen=${now()}\n${gq ? 'gq=1\n' : ''}`;
   const f = path.join(DIR, `wait-${ME}`);
+  // win32 는 남이 읽는 중이면 rename 이 실패할 수 있다 — 그때는 앞 표식을 그대로 둔다(seen 이 낡으면 양보를 못 받을 뿐)
   if (writeFile(t, body) && rename(t, f)) WAITF = f;
   else unlink(t);
 }
 function waitUnmark() { if (WAITF) unlink(WAITF); WAITF = ''; }
+const qkey = (pool, cmd) => createHash('sha1').update(`${pool}\0${CWD}\0${oneLine(cmd)}`).digest('hex').slice(0, 16);
+// BUSY 로 끝날 때 줄 자리를 남긴다
+function queueKeep(pool, cmd) {
+  if (QSTART == null || !(QUEUE_TTL > 0)) return;
+  const t = path.join(DIR, `.qtmp.${ME}`);
+  const body = `start=${QSTART}\nseen=${now()}\npool=${pool}\ncwd=${CWD}\ncmd=${oneLine(cmd)}\n`;
+  if (!(writeFile(t, body) && rename(t, path.join(DIR, `qgap-${qkey(pool, cmd)}`)))) unlink(t);
+}
+// 남긴 줄 자리를 이어받는다(원자적 rename — 둘이 함께 불러도 하나만 받는다). 낡은 qgap·임시 파일은 치운다. 없으면 null
+function queueResume(pool, cmd) {
+  for (const f of listDir('qgap-')) {
+    const s = wfield(f, 'seen');
+    if (isDigits(s) ? now() - Number(s) > QUEUE_TTL : olderThanMin(f)) unlink(f);
+  }
+  for (const pre of ['.qtmp.', '.qdel.']) for (const f of listDir(pre)) if (olderThanMin(f)) unlink(f);
+  const f = path.join(DIR, `qgap-${qkey(pool, cmd)}`);
+  const t = path.join(DIR, `.qdel.${path.basename(f)}.${ME}`);
+  if (!rename(f, t)) return null;
+  const st = wfield(t, 'start');
+  const seen = wfield(t, 'seen');
+  unlink(t);
+  if (isDigits(st) && isDigits(seen) && now() - Number(seen) <= QUEUE_TTL && Number(st) <= now()) return Number(st);
+  return null;
+}
+// 살아 있는 대기 표식(start, pid 순). qpool = general(일반 대기 + 일반 슬롯도 기다리는 도커 대기 gq=1) · docker · e2e.
+// withExcl = 독점 대기(state=excl)도 넣는다(status 표시용 — 순서 판정에는 넣지 않는다). 생존은 kill -0 만 본다(폴링마다 ps 를 띄우지 않게)
+function queueMembers(qpool, withExcl = false) {
+  const res = [];
+  for (const f of listDir('wait-')) {
+    if (!isFile(f)) continue;
+    const text = readFileSafe(f);
+    const pid = kv(text, 'pid');
+    if (!isDigits(pid) || (pid !== ME && !alive(pid))) continue;
+    const pool = kv(text, 'pool') || 'general';
+    const state = kv(text, 'state');
+    const inQ = qpool === 'general'
+      ? (pool === 'general' && (withExcl || state !== 'excl')) || (pool === 'docker' && kv(text, 'gq') === '1')
+      : pool === qpool;
+    if (!inQ) continue;
+    const st = kv(text, 'start');
+    const seen = kv(text, 'seen');
+    const fresh = isDigits(seen) && now() - Number(seen) <= SEEN_STALE;
+    res.push({ pid, pool, start: isDigits(st) ? Number(st) : 0, state: state || '-', fresh, eligible: fresh && ELIGIBLE.has(state), cwd: kv(text, 'cwd'), cmd: kv(text, 'cmd') });
+  }
+  return res.sort((a, b) => a.start - b.start || Number(a.pid) - Number(b.pid));
+}
+const before = (a, s, p) => a.start < s || (a.start === s && Number(a.pid) < Number(p));
+// 줄에서 내 자리 `<번째>/<전체>`(내 표식이 아직 없어도 QSTART 로 끼워 센다)
+function qpos(qpool) {
+  const s = QSTART ?? now();
+  const others = queueMembers(qpool).filter((m) => m.pid !== ME);
+  return `${others.filter((m) => before(m, s, ME)).length + 1}/${others.length + 1}`;
+}
+// 순서상 지금 슬롯을 잡아도 되면 true. 빈 슬롯이 없으면 true(take 가 실패해 state=slot 이 된다)
+function fairGate(qpool, pre, n) {
+  const free = nums(n).filter((i) => !isDir(path.join(DIR, `${pre}-${i}`))).length;
+  if (free < 1) { DEFER_T0 = null; return true; }
+  const s = QSTART ?? now();
+  // 나도 Oracle 자리가 필요하면(자리가 방금 비었다) 먼저 줄 선 ora 대기자도 받을 수 있는 쪽으로 센다 — 같은 자리를 기다렸다.
+  // Oracle 아닌 호출은 ora 대기자를 세지 않는다(자리가 없어 슬롯을 받아도 못 쓴다)
+  const ahead = queueMembers(qpool).filter((m) => m.pid !== ME && (m.eligible || (ORA && m.fresh && m.state === 'ora')) && before(m, s, ME));
+  if (ahead.length < free) { DEFER_T0 = null; return true; }
+  if (DEFER_T0 == null) DEFER_T0 = now();
+  if (now() - DEFER_T0 < FAIR_GRACE) return false;
+  if (!FAIR_SKIPPED) {
+    err(`HEAVY_FAIR_SKIP ${qpool} 빈 슬롯 ${free}개를 앞 대기자 ${ahead.length}명이 ${FAIR_GRACE}초 넘게 가져가지 않아 순서를 건너뛴다: ${ahead.map((m) => `pid=${m.pid} state=${m.state}`).join(', ')}`);
+    FAIR_SKIPPED = true;
+  }
+  return true;
+}
+// HEAVY_BUSY 줄 끝에 붙이는 설명(앞 부분 형식은 그대로 — 판독은 줄 머리만 본다)
+function busyTail(qpool) {
+  const s = QSTART ?? WAIT_T0 ?? now();
+  return ` — 줄 ${qpos(qpool)} ${waited()} queued=${now() - s}s · exit 75 = 나중에 다시(실패 아님): 같은 명령을 같은 cwd 에서 ${QUEUE_TTL}초 안에 다시 부르면 줄 자리를 이어받는다`;
+}
 // 표식 주인이 죽었으면 true. pid 를 못 읽으면 쓰는 중일 수 있어 1분 넘었을 때만 죽은 것으로 본다.
 function waitDead(f) {
   const pid = wfield(f, 'pid');
@@ -459,11 +561,6 @@ function loadAnnounce(msg, tag) {
 }
 const loadNote = (msg) => (msg ? ` 부하 대기: ${msg}` : '');
 let LOADWHY = '';
-function takeNew(kind, pid, cmd, pre = 'slot', n = K) {
-  LOADWHY = '';
-  if (pre === 'slot' && loadDefer()) { LOADWHY = LOADMSG; return false; }
-  return take(kind, pid, cmd, pre, n);
-}
 function holders(pre = 'slot', n = K) {
   const res = [];
   for (const i of nums(n)) {
@@ -475,6 +572,8 @@ function holders(pre = 'slot', n = K) {
 }
 let WAIT_T0 = null;
 const waited = () => `waited=${now() - (WAIT_T0 ?? now())}s`;
+// 이어받은 줄 자리가 있으면 ` queued=<줄 선 뒤 초>s`(waited 는 이번 호출만 센다)
+const queuedNote = () => (QSTART != null && WAIT_T0 != null && QSTART < WAIT_T0 ? ` queued=${now() - QSTART}s` : '');
 
 // 대기 상한 안에 슬롯을 잡는다. 0 잡음 · 1 HEAVY_BUSY · 2 HEAVY_UNLOCKED(폴더를 못 만듦 — 그냥 돌린다)
 async function waitSlot(kind, pid, cmd, pre = 'slot', n = K) {
@@ -482,15 +581,21 @@ async function waitSlot(kind, pid, cmd, pre = 'slot', n = K) {
   const pool = pre === 'e2e' ? 'e2e' : 'general';
   if (!mkdirP(DIR)) { err(`HEAVY_UNLOCKED 슬롯 폴더를 만들 수 없음: ${DIR}`); return 2; }
   WAIT_T0 = now();
+  QSTART = queueResume(pool, cmd) ?? WAIT_T0;
+  QKEEP = [pool, cmd];
   const deadline = WAIT_T0 + WAIT;
-  let announced = false;
-  // 슬롯 + (ORA 면) Oracle 시험 자리를 함께. 자리를 못 잡으면 잡은 슬롯을 그 자리에서 돌려준다
+  let announced = false, state = '';
+  // 슬롯 + (ORA 면) Oracle 시험 자리를 함께. 자리를 못 잡으면 잡은 슬롯을 그 자리에서 돌려준다.
+  // state = 못 잡은 까닭(대기 표식에 실어 뒤 대기자가 양보할지 정한다)
   const grab = () => {
-    ORAWHY = '';
-    if (oraBusy()) { LOADWHY = ''; return false; }
-    if (!takeNew(kind, pid, cmd, pre, n)) return false;
+    ORAWHY = ''; LOADWHY = '';
+    if (oraBusy()) { state = 'ora'; DEFER_T0 = null; return false; }
+    if (pre === 'slot' && exclYield()) { state = 'yield'; DEFER_T0 = null; return false; }
+    if (pre === 'slot' && loadDefer()) { LOADWHY = LOADMSG; state = 'load'; DEFER_T0 = null; return false; }
+    if (!fairGate(pool, pre, n)) { state = 'queue'; return false; }
+    if (!take(kind, pid, cmd, pre, n)) { state = 'slot'; return false; }
     if (oraTake()) return true;
-    rmrf(SLOT); SLOT = '';
+    rmrf(SLOT); SLOT = ''; state = 'ora';
     return false;
   };
   for (;;) {
@@ -499,46 +604,65 @@ async function waitSlot(kind, pid, cmd, pre = 'slot', n = K) {
     if (grab()) { waitUnmark(); return 0; }
     const note = pre === 'slot' ? `${exclNote()}${loadNote(LOADWHY)}${oraNote()}` : '';
     if (now() >= deadline) {
+      const tail = busyTail(pool);
+      queueKeep(pool, cmd);
       waitUnmark();
-      err(`HEAVY_BUSY ${tag} wait=${WAIT}s 보유: ${holders(pre, n)}${note}`);
+      err(`HEAVY_BUSY ${tag} wait=${WAIT}s 보유: ${holders(pre, n)}${note}${tail}`);
       return 1;
     }
-    waitMark(pool, cmd);
+    waitMark(pool, cmd, state);
     if (ORAWHY) oraAnnounce();
-    else if (!announced) { err(`HEAVY_WAIT ${tag} 보유: ${holders(pre, n)}${note}`); announced = true; }
+    else if (!announced) { err(`HEAVY_WAIT ${tag} 보유: ${holders(pre, n)}${note} — 줄 ${qpos(pool)}`); announced = true; }
     loadAnnounce(LOADWHY, tag);
     await sleep(POLL);
   }
 }
 // 도커 풀: 도커 슬롯(+ need 면 일반 슬롯)을 한 번에 잡는다. 도커 슬롯을 쥔 채 기다리지 않는다(교착 불변식).
+// 일반 슬롯도 필요하면(need) 일반 줄에 선다(gq=1) — 도커 슬롯이 비어 있을 때만 받을 수 있는 대기자로 센다(state=docker 는 막지 않는다).
+// 도커 슬롯끼리는 순서를 두지 않는다(기본 1개, 다툼이 드물다).
 async function waitDocker(pid, cmd, need) {
   if (!mkdirP(DIR)) { err(`HEAVY_UNLOCKED 슬롯 폴더를 만들 수 없음: ${DIR}`); return 2; }
   WAIT_T0 = now();
+  QSTART = queueResume('docker', cmd) ?? WAIT_T0;
+  QKEEP = ['docker', cmd];
   const deadline = WAIT_T0 + WAIT;
-  let announced = false;
+  let announced = false, state = '';
   for (;;) {
     DSLOT = ''; SLOT = ''; LOADWHY = ''; ORAWHY = '';
+    const dfree = nums(KD).some((i) => !isDir(path.join(DIR, `docker-${i}`)));
     if (need && loadDefer()) {
-      LOADWHY = LOADMSG;
+      LOADWHY = LOADMSG; state = 'load'; DEFER_T0 = null;
     } else if (oraBusy()) {
-      // Oracle 잠금 주인이 살아 있다 — 슬롯을 잡지 않고 기다린다
+      state = 'ora'; DEFER_T0 = null; // Oracle 자리가 다 찼다 — 슬롯을 잡지 않고 기다린다
+    } else if (!dfree) {
+      state = 'docker'; DEFER_T0 = null;
+    } else if (need && exclYield()) {
+      state = 'yield'; DEFER_T0 = null;
+    } else if (need && !fairGate('general', 'slot', K)) {
+      state = 'queue';
     } else if (take('run', pid, `[docker] ${cmd}`, 'docker', KD)) {
+      state = 'slot';
       if (!need || take('run', pid, `[docker] ${cmd}`, 'slot', K)) {
         if (oraTake()) { waitUnmark(); return 0; }
+        state = 'ora';
         if (SLOT) rmrf(SLOT);
         SLOT = '';
       }
       rmrf(DSLOT); DSLOT = '';
+    } else {
+      state = 'docker';
     }
     for (const i of nums(KD)) { const d = path.join(DIR, `docker-${i}`); if (stale(d)) reclaim(d); }
     for (const i of nums(K)) { const d = path.join(DIR, `slot-${i}`); if (stale(d)) reclaim(d); }
     const desc = `k=${K} docker=${KD}`;
     if (now() >= deadline) {
+      const tail = busyTail(need ? 'general' : 'docker');
+      queueKeep('docker', cmd);
       waitUnmark();
-      err(`HEAVY_DOCKER_BUSY ${desc} wait=${WAIT}s 도커: ${holders('docker', KD)} 일반: ${holders()}${exclNote()}${loadNote(LOADWHY)}${oraNote()}`);
+      err(`HEAVY_DOCKER_BUSY ${desc} wait=${WAIT}s 도커: ${holders('docker', KD)} 일반: ${holders()}${exclNote()}${loadNote(LOADWHY)}${oraNote()}${tail}`);
       return 1;
     }
-    waitMark('docker', cmd);
+    waitMark('docker', cmd, state, need);
     if (ORAWHY) oraAnnounce();
     else if (!announced) { err(`HEAVY_DOCKER_WAIT ${desc} 도커: ${holders('docker', KD)} 일반: ${holders()}${exclNote()}${loadNote(LOADWHY)}`); announced = true; }
     loadAnnounce(LOADWHY, desc);
@@ -557,6 +681,7 @@ function heldBy(o) {
 }
 // 내 것일 때만 지운다(회수된 뒤 남이 잡은 슬롯을 지우지 않게)
 function mineRelease() {
+  if (WAITF && QKEEP) queueKeep(...QKEEP); // 기다리다 신호로 끝났다(Bash timeout 등) — 줄 자리를 남긴다
   if (SLOT && field(SLOT, 'pid') === MYPID) rmrf(SLOT);
   if (DSLOT && field(DSLOT, 'pid') === MYPID) rmrf(DSLOT);
   SLOT = ''; DSLOT = '';
@@ -773,7 +898,7 @@ async function cmdRun(argv) {
   await oraSetup(argv, ORA_FLAG);
   const rc = await waitSlot('run', MYPID, argv.join(' '));
   if (rc === 1) process.exit(BUSY_RC);
-  if (rc === 0) { err(`HEAVY_SLOT ${path.basename(SLOT)} k=${K} ${waited()}`); ENV.DFLOW_HEAVY_HELD = SLOT; oraStart(); }
+  if (rc === 0) { err(`HEAVY_SLOT ${path.basename(SLOT)} k=${K} ${waited()}${queuedNote()}`); ENV.DFLOW_HEAVY_HELD = SLOT; oraStart(); }
   { const rc = await runChild(argv); process.exit(SIG_RC ?? rc); }
 }
 
@@ -793,7 +918,7 @@ async function cmdRunDocker(argv) {
   const rc = await waitDocker(MYPID, argv.join(' '), need);
   if (rc === 1) process.exit(BUSY_RC);
   if (rc === 0) {
-    err(`HEAVY_DOCKER_SLOT ${path.basename(DSLOT)} docker=${KD}${SLOT ? ` + ${path.basename(SLOT)} k=${K}` : ''} ${waited()}`);
+    err(`HEAVY_DOCKER_SLOT ${path.basename(DSLOT)} docker=${KD}${SLOT ? ` + ${path.basename(SLOT)} k=${K}` : ''} ${waited()}${queuedNote()}`);
     ENV.DFLOW_HEAVY_DOCKER_HELD = DSLOT;
     if (SLOT) ENV.DFLOW_HEAVY_HELD = SLOT;
     oraStart();
@@ -847,6 +972,7 @@ async function cmdRunExclusive(argv) {
   process.on('exit', () => { exclReleaseAll(); waitUnmark(); });
   await oraSetup(argv, ORA_FLAG);
   const t0 = now();
+  WAIT_T0 = t0;
   const deadline = t0 + WAIT;
   let announced = false;
   for (;;) {
@@ -854,7 +980,7 @@ async function cmdRunExclusive(argv) {
     const gh = generalHolds();
     if (gh) {
       exclUnmark(); exclDropGap(o); waitUnmark();
-      err(`HEAVY_BUSY k=${K} wait=${now() - t0}s 독점 불가: E2E hold 보유 중 ${gh} — 일반 슬롯을 붙잡은 E2E 서버(acquire)가 release 된 뒤 다시 부른다`);
+      err(`HEAVY_BUSY k=${K} wait=${now() - t0}s 독점 불가: E2E hold 보유 중 ${gh} — 일반 슬롯을 붙잡은 E2E 서버(acquire)가 release 된 뒤 다시 부른다(exit 75 = 나중에 다시, 실패 아님)`);
       process.exit(BUSY_RC);
     }
     // Oracle 시험 자리가 다 차 있으면 양보 표식도 거둔다 — 자리를 기다리는 동안 남의 일반 실행을 막지 않는다(start 는 MYXST 로 이어진다)
@@ -863,10 +989,10 @@ async function cmdRunExclusive(argv) {
       exclUnmark();
       if (now() >= deadline) {
         waitUnmark(); exclDropGap(o);
-        err(`HEAVY_BUSY k=${K} wait=${WAIT}s 독점 대기(표식 없음) 보유: ${holders()}${oraNote()}`);
+        err(`HEAVY_BUSY k=${K} wait=${WAIT}s 독점 대기(표식 없음) 보유: ${holders()}${oraNote()} — ${waited()} · exit 75 = 나중에 다시(실패 아님): 같은 명령을 다시 부른다`);
         process.exit(BUSY_RC);
       }
-      waitMark('general', cmd);
+      waitMark('general', cmd, 'excl');
       oraAnnounce();
       await sleep(POLL);
       continue;
@@ -892,10 +1018,10 @@ async function cmdRunExclusive(argv) {
     if (now() >= deadline) {
       waitUnmark();
       exclMark(o, cmd, '-'); // 재호출 대기(gap)로 남긴다 — TTL 안에 다시 부르면 순번을 이어받는다
-      err(`HEAVY_BUSY k=${K} wait=${WAIT}s 독점 대기(순번 ${pos}/${list.length}, 표식은 남긴다) 보유: ${holders()}${oraNote()}`);
+      err(`HEAVY_BUSY k=${K} wait=${WAIT}s 독점 대기(순번 ${pos}/${list.length}, 표식은 남긴다) 보유: ${holders()}${oraNote()} — ${waited()} · exit 75 = 나중에 다시(실패 아님): 같은 명령을 ${EXCL_TTL}초 안에 다시 부르면 순번을 이어받는다`);
       process.exit(BUSY_RC);
     }
-    waitMark('general', cmd);
+    waitMark('general', cmd, 'excl');
     if (ORAWHY) oraAnnounce();
     if (!announced) { err(`HEAVY_EXCL_WAIT k=${K} 순번 ${pos}/${list.length} 보유: ${holders()}`); announced = true; }
     await sleep(POLL);
@@ -923,7 +1049,7 @@ async function cmdAcquire(name) {
   if (rc === 1) process.exit(BUSY_RC);
   if (rc !== 0) process.exit(0); // HEAVY_UNLOCKED: 붙잡지 못했지만 막지 않는다
   exclDropGap(o);
-  err(KE >= 1 ? `HEAVY_ACQUIRED ${path.basename(SLOT)} owner=${o} e2e=${KE} ${waited()}` : `HEAVY_ACQUIRED ${path.basename(SLOT)} owner=${o} k=${K} ${waited()}`);
+  err(KE >= 1 ? `HEAVY_ACQUIRED ${path.basename(SLOT)} owner=${o} e2e=${KE} ${waited()}${queuedNote()}` : `HEAVY_ACQUIRED ${path.basename(SLOT)} owner=${o} k=${K} ${waited()}${queuedNote()}`);
   process.exit(0);
 }
 
@@ -940,13 +1066,19 @@ function cmdRelease() {
 function cmdStatus() {
   out(`HEAVY_STATUS slots=${K} held=${countHeld('slot', K)} waiting=${countWaiting('general')}`);
   const g = ramGb();
-  err(`HEAVY_DETAIL k=${K} ram=${g ?? '?'}GB dir=${DIR} wait=${WAIT}s`);
+  err(`HEAVY_DETAIL k=${K} ram=${g ?? '?'}GB dir=${DIR} wait=${WAIT}s queue_ttl=${QUEUE_TTL}s fair_grace=${FAIR_GRACE}s`);
   err(holders() || '(비어 있음)');
   err(`HEAVY_DOCKER docker=${KD} held=${countHeld('docker', KD)} waiting=${countWaiting('docker')} ${holders('docker', KD) || '(비어 있음)'}`);
   if (KE >= 1) err(`HEAVY_E2E e2e=${KE} held=${countHeld('e2e', KE)} waiting=${countWaiting('e2e')} ${holders('e2e', KE) || '(비어 있음)'}`);
   else err('HEAVY_E2E e2e=0 (꺼짐 — acquire 는 일반 슬롯을 쓴다)');
   const x = exclHolders();
   if (x) err(`HEAVY_EXCL ${x}`);
+  // 줄 선 대기자(오래 기다린 순). state: slot 빈 슬롯 없음 · queue 앞 대기자에게 양보 · load 부하 대기 · yield 독점 표식에 양보 ·
+  // ora Oracle 자리 대기 · docker 도커 슬롯 대기 · excl 독점 대기 · - 옛 heavy.sh. (양보 안 받음) = 뒤 대기자를 막지 않는다
+  for (const q of ['general', 'docker', 'e2e']) {
+    const m = queueMembers(q, true);
+    m.forEach((w, i) => err(`HEAVY_QUEUE ${q} ${i + 1}/${m.length} queued=${now() - w.start}s state=${w.state}${w.eligible ? '' : ' (양보 안 받음)'} pid=${w.pid} cwd=${w.cwd} cmd=${w.cmd}`));
+  }
   process.exit(0);
 }
 
@@ -986,7 +1118,7 @@ function cmdSnapshot() {
   for (const f of listDir('wait-')) {
     if (!isFile(f) || waitDead(f)) continue;
     const pool = wfield(f, 'pool') === 'docker' ? 'docker' : 'general';
-    lines.push(['WAIT', wfield(f, 'start'), pool, tabless(wfield(f, 'cwd')), tabless(wfield(f, 'cmd'))].join('\t'));
+    lines.push(['WAIT', wfield(f, 'start'), pool, tabless(wfield(f, 'cwd')), tabless(wfield(f, 'cmd')), wfield(f, 'state') || '-'].join('\t'));
   }
   writeAll(1, `${lines.join('\n')}\n`);
   process.exit(0);
@@ -1141,7 +1273,7 @@ async function main() {
   let argv = process.argv.slice(2);
   if (argv.length === 1 && (argv[0] === '--help' || argv[0] === '-h')) {
     out('사용법: heavy.mjs [--pool docker | --exclusive] [--detach] [--oracle] [--] <명령> [인자…] | acquire <이름> | release | status | snapshot | wait <id> [--max <초>]');
-    out('종료 코드: 75 슬롯 대기 상한 초과(다시 부른다) · 2 사용 오류 · wait: 76 아직 도는 중 · 77 잡 BUSY · 78 잡 rc 76 · 1 잡 유실. 자세한 것은 머리 주석.');
+    out('종료 코드: 75 슬롯 대기 상한 초과(실패 아님 — 다시 부르면 줄 자리를 이어받는다) · 2 사용 오류 · wait: 76 아직 도는 중 · 77 잡 BUSY · 78 잡 rc 76 · 1 잡 유실. 자세한 것은 머리 주석.');
     process.exit(0);
   }
   let pool = 'general', detach = false, excl = false;
