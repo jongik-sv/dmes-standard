@@ -149,6 +149,23 @@ function heavyNum(v) {
   return Number.isFinite(n) ? n : null;
 }
 
+// 일반 풀 대기 줄에서 내 자리(1부터). heavy.mjs 의 공정 순서 규칙(fairGate)과 같은 기준으로 센다.
+//   앞 대기자 = 나보다 먼저 줄 선 일반 풀 대기 중 「받을 수 있는」 것: state 가 slot·queue·load·yield 이거나,
+//   state 칸이 아예 없는 옛 heavy.sh 줄(종전처럼 센다). state=excl·docker 와 표식에 state 가 없는 줄('-')은 뒤를 막지 않아 세지 않는다.
+//   내가 Oracle 자리를 기다리는 중(state=ora)이면 먼저 줄 선 ora 대기자도 센다.
+//   snapshot 에는 seen(표식 갱신 시각)이 없어 「30초 넘게 안 고친 대기」는 가려내지 못한다 — heavy.mjs 쪽 생존 판정(waitDead)만 반영된다.
+const HEAVY_ELIGIBLE = new Set(['slot', 'queue', 'load', 'yield']);
+export function heavyWaitPos(me, waits) {
+  if (me.since === null || me.since === undefined) return null;
+  const counts = (w) => {
+    if (w.since === null || w.since === undefined || !(w.since < me.since)) return false;
+    if (w.state === undefined) return true;
+    if (HEAVY_ELIGIBLE.has(w.state)) return true;
+    return w.state === 'ora' && me.state === 'ora';
+  };
+  return waits.filter(counts).length + 1;
+}
+
 function leaseHeavyJson() {
   // heavy.mjs(node 판, dn-heavy 레인)가 있으면 그것을, 아니면 종전 heavy.sh 를 쓴다.
   // DFLOW_HEAVY_SH 는 종전 env 이름을 유지한다(파일 확장자로 실행기를 가른다).
@@ -175,18 +192,21 @@ function leaseHeavyJson() {
     const rows = (snap.stdout ?? '').split('\n').filter((l) => l !== '').map((l) => l.split('\t'));
     const pcRow = rows.find((r) => r[0] === 'PC');
     if (!pcRow) return null;
-    const ws = rows.filter((r) => r[0] === 'WAIT' && r[2] === 'general').map((r) => heavyNum(r[1])).filter((n) => n !== null);
+    // WAIT 줄 끝의 state 칸(slot·queue·load·yield·ora·excl·docker, 표식에 없으면 '-')은 K 반영 뒤 붙었다. 옛 줄은 칸이 없어 undefined
+    const ws = rows.filter((r) => r[0] === 'WAIT' && r[2] === 'general')
+      .map((r) => ({ since: heavyNum(r[1]), state: r[5] }))
+      .filter((w) => w.since !== null);
     let orders = [];
     for (const r of rows) {
       if (r[0] === 'RUN') orders.push({ state: 'run', since: heavyNum(r[1]), kind: r[2], pool: r[3], cwd: r[4], cmd: r[5] });
-      else if (r[0] === 'WAIT') orders.push({ state: 'wait', since: heavyNum(r[1]), kind: 'run', pool: r[2], cwd: r[3], cmd: r[4] });
+      else if (r[0] === 'WAIT') orders.push({ state: 'wait', wstate: r[5], since: heavyNum(r[1]), kind: 'run', pool: r[2], cwd: r[3], cmd: r[4] });
     }
     const matched = [];
     for (const o of orders) {
       const m = (o.cwd ?? '').match(WT_RE);
       if (!m) continue;
-      const pos = o.state === 'wait' && o.pool === 'general' && o.since !== null
-        ? ws.filter((w) => w < o.since).length + 1 : null;
+      const pos = o.state === 'wait' && o.pool === 'general'
+        ? heavyWaitPos({ since: o.since, state: o.wstate }, ws) : null;
       matched.push({ state: o.state, since: o.since, kind: o.kind, pool: o.pool, cmd: maskCmd(o.cmd ?? ''), id8: m[1], pos });
     }
     const groups = new Map();

@@ -413,8 +413,11 @@ BE_PREBUILD_CONTINUE=1 ./be-run.sh --all   # 실패해도 기동
   자기를 띄운 부모(`local-run.sh`)는 건드리지 않는다.
 - `--dry-run` 은 기록을 읽기만 해서 모듈마다 어느 be-run 의 어느 앱 JVM 을 내릴지 보인다.
 - 회귀 시험: `scripts/tests/be-run-restart.sh`(가짜 앱 3개, 포트 38092~38191, 이 체크아웃의 서버·DB 를 쓰지 않는다).
-- ps1 판(`be-run.ps1` 의 `Stop-PreviousBeRuns`)은 아직 종전 동작이다 — 명령줄에 `be-run.ps1` 이 든 **PC 의 모든 프로세스**를 끝낸다(체크아웃을 가리지 않는다).
-  taskkill `/T` 뒤 30초 안에 끝나지 않으면 `/F`. 그래서 ps1 판에서는 한 모듈만 다시 띄우면 이전 실행이 통째로 끝난다.
+- ps1 판(`be-run.ps1`)도 모듈 단위로 이어받는다(2026-10-13). 같은 `.be-run/<모듈>.own`(맡은 be-run pid·gradlew 실행기 pid)·`<pid>.alive`(시작 시각 FileTime 을 적어 pid 재사용과 구분)
+  규약을 쓰고, 기록 잠금은 `.be-run/lock.ps1`(CreateNew)이다. 새 실행은 고른 모듈의 실행기 트리만 내리고(앱 JVM 은 이어지는 포트 회수가 내린다) 모듈을 모두 빼앗긴 이전 실행은 종료 코드 79 로 끝난다.
+  표식 없는 예전 판 be-run.ps1 만 종전처럼 끝낸다(`Stop-UnregisteredBeRuns`, 조상·3초 미만 프로세스 제외).
+  무거운 명령 슬롯(대책 J)은 ps1 판에 쓰지 않는다 — be-run.sh 도 Windows·bootRun 방식은 슬롯 없이 이전 서버를 내린 뒤 빌드하며, ps1 판은 늘 그 경우다.
+  **Windows 실측 전**: 이 PC 에 pwsh 가 없어 실행 시험을 하지 못했다(구문 짝만 확인). be-run.sh 와 pid 공간이 달라 두 판을 같은 체크아웃에서 섞어 쓰면 기록을 알아보지 못한다.
 - `local-run` 이 도는 중에 따로 be-run 을 실행해 그 be-run 이 모듈을 모두 이어받으면, local-run 은 종료 코드 79 로 이를 알아보고 프론트를 내리거나 잔존 프로세스를 정리하지 않는다(안내만 남기고 계속 돈다).
   다른 이유로 be-run 이 끝나면 종전대로 프론트까지 내리고, 명령줄에 이 체크아웃 `src/` 경로가 든 프로세스를 쓸어 담는다. local-run 을 끝낼 때의 정리도 같다.
 

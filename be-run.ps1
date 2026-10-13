@@ -25,6 +25,15 @@ be-run.ps1 — 백엔드 모듈(local 프로파일) 실행 스크립트 (Windows
   $env:BE_PREBUILD_CONTINUE = '1'  # 선빌드가 실패해도 기동 (모듈 하나의 오류가 나머지를 막지 않게)
   (둘 다 .run.env 에 BE_PREBUILD=0 / BE_PREBUILD_CONTINUE=1 로 둬도 된다)
 
+이미 돌고 있는 be-run 이 있어도 고른 모듈만 가져온다: 같은 체크아웃의 이전 be-run.ps1 은 끝내지 않고 그 모듈의
+  gradlew 실행기·앱 JVM 만 내린다(모듈마다 .be-run\<모듈>.own 에 맡은 be-run·실행기 pid 를 남긴다). 이전 be-run 이 맡은
+  다른 모듈은 계속 돈다. 맡은 모듈을 모두 다른 be-run 에 넘겨준 실행은 종료 코드 79 로 끝난다(be-run.sh 와 같다).
+  표식(.be-run\<pid>.alive) 없이 뜬 예전 판 be-run.ps1 만 종전처럼 통째로 끝낸다. 다른 체크아웃의 be-run 은 건드리지 않는다.
+  be-run.sh(Git Bash)와 pid 공간이 달라 같은 체크아웃에서 두 판을 섞어 쓰면 기록을 서로 알아보지 못한다.
+무거운 명령 슬롯(heavy.mjs, 대책 J)은 이 판에서 쓰지 않는다: be-run.sh 도 Windows(실행 중인 JVM 이 쥔 jar 를 덮어쓰지 못한다)와
+  종전 bootRun 방식은 이전 서버를 내린 뒤 빌드하고, 그때는 슬롯 대기 = 서버 정지 시간이라 슬롯 없이 빌드한다. 이 판은 늘 그 경우다
+  (--build-only 도 없다). 선빌드가 Gradle 을 스스로 줄 세우는 것은 gradlew 쪽 규칙이다.
+
 대상 포트를 이미 물고 있는 프로세스가 있으면 정리하고 시작한다.
   .\be-run.ps1 --keep-port  # 회수하지 않고 "점유 중" 으로 중단
 
@@ -244,7 +253,7 @@ function Stop-OnPrebuildFailure {
     Write-DevError "선빌드가 실패해 백엔드 모듈을 띄우지 않고 종료한다 (exit $ExitCode)."
     Write-DevError "  선빌드 없이 종전처럼 모듈별 bootRun 으로 띄우려면: `$env:BE_PREBUILD='0'; .\be-run.ps1 $(($Selected | ForEach-Object { '--' + $_ }) -join ' ')"
     Write-DevError '  선빌드 실패에도 기동을 이어 가려면: BE_PREBUILD_CONTINUE=1 (환경 변수 또는 .run.env)'
-    exit $ExitCode
+    Exit-BeRun $ExitCode
 }
 
 function Invoke-Prebuild {
@@ -267,6 +276,205 @@ function Invoke-Prebuild {
     Stop-OnPrebuildFailure -ExitCode $rc
 }
 
+# ── 모듈 소유 기록(be-run.sh 의 「모듈 소유 기록」 대응) ─────────
+# 같은 체크아웃에서 be-run 을 여러 번 띄워도 모듈 하나만 다시 띄울 수 있게, 어느 be-run 이 어느 모듈을 맡았는지
+# .be-run\<모듈>.own 에 한 줄로 남긴다: "<맡은 be-run pid> <gradlew 실행기(cmd) pid 또는 ->".
+# 새 실행은 자기가 고른 모듈의 기록만 가져오고(그 모듈의 실행기·앱 JVM 만 내린다) 이전 be-run 은 끝내지 않는다.
+# 이전 be-run 의 나머지 모듈은 계속 돌고, 모듈을 모두 빼앗긴 이전 be-run 은 종료 코드 79 로 끝난다(be-run.sh 와 같은 값).
+# - 살아 있음 표식 .be-run\<pid>.alive 에는 그 프로세스의 시작 시각(FileTime)을 적어 pid 재사용과 구분한다.
+#   표식이 없는 예전 판 be-run.ps1 은 종전처럼 끝낸다(아래 Stop-UnregisteredBeRuns).
+# - 기록 읽기·쓰기는 .be-run\lock.ps1 파일(CreateNew 원자 생성, 최대 10초 대기)로 묶는다. 쥔 프로세스가 죽었거나
+#   이 체크아웃의 be-run 이 아니면 낡은 잠금으로 보고 치운다. 살아 있는 be-run 의 잠금은 빼앗지 않는다.
+# 주의: be-run.sh(Git Bash)와 pid 공간이 달라 같은 체크아웃에서 두 판을 섞어 쓰면 기록을 서로 알아보지 못한다(낡은 기록으로 무시된다).
+$StateDir  = Join-Path $RootDir '.be-run'
+$LockFile  = Join-Path $StateDir 'lock.ps1'
+$script:LockHeld   = $false
+$script:LockFailed = $false
+$script:AnyTaken   = $false   # 내 모듈을 다른 be-run 이 가져간 적이 있으면 true — 끝날 때 79 로 알린다
+$script:AnyDied    = $false   # 모듈이 스스로 비정상 종료한 적이 있으면 true — 이어받음이 이 오류를 가리지 않는다
+$BeRunHandedOverRc = 79
+
+function Get-ProcStartTicks {
+    param([int] $ProcessId)
+    try { return [string] (Get-Process -Id $ProcessId -ErrorAction Stop).StartTime.ToFileTimeUtc() } catch { return $null }
+}
+
+function Set-AliveMark {
+    $null = New-Item -ItemType Directory -Force -Path $StateDir
+    $ticks = Get-ProcStartTicks -ProcessId $PID
+    if ($ticks) { [System.IO.File]::WriteAllText((Join-Path $StateDir "$PID.alive"), $ticks) }
+}
+
+function Clear-AliveMark {
+    Remove-Item -LiteralPath (Join-Path $StateDir "$PID.alive") -Force -ErrorAction SilentlyContinue
+}
+
+# pid 가 이 체크아웃에서 도는 (표식이 있는 새 판) be-run.ps1 인지. 내 pid 면 참.
+function Test-OwnBeRun {
+    param([int] $ProcessId)
+    if ($ProcessId -eq $PID) { return $true }
+    $f = Join-Path $StateDir "$ProcessId.alive"
+    if (-not (Test-Path -LiteralPath $f)) { return $false }
+    if (-not (Get-Process -Id $ProcessId -ErrorAction SilentlyContinue)) {
+        Remove-Item -LiteralPath $f -Force -ErrorAction SilentlyContinue
+        return $false
+    }
+    $want = Get-ProcStartTicks -ProcessId $ProcessId
+    if (-not $want) { return $true }   # 살아 있지만 시작 시각을 못 읽는다(권한 등) — 표식을 믿는다
+    try { return ([System.IO.File]::ReadAllText($f).Trim() -eq $want) } catch { return $false }
+}
+
+# 잠금 파일의 pid 문자열. 삭제를 막지 않게 FileShare.Delete 로 연다(읽는 쪽이 쥔 잠금을 못 지우는 일을 막는다).
+function Read-LockHolder {
+    try {
+        $fs = [System.IO.File]::Open($LockFile, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read,
+            ([System.IO.FileShare]::ReadWrite -bor [System.IO.FileShare]::Delete))
+        try { return (New-Object System.IO.StreamReader($fs)).ReadToEnd().Trim() } finally { $fs.Dispose() }
+    } catch { return '' }
+}
+
+function Enter-StateLock {
+    if ($script:LockFailed) { return $false }
+    if ($script:LockHeld) { return $true }
+    $null = New-Item -ItemType Directory -Force -Path $StateDir
+    for ($i = 0; $i -lt 200; $i++) {
+        try {
+            $fs = [System.IO.File]::Open($LockFile, [System.IO.FileMode]::CreateNew, [System.IO.FileAccess]::Write, ([System.IO.FileShare]::Read -bor [System.IO.FileShare]::Delete))
+            try {
+                $bytes = [System.Text.Encoding]::ASCII.GetBytes([string] $PID)
+                $fs.Write($bytes, 0, $bytes.Length)
+            } finally { $fs.Dispose() }
+            $script:LockHeld = $true
+            return $true
+        } catch [System.IO.IOException] {
+            $holder = Read-LockHolder
+            if ($holder -match '^\d{1,9}$') {
+                if ([int] $holder -eq $PID) { $script:LockHeld = $true; return $true }
+                if (-not (Test-OwnBeRun -ProcessId ([int] $holder))) {
+                    # 쥔 pid 를 다시 읽어 같은 소유자일 때만 치운다
+                    try {
+                        if ((Read-LockHolder) -eq $holder) { Remove-Item -LiteralPath $LockFile -Force -ErrorAction Stop }
+                    } catch { }
+                }
+            } else {
+                # 만든 직후(pid 를 아직 못 씀)일 수 있다 — 3초 넘게 비어 있으면 낡은 것으로 본다
+                try {
+                    if (((Get-Date) - (Get-Item -LiteralPath $LockFile -ErrorAction Stop).LastWriteTime).TotalSeconds -gt 3) {
+                        Remove-Item -LiteralPath $LockFile -Force -ErrorAction Stop
+                    }
+                } catch { }
+            }
+        } catch { }
+        Start-Sleep -Milliseconds 50
+    }
+    $script:LockFailed = $true
+    return $false
+}
+
+function Exit-StateLock {
+    if (-not $script:LockHeld) { return }
+    # 기다리는 쪽이 잠깐 파일을 열고 있으면 지우기가 실패할 수 있다 — 되풀이해서 지운다(못 지우면 다른 be-run 이 10초 뒤 실패한다)
+    for ($i = 0; $i -lt 40; $i++) {
+        if ((Read-LockHolder) -ne [string] $PID) { break }
+        try { Remove-Item -LiteralPath $LockFile -Force -ErrorAction Stop; break } catch { Start-Sleep -Milliseconds 50 }
+    }
+    $script:LockHeld = $false
+}
+
+function Get-OwnFile { param([string] $Module) return (Join-Path $StateDir "$Module.own") }
+
+# 모듈 기록을 [pscustomobject]@{ Run; Jvm } 로 읽는다(없거나 숫자가 아니면 빈 값). 파일은 Move 로 통째 바뀌므로 잠금 없이 읽어도 온전하다.
+function Read-Own {
+    param([string] $Module)
+    $r = [pscustomobject]@{ Run = $null; Jvm = $null }
+    $f = Get-OwnFile -Module $Module
+    if (-not (Test-Path -LiteralPath $f)) { return $r }
+    try {
+        $parts = ([System.IO.File]::ReadAllText($f).Trim() -split '\s+')
+        if ($parts.Count -ge 1 -and $parts[0] -match '^\d+$') { $r.Run = [int] $parts[0] }
+        if ($parts.Count -ge 2 -and $parts[1] -match '^\d+$') { $r.Jvm = [int] $parts[1] }
+    } catch { }
+    return $r
+}
+
+# 기록을 쓴다(임시 파일 + Move). 잠금을 쥔 채 부른다. Jvm 이 $null 이면 "-".
+function Write-Own {
+    param([string] $Module, [int] $Run, $Jvm)
+    $f = Get-OwnFile -Module $Module
+    $tmp = "$f.$PID.tmp"
+    $jv = if ($Jvm) { [string] $Jvm } else { '-' }
+    try {
+        [System.IO.File]::WriteAllText($tmp, "$Run $jv`n")
+        Move-Item -LiteralPath $tmp -Destination $f -Force
+    } catch { Remove-Item -LiteralPath $tmp -Force -ErrorAction SilentlyContinue }
+}
+
+# 모듈을 다른 be-run 이 가져갔는지: 기록이 있고, 그 pid 가 내 것이 아니며, 그 be-run 이 살아 있는 이 체크아웃의 것일 때.
+function Test-TakenByOther {
+    param([string] $Module)
+    $o = Read-Own -Module $Module
+    if (-not $o.Run -or $o.Run -eq $PID) { return $false }
+    return (Test-OwnBeRun -ProcessId $o.Run)
+}
+
+# 모듈을 내 것으로 기록하고 직전 기록을 돌려준다(읽기와 쓰기를 한 잠금 안에서). 잠금을 못 얻으면 기동하지 않고 끝낸다.
+function Request-OwnClaim {
+    param([string] $Module)
+    if (-not (Enter-StateLock)) {
+        $script:LockFailed = $true
+        $h = Read-LockHolder
+        Write-DevError "소유 기록 잠금($LockFile)을 얻지 못했다 — 쥔 be-run pid=$h. 그 be-run 이 끝난 뒤 다시 실행하세요."
+        Exit-BeRun 1
+    }
+    try {
+        $prev = Read-Own -Module $Module
+        Write-Own -Module $Module -Run $PID -Jvm $null
+    } finally { Exit-StateLock }
+    return $prev
+}
+
+# 방금 띄운 실행기 pid 를 모듈 기록에 남긴다. 그사이 다른 be-run 이 모듈을 가져갔으면 쓰지 않고 $false.
+function Set-OwnJvm {
+    param([string] $Module, [int] $LauncherPid)
+    if (-not (Enter-StateLock)) {
+        Write-DevLog 'be' "be-$Module 소유 기록 잠금을 얻지 못해 실행기 pid 를 기록하지 못했다(기록은 - 로 남는다)."
+        return $true
+    }
+    try {
+        $o = Read-Own -Module $Module
+        if ($o.Run -and $o.Run -ne $PID -and (Test-OwnBeRun -ProcessId $o.Run)) { return $false }
+        Write-Own -Module $Module -Run $PID -Jvm $LauncherPid
+        return $true
+    } finally { Exit-StateLock }
+}
+
+# 내가 맡은 모듈의 기록을 지운다(다른 be-run 이 가져간 기록은 그대로 둔다).
+function Remove-OwnClaims {
+    if ($script:LockFailed) { return }
+    if (-not (Enter-StateLock)) { return }
+    try {
+        foreach ($m in $Selected) {
+            $o = Read-Own -Module $m
+            if ($o.Run -eq $PID) { Remove-Item -LiteralPath (Get-OwnFile -Module $m) -Force -ErrorAction SilentlyContinue }
+        }
+    } finally { Exit-StateLock }
+}
+
+function Release-BeRunState {
+    Remove-OwnClaims
+    Clear-AliveMark
+}
+
+# 기록·표식을 거두고 끝낸다. 드라이런·사전 점검·선빌드 실패처럼 종료 처리(try/finally)에 들어가기 전의 종료는 모두 이것으로 끝낸다.
+function Exit-BeRun {
+    param([int] $Code)
+    Release-BeRunState
+    exit $Code
+}
+
+# 이 판의 살아 있음 표식을 최대한 일찍(드라이런 포함) 남긴다 — 다른 새 실행이 표식 없는 예전 판으로 오인해 끝내지 않게.
+Set-AliveMark
+
 # ── 드라이런 ─────────────────────────────────────────────────
 # 이전 인스턴스 종료·포트 회수보다 앞에서 끝낸다 — 아무 프로세스도 끄거나 띄우지 않는다.
 # 선빌드 태스크 목록을 보이려고 gradlew -m(계획만, 태스크 실행 없음)만 한 번 부른다.
@@ -274,7 +482,17 @@ if ($DryRun) {
     Write-DevLog 'be' "[dry-run] 기동 대상: $($Selected -join ' ')"
     $ports = ($Selected | ForEach-Object { $BeModules[$_] }) -join ' '
     if ($KeepPort) { Write-DevLog 'be' "[dry-run] 포트 점유 시 중단(--keep-port): $ports" }
-    else           { Write-DevLog 'be' "[dry-run] 이전 be-run 인스턴스 종료 뒤 포트 회수: $ports" }
+    else           { Write-DevLog 'be' "[dry-run] 이전 be-run.ps1 은 끝내지 않고 고른 모듈의 실행기·앱 JVM 만 내린 뒤 포트 회수: $ports" }
+    foreach ($m in $Selected) {
+        $o = Read-Own -Module $m
+        if ($o.Run -and $o.Jvm -and (Get-Process -Id $o.Jvm -ErrorAction SilentlyContinue)) {
+            Write-DevLog 'be' "[dry-run]   be-$m`: be-run pid $($o.Run) 가 맡은 실행기 pid $($o.Jvm) 의 트리만 내린다(그 be-run 의 다른 모듈은 그대로)"
+        } elseif ($o.Run) {
+            Write-DevLog 'be' "[dry-run]   be-$m`: 이전 기록(be-run pid $($o.Run))은 있으나 살아 있는 실행기가 없다"
+        } else {
+            Write-DevLog 'be' "[dry-run]   be-$m`: 이전 기록 없음 — 포트 점유자만 회수한다(표식 없는 예전 판 be-run.ps1 은 종전처럼 종료)"
+        }
+    }
 
     if (Test-PrebuildEnabled) {
         Write-DevLog 'be' "[dry-run] 1) 선빌드 계획: (cd $BackendDir) $BackendGradlew $((Get-PrebuildPlanArgs) -join ' ') -m -q --console=plain"
@@ -299,13 +517,13 @@ if ($DryRun) {
         $gw = Get-ModuleGradlew -Module $m
         Write-DevLog 'be' "[dry-run]   be-$m :$($BeModules[$m]) — (cd $(Join-Path $BackendDir $m)) cmd /c `"`"$gw`" :api:bootRun --args=--spring.profiles.active=local --console=plain`""
     }
-    exit 0
+    Exit-BeRun 0
 }
 
 # ── 사전 점검 ────────────────────────────────────────────────
 foreach ($m in $Selected) {
     $dir = Join-Path $BackendDir $m
-    if (-not (Test-Path $dir)) { Write-DevError "디렉토리 누락: $dir"; exit 1 }
+    if (-not (Test-Path $dir)) { Write-DevError "디렉토리 누락: $dir"; Exit-BeRun 1 }
 }
 # local 프로파일 SQLite 경로 — 모든 모듈 application.yml 이 ../data/{모듈}.db 를 가리킨다.
 $null = New-Item -ItemType Directory -Force -Path (Join-Path $BackendDir 'data')
@@ -314,28 +532,98 @@ $null = New-Item -ItemType Directory -Force -Path (Join-Path $BackendDir 'data')
 # ── 이전 실행 인스턴스 종료 ──────────────────────────────────
 # 포트만 뺏으면 이전 be-run 이 "내 모듈이 다 죽었다" 고 판단해 뒤늦게 cleanup 을 돌린다.
 # 그 cleanup 은 모듈 포트의 앱 JVM 을 정리하므로 방금 띄운 같은 포트의 모듈까지 함께 죽일 수 있다.
-function Stop-PreviousBeRuns {
-    $victims = @()
+# 이번에 고른 모듈만 이전 be-run 에서 가져온다(위 「모듈 소유 기록」). 이전 be-run.ps1 은 끝내지 않으므로 그 be-run 이 맡은
+# 다른 모듈은 계속 돈다. 기록을 앞서 내 것으로 바꿔 두므로 이전 be-run 의 늦은 cleanup 은 이 모듈을 건드리지 않는다.
+
+# 표식(.alive)이 없는 예전 판 be-run.ps1 만 종전처럼 끝낸다. 표식이 있는 새 판은 건드리지 않는다.
+# 나를 부른 조상(be-run.cmd·local-run.ps1 등)과 시작한 지 3초가 안 된 프로세스(표식을 만들기 전일 수 있다)도 건드리지 않는다.
+function Stop-UnregisteredBeRuns {
+    $procs = @()
     try {
-        $victims = @(Get-CimInstance Win32_Process -ErrorAction Stop |
-                     Where-Object { $_.ProcessId -ne $PID -and $_.CommandLine -and $_.CommandLine -match 'be-run\.ps1' } |
-                     Select-Object -ExpandProperty ProcessId)
+        $procs = @(Get-CimInstance Win32_Process -ErrorAction Stop)
     } catch { return }
+
+    $ancestors = New-Object 'System.Collections.Generic.HashSet[int]'
+    $cur = $PID
+    for ($d = 0; $d -lt 10; $d++) {
+        $p = $procs | Where-Object { $_.ProcessId -eq $cur } | Select-Object -First 1
+        if (-not $p -or -not $p.ParentProcessId -or $p.ParentProcessId -le 0) { break }
+        [void] $ancestors.Add([int] $p.ParentProcessId)
+        $cur = [int] $p.ParentProcessId
+    }
+
+    $victims = @()
+    foreach ($p in $procs) {
+        $id = [int] $p.ProcessId
+        if ($id -eq $PID -or $ancestors.Contains($id)) { continue }
+        if (-not $p.CommandLine -or $p.CommandLine -notmatch 'be-run\.ps1') { continue }
+        if ($p.Name -notmatch '^(powershell|pwsh)(\.exe)?$') { continue }   # be-run.ps1 을 인자로만 가진 다른 실행기는 be-run 이 아니다
+        # 이 체크아웃의 스크립트(절대경로)를 -File 로 돌리는 것만 대상이다. 상대경로·다른 체크아웃·-Command 문자열은 건드리지 않는다.
+        if ($p.CommandLine.IndexOf((Join-Path $RootDir 'be-run.ps1'), [StringComparison]::OrdinalIgnoreCase) -lt 0) { continue }
+        if ($p.CommandLine -match '(?i)\s-(c|command)\s') { continue }
+        if (Test-OwnBeRun -ProcessId $id) { continue }                        # 표식이 있는 새 판은 끝내지 않는다
+        try {
+            if ($p.CreationDate -and ((Get-Date) - $p.CreationDate).TotalSeconds -lt 3) { continue }
+        } catch { }
+        $victims += $id
+    }
     if ($victims.Count -eq 0) { return }
 
-    Write-DevLog 'be' "이전 be-run 인스턴스 종료 대기 (pid $($victims -join ' ')) — 그 cleanup 이 끝나야 안전하다"
+    Write-DevLog 'be' "표식 없는 예전 판 be-run.ps1 인스턴스 종료 대기 (pid $($victims -join ' ')) — 그 cleanup 이 끝나야 안전하다"
     foreach ($p in $victims) { Stop-ProcessTree -ProcessId $p }
     if (-not (Wait-ProcessExit -ProcessIds $victims -TimeoutSeconds 30)) {
         foreach ($p in $victims) { Stop-ProcessTree -ProcessId $p -Force }
     }
 }
-Stop-PreviousBeRuns
+
+# pid 가 bootRun 을 띄운 gradlew 실행기(cmd.exe /c … :api:bootRun)인지 — pid 재사용으로 남의 프로세스를 내리지 않게 확인한다.
+function Test-BootRunLauncher {
+    param([int] $ProcessId)
+    try {
+        $p = Get-CimInstance Win32_Process -Filter "ProcessId = $ProcessId" -ErrorAction Stop
+    } catch { return $false }
+    if (-not $p -or $p.Name -notmatch '^cmd\.exe$') { return $false }
+    $cmd = [string] $p.CommandLine
+    # 이 체크아웃의 모듈 폴더에서 돈 gradlew 실행기만(다른 체크아웃의 실행기에 pid 가 재사용됐을 수 있다)
+    return ($cmd -match ':api:bootRun' -and $cmd.IndexOf($BackendDir, [StringComparison]::OrdinalIgnoreCase) -ge 0)
+}
+
+# 이번에 고른 모듈을 이전 be-run 에서 가져온다: 기록을 내 것으로 바꾼 뒤, 이전에 맡았던 실행기 트리만 내린다.
+# 앱 JVM(Gradle 데몬의 자식)은 이어지는 포트 회수가 내린다.
+function Invoke-TakeOverModules {
+    Stop-UnregisteredBeRuns
+    $launchers = @()
+    foreach ($m in $Selected) {
+        $prev = Request-OwnClaim -Module $m     # 먼저 내 것으로 — 이전 be-run 의 늦은 cleanup 이 이 모듈을 못 건드린다
+        if (-not $prev.Jvm -or $prev.Jvm -eq $PID) { continue }
+        if (-not (Get-Process -Id $prev.Jvm -ErrorAction SilentlyContinue)) { continue }
+        if (Test-BootRunLauncher -ProcessId $prev.Jvm) {
+            Write-DevLog 'be' "be-$m 를 이전 be-run(pid $($prev.Run))에서 가져온다 — 실행기 pid=$($prev.Jvm) 만 내린다(그 be-run 의 다른 모듈은 그대로)"
+            $launchers += [int] $prev.Jvm
+        } else {
+            Write-DevLog 'be' "be-$m 이전 기록의 pid=$($prev.Jvm) 는 bootRun 실행기가 아니라 건드리지 않는다 — 포트 회수가 맡는다"
+        }
+    }
+    if ($launchers.Count -eq 0) { return }
+    foreach ($p in $launchers) { Stop-ProcessTree -ProcessId $p }
+    if (-not (Wait-ProcessExit -ProcessIds $launchers -TimeoutSeconds 10)) {
+        foreach ($p in $launchers) { Stop-ProcessTree -ProcessId $p -Force }
+    }
+}
+Invoke-TakeOverModules
 
 # ── 포트 회수 ────────────────────────────────────────────────
 function Clear-PortListener {
     param([int] $Port, [string] $Tag)
     $pids = Get-PortListenerPids -Port $Port
     if ($pids.Count -eq 0) { return $true }
+
+    # 같은 모듈을 더 늦게 시작한 be-run 이 이미 가져갔다면 이 포트의 JVM 은 그쪽 것일 수 있다 — 진 쪽이 이긴 쪽 JVM 을 내리지 않는다.
+    $mod = $Tag -replace '^be-', ''
+    if (Test-TakenByOther -Module $mod) {
+        Write-DevLog 'be' "$Tag 는 be-run(pid=$((Read-Own -Module $mod).Run))이 가져갔다 — 포트 $Port 점유 프로세스는 건드리지 않는다."
+        return $true
+    }
 
     if ($KeepPort) {
         Write-DevError "$Tag 가 사용할 포트 $Port 가 이미 점유 중입니다 (pid $($pids -join ' '))."
@@ -364,7 +652,7 @@ function Clear-PortListener {
 }
 
 foreach ($m in $Selected) {
-    if (-not (Clear-PortListener -Port $BeModules[$m] -Tag "be-$m")) { exit 1 }
+    if (-not (Clear-PortListener -Port $BeModules[$m] -Tag "be-$m")) { Exit-BeRun 1 }
 }
 
 # 포트 회수 뒤에 돈다 — Windows 는 실행 중인 JVM 이 쥔 jar 를 덮어쓰지 못한다.
@@ -436,6 +724,7 @@ function Start-BackendModule {
         Port          = $BeModules[$Module]
         Subscriptions = $subs
         Reported      = $false
+        HandedOver    = $false
     }
 }
 
@@ -481,14 +770,30 @@ function Invoke-Cleanup {
 
     Write-Host ''
     Write-DevLog 'be' '종료 신호 수신, 자식 프로세스 정리 중...'
+    # 다른 be-run 이 가져간 모듈은 건드리지 않는다 — 이미 내려갔고 pid·포트는 그쪽 몫이다.
     foreach ($entry in $Running) {
+        if (-not $entry.HandedOver -and (Test-TakenByOther -Module $entry.Module)) {
+            $entry.HandedOver = $true
+            $script:AnyTaken = $true
+        }
+    }
+    $mine = @($Running | Where-Object { -not $_.HandedOver })
+    foreach ($entry in $mine) {
         if ($entry.Process -and -not $entry.Process.HasExited) { Stop-ProcessTree -ProcessId $entry.Process.Id }
     }
-    Wait-ProcessExit -ProcessIds @($Running | ForEach-Object { $_.Process.Id }) -TimeoutSeconds 10 | Out-Null
+    Wait-ProcessExit -ProcessIds @($mine | ForEach-Object { $_.Process.Id }) -TimeoutSeconds 10 | Out-Null
     foreach ($entry in $Running) {
+        foreach ($sub in $entry.Subscriptions) {
+            Unregister-Event -SubscriptionId $sub.Id -ErrorAction SilentlyContinue
+            Remove-Job -Id $sub.Id -Force -ErrorAction SilentlyContinue
+        }
+    }
+    foreach ($entry in $mine) {
         if ($entry.Process -and -not $entry.Process.HasExited) { Stop-ProcessTree -ProcessId $entry.Process.Id -Force }
         # 포트를 아직 물고 있는 이 체크아웃의 bootRun 앱 JVM 회수 (Gradle 데몬의 자식이라 cmd 트리 밖에 남는다).
         # 콘솔 JVM 은 taskkill(/F 없음)에 응하지 않으므로 종전처럼 바로 /F 로 끝낸다. 남의 체크아웃 리스너는 둔다.
+        # 내려보내기 직전에 소유를 다시 확인한다(그사이 다른 be-run 이 가져갔을 수 있다).
+        if (Test-TakenByOther -Module $entry.Module) { $script:AnyTaken = $true; continue }
         foreach ($p in (Get-PortListenerPids -Port $entry.Port)) {
             if (Test-OwnBackendJvm -ProcessId $p -Module $entry.Module) {
                 Write-DevLog 'be' "$($entry.Tag) 포트 $($entry.Port) 앱 JVM 정리 (pid=$p)"
@@ -497,19 +802,37 @@ function Invoke-Cleanup {
                 Write-DevLog 'be' "$($entry.Tag) 포트 $($entry.Port) 리스너 pid=$p 는 이 체크아웃의 bootRun JVM 이 아니라 건드리지 않는다"
             }
         }
-        foreach ($sub in $entry.Subscriptions) {
-            Unregister-Event -SubscriptionId $sub.Id -ErrorAction SilentlyContinue
-            Remove-Job -Id $sub.Id -Force -ErrorAction SilentlyContinue
-        }
     }
     Write-QueuedLogs
+    Release-BeRunState
     # Gradle 데몬은 멈추지 않는다 — gradlew --stop 은 같은 사용자·같은 Gradle 버전의 데몬을 모두 멈춰 다른 워크트리의
     # 빌드·시험을 깨뜨린다. bootRun 을 돌던 데몬은 쉬게 되고 org.gradle.daemon.idletimeout(10분)으로 스스로 내려간다.
     Write-DevLog 'be' '정리 완료. (Gradle 데몬은 그대로 둔다 — 쉬면 10분 뒤 스스로 내려간다)'
 }
 
 try {
-    foreach ($m in $Selected) { $Running += (Start-BackendModule -Module $m) }
+    foreach ($m in $Selected) {
+        if (Test-TakenByOther -Module $m) {
+            # 기동을 기다리는 사이(선빌드 등)에 같은 모듈을 더 늦게 시작한 be-run 이 가져갔다 — 지면 띄우지 않는다.
+            Write-DevLog 'be' "be-$m 는 be-run(pid=$((Read-Own -Module $m).Run))이 가져갔다 — 띄우지 않는다."
+            $script:AnyTaken = $true
+            continue
+        }
+        $entry = Start-BackendModule -Module $m
+        $Running += $entry
+        if (-not (Set-OwnJvm -Module $m -LauncherPid $entry.Process.Id)) {
+            # 띄우는 사이에 같은 모듈을 다른 be-run 이 가져갔다 — 진 쪽이라 방금 띄운 실행기 트리를 내려 고아로 남기지 않는다.
+            Write-DevLog 'be' "$($entry.Tag) 를 다른 be-run 이 먼저 가져갔다 — 방금 띄운 실행기(pid=$($entry.Process.Id))를 내린다."
+            Stop-ProcessTree -ProcessId $entry.Process.Id -Force
+            $entry.HandedOver = $true
+            $script:AnyTaken = $true
+        }
+    }
+
+    if ($Running.Count -eq 0 -and $script:AnyTaken) {
+        Write-DevLog 'be' '고른 모듈을 모두 다른 be-run 이 가져갔다 — 이 실행은 끝낸다.'
+        exit $BeRunHandedOverRc   # finally 의 cleanup 이 기록·표식을 거둔다
+    }
 
     Write-DevLog 'be' "기동 대상: $($Selected -join ' ')"
     foreach ($m in $Selected) { Write-DevLog 'be' "  be-$m -> http://localhost:$($BeModules[$m])" }
@@ -520,16 +843,30 @@ try {
         Write-QueuedLogs
         $alive = 0
         foreach ($entry in $Running) {
+            if ($entry.HandedOver) { continue }
+            # 모듈을 다른 be-run 이 가져갔으면(새 실행이 그 모듈만 다시 띄운 경우) 더 관리하지 않고 알리기만 한다.
+            # 가져가는 쪽이 기록을 먼저 바꾼 뒤 내리므로, 실행기가 끝난 것보다 이 확인이 먼저다.
+            if (Test-TakenByOther -Module $entry.Module) {
+                $entry.HandedOver = $true
+                $script:AnyTaken = $true
+                Write-DevLog 'be' "$($entry.Tag) 는 be-run(pid=$((Read-Own -Module $entry.Module).Run))이 이어받았다 — 이 실행은 더 관리하지 않는다."
+                continue
+            }
             if ($entry.Process.HasExited) {
                 if (-not $entry.Reported) {
                     $entry.Reported = $true
+                    $script:AnyDied = $true
                     Write-DevError "$($entry.Tag) 프로세스가 종료됐습니다 (exit=$($entry.Process.ExitCode)). 위 로그에서 원인을 확인하세요."
                     Write-DevError "  다시 띄우려면: .\be-run.ps1 --$($entry.Module)"
                 }
             } else { $alive++ }
         }
         if ($alive -eq 0) {
-            Write-DevError '실행 중인 백엔드 모듈이 없습니다 — 정리 후 종료합니다.'
+            if ($script:AnyTaken -and -not $script:AnyDied) {
+                Write-DevLog 'be' '고른 모듈을 모두 다른 be-run 이 가져갔다 — 이 실행은 끝낸다.'
+            } else {
+                Write-DevError '실행 중인 백엔드 모듈이 없습니다 — 정리 후 종료합니다.'
+            }
             break
         }
         Start-Sleep -Milliseconds 400
@@ -537,3 +874,6 @@ try {
 } finally {
     Invoke-Cleanup
 }
+# 내 모듈을 다른 be-run 이 이어받아 끝나는 것이면 그 사실을 종료 코드로 알린다(be-run.sh 와 같은 값 79).
+if ($script:AnyDied) { exit 1 }
+if ($script:AnyTaken) { exit $BeRunHandedOverRc }
