@@ -18,8 +18,9 @@
 //   heavy.mjs acquire <이름> | release      세션(OWNER)이 E2E 풀 슬롯(e2e-<i>)을 붙잡는다 / 푼다.
 //   heavy.mjs status    stdout 정확히 한 줄 `HEAVY_STATUS slots=<K> held=<N> waiting=<M>`, 세부는 stderr
 //                      (대기자는 `HEAVY_QUEUE <풀> <번째>/<전체> queued=<초>s state=<까닭> pid= cwd= cmd=` 줄, 오래 기다린 순). exit 0.
-//   heavy.mjs snapshot  stdout 탭 구분 `PC K held waiting load1|- cpus|-` · `RUN start kind pool cwd cmd` · `WAIT start pool cwd cmd state`
-//                      (WAIT 의 start = 줄 선 시각, 이어받은 자리면 첫 호출 시각. state 칸은 2026-10-13 에 끝에 붙였다). exit 0.
+//   heavy.mjs snapshot  stdout 탭 구분 `PC K held waiting load1|- cpus|-` · `RUN start kind pool cwd cmd` · `WAIT start pool cwd cmd state seen`
+//                      (WAIT 의 start = 줄 선 시각, 이어받은 자리면 첫 호출 시각. state·seen 칸은 2026-10-13 에 차례로 끝에 붙였다.
+//                      seen = 표식을 마지막으로 고친 시각(초), 표식에 없으면 `-`. 소비자는 끝 칸이 없는 옛 줄도 견뎌야 한다). exit 0.
 //   heavy.mjs wait <id> [--max <초 0~240>]   분리 실행(--detach)을 기다린다.
 //
 // 종료 코드: 75 HEAVY_BUSY·HEAVY_DOCKER_BUSY(대기 상한 초과 — 실패가 아니다. 다시 부르면 줄 자리를 이어받는다, 대책 G) · 2 사용 오류·HEAVY_EXCL_NESTED·HEAVY_JOB_UNKNOWN
@@ -1118,7 +1119,7 @@ function cmdSnapshot() {
   for (const f of listDir('wait-')) {
     if (!isFile(f) || waitDead(f)) continue;
     const pool = wfield(f, 'pool') === 'docker' ? 'docker' : 'general';
-    lines.push(['WAIT', wfield(f, 'start'), pool, tabless(wfield(f, 'cwd')), tabless(wfield(f, 'cmd')), wfield(f, 'state') || '-'].join('\t'));
+    lines.push(['WAIT', wfield(f, 'start'), pool, tabless(wfield(f, 'cwd')), tabless(wfield(f, 'cmd')), wfield(f, 'state') || '-', wfield(f, 'seen') || '-'].join('\t'));
   }
   writeAll(1, `${lines.join('\n')}\n`);
   process.exit(0);

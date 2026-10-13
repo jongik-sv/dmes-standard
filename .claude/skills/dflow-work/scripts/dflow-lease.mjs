@@ -153,12 +153,18 @@ function heavyNum(v) {
 //   앞 대기자 = 나보다 먼저 줄 선 일반 풀 대기 중 「받을 수 있는」 것: state 가 slot·queue·load·yield 이거나,
 //   state 칸이 아예 없는 옛 heavy.sh 줄(종전처럼 센다). state=excl·docker 와 표식에 state 가 없는 줄('-')은 뒤를 막지 않아 세지 않는다.
 //   내가 Oracle 자리를 기다리는 중(state=ora)이면 먼저 줄 선 ora 대기자도 센다.
-//   snapshot 에는 seen(표식 갱신 시각)이 없어 「30초 넘게 안 고친 대기」는 가려내지 못한다 — heavy.mjs 쪽 생존 판정(waitDead)만 반영된다.
+//   seen(표식 갱신 시각, snapshot WAIT 끝 칸)이 있고 지금 − seen 이 HEAVY_SEEN_STALE 초를 넘는 대기는 멈춘 프로세스라 뒤를 막지 않아 세지 않는다.
+//   seen 이 없는 옛 줄은 종전처럼 센다.
 const HEAVY_ELIGIBLE = new Set(['slot', 'queue', 'load', 'yield']);
-export function heavyWaitPos(me, waits) {
+// heavy.mjs 의 SEEN_STALE = max(30, ceil(POLL × 10)) 과 같은 값(POLL = DFLOW_HEAVY_POLL, 기본 2)
+const HEAVY_POLL_ENV = process.env.DFLOW_HEAVY_POLL;
+const HEAVY_POLL = /^\d+(\.\d+)?$/.test(HEAVY_POLL_ENV ?? '') ? Number(HEAVY_POLL_ENV) : 2;
+const HEAVY_SEEN_STALE = Math.max(30, Math.ceil(HEAVY_POLL * 10));
+export function heavyWaitPos(me, waits, nowSec = Math.floor(Date.now() / 1000)) {
   if (me.since === null || me.since === undefined) return null;
   const counts = (w) => {
     if (w.since === null || w.since === undefined || !(w.since < me.since)) return false;
+    if (w.seen !== null && w.seen !== undefined && nowSec - w.seen > HEAVY_SEEN_STALE) return false;
     if (w.state === undefined) return true;
     if (HEAVY_ELIGIBLE.has(w.state)) return true;
     return w.state === 'ora' && me.state === 'ora';
@@ -192,9 +198,10 @@ function leaseHeavyJson() {
     const rows = (snap.stdout ?? '').split('\n').filter((l) => l !== '').map((l) => l.split('\t'));
     const pcRow = rows.find((r) => r[0] === 'PC');
     if (!pcRow) return null;
-    // WAIT 줄 끝의 state 칸(slot·queue·load·yield·ora·excl·docker, 표식에 없으면 '-')은 K 반영 뒤 붙었다. 옛 줄은 칸이 없어 undefined
+    // WAIT 줄 끝의 state 칸(slot·queue·load·yield·ora·excl·docker, 표식에 없으면 '-')은 K 반영 뒤 붙었고 그 뒤에 seen 칸(초, 없으면 '-')이 붙었다.
+    // 옛 줄은 칸이 없어 undefined(heavyNum 이 null 로 바꾼다)
     const ws = rows.filter((r) => r[0] === 'WAIT' && r[2] === 'general')
-      .map((r) => ({ since: heavyNum(r[1]), state: r[5] }))
+      .map((r) => ({ since: heavyNum(r[1]), state: r[5], seen: heavyNum(r[6]) }))
       .filter((w) => w.since !== null);
     let orders = [];
     for (const r of rows) {

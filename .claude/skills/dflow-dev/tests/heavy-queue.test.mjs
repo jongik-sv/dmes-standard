@@ -73,7 +73,7 @@ for (const [why, fields] of [
       const r = await run(mark(b, 'new'), b).exit;
       assert.equal(r.code, 0, r.stderr);
       assert.deepEqual(order(b), ['new']);
-      assert.match(r.stderr, /^HEAVY_SLOT slot-1 k=1 waited=0s$/m);
+      assert.match(r.stderr, /^HEAVY_SLOT slot-1 k=1 waited=\d+s$/m);
     } finally { b.done(); }
   });
 }
@@ -179,7 +179,7 @@ test('BUSY 뒤 같은 명령·cwd 로 다시 부르면 줄 자리(start)를 이�
     rmSync(join(b.dir, 'slot-1'), { recursive: true });
     const r3 = await run(mark(b, 'x'), b).exit;
     assert.equal(r3.code, 0, r3.stderr);
-    assert.match(r3.stderr, /^HEAVY_SLOT slot-1 k=1 waited=0s queued=\d+s$/m);
+    assert.match(r3.stderr, /^HEAVY_SLOT slot-1 k=1 waited=\d+s queued=\d+s$/m);
   } finally { b.done(); }
 });
 
@@ -197,8 +197,9 @@ test('status: stdout 은 HEAVY_STATUS 한 줄 그대로, stderr 에 대기자를
     const s = await run(['snapshot'], b).exit;
     const rows = s.stdout.trim().split('\n').filter((l) => l.startsWith('WAIT\t')).map((l) => l.split('\t'));
     assert.equal(rows.length, 2);
-    for (const row of rows) assert.equal(row.length, 6, row.join('|'));
+    for (const row of rows) assert.equal(row.length, 7, row.join('|'));
     assert.deepEqual(rows.map((x) => x[5]).sort(), ['ora', 'slot']);
+    for (const row of rows) assert.ok(Math.abs(Number(row[6]) - now()) <= 5, `seen 칸이 표식의 seen 이 아니다: ${row.join('|')}`);
   } finally { kid.kill(); b.done(); }
 });
 

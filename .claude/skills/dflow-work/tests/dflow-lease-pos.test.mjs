@@ -25,3 +25,18 @@ test('state 칸이 없는 옛 줄은 종전처럼 먼저 줄 선 순서로 센�
   const waits = [{ since: 100, state: undefined }, { since: 150, state: undefined }, { since: 250, state: undefined }];
   assert.equal(heavyWaitPos({ since: 200, state: undefined }, waits), 3);
 });
+
+test('seen 이 30초 넘게 낡은 대기는 뒤를 막지 않아 세지 않는다', () => {
+  const t = 1000;
+  const waits = [
+    { since: 100, state: 'slot', seen: t - 31 }, // 멈춘 프로세스
+    { since: 110, state: 'slot', seen: t - 30 }, // 경계: 30초는 아직 산 것
+    { since: 120, state: 'slot', seen: t },
+  ];
+  assert.equal(heavyWaitPos({ since: 200, state: 'slot' }, waits, t), 3);
+});
+
+test('seen 이 없는 옛 줄(null·undefined)은 지금 동작 그대로 센다', () => {
+  const waits = [{ since: 100, state: 'slot', seen: null }, { since: 150, state: 'slot' }];
+  assert.equal(heavyWaitPos({ since: 200, state: 'slot' }, waits, 1_000_000), 3);
+});

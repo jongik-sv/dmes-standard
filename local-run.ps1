@@ -95,6 +95,7 @@ $feScript  = Join-Path $RootDir 'fe-run.ps1'
 $beProc    = $null
 $feProc    = $null
 $cleanedUp = $false
+$BeRunHandedOverRc = 79   # be-run.ps1 이 모듈을 모두 다른 be-run 에 넘겨주고 끝날 때의 종료 코드(be-run.sh 의 BE_RUN_HANDED_OVER_RC 와 같은 값)
 
 function Invoke-Cleanup {
     if ($script:cleanedUp) { return }
@@ -118,6 +119,7 @@ try {
     $beProc = Start-Process -FilePath $psExe `
         -ArgumentList '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $beScript `
         -WorkingDirectory $RootDir -NoNewWindow -PassThru
+    $null = $beProc.Handle   # 핸들을 잡아 두지 않으면 종료 뒤 ExitCode 가 $null 로 읽힌다(-Wait 없는 Start-Process)
 
     $feArgList = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $feScript) + $FeArgs
     $feProc = Start-Process -FilePath $psExe -ArgumentList $feArgList `
@@ -128,8 +130,18 @@ try {
     Write-Launcher '  백엔드 기동에는 시간이 더 걸린다 — be-mcm 이 뜨기 전에는 로그인이 실패한다.'
 
     # 어느 쪽이 먼저 끝났는지 알려준다. 한쪽만 조용히 죽어 원인을 못 찾는 상황을 막는다.
+    $beHandedOver = $false
     while ($true) {
-        if ($beProc.HasExited) { Write-Host '[launcher] 백엔드(be-run.ps1)가 종료됐습니다. 위 [be] 로그에서 원인을 확인하세요.' -ForegroundColor Yellow; break }
+        if (-not $beHandedOver -and $beProc.HasExited) {
+            if ($beProc.ExitCode -eq $BeRunHandedOverRc) {
+                # 따로 띄운 be-run 이 이 be-run 의 모듈을 모두 이어받아 이 be-run 만 끝났다. 백엔드가 죽은 것이 아니므로 프론트를 내리거나
+                # 저장소 잔존 프로세스를 정리하지 않는다(정리하면 이어받은 새 앱 JVM 까지 죽는다). local-run 을 끝내면 그때 정리한다.
+                Write-Host '[launcher] 백엔드 모듈을 다른 be-run 이 모두 이어받아 이 be-run 만 끝났습니다. 프론트엔드는 계속 띄워 둡니다.' -ForegroundColor Yellow
+                $beHandedOver = $true
+            } else {
+                Write-Host '[launcher] 백엔드(be-run.ps1)가 종료됐습니다. 위 [be] 로그에서 원인을 확인하세요.' -ForegroundColor Yellow; break
+            }
+        }
         if ($feProc.HasExited) { Write-Host '[launcher] 프론트엔드(fe-run.ps1)가 종료됐습니다. 위 [fe] 로그에서 원인을 확인하세요.' -ForegroundColor Yellow; break }
         Start-Sleep -Seconds 1
     }
