@@ -245,3 +245,14 @@ output
 
 # D'Flow 개인 설정(PAT 포함) — 커밋 금지
 /.dflow.local
+
+# 키네틱 타이포그래피 실험 폴더 — 로컬 전용 (2026-10-14)
+/docs/kinetic/
+
+# 모션 그래픽 프롬프트 라이브러리 — 로컬 전용 (2026-10-14)
+/docs/motion-graphics/
+
+# OS 잡파일 — 위쪽 !.claude/skills/** 예외 규칙이 다시 살리지 못하도록 파일 맨 끝에 한 번 더 둔다
+**/.DS_Store
+**/__pycache__/
+*.pyc
