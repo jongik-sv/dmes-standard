@@ -30,7 +30,9 @@ import org.w3c.dom.NodeList;
  * 악용 모양 두 가지를 실제 BPMN 으로 고정한다:
  * <ul>
  *   <li>commWidgetMng — {@code search} 권한만으로 본문 {@code action=previewQuery}(임의 SELECT·DB 오류 문구) 실행</li>
- *   <li>secUser — AUTH_ONLY {@code myMenus} 로 본문 {@code action=resetPassword}·{@code save}(관리자 action) 실행</li>
+ *   <li>secUser — AUTH_ONLY {@code myMenus} 로 본문 {@code action=resetPassword}·{@code save}(옛 관리자 action) 실행.
+ *       이 분기들은 BE 리팩토링 2회차 F7 에서 BPMN 에서 뺐다. 지금은 my* 네 분기만 남았는지와, 본문 action 이 여전히 거절되고
+ *       URL action 의 my* 분기로만 가는지를 고정한다.</li>
  * </ul>
  * 스프링 없이 XML 만 파싱하고({@link CommWidgetMngBpmnActionTest} 와 같은 방식), 입력 맵은 실제 {@link CactusRequestConverter} 로 만든다.
  */
@@ -69,11 +71,12 @@ class OasisPathActionBpmnTest {
     }
 
     @Test
-    void secUser_AUTH_ONLY_myMenus_로_본문_action_resetPassword_save_를_실행할_수_없다() throws Exception {
+    void secUser_는_my_분기만_있고_본문_action_save_resetPassword_search_로_myMenus_myPermissions_를_바꿀_수_없다() throws Exception {
         Document doc = parse("services/security/secUser.bpmn");
         assertEquals("action", gatewayInput(doc), "게이트웨이 분기 키");
         Map<String, Element> byAction = tasksByAction(doc);
-        assertTrue(byAction.containsKey("resetPassword") && byAction.containsKey("save") && byAction.containsKey("myMenus"));
+        // search·save·resetPassword 분기는 F7 에서 뺐다 — my* 네 분기만 남는다.
+        assertEquals(List.of("myButtonEndpoints", "myMenus", "myMenusTree", "myPermissions"), List.copyOf(byAction.keySet()));
 
         for (String admin : List.of("resetPassword", "save", "search")) {
             Map<String, Object> params = new HashMap<>();
@@ -83,8 +86,9 @@ class OasisPathActionBpmnTest {
             assertRejected(request(params, null), "myPermissions");
         }
 
-        assertEquals(byAction.get("myMenus"), byAction.get(String.valueOf(
-                converter.convert(request(new HashMap<>(), null), "myMenus").get("action").getObject())));
+        // 정상 요청은 URL action 의 my* 분기로만 간다.
+        assertEquals("getMyMenus", routedMethod(byAction, converter.convert(request(new HashMap<>(), null), "myMenus")));
+        assertEquals("getMyPermissions", routedMethod(byAction, converter.convert(request(new HashMap<>(), null), "myPermissions")));
     }
 
     @Test

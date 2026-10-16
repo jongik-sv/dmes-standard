@@ -26,7 +26,7 @@ import javax.sql.DataSource;
 import java.util.Map;
 
 /**
- * 사용자 관리(commUserMng)·사용자 삭제(SecUserService)·감사 로그 조회(AuditLogService) 특성 테스트용 최소 JPA 구성 (Oracle 시험 PDB, 기준선 V1 — {@link McmCoreOraTestDb}).
+ * 사용자 관리(commUserMng)·감사 로그 조회(AuditLogService) 특성 테스트용 최소 JPA 구성 (Oracle 시험 PDB, 기준선 V1 — {@link McmCoreOraTestDb}).
  *
  * <p>{@code screenusage/support/ScreenUsageJpaTestConfig} 를 복사해 넓힌 것이다(그 파일은 고치지 않는다).
  * mcm-core 에는 {@code @DataJpaTest} 선례가 없어 spring-test + data-jpa 테스트 의존성만으로 EMF·트랜잭션·저장소를 올린다.
@@ -72,9 +72,9 @@ public class CommUserMngJpaTestConfig {
     public LocalContainerEntityManagerFactoryBean entityManagerFactory(DataSource dataSource) {
         LocalContainerEntityManagerFactoryBean em = McmCoreOraTestDb.entityManagerFactory(dataSource,
                 "com.dongkuk.dmes.mcm.entity", "com.dongkuk.dmes.mcm.audit.entity");
-        // SQL 을 바꾸지 않고 기록만 한다 — 성능 근거 테스트(*SqlCountTest)가 SELECT·DELETE 수를 센다.
-        // 전제(SqlStatementCounter javadoc): hibernate.jdbc.batch_size 를 넣지 않는다 — 켜면 실행 횟수가 아니라 준비 횟수를 세어
-        // 건별 DELETE 회귀를 놓친다(*SqlCountTest 가 단언한다). 이 구성을 쓰는 시험은 순차 실행이어야 한다(전역 계수기 공유).
+        // SQL 을 바꾸지 않고 기록만 한다 — 성능 근거 테스트(*SqlCountTest)가 SQL 수를 센다(DELETE 를 세던 SecUserServiceDeleteSqlCountTest 는
+        // 2026-10-16 archive/test/security 로 옮겼다 — BE 리팩토링 2회차 F7). 전제(SqlStatementCounter javadoc): hibernate.jdbc.batch_size 를
+        // 넣지 않는다 — 켜면 실행 횟수가 아니라 준비 횟수를 센다. 이 구성을 쓰는 시험은 순차 실행이어야 한다(전역 계수기 공유).
         em.setJpaProperties(McmCoreOraTestDb.jpaProperties(Map.<String, Object>of(
                 "hibernate.session_factory.statement_inspector", SqlStatementCounter.INSTANCE)));
         return em;

@@ -4,6 +4,28 @@
 
 **Major — multi-DS MyBatis 통합 + audit/mastercode 핵심 fix.** 정본 설계: [`docs/cactus/cactus-mybatis-multi-ds-design.md`](../../docs/cactus/cactus-mybatis-multi-ds-design.md) v3.5+, [`docs/cactus/test-scenarios.md`](../../docs/cactus/test-scenarios.md).
 
+### Added — 업무 예외 변환 확장점 (2026-10-16, BE 리팩토링 2회차 F2)
+
+**common/**
+- `BusinessErrorTranslator` (신규) — cactus 가 모르는 업무 예외(예: cactus 에 의존할 수 없는 mcm-core 의 `BusinessException` 사본)를 OASIS 응답 계약 `Translated(code, errors)` 로 바꾸는 `@FunctionalInterface`. 예외 하나만 보고(원인 사슬은 응답 변환기가 걷는다) 소유하지 않은 예외에는 null 을 낸다 — cactus `BusinessException`(코드·상세가 빈 경우)과 트랜잭션 예외 래퍼에도 불린다. 두 형을 모두 보는 호스트 모듈이 빈으로 등록한다. cactus-core 는 업무 모듈을 import 하지 않는다. Javadoc 에 어댑터 작성 규칙(`ResponseCodeAware` 우선, 코드 걷기만 트랜잭션 예외에서 멈춤, `RuntimeException` 만 삼키고 `Error` 는 전파)을 적었다.
+- `BusinessErrorTranslator.Translated` — `errors` 를 만들 때 수정할 수 없는 사본으로 바꾼다(null 목록은 null, null 원소는 그대로).
+
+**oasis/**
+- `CactusResponseConverter` — `CactusResponseConverter(List<BusinessErrorTranslator>)` 생성자 추가(null 은 빈 목록, 불변 사본). 무인자 생성자는 그대로(변환기 없음). 원인 사슬 걷기(깊이 16, 자기 원인에서 멈춤)를 한 도우미로 모았다.
+  - `meta.code` 순서는 그대로 `ResponseCodeAware` → `E001`(사용자 예외) → 업무 코드 → `S001`. 업무 코드는 원소마다 cactus `BusinessException` 의 `ErrorCode` 를 먼저, 없으면 변환기 코드(비지 않은 값)를 본다. 바깥 원소가 앞서고, 트랜잭션 예외(커밋 실패)를 먼저 만나면 `S001` 이다.
+  - `errors` 는 원소마다 cactus `BusinessException` 의 상세를 먼저, 없으면 변환기 상세를 보고 가장 바깥의 비지 않은 목록을 싣는다. 예전처럼 트랜잭션 예외에서 멈추지 않는다.
+  - 변환기는 목록 순서로 묻고 처음 null 이 아닌 결과를 쓴다. 변환기가 던진 `RuntimeException` 은 결과 없음으로 보고 WARN 한 줄(스택 없음)과 DEBUG 스택을 남긴다. `Error` 는 잡지 않는다.
+  - 정적 `businessCode(Throwable)` 는 변환기를 보지 않는다(예전과 같다). package-private 인스턴스 판정 셋을 더했다 — 변환기까지 보는 `businessCodeOf`·`errorDetailsOf`, 변환기만 보는 `translatedCodeOf`. 공개 API 는 생성자뿐이다.
+- `OasisServiceExecutor` — BPMN 밖 `catch (BusinessException)` 는 `responseConverter.businessCodeOf` 로 코드를 정한다(상세는 예전처럼 그 예외의 `getErrors()`). `catch (Exception)` 은 변환기가 원인 사슬에서 코드를 알아볼 때(`translatedCodeOf`)만 업무 예외로 응답한다 — 코드는 `businessCodeOf`, 상세는 `errorDetailsOf` 로 응답 변환기와 같이 정하고(USER_ERROR 단계만 없다) WARN 으로 남긴다. 알아보지 못하면 예전처럼 ERROR 로그, `S999`, errors 없음이다.
+- `OasisAutoConfiguration` — `oasisResponseConverter` 가 `ObjectProvider<BusinessErrorTranslator>` 를 받아 `orderedStream()` 순서(`@Order`·`Ordered`)로 넘긴다.
+
+**동작 변경 (호스트 확인 필요)**
+- 호스트가 `BusinessErrorTranslator` 빈을 등록하지 않으면 바뀌는 것이 없다 — 응답 JSON 이 한 글자도 같다.
+- 등록하면 그 변환기가 아는 예외의 코드와 행 상세가 OASIS 응답에 실린다 — `meta.code` 가 `S001`(BPMN 안)·`S999`(BPMN 밖 일반 예외) 대신 그 코드가 되고, `errors[]` 가 더해진다. `meta.message` 는 그대로다.
+- BPMN 밖 일반 예외의 사슬에 변환기가 아는 예외가 있으면 같은 사슬의 cactus 형도 함께 판정된다 — 예: 감쌈 → `ResponseCodeAware`(MDM027) → 변환기 예외(E001) 는 `S999` 대신 `MDM027`, 로그는 ERROR 대신 WARN 이다.
+- BPMN 밖에서 잡힌 cactus `BusinessException` 의 `ErrorCode` 가 null 이고 원인 사슬에 변환기가 아는 예외가 있으면 `S001` 대신 그 변환 코드다.
+- mcm 이 다음 커밋에서 mcm-core 업무 예외용 변환기를 등록한다.
+
 ### Security — 직접 실행 경로 기본 끔 (2026-10-07, notice-fill2 route-guard)
 
 **web/inbound/**

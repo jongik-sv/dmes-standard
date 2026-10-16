@@ -14,8 +14,8 @@ import java.util.regex.Pattern;
  * 신규 history 정책은 별도 PR (W5 SecUserPwd 확장 또는 별도 history 테이블 신설) 에서 재도입 예정.
  *
  * <p>cactus PasswordPolicy 인터페이스 implement 안 함 (의존 방향 정책). mcm-core 자체 클래스.
- * SecUserService.saveUsers / resetPassword 가 직접 호출. 사이트 McmAuthController.login 에서
- * 만료 검증 시 본 evaluator 를 직접 주입받아 호출.
+ * 사이트 McmAuthController 가 직접 주입받아 login 의 만료 검증과 changePassword 의 정책 검증에 쓴다.
+ * (옛 SecUserService.saveUsers / resetPassword 호출은 BE 리팩토링 2회차 F7 에서 archive 로 옮겼다.)
  */
 @Component
 public class PasswordPolicyEvaluator {

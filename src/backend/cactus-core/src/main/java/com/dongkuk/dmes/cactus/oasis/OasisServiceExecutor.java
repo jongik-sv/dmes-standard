@@ -114,13 +114,29 @@ public class OasisServiceExecutor {
         } catch (BusinessException e) {
             log.warn("[{}] BusinessException: {}", txId, e.getMessage());
             // BPMN 안쪽 경로(변환기)와 같은 판정 — ResponseCodeAware(MDMnnn) 가 운반용 코드에 가려지지 않는다.
-            String code = CactusResponseConverter.businessCode(e);
+            // 업무 예외 변환기(BusinessErrorTranslator)도 같은 순서로 묻는다. 상세는 예전처럼 이 예외의 것만 싣는다.
+            String code = responseConverter.businessCodeOf(e);
             return new CactusResponse.Builder(
                     ResponseMeta.error(txId, code != null ? code : ErrorCode.INTERNAL_ERROR.getCode(), e.getMessage()))
                     .errors(e.getErrors())
                     .build();
 
         } catch (Exception e) {
+            // 업무 예외 변환기(BusinessErrorTranslator)가 원인 사슬에서 코드를 알아보면 업무 예외로 응답한다 — cactus 에 의존하지
+            // 못하는 모듈의 업무 예외. 코드·상세는 BPMN 안쪽 경로(응답 변환기)와 같은 판정이다(USER_ERROR 단계만 없다):
+            // ResponseCodeAware → 원소별 cactus ErrorCode·변환 코드(트랜잭션 예외에서 멈춤), 상세는 cactus·변환 상세 중 가장 바깥.
+            // 업무 예외 변환기가 아무것도 알아보지 못하면 예전과 같다(ERROR 로그, S999, errors 없음).
+            String translatedCode = responseConverter.translatedCodeOf(e);
+            if (translatedCode != null) {
+                log.warn("[{}] Translated business exception: {}", txId, e.getMessage());
+                // 변환 코드가 있으면 전체 판정도 코드를 찾는다(같은 원소 이전에서 멈추지 않는다). 변환기가 호출마다 다른 답을 내는
+                // 경우에만 null 이라 그때는 변환 코드를 쓴다.
+                String code = responseConverter.businessCodeOf(e);
+                return new CactusResponse.Builder(
+                        ResponseMeta.error(txId, code != null ? code : translatedCode, e.getMessage()))
+                        .errors(responseConverter.errorDetailsOf(e))
+                        .build();
+            }
             log.error("[{}] Unexpected error", txId, e);
             return new CactusResponse.Builder(
                     ResponseMeta.error(txId, ErrorCode.UNKNOWN_ERROR.getCode(), e.getMessage()))

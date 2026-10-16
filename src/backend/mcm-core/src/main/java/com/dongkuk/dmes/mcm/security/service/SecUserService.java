@@ -1,9 +1,5 @@
 package com.dongkuk.dmes.mcm.security.service;
 
-import com.dongkuk.dmes.mcm.audit.AuditLogger;
-import com.dongkuk.dmes.mcm.common.exception.BusinessException;
-import com.dongkuk.dmes.mcm.common.exception.ErrorCode;
-import com.dongkuk.dmes.mcm.common.exception.ErrorDetail;
 import com.dongkuk.dmes.mcm.common.security.SecurityIdentity;
 import com.dongkuk.dmes.mcm.entity.SecMenu;
 import com.dongkuk.dmes.mcm.entity.SecObj;
@@ -15,17 +11,10 @@ import com.dongkuk.dmes.mcm.repository.SecPermRepository;
 import com.dongkuk.dmes.mcm.repository.SecRoleGroupMappingRepository;
 import com.dongkuk.dmes.mcm.repository.SecRoleMappingRepository;
 import com.dongkuk.dmes.mcm.repository.SecUserMappingRepository;
-import com.dongkuk.dmes.mcm.security.PasswordHasher;
-import com.dongkuk.dmes.mcm.security.TransientUserAccount;
-import com.dongkuk.dmes.mcm.security.UserAccount;
-import com.dongkuk.dmes.mcm.security.UserAccountRepository;
 import com.dongkuk.dmes.mcm.security.dto.MyMenusRequest;
-import com.dongkuk.dmes.mcm.security.dto.SecUserSearchRequest;
-import com.dongkuk.dmes.mcm.security.password.PasswordPolicyEvaluator;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -34,12 +23,10 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
-import java.util.Random;
 import java.util.Set;
 
 /**
- * 사용자 관리 서비스 — mcm-core. cactus 무관.
+ * 내 메뉴·내 권한 조회 서비스 — mcm-core. cactus 무관.
  *
  * <p>Phase R3 재작성 (2026-06-01) — W1~W9 신규 RBAC chain 으로 swap:
  * <pre>
@@ -47,14 +34,13 @@ import java.util.Set;
  *        → SecRoleMapping → (OBJECT_ID, PERMISSION_ID) → SecObj + SecPerm
  * </pre>
  *
- * <p>BPMN secUser 에서 호출. cactus.SecUser 등은 사이트 어댑터(SecUserAccountAdapter 등)
- * 를 통해 위임. mcm-core 자체는 {@link UserAccount} / {@link UserAccountRepository} /
- * {@link PasswordHasher} 인터페이스만 의존.
+ * <p>BPMN secUser 의 myMenus / myMenusTree / myPermissions / myButtonEndpoints 에서 호출한다.
+ * 사용자 조회·저장·비밀번호 초기화(search / save / resetPassword)는 BE 리팩토링 2회차 F7 에서
+ * {@code mcm-core/archive/main/security/} 로 옮겼다 — 실제 @Primary 사용자 저장소가 빈 목록·미지원 예외만 내는
+ * 죽은 경로였다. 사용자 관리는 {@code csa/commUserMng} 가 맡는다.
  *
  * <p>IDOR 차단: getMyMenus / getMyMenusTree / getMyPermissions / getMyButtonEndpoints 는
  * request body 의 userId 를 무시하고 {@link SecurityIdentity#requireUserId()} 로 강제 치환.
- *
- * <p>감사 로그: saveUsers / resetPassword 는 {@link AuditLogger} 로 호출 전·후 기록.
  *
  * <p>legacy 자산 의존 제거 매핑:
  * <ul>
@@ -70,8 +56,6 @@ import java.util.Set;
  *       (W3 복합 PK ROLE_ID + OBJECT_ID + PERMISSION_ID)</li>
  *   <li>{@code mcm.security.entity.SecUserRole} → {@code mcm.entity.SecUserMapping}
  *       (W5 복합 PK USER_ID + ROLE_GROUP_ID — RoleGroup 매개 1단계 추가)</li>
- *   <li>{@code mcm.security.entity.SecUserPwHis} → 폐기. resetPassword 는 hashed 비번을
- *       UserAccount.setUserPass 로만 적재. 이력 적재는 후속 PR (Phase R6 신규 SecUserPwd 흡수).</li>
  * </ul>
  *
  * <p>의미 변경 사항 (legacy → 신규):
@@ -84,7 +68,6 @@ import java.util.Set;
 @Service("secUserService")
 public class SecUserService {
 
-    private final UserAccountRepository userAccountRepository;
     private final SecUserMappingRepository secUserMappingRepository;
     private final SecRoleGroupMappingRepository secRoleGroupMappingRepository;
     private final SecRoleMappingRepository secRoleMappingRepository;
@@ -92,200 +75,26 @@ public class SecUserService {
     /** SEC_MENU·SEC_OBJ 전수 목록 캐시 — 사용자별 권한 필터는 요청마다 여기서 한다. */
     private final MenuCatalog menuCatalog;
     private final SecMenuFldLovRepository secMenuFldLovRepository;
-    private final PasswordHasher passwordHasher;
     private final SecurityIdentity securityIdentity;
-    private final AuditLogger auditLogger;
-    private final PasswordPolicyEvaluator passwordPolicyEvaluator;
     /** SYSADMIN 브레이크글라스 — true 시 메뉴/버튼 舊 전면통과 복원 (기본 false = 매핑 기반, 2026-07-30). */
     private final boolean sysadminFreepass;
 
-    public SecUserService(UserAccountRepository userAccountRepository,
-                          SecUserMappingRepository secUserMappingRepository,
+    public SecUserService(SecUserMappingRepository secUserMappingRepository,
                           SecRoleGroupMappingRepository secRoleGroupMappingRepository,
                           SecRoleMappingRepository secRoleMappingRepository,
                           SecPermRepository secPermRepository,
                           MenuCatalog menuCatalog,
                           SecMenuFldLovRepository secMenuFldLovRepository,
-                          PasswordHasher passwordHasher,
                           SecurityIdentity securityIdentity,
-                          AuditLogger auditLogger,
-                          PasswordPolicyEvaluator passwordPolicyEvaluator,
                           @Value("${mcm.security.sysadmin-freepass:false}") boolean sysadminFreepass) {
-        this.userAccountRepository = userAccountRepository;
         this.secUserMappingRepository = secUserMappingRepository;
         this.secRoleGroupMappingRepository = secRoleGroupMappingRepository;
         this.secRoleMappingRepository = secRoleMappingRepository;
         this.secPermRepository = secPermRepository;
         this.menuCatalog = menuCatalog;
         this.secMenuFldLovRepository = secMenuFldLovRepository;
-        this.passwordHasher = passwordHasher;
         this.securityIdentity = securityIdentity;
-        this.auditLogger = auditLogger;
-        this.passwordPolicyEvaluator = passwordPolicyEvaluator;
         this.sysadminFreepass = sysadminFreepass;
-    }
-
-    // ─────────────────────────────────────────────────────────────────────
-    // BPMN action=search
-    // ─────────────────────────────────────────────────────────────────────
-
-    /** BPMN action=search */
-    public List<UserAccount> searchUsers(SecUserSearchRequest request) {
-        List<UserAccount> all = userAccountRepository.findAll();
-        return all.stream()
-                .filter(u -> isBlank(request.getUserId()) || (u.getUserId() != null && u.getUserId().contains(request.getUserId())))
-                .filter(u -> isBlank(request.getUserNm()) || (u.getUserNm() != null && u.getUserNm().contains(request.getUserNm())))
-                .filter(u -> isBlank(request.getUseYn()) || request.getUseYn().equals(u.getUseYn()))
-                .filter(u -> isBlank(request.getDeptCd()) || request.getDeptCd().equals(u.getDeptCd()))
-                .toList();
-    }
-
-    // ─────────────────────────────────────────────────────────────────────
-    // BPMN action=save
-    // ─────────────────────────────────────────────────────────────────────
-
-    /**
-     * BPMN action=save — C/U/D 통합. 갭 #17 사용자 변경 audit + 비번 정책 적용.
-     */
-    public int saveUsers(List<Map<String, Object>> master) {
-        return auditLogger.record("USER_SAVE", "SecUser", master, () -> doSaveUsers(master));
-    }
-
-    private int doSaveUsers(List<Map<String, Object>> master) {
-        if (master == null) return 0;
-
-        List<ErrorDetail> errors = new ArrayList<>();
-        int count = 0;
-
-        for (int i = 0; i < master.size(); i++) {
-            Map<String, Object> row = master.get(i);
-            String rowKey = (String) row.get("rowKey");
-            String rowStatus = (String) row.get("rowStatus");
-            String userId = (String) row.get("userId");
-
-            if ("C".equals(rowStatus)) {
-                if (isBlank(userId)) {
-                    errors.add(ErrorDetail.ofGrid("master", rowKey, i, "userId", "E001", "사용자ID는 필수입니다."));
-                    continue;
-                }
-                if (userAccountRepository.existsById(userId)) {
-                    errors.add(ErrorDetail.ofGrid("master", rowKey, i, "userId", "E003", "이미 존재하는 사용자ID입니다."));
-                    continue;
-                }
-                String rawPass = (String) row.get("userPass");
-                if (isBlank(rawPass)) {
-                    errors.add(ErrorDetail.ofGrid("master", rowKey, i, "userPass", "E002", "비밀번호는 필수입니다."));
-                    continue;
-                }
-                try {
-                    passwordPolicyEvaluator.validate(rawPass, userId);
-                } catch (BusinessException pe) {
-                    errors.add(ErrorDetail.ofGrid("master", rowKey, i, "userPass", "E002", pe.getMessage()));
-                    continue;
-                }
-
-                UserAccount entity = newUserAccount();
-                entity.setUserNm((String) row.get("userNm"));
-                entity.setUserEmpNo((String) row.get("userNo"));
-                String hashed = passwordHasher.encode(rawPass);
-                entity.setUserPass(hashed);
-                entity.setUseYn(defaultIfBlank((String) row.get("useYn"), "Y"));
-                entity.setLockYn(defaultIfBlank((String) row.get("lockYn"), "N"));
-                entity.setTryCnt(0);
-                entity.setPassInitYn(defaultIfBlank((String) row.get("passInitYn"), "N"));
-                entity.setPassSetDd(LocalDate.now());
-                entity.setDeptCd((String) row.get("deptCd"));
-                UserAccount toSave = createNewUserAccount(userId, entity);
-                userAccountRepository.save(toSave);
-                count++;
-
-            } else if ("U".equals(rowStatus)) {
-                if (isBlank(userId)) {
-                    errors.add(ErrorDetail.ofGrid("master", rowKey, i, "userId", "E001", "사용자ID는 필수입니다."));
-                    continue;
-                }
-                Optional<UserAccount> opt = userAccountRepository.findById(userId);
-                if (opt.isEmpty()) {
-                    errors.add(ErrorDetail.ofGrid("master", rowKey, i, "userId", "E004", "사용자를 찾을 수 없습니다."));
-                    continue;
-                }
-                UserAccount entity = opt.get();
-                if (row.containsKey("userNm"))   entity.setUserNm((String) row.get("userNm"));
-                if (row.containsKey("userNo"))   entity.setUserEmpNo((String) row.get("userNo"));
-                if (row.containsKey("useYn"))    entity.setUseYn((String) row.get("useYn"));
-                if (row.containsKey("lockYn"))   entity.setLockYn((String) row.get("lockYn"));
-                if (row.containsKey("deptCd"))   entity.setDeptCd((String) row.get("deptCd"));
-
-                String rawPass = (String) row.get("userPass");
-                if (!isBlank(rawPass)) {
-                    try {
-                        passwordPolicyEvaluator.validate(rawPass, userId);
-                    } catch (BusinessException pe) {
-                        errors.add(ErrorDetail.ofGrid("master", rowKey, i, "userPass", "E002", pe.getMessage()));
-                        continue;
-                    }
-                    String hashed = passwordHasher.encode(rawPass);
-                    entity.setUserPass(hashed);
-                    entity.setPassSetDd(LocalDate.now());
-                    entity.setPassInitYn("N");
-                }
-                userAccountRepository.save(entity);
-                count++;
-
-            } else if ("D".equals(rowStatus)) {
-                if (isBlank(userId)) continue;
-                // 신규 chain: 사용자 삭제 시 SecUserMapping (USER → RoleGroup) 도 동반 정리.
-                // legacy SecUserRole (USER → Role) 흡수 매핑. 사용자 단위 벌크 DELETE 1회.
-                secUserMappingRepository.bulkDeleteByUserId(userId);
-                userAccountRepository.deleteById(userId);
-                count++;
-            }
-        }
-
-        if (!errors.isEmpty()) {
-            throw new BusinessException(ErrorCode.REQUIRED_VALUE, "입력값을 확인해주세요.", errors);
-        }
-        return count;
-    }
-
-    // ─────────────────────────────────────────────────────────────────────
-    // BPMN action=resetPassword
-    // ─────────────────────────────────────────────────────────────────────
-
-    /**
-     * BPMN action=resetPassword. 임시 비번 발급 + passInitYn='Y'.
-     *
-     * <p>Phase R3 변경 — legacy SecUserPwHis 적재 폐기 (Phase R7 일괄 삭제 대상).
-     * 신규 SecUserPwd 흡수 (W5) 는 commUserMng 화면 service 가 담당. 본 mcm-core SecUserService
-     * 는 UserAccount.setUserPass + 임시 비번 반환 / passInitYn='Y' 만 처리.
-     */
-    public Map<String, Object> resetPassword(MyMenusRequest request) {
-        return auditLogger.record("USER_RESET_PW", "SecUser", request, () -> doResetPassword(request));
-    }
-
-    @SuppressWarnings("deprecation")
-    private Map<String, Object> doResetPassword(MyMenusRequest request) {
-        String targetUserId = request.getUserId();
-        if (isBlank(targetUserId)) {
-            throw new BusinessException(ErrorCode.REQUIRED_VALUE, "userId 는 필수입니다.");
-        }
-        UserAccount user = userAccountRepository.findById(targetUserId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.INVALID_VALUE, "사용자를 찾을 수 없습니다."));
-
-        String tempPassword = generateTempPassword();
-        String hashed = passwordHasher.encode(tempPassword);
-        user.setUserPass(hashed);
-        user.setPassInitYn("Y");
-        user.setPassSetDd(LocalDate.now());
-        user.setTryCnt(0);
-        user.setLockYn("N");
-        userAccountRepository.save(user);
-
-        Map<String, Object> result = new LinkedHashMap<>();
-        result.put("userId", targetUserId);
-        result.put("temporaryPassword", tempPassword);
-        result.put("reset", true);
-        return result;
     }
 
     // ─────────────────────────────────────────────────────────────────────
@@ -544,32 +353,6 @@ public class SecUserService {
         }
     }
 
-    /** 임시 비번 발급. 8자리 영숫자. */
-    private String generateTempPassword() {
-        String alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
-        Random random = new Random();
-        StringBuilder sb = new StringBuilder(8);
-        for (int i = 0; i < 8; i++) {
-            sb.append(alphabet.charAt(random.nextInt(alphabet.length())));
-        }
-        return sb.toString();
-    }
-
-    /**
-     * 신규 UserAccount 빈 인스턴스. 사이트 어댑터가 빈 SecUser 를 감싼 어댑터를 반환.
-     */
-    private UserAccount newUserAccount() {
-        return new TransientUserAccount();
-    }
-
-    private UserAccount createNewUserAccount(String userId, UserAccount template) {
-        if (template instanceof TransientUserAccount t) {
-            t.setUserId(userId);
-            return t;
-        }
-        return template;
-    }
-
     /**
      * 사용자에게 허용된 OBJECT_ID 집합 기준으로 SecMenu 필터링.
      *
@@ -674,8 +457,4 @@ public class SecUserService {
     }
 
     private boolean isBlank(String s) { return s == null || s.isBlank(); }
-
-    private String defaultIfBlank(String value, String fallback) {
-        return isBlank(value) ? fallback : value;
-    }
 }

@@ -190,7 +190,7 @@ class CommUserMngServiceSaveTest extends CommUserMngJpaTestBase {
             SecUser after = userOf("upd");
             assertThat(after.getUserNm()).isEqualTo("새이름");
             assertThat(after.getEmail()).isEqualTo("new@x");
-            // 결함 의심: 행에 키가 없으면 null 로 덮는다(SecUserService 의 U 분기는 containsKey 로 거른다).
+            // 결함 의심: 행에 키가 없으면 null 로 덮는다(옛 SecUserService(F7 보관) 의 U 분기는 containsKey 로 걸렀다).
             assertThat(after.getDeptCd()).isNull();
             assertThat(after.getUserEmpNo()).isNull();
             assertThat(after.getInOutEmpTp()).isNull();

@@ -21,7 +21,7 @@ public interface SecurityIdentity {
     /**
      * 인증된 사용자 ID 를 반환. 미인증/blank 면 {@link IllegalStateException}.
      *
-     * <p>IDOR 차단이 필요한 비즈니스 로직(예: getMyMenus / resetPassword) 에서
+     * <p>IDOR 차단이 필요한 비즈니스 로직(예: getMyMenus / getMyPermissions) 에서
      * request body 의 userId 대신 본 메서드로 강제 치환한다. fail-fast 정책.
      */
     default String requireUserId() {

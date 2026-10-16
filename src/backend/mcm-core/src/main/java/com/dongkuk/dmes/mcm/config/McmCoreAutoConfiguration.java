@@ -19,7 +19,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
  * 활성화된다.
  *
  * <p>이 정책의 이유: mcm-core 의 RBAC/사용자관리 빈들은 사이트가 등록해야 하는 SPI
- * 어댑터(PasswordHasher, UserAccountRepository, SecurityIdentity)에 의존한다. mcm-core 가
+ * 어댑터(SecurityIdentity 등)에 의존한다. mcm-core 가
  * 모든 사이트에서 자동 component scan 으로 등록을 시도하면, 어댑터가 없는 사이트
  * (mpn/mpp/mqc 등 mcm-core 를 라이브러리로만 참조하는 사이트)는 부팅 시 의존성 누락으로
  * 실패한다. 사이트가 의도해서 scan 에 포함했을 때만 활성화하는 게 안전하다.

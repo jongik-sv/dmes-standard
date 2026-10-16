@@ -57,6 +57,8 @@ SYSADMIN 도 동일한 멤버십 판정을 타게 전환한다.
 | `config/McmSecurityDefaults.java` L38-49 | secUser/secRole/secPerm/secObj/secMenu/secRolePerm/secUserRole/secRoleGroup save 류 → `hasAuthority(SYSADMIN)` 필수 | 허용 확대가 아닌 **추가 제한**. 제거하면 PERM 매핑만으로 권한 마스터를 바꿀 수 있게 되어 권한상승 경로가 열림 |
 | `EndpointPermissionFilter.AUTH_ONLY_OBJ_ACTION_PREFIXES` L67-73 | myMenus/myButtonEndpoints 등 본인 데이터 RBAC 면제 | SYSADMIN 무관 — 전 사용자 공통 설계 |
 
+> 2026-10-16 갱신(BE 리팩토링 2회차 D3·F7): 위 `McmSecurityDefaults` gate 중 BPMN 이 없는 서비스(secRole·secPerm·secObj·secMenu·secRolePerm·secUserRole·secRoleGroup·secCode)의 matcher 는 D3 에서, 쓰이지 않던 `secUser/save`·`secUser/resetPassword` 는 F7 에서 BPMN action 과 함께 지워 SYSADMIN gate 는 남지 않았다.
+
 ---
 
 ## 2. 판정 흐름 변화

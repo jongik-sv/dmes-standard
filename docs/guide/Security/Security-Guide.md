@@ -31,8 +31,9 @@
     - 중요 mutation은 aps-core 서비스 method guard가 최종 인가 경계다. 시나리오 확정 `POST /api/scenarios/{scenarioId}/finalize`는 `ROLE_ADMIN` 또는 `ROLE_PLANNER`만 허용하고 `ROLE_VIEWER`는 403으로 거부한다.
 - mcm 의 default permitAll 매처 (`McmSecurityDefaults`)
   - permitAll: `/api/auth/**`, `/actuator/health`, `/actuator/info`
-  - `ROLE_SYSADMIN`: `/oasis/secUser/save`, `/oasis/secRole/save`, `/oasis/secPerm/save`, `/oasis/secObj/save`, `/oasis/secMenu/save`, `/oasis/secRolePerm/save`, `/oasis/secUserRole/save`, `/oasis/secRoleGroup/{save,assignRoles,assignUsers}`, `/oasis/secCode/save`, `/oasis/secUser/resetPassword`
-  - authenticated: `/oasis/secUser/{myMenus, myMenusTree, myPermissions}`, `/oasis/secFavorite/**`, `/oasis/secMenu/recordAccess`
+  - `ROLE_SYSADMIN`: 없음. 쓰이지 않던 `/oasis/secUser/save`·`/oasis/secUser/resetPassword` 는 2026-10-16 BPMN action(`SecUserService` 의 search·save·resetPassword)과 함께 archive 로 옮기며 지웠다(BE 리팩토링 2회차 F7). 사용자 관리는 `csa/commUserMng` 이다.
+  - authenticated: `/oasis/secUser/{myMenus, myMenusTree, myPermissions}`, `/oasis/secFavorite/**`, `/oasis/secStartPgm/**`
+  - 경로마다 `/oasis`·`/mcm/oasis`·`/api/mcm/oasis` 세 접두에 같이 걸린다. BPMN 이 없는 옛 서비스(`secRole`·`secPerm`·`secObj`·`secMenu`·`secRolePerm`·`secUserRole`·`secRoleGroup`·`secCode`, `secMenu/recordAccess`)의 matcher 는 2026-10-16 에 지웠다(BE 리팩토링 2회차 D3). 실제 권한 마스터 서비스(`csa/comm*Mng`)에 SYSADMIN gate 를 둘지는 F8(결정 대기)이다.
 - 폐기 항목
   - 구 `AuthController` (cactus 측 데드코드) 는 삭제됨. 인증 엔드포인트는 `McmAuthController` (`mcm/lib`) 가 `/api/auth/**` 로 제공한다.
 

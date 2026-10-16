@@ -1,5 +1,6 @@
 package com.dongkuk.dmes.cactus.oasis;
 
+import com.dongkuk.dmes.cactus.common.BusinessErrorTranslator;
 import com.dongkuk.dmes.cactus.oasis.aop.OasisAopAnnotationChecker;
 import com.dongkuk.dmes.cactus.oasis.loader.HttpServiceDocumentLoader;
 import com.dongkuk.dmes.cactus.oasis.provider.CactusCachingServiceProvider;
@@ -19,6 +20,7 @@ import com.dongkuk.oasis.unmarshal.camunda.CamundaBpmnServiceUnmarshaller;
 import org.apache.ibatis.session.SqlSession;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -152,10 +154,14 @@ public class OasisAutoConfiguration {
         return new CactusRequestConverter();
     }
 
-    /** OASIS 결과 → CactusResponse 변환기 빈 생성 */
+    /**
+     * OASIS 결과 → CactusResponse 변환기 빈 생성.
+     * 호스트가 등록한 {@link BusinessErrorTranslator} 빈을 순서({@code @Order}·{@code Ordered})대로 넘긴다 — 없으면 cactus 형만
+     * 알아보는 예전 변환기와 같다(2026-10-16, BE 리팩토링 2회차 F2).
+     */
     @Bean
-    public CactusResponseConverter oasisResponseConverter() {
-        return new CactusResponseConverter();
+    public CactusResponseConverter oasisResponseConverter(ObjectProvider<BusinessErrorTranslator> businessErrorTranslators) {
+        return new CactusResponseConverter(businessErrorTranslators.orderedStream().toList());
     }
 
     /** OASIS 서비스 실행기 빈 생성 */

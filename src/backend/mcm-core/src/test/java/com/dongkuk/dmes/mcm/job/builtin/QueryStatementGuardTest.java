@@ -21,6 +21,9 @@ class QueryStatementGuardTest {
             "BEGIN PKG.P(:schedAt); END;",
             "begin pkg.p(:a, 'x;y', 3); end",
             "BEGIN SCHEMA1.PKG.P; END;",
+            "UPDATE T SET A = N'abc' WHERE B = 1",
+            "UPDATE T SET A = 1 -- 주석\r\n WHERE B = 1",
+            "UPDATE T SET A_NQ = 'x' WHERE SEQ = 'y'",
     })
     @DisplayName("허용 — DML 한 문장(끝 ; 는 떼어 낸다)이나 프로시저 호출 하나. 주석·문자열 안의 금지어는 본다")
     void allowed(String sql) {
@@ -42,15 +45,104 @@ class QueryStatementGuardTest {
             "BEGIN P1(:a); COMMIT; END;",
             "UPDATE T SET A = 1 WHERE B IN (SELECT B FROM T2@DBLINK)",
             "UPDATE T SET A = q'[x]' WHERE 1 = 1",
+            "UPDATE T SET A = nq'[x]' WHERE 1 = 1",
+            "UPDATE T SET A = NQ'{x}' WHERE 1 = 1",
+            "UPDATE T SET A = Nq '<x>' WHERE 1 = 1",
+            "UPDATE T SET A = nQ'(x)' WHERE 1 = 1",
+            "UPDATE T SET A = 1nq'[ ' ]' WHERE 1 = 1 OR EXISTS (SELECT 1 FROM T2@REMOTE) -- '",
+            "UPDATE T SET A = 1e5q'[ ' ]' WHERE 1 = 1 OR EXISTS (SELECT 1 FROM T2@REMOTE) -- '",
+            "UPDATE T SET A = 1E5NQ'[ ' ]' WHERE 1 = 1 OR EXISTS (SELECT 1 FROM T2@REMOTE) -- '",
+            "UPDATE T SET A = 1.e5q'[ ' ]' WHERE 1 = 1 OR EXISTS (SELECT 1 FROM T2@REMOTE) -- '",
+            "UPDATE T SET A = 1fq'[ ' ]' WHERE 1 = 1 OR EXISTS (SELECT 1 FROM T2@REMOTE) -- '",
+            "UPDATE T SET A = 1dq'[ ' ]' WHERE 1 = 1 OR EXISTS (SELECT 1 FROM T2@REMOTE) -- '",
+            "UPDATE T SET A = CONCAT('a',q'[x]') WHERE 1 = 1",
+            "UPDATE T SET A = (nq'[x]') WHERE 1 = 1",
+            "UPDATE T SET A = /**/q'[x]' WHERE 1 = 1",
+            "UPDATE T SET A = 'a'||q'[x]' WHERE 1 = 1",
+            "UPDATE T SET A = 1 -- 주석\rWHERE B = 1",
             "UPDATE T SET A = 1 WHERE B = :1",
             "UPDATE T SET A = &x",
             "UPDATE T SET A = 'abc",
             "",
             "   ",
     })
-    @DisplayName("거절 — SELECT·DDL·트랜잭션 제어·여러 문장·EXECUTE IMMEDIATE·DB 링크·대체 따옴표·위치 바인드·닫히지 않은 따옴표·빈 문장")
+    @DisplayName("거절 — SELECT·DDL·트랜잭션 제어·여러 문장·EXECUTE IMMEDIATE·DB 링크·대체 따옴표(q·nq)·위치 바인드·주석 안 단독 CR·닫히지 않은 따옴표·빈 문장")
     void rejected(String sql) {
         assertThatThrownBy(() -> QueryStatementGuard.check(sql)).isInstanceOf(IllegalArgumentException.class);
+    }
+
+    /**
+     * Oracle 은 국가 문자 대체 따옴표 {@code nq'[…]'} 안의 {@code '} 를 글자로 읽는다(2026-10-16 L_MAIN 실측: {@code LENGTH(nq'[a'b]')} = 3).
+     * 이 검사기는 {@code '} 를 차례로 짝지어 가리므로, 아래 문장의 DB 링크 구간이 가린 사본에서는 문자열 속으로 숨는다.
+     */
+    @Test
+    @DisplayName("nq'…' 는 거절한다 — 가린 사본이 원문과 어긋나 그 뒤의 DB 링크를 못 보던 문장(F6)")
+    void nqAltQuoteRejected() {
+        String sql = "UPDATE T SET A = nq'[ ' ]' WHERE 1 = 1 OR EXISTS (SELECT 1 FROM T2@REMOTE) -- '";
+        assertThatThrownBy(() -> QueryStatementGuard.check(sql))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("대체 따옴표 q'…'·nq'…' 는 쓸 수 없습니다");
+    }
+
+    @Test
+    @DisplayName("-- 주석 안의 단독 CR 은 거절한다 — CRLF 는 받는다")
+    void loneCrInLineCommentRejected() {
+        assertThatThrownBy(() -> QueryStatementGuard.check("UPDATE T SET A = 1 -- 주석\rWHERE B = 1"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("주석 안의 단독 줄바꿈(CR)은 쓸 수 없습니다");
+        assertThatThrownBy(() -> QueryStatementGuard.check("UPDATE T SET A = 1 -- 끝\r"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("주석 안의 단독 줄바꿈(CR)은 쓸 수 없습니다");
+        assertThat(QueryStatementGuard.check("UPDATE T SET A = 'x\ry' /* a\rb */ WHERE B = 1").sql()).isNotBlank();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "UPDATE T SET A = 'Q' WHERE B = 1",
+            "UPDATE T SET A = 'NQ' WHERE B = 1",
+            "UPDATE T SET A = 'x' WHERE B IN ('P', 'Q')",
+            "UPDATE T SET A = 'q''' WHERE B = 'nq '' x'",
+            "UPDATE T SET Q = 'x', NQ = 'y' WHERE B = 1",
+    })
+    @DisplayName("일반 문자열 'Q'·'NQ' 와 Q·NQ 칸 이름은 받는다 — q·nq 판별은 따옴표 밖 코드 자리에서만 한다")
+    void plainQLiteralAllowed(String sql) {
+        assertThat(QueryStatementGuard.check(sql).sql()).isEqualTo(sql);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "UPDATE T SET A = \"UTL_HTTP\".REQUEST('http://x') WHERE ROWNUM = 1",
+            "UPDATE T SET A = SYS.\"UTL_HTTP\".REQUEST('http://x') WHERE ROWNUM = 1",
+            "UPDATE T SET A = 1 WHERE B IN (SELECT B FROM DUAL,\"T2\"@REMOTE)",
+            "UPDATE T SET A = 1 WHERE B IN (SELECT B FROM T2@\"REMOTE\")",
+            "BEGIN PKG.P(\"UTL_HTTP\".REQUEST('x')); END;",
+    })
+    @DisplayName("따옴표 식별자 안의 금지어와 따옴표에 붙은 DB 링크를 거절한다(F6)")
+    void quotedIdentifierBypassRejected(String sql) {
+        assertThatThrownBy(() -> QueryStatementGuard.check(sql)).isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    @DisplayName("따옴표 식별자 우회의 거절 사유 — 금지어는 그 낱말, @ 는 DB 링크")
+    void quotedIdentifierBypassMessages() {
+        assertThatThrownBy(() -> QueryStatementGuard.check("UPDATE T SET A = \"UTL_HTTP\".REQUEST('http://x') WHERE ROWNUM = 1"))
+                .hasMessage("쓸 수 없는 낱말이 있습니다: UTL_HTTP");
+        assertThatThrownBy(() -> QueryStatementGuard.check("UPDATE T SET A = 1 WHERE B IN (SELECT B FROM DUAL,\"T2\"@REMOTE)"))
+                .hasMessage("DB 링크는 쓸 수 없습니다");
+        assertThatThrownBy(() -> QueryStatementGuard.check("UPDATE T SET A = 1 WHERE B IN (SELECT B FROM T2 @ REMOTE)"))
+                .hasMessage("DB 링크는 쓸 수 없습니다");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "UPDATE \"MY_TABLE\" SET \"Col A\" = 1 WHERE \"KEY\" = :k",
+            "UPDATE T SET A = 'a@b.com' WHERE B = 1 -- mail@host",
+            "UPDATE T SET \"X@Y\" = 1 WHERE B = 1",
+            "UPDATE T SET \"CREATED_AT\" = SYSDATE, CREATED_BY = :u WHERE B = 1",
+    })
+    @DisplayName("금지어가 아닌 따옴표 식별자, 문자열·주석·식별자 안의 @ 는 받는다")
+    void quotedIdentifierAndAtInsideAllowed(String sql) {
+        assertThat(QueryStatementGuard.check(sql).sql()).isEqualTo(sql);
     }
 
     @Test

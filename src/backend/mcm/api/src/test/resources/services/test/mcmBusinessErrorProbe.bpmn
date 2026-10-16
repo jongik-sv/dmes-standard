@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:camunda="http://camunda.org/schema/1.0/bpmn"
+                  id="Definitions_mcmBusinessErrorProbe"
+                  targetNamespace="http://bpmn.io/schema/bpmn">
+
+  <bpmn:process id="mcmBusinessErrorProbe" name="mcm 업무 예외 응답 특성 시험용" isExecutable="true">
+    <bpmn:documentation>
+시험 전용 BPMN — McmBusinessErrorOasisResponseTest (refactor-be F2) 가 쓴다.
+action 마다 시험 빈 mcmBusinessErrorProbe 의 메서드 하나를 불러 예외를 던진다.
+  mcmRowErrors    → mcm-core BusinessException + 행 상세(ErrorDetail.ofGrid)
+  mcmNoRows       → mcm-core BusinessException, 행 상세 없음
+  mcmWrapped      → IllegalStateException 이 mcmRowErrors 의 예외를 원인으로 감쌈
+  cactusRowErrors → 대조군. cactus BusinessException + cactus 행 상세
+    </bpmn:documentation>
+
+    <bpmn:startEvent id="start">
+      <bpmn:outgoing>flow_to_gw</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:sequenceFlow id="flow_to_gw" sourceRef="start" targetRef="actionGateway" />
+
+    <bpmn:exclusiveGateway id="actionGateway">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="input" value="action" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_to_gw</bpmn:incoming>
+      <bpmn:outgoing>flow_mcmRowErrors</bpmn:outgoing>
+      <bpmn:outgoing>flow_mcmNoRows</bpmn:outgoing>
+      <bpmn:outgoing>flow_mcmWrapped</bpmn:outgoing>
+      <bpmn:outgoing>flow_cactusRowErrors</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:sequenceFlow id="flow_mcmRowErrors" name="mcmRowErrors" sourceRef="actionGateway" targetRef="mcmRowErrorsTask" />
+    <bpmn:serviceTask id="mcmRowErrorsTask" name="mcm-core 업무 예외 + 행 상세" camunda:class="mcmBusinessErrorProbe">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="mcmRowErrors" />
+          <camunda:property name="output" value="result" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_mcmRowErrors</bpmn:incoming>
+      <bpmn:outgoing>flow_mcmRowErrors_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="flow_mcmRowErrors_end" sourceRef="mcmRowErrorsTask" targetRef="endMcmRowErrors" />
+    <bpmn:endEvent id="endMcmRowErrors">
+      <bpmn:incoming>flow_mcmRowErrors_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="flow_mcmNoRows" name="mcmNoRows" sourceRef="actionGateway" targetRef="mcmNoRowsTask" />
+    <bpmn:serviceTask id="mcmNoRowsTask" name="mcm-core 업무 예외, 행 상세 없음" camunda:class="mcmBusinessErrorProbe">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="mcmNoRows" />
+          <camunda:property name="output" value="result" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_mcmNoRows</bpmn:incoming>
+      <bpmn:outgoing>flow_mcmNoRows_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="flow_mcmNoRows_end" sourceRef="mcmNoRowsTask" targetRef="endMcmNoRows" />
+    <bpmn:endEvent id="endMcmNoRows">
+      <bpmn:incoming>flow_mcmNoRows_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="flow_mcmWrapped" name="mcmWrapped" sourceRef="actionGateway" targetRef="mcmWrappedTask" />
+    <bpmn:serviceTask id="mcmWrappedTask" name="감싼 mcm-core 업무 예외" camunda:class="mcmBusinessErrorProbe">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="mcmWrapped" />
+          <camunda:property name="output" value="result" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_mcmWrapped</bpmn:incoming>
+      <bpmn:outgoing>flow_mcmWrapped_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="flow_mcmWrapped_end" sourceRef="mcmWrappedTask" targetRef="endMcmWrapped" />
+    <bpmn:endEvent id="endMcmWrapped">
+      <bpmn:incoming>flow_mcmWrapped_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="flow_cactusRowErrors" name="cactusRowErrors" sourceRef="actionGateway" targetRef="cactusRowErrorsTask" />
+    <bpmn:serviceTask id="cactusRowErrorsTask" name="대조군 — cactus 업무 예외 + 행 상세" camunda:class="mcmBusinessErrorProbe">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="cactusRowErrors" />
+          <camunda:property name="output" value="result" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_cactusRowErrors</bpmn:incoming>
+      <bpmn:outgoing>flow_cactusRowErrors_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="flow_cactusRowErrors_end" sourceRef="cactusRowErrorsTask" targetRef="endCactusRowErrors" />
+    <bpmn:endEvent id="endCactusRowErrors">
+      <bpmn:incoming>flow_cactusRowErrors_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+  </bpmn:process>
+</bpmn:definitions>

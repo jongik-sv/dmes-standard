@@ -1,6 +1,5 @@
 package com.dongkuk.dmes.mcm.menu;
 
-import com.dongkuk.dmes.mcm.audit.AuditLogger;
 import com.dongkuk.dmes.mcm.common.event.MenuChangedEvent;
 import com.dongkuk.dmes.mcm.common.security.SecurityIdentity;
 import com.dongkuk.dmes.mcm.entity.SecMenu;
@@ -21,10 +20,7 @@ import com.dongkuk.dmes.mcm.repository.SecRoleGroupMappingRepository;
 import com.dongkuk.dmes.mcm.repository.SecRoleMappingRepository;
 import com.dongkuk.dmes.mcm.repository.SecUserMappingRepository;
 import com.dongkuk.dmes.mcm.screenusage.service.ScreenMenuCatalog;
-import com.dongkuk.dmes.mcm.security.PasswordHasher;
-import com.dongkuk.dmes.mcm.security.UserAccountRepository;
 import com.dongkuk.dmes.mcm.security.dto.MyMenusRequest;
-import com.dongkuk.dmes.mcm.security.password.PasswordPolicyEvaluator;
 import com.dongkuk.dmes.mcm.security.service.SecUserService;
 import com.dongkuk.dmes.mcm.startpgm.dto.SecStartPgmSearchRequest;
 import com.dongkuk.dmes.mcm.startpgm.dto.SecStartPgmToggleRequest;
@@ -113,17 +109,13 @@ class MenuCatalogCallersSelectCountTest {
         SecMenuFldLovRepository fldRepo = mock(SecMenuFldLovRepository.class);
         when(fldRepo.findAllForMyMenus()).thenReturn(List.of());
         secUserService = new SecUserService(
-                mock(UserAccountRepository.class),
                 mock(SecUserMappingRepository.class),
                 mock(SecRoleGroupMappingRepository.class),
                 mock(SecRoleMappingRepository.class),
                 mock(SecPermRepository.class),
                 catalog,
                 fldRepo,
-                mock(PasswordHasher.class),
                 identity,
-                mock(AuditLogger.class),
-                mock(PasswordPolicyEvaluator.class),
                 true); // 브레이크글라스 — 권한 매핑 없이 전체 leaf 를 보게 해 카탈로그 경로만 본다
 
         SecUserFavoriteRepository favRepo = mock(SecUserFavoriteRepository.class);
@@ -263,17 +255,13 @@ class MenuCatalogCallersSelectCountTest {
         when(fldRepo.findAllForMyMenus()).thenReturn(List.of());
 
         SecUserService filtered = new SecUserService(
-                mock(UserAccountRepository.class),
                 userMappingRepo,
                 roleGroupRepo,
                 roleMappingRepo,
                 mock(SecPermRepository.class),
                 catalog,
                 fldRepo,
-                mock(PasswordHasher.class),
                 identity,
-                mock(AuditLogger.class),
-                mock(PasswordPolicyEvaluator.class),
                 false); // 브레이크글라스 끔 — 역할 매핑 필터를 실제로 탄다
 
         currentUser.set("userA");

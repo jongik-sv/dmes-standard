@@ -1,0 +1,168 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+                  xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+                  xmlns:camunda="http://camunda.org/schema/1.0/bpmn"
+                  id="Definitions_secUser"
+                  targetNamespace="http://bpmn.io/schema/bpmn"
+                  exporter="Camunda Modeler" exporterVersion="5.37.0">
+
+  <bpmn:process id="secUser" name="사용자 관리 서비스" isExecutable="true">
+
+    <bpmn:startEvent id="start">
+      <bpmn:outgoing>flow_to_gw</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:sequenceFlow id="flow_to_gw" sourceRef="start" targetRef="actionGateway" />
+
+    <bpmn:exclusiveGateway id="actionGateway">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="input" value="action" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_to_gw</bpmn:incoming>
+      <bpmn:outgoing>flow_search</bpmn:outgoing>
+      <bpmn:outgoing>flow_save</bpmn:outgoing>
+      <bpmn:outgoing>flow_resetPassword</bpmn:outgoing>
+      <bpmn:outgoing>flow_myMenus</bpmn:outgoing>
+      <bpmn:outgoing>flow_myMenusTree</bpmn:outgoing>
+      <bpmn:outgoing>flow_myPermissions</bpmn:outgoing>
+      <bpmn:outgoing>flow_myButtonEndpoints</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:sequenceFlow id="flow_search" name="search" sourceRef="actionGateway" targetRef="searchTask" />
+    <bpmn:serviceTask id="searchTask" name="사용자 조회" camunda:class="secUserService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="searchUsers" />
+          <camunda:property name="output" value="users" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mcm.security.dto.SecUserSearchRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_search</bpmn:incoming>
+      <bpmn:outgoing>flow_search_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="flow_search_end" sourceRef="searchTask" targetRef="endSearch" />
+    <bpmn:endEvent id="endSearch"><bpmn:incoming>flow_search_end</bpmn:incoming></bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="flow_save" name="save" sourceRef="actionGateway" targetRef="saveTask" />
+    <bpmn:serviceTask id="saveTask" name="사용자 저장" camunda:class="secUserService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="saveUsers" />
+          <camunda:property name="output" value="savedCount" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_save</bpmn:incoming>
+      <bpmn:outgoing>flow_save_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="flow_save_end" sourceRef="saveTask" targetRef="endSave" />
+    <bpmn:endEvent id="endSave"><bpmn:incoming>flow_save_end</bpmn:incoming></bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="flow_resetPassword" name="resetPassword" sourceRef="actionGateway" targetRef="resetPasswordTask" />
+    <bpmn:serviceTask id="resetPasswordTask" name="비밀번호 초기화" camunda:class="secUserService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="resetPassword" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mcm.security.dto.MyMenusRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_resetPassword</bpmn:incoming>
+      <bpmn:outgoing>flow_resetPassword_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="flow_resetPassword_end" sourceRef="resetPasswordTask" targetRef="endResetPassword" />
+    <bpmn:endEvent id="endResetPassword"><bpmn:incoming>flow_resetPassword_end</bpmn:incoming></bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="flow_myMenus" name="myMenus" sourceRef="actionGateway" targetRef="myMenusTask" />
+    <bpmn:serviceTask id="myMenusTask" name="내 메뉴 조회" camunda:class="secUserService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="getMyMenus" />
+          <camunda:property name="output" value="menus" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mcm.security.dto.MyMenusRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_myMenus</bpmn:incoming>
+      <bpmn:outgoing>flow_myMenus_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="flow_myMenus_end" sourceRef="myMenusTask" targetRef="endMyMenus" />
+    <bpmn:endEvent id="endMyMenus"><bpmn:incoming>flow_myMenus_end</bpmn:incoming></bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="flow_myMenusTree" name="myMenusTree" sourceRef="actionGateway" targetRef="myMenusTreeTask" />
+    <bpmn:serviceTask id="myMenusTreeTask" name="내 메뉴 트리 조회" camunda:class="secUserService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="getMyMenusTree" />
+          <camunda:property name="output" value="menus" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mcm.security.dto.MyMenusRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_myMenusTree</bpmn:incoming>
+      <bpmn:outgoing>flow_myMenusTree_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="flow_myMenusTree_end" sourceRef="myMenusTreeTask" targetRef="endMyMenusTree" />
+    <bpmn:endEvent id="endMyMenusTree"><bpmn:incoming>flow_myMenusTree_end</bpmn:incoming></bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="flow_myPermissions" name="myPermissions" sourceRef="actionGateway" targetRef="myPermissionsTask" />
+    <bpmn:serviceTask id="myPermissionsTask" name="내 권한 조회" camunda:class="secUserService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="getMyPermissions" />
+          <camunda:property name="output" value="permissions" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mcm.security.dto.MyMenusRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_myPermissions</bpmn:incoming>
+      <bpmn:outgoing>flow_myPermissions_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="flow_myPermissions_end" sourceRef="myPermissionsTask" targetRef="endMyPermissions" />
+    <bpmn:endEvent id="endMyPermissions"><bpmn:incoming>flow_myPermissions_end</bpmn:incoming></bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="flow_myButtonEndpoints" name="myButtonEndpoints" sourceRef="actionGateway" targetRef="myButtonEndpointsTask" />
+    <bpmn:serviceTask id="myButtonEndpointsTask" name="내 버튼 권한 조회" camunda:class="secUserService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="getMyButtonEndpoints" />
+          <camunda:property name="output" value="buttons" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mcm.security.dto.MyMenusRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_myButtonEndpoints</bpmn:incoming>
+      <bpmn:outgoing>flow_myButtonEndpoints_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="flow_myButtonEndpoints_end" sourceRef="myButtonEndpointsTask" targetRef="endMyButtonEndpoints" />
+    <bpmn:endEvent id="endMyButtonEndpoints"><bpmn:incoming>flow_myButtonEndpoints_end</bpmn:incoming></bpmn:endEvent>
+
+  </bpmn:process>
+
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="secUser">
+      <bpmndi:BPMNShape id="start_di" bpmnElement="start"><dc:Bounds x="152" y="392" width="36" height="36" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="actionGateway_di" bpmnElement="actionGateway" isMarkerVisible="true"><dc:Bounds x="245" y="385" width="50" height="50" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="searchTask_di" bpmnElement="searchTask"><dc:Bounds x="370" y="100" width="100" height="80" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endSearch_di" bpmnElement="endSearch"><dc:Bounds x="542" y="122" width="36" height="36" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="saveTask_di" bpmnElement="saveTask"><dc:Bounds x="370" y="250" width="100" height="80" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endSave_di" bpmnElement="endSave"><dc:Bounds x="542" y="272" width="36" height="36" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="resetPasswordTask_di" bpmnElement="resetPasswordTask"><dc:Bounds x="370" y="400" width="100" height="80" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endResetPassword_di" bpmnElement="endResetPassword"><dc:Bounds x="542" y="422" width="36" height="36" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="myMenusTask_di" bpmnElement="myMenusTask"><dc:Bounds x="370" y="550" width="100" height="80" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endMyMenus_di" bpmnElement="endMyMenus"><dc:Bounds x="542" y="572" width="36" height="36" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="myPermissionsTask_di" bpmnElement="myPermissionsTask"><dc:Bounds x="370" y="700" width="100" height="80" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endMyPermissions_di" bpmnElement="endMyPermissions"><dc:Bounds x="542" y="722" width="36" height="36" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="flow_to_gw_di" bpmnElement="flow_to_gw"><di:waypoint x="188" y="410" /><di:waypoint x="245" y="410" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_search_di" bpmnElement="flow_search"><di:waypoint x="270" y="385" /><di:waypoint x="270" y="140" /><di:waypoint x="370" y="140" /><bpmndi:BPMNLabel><dc:Bounds x="300" y="122" width="35" height="14" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_search_end_di" bpmnElement="flow_search_end"><di:waypoint x="470" y="140" /><di:waypoint x="542" y="140" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_save_di" bpmnElement="flow_save"><di:waypoint x="270" y="385" /><di:waypoint x="270" y="290" /><di:waypoint x="370" y="290" /><bpmndi:BPMNLabel><dc:Bounds x="306" y="272" width="25" height="14" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_save_end_di" bpmnElement="flow_save_end"><di:waypoint x="470" y="290" /><di:waypoint x="542" y="290" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_resetPassword_di" bpmnElement="flow_resetPassword"><di:waypoint x="270" y="410" /><di:waypoint x="270" y="440" /><di:waypoint x="370" y="440" /><bpmndi:BPMNLabel><dc:Bounds x="280" y="422" width="72" height="14" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_resetPassword_end_di" bpmnElement="flow_resetPassword_end"><di:waypoint x="470" y="440" /><di:waypoint x="542" y="440" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_myMenus_di" bpmnElement="flow_myMenus"><di:waypoint x="270" y="435" /><di:waypoint x="270" y="590" /><di:waypoint x="370" y="590" /><bpmndi:BPMNLabel><dc:Bounds x="290" y="572" width="48" height="14" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_myMenus_end_di" bpmnElement="flow_myMenus_end"><di:waypoint x="470" y="590" /><di:waypoint x="542" y="590" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_myPermissions_di" bpmnElement="flow_myPermissions"><di:waypoint x="270" y="435" /><di:waypoint x="270" y="740" /><di:waypoint x="370" y="740" /><bpmndi:BPMNLabel><dc:Bounds x="275" y="722" width="72" height="14" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_myPermissions_end_di" bpmnElement="flow_myPermissions_end"><di:waypoint x="470" y="740" /><di:waypoint x="542" y="740" /></bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

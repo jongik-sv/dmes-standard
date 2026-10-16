@@ -14,7 +14,6 @@ import com.dongkuk.dmes.cactus.web.request.CactusRequest;
 import com.dongkuk.dmes.cactus.web.request.GridData;
 import com.dongkuk.dmes.cactus.web.request.RequestMeta;
 import com.dongkuk.dmes.cactus.web.response.CactusResponse;
-import com.dongkuk.dmes.mcm.audit.AuditLogger;
 import com.dongkuk.dmes.mcm.common.event.MenuChangedEvent;
 import com.dongkuk.dmes.mcm.common.event.RoleChangedEvent;
 import com.dongkuk.dmes.mcm.common.security.SecurityIdentity;
@@ -31,10 +30,7 @@ import com.dongkuk.dmes.mcm.repository.SecPermRepository;
 import com.dongkuk.dmes.mcm.repository.SecRoleGroupMappingRepository;
 import com.dongkuk.dmes.mcm.repository.SecRoleMappingRepository;
 import com.dongkuk.dmes.mcm.repository.SecUserMappingRepository;
-import com.dongkuk.dmes.mcm.security.PasswordHasher;
-import com.dongkuk.dmes.mcm.security.UserAccountRepository;
 import com.dongkuk.dmes.mcm.security.dto.MyMenusRequest;
-import com.dongkuk.dmes.mcm.security.password.PasswordPolicyEvaluator;
 import com.dongkuk.dmes.mcm.security.service.SecUserService;
 import jakarta.persistence.EntityManagerFactory;
 import java.time.LocalDateTime;
@@ -409,17 +405,13 @@ class MenuCatalogOasisSaveIntegrationTest {
                 @Override public boolean hasAuthority(String authority) { return "ROLE_SYSADMIN".equals(authority); }
             };
             return new SecUserService(
-                    mock(UserAccountRepository.class),
                     mock(SecUserMappingRepository.class),
                     mock(SecRoleGroupMappingRepository.class),
                     mappings,
                     mock(SecPermRepository.class),
                     catalog,
                     fld,
-                    mock(PasswordHasher.class),
                     admin,
-                    mock(AuditLogger.class),
-                    mock(PasswordPolicyEvaluator.class),
                     true);
         }
 

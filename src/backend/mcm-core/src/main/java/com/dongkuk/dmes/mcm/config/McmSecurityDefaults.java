@@ -17,7 +17,13 @@ import org.springframework.stereotype.Component;
 @Component
 public class McmSecurityDefaults {
 
-    private static final String SYSADMIN = "ROLE_SYSADMIN";
+    /** 로그인만 요구하는 OASIS {@code 서비스ID/action} — 본인 메뉴 / 즐겨찾기 / 포털 기본 화면. {@code **} 는 그 서비스의 모든 action. */
+    private static final List<String> AUTHENTICATED_ACTIONS = List.of(
+            "secUser/myMenus",
+            "secUser/myMenusTree",
+            "secUser/myPermissions",
+            "secFavorite/**",
+            "secStartPgm/**"); // 포털 기본 화면(본인 데이터)
 
     /**
      * 사이트 SecurityConfig 의 {@code authorizeHttpRequests} 안에서 호출.
@@ -35,31 +41,13 @@ public class McmSecurityDefaults {
         auth.requestMatchers("/api/auth/**").permitAll();
         auth.requestMatchers("/actuator/health", "/actuator/info").permitAll();
 
-        // SYSADMIN 전용 — 권한 마스터 변경
-        auth.requestMatchers(oasisPaths("secUser/save", "secUser/resetPassword")).hasAuthority(SYSADMIN);
-        auth.requestMatchers(oasisPaths("secRole/save")).hasAuthority(SYSADMIN);
-        auth.requestMatchers(oasisPaths("secPerm/save")).hasAuthority(SYSADMIN);
-        auth.requestMatchers(oasisPaths("secObj/save")).hasAuthority(SYSADMIN);
-        auth.requestMatchers(oasisPaths("secMenu/save")).hasAuthority(SYSADMIN);
-        auth.requestMatchers(oasisPaths("secRolePerm/save")).hasAuthority(SYSADMIN);
-        auth.requestMatchers(oasisPaths("secUserRole/save")).hasAuthority(SYSADMIN);
-        auth.requestMatchers(oasisPaths(
-                             "secRoleGroup/save",
-                             "secRoleGroup/assignRoles",
-                             "secRoleGroup/assignUsers")).hasAuthority(SYSADMIN);
-        auth.requestMatchers(oasisPaths("secCode/save")).hasAuthority(SYSADMIN);
-
-        // authenticated — 본인 메뉴 / 즐겨찾기 / 페이지 접근 이력 등
-        auth.requestMatchers(oasisPaths(
-                             "secUser/myMenus",
-                             "secUser/myMenusTree",
-                             "secUser/myPermissions")).authenticated();
-        auth.requestMatchers(oasisPaths("secFavorite/**")).authenticated();
-        auth.requestMatchers(oasisPaths("secStartPgm/**")).authenticated(); // 포털 기본 화면(본인 데이터)
-        auth.requestMatchers(oasisPaths("secMenu/recordAccess")).authenticated();
+        // SYSADMIN 전용 matcher 는 남지 않았다(2026-10-16, BE 리팩토링 2회차). BPMN 이 없는 옛 권한 마스터 서비스
+        // (secRole·secPerm·secObj·secMenu·secRolePerm·secUserRole·secRoleGroup·secCode)의 것은 D3 에서, 쓰이지 않던
+        // secUser/save·resetPassword 는 F7 에서 BPMN action 과 함께 지웠다. 실제 권한 마스터 서비스(csa/comm*Mng)의 gate 는 F8(결정 대기)이다.
+        auth.requestMatchers(oasisPaths(AUTHENTICATED_ACTIONS)).authenticated();
     }
 
-    private static String[] oasisPaths(String... suffixes) {
+    private static String[] oasisPaths(List<String> suffixes) {
         List<String> paths = new ArrayList<>();
         for (String suffix : suffixes) {
             String normalized = suffix.startsWith("/") ? suffix : "/" + suffix;
