@@ -40,7 +40,6 @@ import com.dongkuk.dmes.mdm.dma.erdEdit.standard.ErdTypeMapping;
 import com.dongkuk.dmes.mdm.dma.erdEdit.stream.ErdEventHub;
 import com.dongkuk.dmes.mdm.dma.erdEdit.engine.ErdDomainSpec;
 import com.dongkuk.dmes.mdm.dma.naming.NameComposition;
-import com.dongkuk.dmes.mdm.dme.ruleConfirm.service.RuleConfirmService;
 import com.dongkuk.dmes.mdm.entity.MdmErdModelVer;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -629,7 +628,7 @@ public class ErdEditService {
     public Map<String, Object> confirm(ErdEditRequest r) {
         String modelId = requireModelId(r);
         VersionRef ref = ref(modelId, r.getVer());
-        LocalDateTime applyFrom = RuleConfirmService.parseApplyFrom(r.getApplyFrom());
+        LocalDateTime applyFrom = VersionRules.parseApplyFrom(r.getApplyFrom());
         stateService.confirm(new ConfirmCommand(ref, rowVersion(r), applyFrom, currentUser.userId(),
                 Boolean.TRUE.equals(r.getWarningsAcknowledged())));
         announce(modelId, "CONFIRM");

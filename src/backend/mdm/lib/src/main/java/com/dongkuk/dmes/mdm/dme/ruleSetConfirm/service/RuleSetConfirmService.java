@@ -12,8 +12,10 @@ import com.dongkuk.dmes.mdm.common.rule.confirm.RuleConfirmReport.ItemStatus;
 import com.dongkuk.dmes.mdm.common.rule.confirm.RuleSetConfirmChecks;
 import com.dongkuk.dmes.mdm.common.rule.confirm.RuleSetConfirmReport;
 import com.dongkuk.dmes.mdm.common.security.MdmCurrentUser;
+import com.dongkuk.dmes.mdm.common.support.MdmCheckIssueMaps;
 import com.dongkuk.dmes.mdm.common.support.MdmErrors;
 import com.dongkuk.dmes.mdm.common.version.VersionNumbers;
+import com.dongkuk.dmes.mdm.common.version.VersionRules;
 import com.dongkuk.dmes.mdm.contract.common.MdmCheckIssue;
 import com.dongkuk.dmes.mdm.contract.common.MdmErrorCode;
 import com.dongkuk.dmes.mdm.contract.version.ApplyFromOrderCheck;
@@ -24,7 +26,6 @@ import com.dongkuk.dmes.mdm.contract.version.VersionDiffEntry;
 import com.dongkuk.dmes.mdm.contract.version.VersionRef;
 import com.dongkuk.dmes.mdm.contract.version.VersionStateService;
 import com.dongkuk.dmes.mdm.contract.version.VersionTarget;
-import com.dongkuk.dmes.mdm.dme.ruleConfirm.service.RuleConfirmService;
 import com.dongkuk.dmes.mdm.dme.ruleSetConfirm.dto.RuleSetConfirmRequest;
 import com.dongkuk.dmes.mdm.dme.ruleSetConfirm.dto.RuleSetConfirmSearchRequest;
 import com.dongkuk.dmes.mdm.dme.ruleSetConfirm.dto.RuleSetConfirmValidateRequest;
@@ -53,7 +54,7 @@ import org.springframework.stereotype.Service;
  * 룰 세트 버전 확정({@code ruleSetConfirm}) OASIS 진입 서비스(D-144 2단계, 스펙 §6).
  *
  * <p>BPMN {@code services/dme/ruleSetConfirm.bpmn} 의 {@code actionGateway} 분기(search·view·validate·confirm)와 1:1 이다. 룰
- * {@link RuleConfirmService} 와 같은 구조·응답 모양이며 키 이름만 세트다. {@code @Transactional} 을 붙이지 않는다 — 트랜잭션은 OASIS
+ * {@code RuleConfirmService} 와 같은 구조·응답 모양이며 키 이름만 세트다. {@code @Transactional} 을 붙이지 않는다 — 트랜잭션은 OASIS
  * 프로세스와 공통 서비스의 {@code TransactionTemplate} 이 건다. 확정은 {@link VersionStateService#confirm} 하나로만 한다.
  */
 @Service("ruleSetConfirmService")
@@ -140,7 +141,7 @@ public class RuleSetConfirmService {
         if (!"DRAFT".equals(t.version().getStatus())) {
             throw MdmErrors.of(MdmErrorCode.NOT_DRAFT);
         }
-        LocalDateTime applyFrom = RuleConfirmService.parseApplyFrom(request.getApplyFrom());   // null 은 report 가 받지 못한다
+        LocalDateTime applyFrom = VersionRules.parseApplyFrom(request.getApplyFrom());   // null 은 report 가 받지 못한다
         LocalDateTime now = now();
         RuleSetConfirmReport.Report report = checks.report(t.ref(), applyFrom);
 
@@ -153,7 +154,7 @@ public class RuleSetConfirmService {
             Map<String, Object> row = new LinkedHashMap<>();
             row.put("item", item.item().name());
             row.put("status", item.status().name());
-            row.put("issues", item.issues().stream().map((Issue i) -> issueMap(i.severity(), i.issue())).toList());
+            row.put("issues", item.issues().stream().map((Issue i) -> MdmCheckIssueMaps.of(i.severity(), i.issue())).toList());
             items.add(row);
         }
 
@@ -198,7 +199,7 @@ public class RuleSetConfirmService {
             throw new BusinessException(ErrorCode.REQUIRED_VALUE, "row_version 은 필수입니다.");
         }
         VersionRef ref = new VersionRef(VersionTarget.RULE_SET, setId, VersionNumbers.scaled(ver));
-        LocalDateTime applyFrom = RuleConfirmService.parseApplyFrom(request.getApplyFrom());
+        LocalDateTime applyFrom = VersionRules.parseApplyFrom(request.getApplyFrom());
         ConfirmResult confirmed = versionState.confirm(new ConfirmCommand(ref, request.getRowVersion(), applyFrom, currentUser.userId(),
                 Boolean.TRUE.equals(request.getWarningsAcknowledged())));
         log.info("[ruleSetConfirm] confirm — {} applyFrom={} closed={}", ref, text(applyFrom), confirmed.closedPrevious());
@@ -210,7 +211,7 @@ public class RuleSetConfirmService {
         done.put("rowVersion", confirmed.rowVersion());
         result.put("confirmed", done);
         result.put("closedPreviousVer", confirmed.closedPrevious() == null ? null : VersionNumbers.plain(confirmed.closedPrevious().ver()));
-        result.put("warnings", confirmed.warnings().stream().map(w -> issueMap("WARNING", w)).toList());
+        result.put("warnings", confirmed.warnings().stream().map(w -> MdmCheckIssueMaps.of("WARNING", w)).toList());
         return result;
     }
 
@@ -304,16 +305,6 @@ public class RuleSetConfirmService {
         result.put("diffError", diffError);
         result.put("serverNow", text(now));
         return result;
-    }
-
-    private static Map<String, Object> issueMap(String severity, MdmCheckIssue i) {
-        Map<String, Object> m = new LinkedHashMap<>();
-        m.put("severity", severity);
-        m.put("code", i.code());
-        m.put("message", i.message());
-        m.put("field", i.field());
-        m.put("itemKey", i.itemKey());
-        return m;
     }
 
     private MdmRuleSet load(String setId) {
