@@ -1,8 +1,10 @@
 package com.dongkuk.dmes.mdm.dma.erdEdit.standard;
 
+import com.dongkuk.dmes.mdm.common.dictionary.DomainNode;
 import com.dongkuk.dmes.mdm.dma.erdEdit.engine.ErdDomainSpec;
 import com.dongkuk.dmes.mdm.dma.naming.DomainEntry;
 import com.dongkuk.dmes.mdm.dma.support.TermDictionaryLoader;
+import com.dongkuk.dmes.mdm.entity.MdmDomain;
 import com.dongkuk.dmes.mdm.repository.MdmColumnRepository;
 import com.dongkuk.dmes.mdm.repository.MdmColumnSystemRepository;
 import com.dongkuk.dmes.mdm.repository.MdmDomainRepository;
@@ -35,9 +37,7 @@ public class ErdDictionaryLoader {
     @Transactional(readOnly = true)
     public ErdDictionary load() {
         var domainList = domains.findAll();
-        Map<Long, ErdDomainSpec> specs = domainList.stream().collect(Collectors.toMap(
-                d -> d.getDomainId(),
-                d -> new ErdDomainSpec(d.getDomainId(), d.getDomainName(), d.getDataType(), d.getLength(), d.getScale())));
+        Map<Long, ErdDomainSpec> specs = specs(domainList.stream().map(ErdDictionaryLoader::typeNode).toList());
         List<DomainEntry> entries = domainList.stream()
                 .map(d -> new DomainEntry(d.getDomainId(), d.getDomainName(), d.getStdName())).toList();
         var columnList = columns.findAll();
@@ -51,5 +51,21 @@ public class ErdDictionaryLoader {
                         c.getColumnName(), c.getDomainId())).toList(),
                 aliasList.stream().map(a -> new ErdDictionary.AliasRow(a.getColumnId(), a.getPhysName())).toList());
         return new ErdDictionary(TermDictionaryLoader.load(terms), phys, alias, specs, entries, byPhys);
+    }
+
+    /** 도메인 행마다 스펙 하나. */
+    static Map<Long, ErdDomainSpec> specs(List<DomainNode> nodes) {
+        return nodes.stream().collect(Collectors.toMap(DomainNode::domainId,
+                n -> new ErdDomainSpec(n.domainId(), n.domainName(), n.dataType(), n.length(), n.scale())));
+    }
+
+    /**
+     * 타입 판정에 쓰는 칸만 담은 노드. {@link DomainNode#from} 은 STD_AST·BIZ_AST JSON 을 읽는데, 이 적재는 식을 쓰지 않고
+     * 깨진 JSON 행 하나로 ERD 사전 전체가 실패하면 안 되므로 그 칸은 비운다.
+     */
+    private static DomainNode typeNode(MdmDomain d) {
+        return new DomainNode(d.getDomainId(), d.getParentDomainId(), d.getDomainName(), d.getStdName(),
+                d.getDomainKind(), d.getDataType(), d.getLength(), d.getScale(), null, null, null,
+                null, null, null, null, null, null, null, null);
     }
 }
