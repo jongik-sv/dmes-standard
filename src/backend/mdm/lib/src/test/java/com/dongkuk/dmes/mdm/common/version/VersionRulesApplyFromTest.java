@@ -1,6 +1,7 @@
 package com.dongkuk.dmes.mdm.common.version;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.dongkuk.dmes.cactus.common.BusinessException;
@@ -28,8 +29,9 @@ class VersionRulesApplyFromTest {
         assertEquals("applyFrom", d.field());
         assertEquals(code.getCode(), d.code());
         assertEquals(message, d.message());
-        assertEquals(null, d.grid());
-        assertEquals(null, d.rowKey());
+        assertNull(d.grid());
+        assertNull(d.rowKey());
+        assertNull(d.rowIndex());
     }
 
     @Test
@@ -43,6 +45,20 @@ class VersionRulesApplyFromTest {
         for (String blank : new String[] {null, "", "   "}) {
             assertApplyFromError(ErrorCode.REQUIRED_VALUE, "적용 시작 일시를 입력하세요", blank);
         }
+    }
+
+    @Test
+    void trim_이_지우지_못하는_전각_공백은_빈_값이_아니라_형식_오류다() {
+        // trimToNull(String.trim) 기준 — blankToNull(isBlank)로 바꾸면 REQUIRED_VALUE 로 바뀐다
+        assertApplyFromError(ErrorCode.INVALID_VALUE, "적용 시작 일시는 yyyy-MM-dd HH:mm:ss 형식이어야 합니다: \u3000", "\u3000");
+    }
+
+    @Test
+    void SMART_해석이라_없는_날짜는_그달_끝으로_24시는_다음날_0시로_읽는다() {
+        assertEquals(LocalDateTime.of(2026, 2, 28, 0, 0, 0), parse("2026-02-30 00:00:00"));
+        assertEquals(LocalDateTime.of(2026, 7, 2, 0, 0, 0), parse("2026-07-01 24:00:00"));
+        // 24시가 열린 끝으로 넘어가면 열린 끝 오류다
+        assertApplyFromError(ErrorCode.INVALID_VALUE, "적용 시작 일시는 9999-12-31 00:00:00 보다 앞이어야 합니다", "9999-12-30 24:00:00");
     }
 
     @Test

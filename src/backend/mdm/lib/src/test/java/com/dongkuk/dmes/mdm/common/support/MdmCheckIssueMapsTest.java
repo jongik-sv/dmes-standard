@@ -9,7 +9,7 @@ import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 
-/** 검사 문제 응답 map 두 모양 — 키 순서가 화면 JSON 순서다(BE 리팩토링 2회차 C1, 화면 서비스 사본 6곳의 정본). */
+/** 검사 문제 응답 map 두 모양 — 키 순서가 화면 JSON 순서다(BE 리팩토링 2회차 C1, 확정 화면 서비스 사본 4곳의 정본). */
 class MdmCheckIssueMapsTest {
 
     private static final MdmCheckIssue ISSUE = new MdmCheckIssue("CODE_X", "문구", "field1", "key1");

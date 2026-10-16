@@ -1,7 +1,5 @@
 package com.dongkuk.dmes.mdm.dmc.codeConfirm.service;
 
-import com.dongkuk.dmes.cactus.common.BusinessException;
-import com.dongkuk.dmes.cactus.common.ErrorCode;
 import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeCategoryChanges;
 import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeCategoryChanges.Change;
 import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeConfirmChecks;
