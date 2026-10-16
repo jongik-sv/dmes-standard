@@ -1,4 +1,4 @@
-package com.dongkuk.dmes.mdm.common.rule;
+package com.dongkuk.dmes.mdm.dme.ruleSetEdit.service;
 
 import com.dongkuk.dmes.mdm.common.support.MdmClockConfig;
 import java.math.BigDecimal;

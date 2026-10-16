@@ -11,7 +11,6 @@ import com.dongkuk.dmes.cactus.common.BusinessException;
 import com.dongkuk.dmes.cactus.common.ErrorCode;
 import com.dongkuk.dmes.mdm.common.rule.ResolvedVar;
 import com.dongkuk.dmes.mdm.common.rule.RuleCaseJudge.Evaluated;
-import com.dongkuk.dmes.mdm.common.rule.RuleHitPolicies;
 import com.dongkuk.dmes.mdm.common.rule.RuleQueries;
 import com.dongkuk.dmes.mdm.common.rule.RuleScreenSupport;
 import com.dongkuk.dmes.mdm.common.rule.RuleTestCaseQueries;
