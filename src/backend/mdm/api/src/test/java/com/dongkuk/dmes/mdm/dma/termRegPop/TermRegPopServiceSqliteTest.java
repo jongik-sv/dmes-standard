@@ -40,6 +40,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * TSK-04-04 design.md §3.3 R1~R7 — 용어 인라인 등록 팝업 서비스(유사어·약어 제안·등록)를 Oracle 시험 PDB 로 돌린다.
+ * R8·R9 는 2026-10 리팩토링 F3 에서 더했다. R8 은 커밋 뒤 추천 캐시 갱신(F3 수정)을, R9 는 롤백이면 캐시를 건드리지 않는 것을 지킨다.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @ActiveProfiles("local")

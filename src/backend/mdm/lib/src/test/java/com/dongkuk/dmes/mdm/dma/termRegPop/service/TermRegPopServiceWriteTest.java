@@ -14,6 +14,7 @@ import static org.mockito.Mockito.when;
 
 import com.dongkuk.dmes.cactus.common.BusinessException;
 import com.dongkuk.dmes.mdm.common.security.MdmStdAdminGuard;
+import com.dongkuk.dmes.mdm.contract.common.MdmErrorCode;
 import com.dongkuk.dmes.mdm.dma.support.TermWriter;
 import com.dongkuk.dmes.mdm.dma.termRegPop.dto.TermRegPopRegRequest;
 import com.dongkuk.dmes.mdm.entity.MdmTerm;
@@ -74,6 +75,18 @@ class TermRegPopServiceWriteTest {
 
         assertThrows(BusinessException.class, () -> service.reg(bad));
 
+        verify(writer, never()).save(any(MdmTerm.class), anyBoolean());
+    }
+
+    @Test
+    void 약어가_대소문자만_다르게_이미_있으면_MDM020_으로_거부하고_저장하지_않는다() {
+        MdmTerm other = new MdmTerm("오차", 1, "정의");
+        other.setEngAbbr("dev");
+        when(repo.findAll()).thenReturn(List.of(other));
+
+        BusinessException e = assertThrows(BusinessException.class, () -> service.reg(valid()));
+
+        assertEquals(MdmErrorCode.TERM_DUPLICATED.code(), e.getErrors().get(0).code(), e.getMessage());
         verify(writer, never()).save(any(MdmTerm.class), anyBoolean());
     }
 }
