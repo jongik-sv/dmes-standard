@@ -1,5 +1,6 @@
 package com.dongkuk.dmes.mdm.dma.naming;
 
+import com.dongkuk.dmes.mdm.common.naming.NamingRules;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;

@@ -2,7 +2,7 @@ package com.dongkuk.dmes.mdm.common.rule;
 
 import com.dongkuk.dmes.cactus.common.BusinessException;
 import com.dongkuk.dmes.cactus.common.ErrorCode;
-import com.dongkuk.dmes.mdm.dma.naming.NamingRules;
+import com.dongkuk.dmes.mdm.common.naming.NamingRules;
 
 /**
  * 룰 ID 규칙 — 컬럼 물리명 규칙과 같다(TSK-08-02 design I1, 수용 기준 1). 서버가 판정하고 화면 검사는 보조다.

@@ -1,5 +1,6 @@
 package com.dongkuk.dmes.mdm.dma.naming;
 
+import com.dongkuk.dmes.mdm.common.naming.NamingRules;
 import com.dongkuk.dmes.mdm.common.support.MdmJsonLists;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.util.ArrayList;

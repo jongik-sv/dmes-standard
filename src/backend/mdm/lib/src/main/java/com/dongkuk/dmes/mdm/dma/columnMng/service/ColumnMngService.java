@@ -5,6 +5,7 @@ import static com.dongkuk.dmes.mdm.common.support.MdmErrors.invalid;
 
 import com.dongkuk.dmes.mdm.common.dictionary.ColumnDescriptionSanitizer;
 import com.dongkuk.dmes.mdm.common.metarev.MetaRevisionRecorder;
+import com.dongkuk.dmes.mdm.common.naming.NamingRules;
 import com.dongkuk.dmes.mdm.common.security.MdmStdAdminGuard;
 import com.dongkuk.dmes.mdm.common.support.MdmErrors;
 import com.dongkuk.dmes.mdm.common.support.MdmJsonLists;
@@ -26,7 +27,6 @@ import com.dongkuk.dmes.mdm.dma.naming.LabelSuggester;
 import com.dongkuk.dmes.mdm.dma.naming.LabelSuggestion;
 import com.dongkuk.dmes.mdm.dma.naming.NameComposition;
 import com.dongkuk.dmes.mdm.dma.naming.NameToken;
-import com.dongkuk.dmes.mdm.dma.naming.NamingRules;
 import com.dongkuk.dmes.mdm.dma.naming.TermCandidate;
 import com.dongkuk.dmes.mdm.dma.naming.TermEntry;
 import com.dongkuk.dmes.mdm.dma.support.TermDictionaryLoader;
