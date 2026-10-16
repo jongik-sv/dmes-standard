@@ -116,7 +116,7 @@ UNION ALL SELECT 'erd_columns_on_changed_domain', COUNT(*) FROM cols c JOIN chan
 
 - 「`ErdEventHub` 가 SSE·스레드 풀·접속자·선점 저장·버전 읽기를 한 클래스에 섞는다」, 「`stream` ↔ `service` 순환」, 「`ErdEditService` 인라인 SQL」은 맞다. 순환에서 허브가 `service` 쪽에 기대는 것은 `ErdCommandService.changesSince` 하나뿐이다.
 - 「다이어그램 JSON 매퍼 두 벌」은 키·순서가 같고 담는 그릇만 다르다(`LinkedHashMap` 대 `ObjectNode`). 보기 쿼리의 노드 조회에 `ORDER BY` 가 없다. undo 는 저장소 쪽 행만 비교한다(`JsonNode.equals` 는 숫자 타입까지 본다). 하나로 합칠 때 이 차이를 시험으로 먼저 고정한다.
-- 「편집자 쿼리 사본: `ErdEventHub`, `ErdEditService`, `ErdModelStore:84-135`」는 일부 틀렸다. `ErdEventHub` 와 `ErdEditService` 의 편집자 목록 SQL 은 같다. `ErdModelStore:84-135` 에는 편집자 SQL 이 없고 버전 고르기다. 허브의 `versionNow` 와 `ErdModelStore.current` 는 고르는 규칙이 달라 합치지 않는다.
+- 「편집자 쿼리 사본: `ErdEventHub`, `ErdEditService`, `ErdModelStore:84-135`」는 일부 틀렸다. `ErdEventHub` 와 `ErdEditService` 의 편집자 목록 SQL 은 같다. `ErdModelStore:84-135` 에는 편집자 SQL 이 없고 버전 고르기다. 허브의 `versionNow` 와 `ErdModelStore.current` 는 같은 순서로 고른다(DRAFT 먼저, 없으면 가장 높은 RELEASED). 그러나 고를 버전이 없을 때 `versionNow` 는 null 을 돌려주고 `current` 는 MDM029 를 던진다. 또 `versionNow` 는 JDBC 로 표의 지금 값을 읽고, `current` 는 JPA 엔티티를 읽는다. 그래서 합치지 않는다.
 - 「요청 출처·길이 검사 3곳」은 규칙이 서로 다르다(`ErdEditService` 는 trim·대문자, `ErdCommandService` 는 그대로 비교, 허브 `isTimedSource` 는 다른 개념, `ErdStreamController` 에 네 번째가 있다). 동작을 지키기 위해 출처 상수만 한 곳(`ErdSources`)에 모으고 검사 규칙은 합치지 않는다.
 - 「이름 미리보기 두 벌(선택)」은 두 화면의 응답 계약이 달라 합치지 않는다.
 
