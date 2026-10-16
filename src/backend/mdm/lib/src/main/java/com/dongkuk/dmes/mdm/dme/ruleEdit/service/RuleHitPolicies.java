@@ -9,8 +9,8 @@ import java.util.TreeSet;
  * 적중 정책({@code TB_MDM_RULE_VER.HIT_POLICY}) 정규화 — {@code CK_TB_MDM_RULE_VER_HIT} 와 같은 값 집합이다.
  *
  * <p>쓰는 곳은 표 저장({@code RuleTableService}, D-133 으로 정책을 저장하는 유일한 곳)과 값 테스트 BODY
- * ({@code RuleValueTestService})다. D-105 때 버전 저장까지 셋이 되면서 룰 공용 영역으로 꺼냈고, D-133 으로 버전 저장이 빠진 뒤에도
- * 여기 둔다 — 화면이 바뀌어도 판정은 한 곳에 남아야 한다.
+ * ({@code RuleValueTestService})다. D-105 때 버전 저장까지 셋이 되면서 룰 공용 영역({@code common/rule})으로 꺼냈다. D-133 으로
+ * 버전 저장이 빠져 두 곳 모두 룰 편집 화면이 되었으므로 이 화면 패키지로 옮겼다(BE 리팩토링 2회차 C5). 판정은 여전히 이 한 곳에 있다.
  */
 public final class RuleHitPolicies {
 
