@@ -58,7 +58,10 @@ public class ErdDictionaryLoader {
     /**
      * 도메인 행마다 스펙 하나. 타입·길이·소수는 상속 체인으로 조립한 유효값이다 — 도메인 화면·레이아웃과 같은 규칙
      * ({@link DomainChainAssembler#typeOf}). 자식 도메인은 길이·소수를 비워 두고 부모에서 물려받는다.
-     * 체인이 순환하면 그 도메인만 자기 행 값을 쓴다(사전 적재 전체를 실패시키지 않는다).
+     *
+     * <p>체인이 순환하면(순환에 닿는 자손 포함) 그 도메인만 자기 행 값을 쓴다 — F1 전 동작 그대로이고 사전 적재 전체를 실패시키지
+     * 않는다. 레이아웃({@code LayoutDictionary})·컬럼 사전 상세·메타 피드는 같은 경우에 타입을 비운다(null). ERD 는 컬럼 타입을
+     * 채우고 판정해야 해서 원값을 남긴다.
      */
     static Map<Long, ErdDomainSpec> specs(List<DomainNode> nodes) {
         DomainTreeSnapshot tree = DomainTreeSnapshot.of(nodes);
@@ -79,7 +82,7 @@ public class ErdDictionaryLoader {
      * 타입 판정에 쓰는 칸만 담은 노드. {@link DomainNode#from} 은 STD_AST·BIZ_AST JSON 을 읽는데, 이 적재는 식을 쓰지 않고
      * 깨진 JSON 행 하나로 ERD 사전 전체가 실패하면 안 되므로 그 칸은 비운다.
      */
-    private static DomainNode typeNode(MdmDomain d) {
+    static DomainNode typeNode(MdmDomain d) {
         return new DomainNode(d.getDomainId(), d.getParentDomainId(), d.getDomainName(), d.getStdName(),
                 d.getDomainKind(), d.getDataType(), d.getLength(), d.getScale(), null, null, null,
                 null, null, null, null, null, null, null, null);

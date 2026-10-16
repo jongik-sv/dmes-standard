@@ -112,7 +112,11 @@ class DomainChainAssemblerTest {
             assertEquals(new DomainChainAssembler.TypeSpec(v.dataType(), v.length(), v.scale()),
                     DomainChainAssembler.typeOf(chain), "id=" + id);
         }
+        // 위 반복은 assemble 이 typeOf 를 쓰는 지금 같은 함수를 두 번 부르는 셈이라, 규칙은 아래 리터럴로 고정한다.
         assertEquals(new DomainChainAssembler.TypeSpec("NUMBER", 8, 1), DomainChainAssembler.typeOf(t.chainRootFirst(3L)));
+        assertEquals(new DomainChainAssembler.TypeSpec("NUMBER", 8, 3), DomainChainAssembler.typeOf(t.chainRootFirst(4L)));
+        assertEquals(new DomainChainAssembler.TypeSpec("NUMBER", null, null), DomainChainAssembler.typeOf(t.chainRootFirst(6L)));
+        assertEquals(new DomainChainAssembler.TypeSpec("STRING", null, null), DomainChainAssembler.typeOf(t.chainRootFirst(9L)));
     }
 
     @Test
