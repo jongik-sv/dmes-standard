@@ -12,7 +12,7 @@
  * - 비즈니스식은 화면에서 하지 않는다(서버 `MdmValidator` 몫).
  */
 import { useMemo } from "react";
-import { D, convertForType, evaluate, isSupported, type Dec } from "../evalex";
+import { D, ENGINE_NUMBER_TEXT, convertForType, evaluate, isSupported, type Dec } from "../evalex";
 import type { AstNode } from "../evalex";
 import { mdmCaption } from "./caption";
 import { resolveMdmPhysName, useMdmMetaScope } from "./context";
@@ -46,9 +46,6 @@ function dataTypeOf(column: MdmScreenColumn): DataType {
   const t = column.dataType?.trim().toUpperCase();
   return t === "NUMBER" || t === "BOOLEAN" || t === "DATE" ? t : "STRING";
 }
-
-/** 엔진 `ValueConverter` 의 숫자 문자열 — 부호·정수부·소수부만(지수·천 단위 구분·앞뒤 공백 거부). */
-const ENGINE_NUMBER_TEXT = /^[+-]?[0-9]+(\.[0-9]+)?$/;
 
 // 서버 MdmValueChecks.DATE_ONLY·DATE_TIME 과 같은 형식(달력 엄격).
 const DATE_ONLY: RegExp[] = [/^(\d{4})-(\d{2})-(\d{2})$/, /^(\d{4})(\d{2})(\d{2})$/, /^(\d{4})\/(\d{2})\/(\d{2})$/];

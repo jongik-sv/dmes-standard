@@ -780,6 +780,33 @@ describe("열 조건 — 기본 열·골리지 않는 열·평가 불가", () =>
     ]);
   });
 
+  it("식 숫자 상수 .5·5. 는 엔진 숫자 글자(0.5·5)로 바꿔 값 후보를 만든다(F4)", () => {
+    const g = group("GRP", [
+      ["HALF", op("<", V("W"), N(".5"))],
+      ["FIVE", op("==", V("W"), N("5."))],
+      ["DEF", null],
+    ]);
+    const p = plan({ vars: [x], rows, groupConds: [g] });
+    expect(p.groupNotes).toBeUndefined();
+    expect(p.candidates.filter((c) => c.point.startsWith("열:")).map((c) => c.point)).toEqual(expect.arrayContaining(["열:HALF", "열:FIVE"]));
+    const ws = p.candidates.map((c) => JSON.parse(c.inputJson).W as string);
+    expect(ws.every((w) => /^[+-]?[0-9]+(\.[0-9]+)?$/.test(w))).toBe(true);
+  });
+
+  it("저장 전 초안 셀의 5.·.5 도 엔진 숫자 글자(5·0.5)로 읽어 후보를 만든다(F4)", () => {
+    const xv = cond(1, "X", "NUMBER", { scale: 1 });
+    const g = group("GRP", [
+      ["FIVE", op("==", V("X"), N("5"))],
+      ["DEF", null],
+    ]);
+    const p = plan({ vars: [xv], rows: [row(1, 1, { 1: { op: "EQ", left: "5." } }), row(2, 2, { 1: { op: "LT", left: ".5" } })], groupConds: [g] });
+    const xs = p.candidates.map((c) => JSON.parse(c.inputJson).X as string | null).filter((v) => v !== null);
+    expect(xs).toEqual(expect.arrayContaining(["5", "0.5"]));
+    expect(xs.filter((v) => !/^[+-]?[0-9]+(\.[0-9]+)?$/.test(v))).toEqual([]);
+    // 5 행의 대표 후보가 FIVE 열을 고르므로 열:FIVE 후보는 같은 입력이라 빠지고, 알림도 없다.
+    expect(p.groupNotes).toBeUndefined();
+  });
+
   it("baseInput 에 열 조건 입력 값이 있으면 열 없음 후보가 따로 남는다", () => {
     const g = group("GRP", [["F", op("==", V("TOP_RESIN_CD"), S("F"))]]);
     const p = plan({ vars: [x], rows, groupConds: [g], baseInput: { TOP_RESIN_CD: "F" } });

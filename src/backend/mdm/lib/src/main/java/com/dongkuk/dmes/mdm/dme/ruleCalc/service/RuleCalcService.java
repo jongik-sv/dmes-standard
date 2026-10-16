@@ -64,6 +64,8 @@ import java.util.TreeMap;
 import kr.dongkuk.maru.mdm.engine.expr.EngineEvaluationException.Code;
 import kr.dongkuk.maru.mdm.engine.expr.EngineEvaluationException.Violation;
 import kr.dongkuk.maru.mdm.engine.expr.ReservedNames;
+import kr.dongkuk.maru.mdm.engine.expr.ValueConversionException;
+import kr.dongkuk.maru.mdm.engine.expr.ValueConverter;
 import kr.dongkuk.maru.mdm.engine.flow.Block;
 import kr.dongkuk.maru.mdm.engine.flow.Branch;
 import kr.dongkuk.maru.mdm.engine.flow.FlowParse;
@@ -77,6 +79,7 @@ import kr.dongkuk.maru.mdm.engine.flow.Step;
 import kr.dongkuk.maru.mdm.engine.rule.RunTrace;
 import kr.dongkuk.maru.mdm.engine.rule.RunTrace.NodeStatus;
 import kr.dongkuk.maru.mdm.engine.rule.RunTrace.NodeTrace;
+import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.DataType;
 import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.FlowDefinition;
 import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.NodeKind;
 import org.springframework.stereotype.Service;
@@ -833,9 +836,10 @@ public class RuleCalcService {
             if (text.length() > MAX_NUMBER_TEXT) {
                 throw new NumberTooBig("숫자가 너무 큽니다");
             }
+            // 숫자 모양은 엔진·도메인 검증과 같은 규칙(F4) — 지수·.5·5.·ASCII 밖 숫자는 숫자가 아니다. 앞뒤 공백은 위에서 뗀다.
             try {
-                return checked(new BigDecimal(text));
-            } catch (NumberFormatException e) {
+                return checked((BigDecimal) ValueConverter.convert(text, DataType.NUMBER));
+            } catch (ValueConversionException e) {
                 throw new IllegalArgumentException("숫자가 아닙니다", e);
             }
         }

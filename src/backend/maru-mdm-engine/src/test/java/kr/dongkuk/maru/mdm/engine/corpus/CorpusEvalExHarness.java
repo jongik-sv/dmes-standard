@@ -25,6 +25,9 @@ import kr.dongkuk.maru.mdm.engine.expr.EngineEvaluationException.Code;
 import kr.dongkuk.maru.mdm.engine.expr.FunctionSets;
 import kr.dongkuk.maru.mdm.engine.expr.MdmExpressionConfig;
 import kr.dongkuk.maru.mdm.engine.expr.ReservedNames;
+import kr.dongkuk.maru.mdm.engine.expr.ValueConversionException;
+import kr.dongkuk.maru.mdm.engine.expr.ValueConverter;
+import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.DataType;
 
 /**
  * 코퍼스 서버 러너의 하네스(TSK-03-04 design §6.11, D2). 교체 지점은 {@link #configuration} 하나다.
@@ -191,7 +194,7 @@ final class CorpusEvalExHarness {
         };
     }
 
-    /** 선언 타입 변환(03-03 §6.7 {@code ValueConverter.toDeclared}). 실패하면 IAE(부르는 쪽이 TYPE_CONVERSION 으로 바꾼다). */
+    /** 선언 타입 변환(03-03 §6.7 {@code rule.ValueConverter.toDeclared}). 실패하면 IAE(부르는 쪽이 TYPE_CONVERSION 으로 바꾼다). */
     static Object toDeclared(Object value, String dataType) {
         if (value == null) {
             return null;
@@ -202,9 +205,10 @@ final class CorpusEvalExHarness {
                     return value;
                 }
                 if (value instanceof String s) {
+                    // 숫자 글자는 도메인 검증과 같은 규칙(F4) — 엔진 rule.ValueConverter 처럼 expr.ValueConverter 에 맡긴다.
                     try {
-                        return new BigDecimal(s);
-                    } catch (NumberFormatException e) {
+                        return ValueConverter.convert(s, DataType.NUMBER);
+                    } catch (ValueConversionException e) {
                         throw new IllegalArgumentException("NUMBER 로 바꿀 수 없다: " + s);
                     }
                 }

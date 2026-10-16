@@ -515,7 +515,7 @@ public final class CellSummary {
 
 | 선언 타입 | null | BigDecimal | Integer·Long·Short·Byte | BigInteger | Double·Float | String | Boolean | List | 그 밖 |
 |---|---|---|---|---|---|---|---|---|---|
-| NUMBER | null | 그대로 | `BigDecimal.valueOf(long)` | `new BigDecimal(bi)` | 유한이면 `new BigDecimal(v.toString())`, NaN·무한 실패 | `new BigDecimal(s)`(공백·빈 문자열 실패) | 실패 | 그대로 | 실패 |
+| NUMBER | null | 그대로 | `BigDecimal.valueOf(long)` | `new BigDecimal(bi)` | 유한이면 `new BigDecimal(v.toString())`, NaN·무한 실패 | `expr.ValueConverter` 의 숫자 글자(`^[+-]?[0-9]+(\.[0-9]+)?$`)만, 지수·`.5`·`5.`·공백·빈 문자열 실패(2026-10-16 BE 리팩토링 2회차 F4. 전에는 `new BigDecimal(s)`) | 실패 | 그대로 | 실패 |
 | STRING·DATE | null | `toPlainString()` | NUMBER 로 바꾼 뒤 `toPlainString()` | 같음 | 같음 | 그대로 | 실패 | 그대로 | 실패 |
 | BOOLEAN | null | 실패 | 실패 | 실패 | 실패 | `TRUE`/`FALSE` 대소문자 무시 → Boolean, 그 밖 실패 | 그대로 | 그대로 | 실패 |
 | `type == null` | 변환 없이 그대로 |

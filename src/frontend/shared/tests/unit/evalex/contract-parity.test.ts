@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import {
   BASE_FUNCTIONS,
   D,
+  ENGINE_NUMBER_TEXT,
   EVAL_TS,
   EXPR_VAR_PREFIX,
   FUNCTIONS,
@@ -63,6 +64,13 @@ describe("evalex 계약 상수 = Java 계약", () => {
     const rounding: Record<string, number> = { HALF_EVEN: Decimal.ROUND_HALF_EVEN, HALF_UP: Decimal.ROUND_HALF_UP };
     expect(D.precision).toBe(Number(m![1]));
     expect(D.rounding).toBe(rounding[m![2]]);
+  });
+
+  it("숫자 글자 = ValueConverter.NUMBER_TEXT(F4 — 레코드 값 → NUMBER)", () => {
+    const m = /NUMBER_TEXT\s*=\s*Pattern\.compile\("((?:[^"\\]|\\.)*)"\)/.exec(java("ValueConverter.java"));
+    expect(m).not.toBeNull();
+    expect(ENGINE_NUMBER_TEXT.source).toBe(m![1].replace(/\\\\/g, "\\"));
+    expect(ENGINE_NUMBER_TEXT.flags).toBe("");
   });
 
   it("NULL 인자 정책 표가 지원 함수를 모두 덮는다", () => {

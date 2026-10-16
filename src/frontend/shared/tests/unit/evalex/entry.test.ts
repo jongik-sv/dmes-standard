@@ -36,6 +36,7 @@ describe("evalex 공개 경로", () => {
   it("공개 값: 평가기·분석기·계약 상수·표", () => {
     for (const name of [
       "D",
+      "ENGINE_NUMBER_TEXT",
       "NUMBER_TEXT",
       "PLAIN_DECIMAL",
       "fromTypedValue",

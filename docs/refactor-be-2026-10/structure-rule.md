@@ -41,9 +41,29 @@
 
 - `DomainTestCaseRunner` 를 common 으로 옮기는 일: 이 클래스는 dma/domainMng/service 의 `DomainDraft`·`DomainIssue`·`DomainIssueCode`·`DomainTestCase` 를 쓰므로, 그대로 옮기면 common → dma 의존이 새로 생긴다. `dmb/layout/LayoutConstJudge` 는 `preview` 하나만 쓴다. 조정자 결정(2026-10-16)으로 옮기지 않고 ArchUnit 예외로 둔다. `preview` 계열(판정·정의 만들기)을 common 으로 추출하는 것을 다음 후보로 둔다.
 
+## S3. F4 — 숫자 글자를 NUMBER 로 바꾸는 규칙을 도메인 검증과 같게
+
+- 커밋: 4f2ecb140(fix, 동작 변경)
+- 바뀌기 전: 글자 값 → 선언 타입 NUMBER 변환이 곳마다 달랐다. 도메인 검증(엔진 `expr.ValueConverter`)은 `^[+-]?[0-9]+(\.[0-9]+)?$` 만 받았고, 룰 판정(엔진 `rule.ValueConverter`)·룰 계산기(`RuleCalcService.toNumber`)·코퍼스 하네스는 `new BigDecimal(s)` 로 지수(`1e3`)·`.5`·`5.`·ASCII 밖 숫자까지 받았다. TS `convertForType` 은 `BIGDECIMAL_TEXT` 로 Java `new BigDecimal` 을 흉내 냈다.
+- 바뀐 뒤: 모두 `expr.ValueConverter` 의 숫자 글자 규칙을 쓴다. Java 는 `rule.ValueConverter`·`RuleCalcService`·하네스가 `expr.ValueConverter.convert(s, NUMBER)` 에 맡기고, TS 는 `ENGINE_NUMBER_TEXT`(shared evalex 새 export)를 쓴다. `BIGDECIMAL_TEXT` 는 지웠다. `RuleCalcService` 의 앞뒤 공백 제거·크기 방어(2000자·1000자리)와 `rejectOversizedText` 는 그대로다.
+- 화면 쪽 같이 고친 곳(조정자 승인): m-mdm 열 설정 미리보기 입력(`preview-input.ts`)은 치는 도중의 `1.` 을 글자로 두어 render 예외를 내지 않는다. 경계값 생성기(`boundary-cases.ts`)는 식 상수·초안 셀의 `.5`·`5.` 를 `0.5`·`5` 로 바꿔 쓴다. m-mcm 룰 계산기 입력 검사(`isValidNumberText`)는 서버와 같은 모양만 받는다. mdm-meta `validate.ts` 의 정규식 사본은 shared export 를 쓴다.
+- 바꾼 이유: 같은 값이 도메인 검증에서는 거부되고 룰 판정에서는 숫자로 읽혀 결과가 갈렸다. 조정자 결정(지수 표기 전면 거부, 도메인 검증과 같게)을 따른다.
+- 동작 보존 근거: 동작 변경 커밋이다. 바뀐 동작은 시험으로 고정했다. engine `ValueConverterTest`(거부 9건)·`RuleEngineStageTest`(입력·결과 지수 2건)·`RuleSetFlowEvaluationTest`(갈래 지수 1건), `engine-corpus.json` 셀 거부 5건·`+2.50` 수락 1건(Java·TS 함께), shared `convert-for-type.test.ts`·`contract-parity`(Java·TS 정규식 대조), `RuleCalcServiceValueTest`(거부 10건, 크기 방어는 평문 큰 수로), m-mdm `preview-input.test.ts`·`boundary-cases.test.ts` 2건, m-mcm `rule-calc-model.test.ts`. 시험 결과는 머지 요청에 적는다.
+- 영향 범위: 룰·룰 세트 판정, 룰 계산기 `execute`(문서 `docs/widget-2026-10/rule-calc-api.md` 갱신), 화면 EvalEx 평가기, 룰 편집 화면(미리보기·경계값 생성), 룰 계산기 위젯. **미확인**: 이미 저장된 데이터(룰 시험 케이스 입력, 화면·외부가 보내는 레코드 값)에 지수 표기 숫자 글자가 있는지 확인하지 않았다. 있으면 이 변경 뒤 `TYPE_CONVERSION`·`INPUT_INVALID` 가 된다.
+- 되돌리는 방법: 4f2ecb140 를 revert 한다. 문서 커밋은 따로 되돌린다.
+
+## D4 — `RuleSetRunner` OASIS 진입을 보관하지 않음 (ADR-0005 D2)
+
+- 결정: 보관하지 않고 그대로 둔다(조정자 2026-10-16). 「쓸 계획 없음」 전제가 ADR-0005(ACCEPTED) D2 와 맞지 않아 앞 결정을 뒤집었다.
+- 근거: ADR-0005 D2 는 `RuleSetRunner`(`@Service("ruleSetRunner")`)의 `run(setId, record, evalTs)`·`execute(RuleSetRunRequest)` 를 OASIS 업무 서비스와 Java 호출자가 룰 세트를 부르는 경계로 정한다. ADR D4 는 1단계에서 운영 BPMN 에 action 을 넣지 않고 시험 BPMN 하나로 경로만 검증한다고 적었다. 그래서 지금 부르는 업무 서비스가 없을 뿐, 설계로 정해 둔 입구다.
+- 확인한 것(저장소 전체, 대소문자 무시): 운영 BPMN·FE·다른 모듈에서 `ruleSetRunner`·`RuleSetRunRequest`·`RuleSetRunResult` 를 쓰는 곳은 없다. 시험 BPMN `mdm/api/src/test/resources/services/probe/ruleSetRunProbe.bpmn` 하나가 `execute` 를 부른다. 운영 코드는 `session()`·`trace` 말고도 `parseKst`(RuleCalcService·RuleSetEditService·RuleSetTestCaseService·RuleSetConfirmChecks), `warning()`(RuleSetEditService), `RULE_DEPRECATED`·`deprecatedWarnings(List)`(RuleCalcService)를 쓴다.
+- 보관했다면 들었을 일: `execute`·`run` 을 부르는 시험 7개 파일(RuleSetRunnerTest 22개 가운데 약 15개, RuleSetRunnerSubsetTest·RuleSetRunnerSetPathSqliteTest·RuleSetRunnerOasisTest·RuleSetRunnerMappingTest·SetCallIoEngineAgreementTest 1개, RuleSetDraftRunTest·RuleSetSimulateTest 단언 1개씩)을 나누거나 옮겨야 해서 크기가 S 가 아니라 M 이었다. ADR 개정도 필요했다.
+
 ## 후보 (이번에 하지 않음)
 
 - F4 범위 밖: 엔진 `rule/RecordKeys` 는 `CATCH_*` 를 검사하고 `expr/RecordKeys` 는 검사하지 않는다. `ExpressionFailure` 가 `rule`·`expr` 두 패키지에 같은 이름으로 있다.
-- D4 뒤: `RuleErrorText.withSetPath`·`missingSetId`·`setAbsent` 는 운영 코드에서 쓰는 곳이 없어진다. 이번에는 둔다.
+- F4 범위 밖(설계 시점 셀 글자·분석 경로, 레코드 값 변환이 아님): 엔진 `rule/RuleAnalyzer` 의 `PLAIN_DECIMAL`(`.5`·`5.` 받음)·`rule/ResultAggregator:66` 우선순위 원소 `new BigDecimal(element)`(지수 받음)·`rule/CellTextGenerator:269`, mdm `common/rule/check/ledger/DomainRangeCheck:119` `new BigDecimal(value.trim())`(지수·`.5` 받음 — 도메인 검증은 거부), TS `evalex/cell-compare.ts:51`·`rule-analysis.ts`·`interpreter.ts` 숫자 리터럴, m-mdm `boundary-cases.ts` 의 STRING 갈래 숫자 상수. 셀 값을 저장할 때 도메인 검증이 먼저 거르므로 지금 결과 차이는 확인하지 못했다.
+- F4 뒤: `RuleCalcService.rejectOversizedText` 는 「엔진이 지수 글자를 NUMBER 로 바꿀 수 있다」는 근거가 약해졌다(엔진이 이제 거부한다). 평문 긴 숫자 방어로는 여전히 필요해 그대로 둔다.
+- F4 뒤(UI): m-mcm 룰 계산기 `contextFill` 은 화면의 JS 숫자를 `String(n)` 으로 옮겨 `1e+21`·`1e-7` 이 되면 입력 검사에서 막힌다(전에도 막혔다). 지수를 펼쳐 채우는 것을 후보로 둔다.
 - dmd/dataHistory → dmd/dataItemMng(`DataItemListQuery`·`DataItemRows`·dto) 의존은 C7(version 레인) 뒤의 후보다.
 - `DomainTestCaseRunner.preview` 추출(위 「C5 에서 하지 않은 것」).

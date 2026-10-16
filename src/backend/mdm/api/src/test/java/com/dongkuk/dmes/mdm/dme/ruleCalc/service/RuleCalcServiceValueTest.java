@@ -21,8 +21,9 @@ class RuleCalcServiceValueTest {
 
     @Test
     void 자릿수가_너무_큰_NUMBER_입력은_거절한다() {
-        assertThrows(IllegalArgumentException.class, () -> RuleCalcService.toInput("1e999999999", "NUMBER"));
-        assertThrows(IllegalArgumentException.class, () -> RuleCalcService.toInput("1e-999999999", "NUMBER"));
+        // 지수 글자는 모양에서 먼저 거절된다(F4) — 크기 방어는 평문 숫자로 확인한다.
+        assertThrows(RuleCalcService.NumberTooBig.class, () -> RuleCalcService.toInput("1" + "0".repeat(1000), "NUMBER"));
+        assertThrows(RuleCalcService.NumberTooBig.class, () -> RuleCalcService.toInput("0." + "0".repeat(1000) + "1", "NUMBER"));
         assertThrows(IllegalArgumentException.class, () -> RuleCalcService.toInput("9".repeat(1001), "NUMBER"));
         assertThrows(IllegalArgumentException.class, () -> RuleCalcService.toInput("9".repeat(5000), "NUMBER"));
         assertThrows(IllegalArgumentException.class, () -> RuleCalcService.toInput(new BigDecimal("1e999999999"), "NUMBER"));
@@ -47,10 +48,20 @@ class RuleCalcServiceValueTest {
     @Test
     void 상한_이내의_숫자는_그대로_받는다() {
         assertEquals(new BigDecimal("2.00000000000000000001"), RuleCalcService.toInput("2.00000000000000000001", "NUMBER"));
-        assertEquals(new BigDecimal("1e1000"), RuleCalcService.toInput("1e1000", "NUMBER"));
+        assertEquals(new BigDecimal("1" + "0".repeat(999)), RuleCalcService.toInput("1" + "0".repeat(999), "NUMBER"), "1000자리까지는 받는다");
+        assertEquals(new BigDecimal("2.5"), RuleCalcService.toInput(" +2.5 ", "NUMBER"), "앞뒤 공백은 떼고 부호는 받는다");
         assertEquals(BigDecimal.valueOf(1200), RuleCalcService.toInput(1200, "NUMBER"));
         assertEquals(new BigDecimal("0.1"), RuleCalcService.toInput(0.1d, "NUMBER"), "double 은 최단 표기로 읽는다");
         assertEquals("0.5", RuleCalcService.toInput(new BigDecimal("0.5"), "STRING"));
+    }
+
+    @Test
+    void 숫자_칸의_글자는_도메인_검증과_같은_숫자_모양만_받는다() {
+        // F4 — 엔진·도메인 검증(expr.ValueConverter)과 같은 규칙. 크기와 상관없이 모양에서 거절한다.
+        for (String bad : List.of("1e1000", "1e3", "1E+3", "1.5e-2", ".5", "5.", "+.5", "١٢٣", "1,000", "0x10")) {
+            IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> RuleCalcService.toInput(bad, "NUMBER"), bad);
+            assertEquals("숫자가 아닙니다", e.getMessage(), bad);
+        }
     }
 
     @Test

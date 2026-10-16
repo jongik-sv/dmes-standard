@@ -6,11 +6,15 @@ import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import kr.dongkuk.maru.mdm.engine.expr.ValueConversionException;
 import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.DataType;
 
 /**
  * 입력·결과 값을 선언 데이터 타입으로 바꾼다(06-business-rule.md:198 엔진 계약 2, TSK-03-03 design §6.7).
  * 실패는 {@link IllegalArgumentException} 이고 부르는 쪽이 {@code TYPE_CONVERSION}·{@code EVALUATION_ERROR} 로 바꾼다.
+ *
+ * <p>숫자 글자는 도메인 검증과 같은 규칙으로 읽는다 — {@link kr.dongkuk.maru.mdm.engine.expr.ValueConverter} 에 맡기므로 지수·16진·
+ * {@code .5}·{@code 5.}·앞뒤 공백·ASCII 밖 숫자는 거부한다(BE 리팩토링 2회차 F4).
  */
 final class ValueConverter {
 
@@ -67,8 +71,8 @@ final class ValueConverter {
         }
         if (value instanceof String s) {
             try {
-                return new BigDecimal(s);
-            } catch (NumberFormatException e) {
+                return (BigDecimal) kr.dongkuk.maru.mdm.engine.expr.ValueConverter.convert(s, DataType.NUMBER);
+            } catch (ValueConversionException e) {
                 throw fail(value, DataType.NUMBER);
             }
         }

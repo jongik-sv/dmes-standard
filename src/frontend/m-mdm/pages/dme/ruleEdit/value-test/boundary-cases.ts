@@ -11,6 +11,7 @@
 import type { AstNode } from "@/contract/engine-contract.generated";
 import {
   D,
+  ENGINE_NUMBER_TEXT,
   PLAIN_DECIMAL,
   PatternRejected,
   classify,
@@ -161,6 +162,11 @@ function columnScale(v: ResolvedVar, cellsByRow: readonly Record<number, CellObj
   return s;
 }
 
+/** 식 상수 `.5`·`5.` 는 EvalEx 가 받지만 엔진 레코드 값 규칙(F4)은 거부한다 — 같은 값의 엔진 숫자 글자(`0.5`·`5`)로 바꾼다. */
+function engineNumberText(raw: string): string {
+  return ENGINE_NUMBER_TEXT.test(raw) ? raw : plainDecimal(new D(raw), fracDigits(raw));
+}
+
 function plainDecimal(d: Dec, digits: number): string {
   const s = d.toFixed(digits);
   return /^-0(\.0*)?$/.test(s) ? s.slice(1) : s;
@@ -170,7 +176,7 @@ function numberAxis(name: string, scale: number): Axis {
   const step = new D(10).pow(-scale);
   const read = (raw: string) => {
     if (!PLAIN_DECIMAL.test(raw)) throw new Unresolvable(`${name} 칸 값 "${raw}" 을 숫자로 읽지 못해 대표값을 정하지 못합니다`);
-    return raw;
+    return engineNumberText(raw); // 저장 전 초안 셀의 5.·.5 도 후보 입력·열 조건 값으로 쓸 수 있게(F4)
   };
   return {
     kind: "number",
@@ -604,7 +610,7 @@ function gvarOf(name: string, c: Collected, condKind: Kind | undefined): GVar {
             : "string";
   let texts: string[];
   if (kind === "number") {
-    const nums = c.nums.filter((x) => PLAIN_DECIMAL.test(x));
+    const nums = c.nums.filter((x) => PLAIN_DECIMAL.test(x)).map(engineNumberText);
     texts = nums.length === 0 ? ["0"] : uniq(nums.flatMap((x) => [x, shiftNumber(x, -1), shiftNumber(x, 1)]));
   } else if (kind === "boolean") {
     texts = ["false", "true"];

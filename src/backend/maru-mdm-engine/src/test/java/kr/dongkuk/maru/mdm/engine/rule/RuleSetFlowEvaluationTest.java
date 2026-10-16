@@ -193,6 +193,15 @@ class RuleSetFlowEvaluationTest {
     }
 
     @Test
+    void 조건식_변수의_지수_표기_숫자_글자는_BRANCH_EVAL_ERROR() {
+        // F4 — 갈래 조건식의 변수 변환도 도메인 검증과 같은 숫자 글자 규칙.
+        EngineEvaluationException e = fail(ifFlow("X > 10", "X > 0"), rec("X", "1e3"));
+        assertEquals(List.of("BRANCH_SELECT/BRANCH_EVAL_ERROR/null/null/b1"), violations(e));
+        assertEquals("IF if1 갈래 b1 조건식을 평가하지 못했다: 식 'X > 10' 변수 X 타입 변환 오류: String 값 '1e3' 을 NUMBER 로 바꿀 수 없다",
+                e.violations().get(0).message());
+    }
+
+    @Test
     void 조건식_파싱_실패는_사전_검사를_지나_평가_때_BRANCH_EVAL_ERROR() {
         EngineEvaluationException e = fail(ifFlow("X >", "X > 0"), rec("X", BigDecimal.ONE));
         assertEquals(List.of("BRANCH_SELECT/BRANCH_EVAL_ERROR/null/null/b1"), violations(e));

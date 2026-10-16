@@ -343,7 +343,8 @@ public class RuleCalcServiceTest extends RuleCalcTestBase {
 
     @Test
     void 숫자_자릿수가_너무_큰_입력은_메모리를_쓰지_않고_INPUT_INVALID_다() {
-        for (String huge : List.of("1e999999999", "1e-999999999", "9".repeat(1001), "0." + "0".repeat(1500) + "1")) {
+        // 지수 글자는 모양에서 먼저 거절된다(F4) — 크기 방어는 평문 숫자로 확인한다.
+        for (String huge : List.of("1" + "0".repeat(1000), "-0." + "0".repeat(1000) + "1", "9".repeat(1001), "0." + "0".repeat(1500) + "1")) {
             RuleCalcRequest q = req("RULE", "R_PRE", false);
             q.setValuesJson("{\"COIL_THK\":\"" + huge + "\"}");
 

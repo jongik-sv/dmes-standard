@@ -1,3 +1,4 @@
+import { ENGINE_NUMBER_TEXT } from "@dk-oasis/shared/evalex";
 import { describe, expect, it } from "vitest";
 
 import { readScreenApply } from "./screen-apply";
@@ -143,12 +144,19 @@ describe("collectValues", () => {
       B: "숫자를 입력하세요",
     });
     expect(collectValues([num("A", { scale: 0 })], { A: "1.5" }).errors.A).toBe("정수만 입력할 수 있습니다");
-    expect(collectValues(inputs, { A: "1.23", B: "-.5", S: "x" }).errors).toEqual({});
+    expect(collectValues(inputs, { A: "1.23", B: "-0.5", S: "x" }).errors).toEqual({});
+    // F4 — 서버가 거부하는 모양(.5·5.·지수)은 화면에서 먼저 막는다.
+    for (const bad of ["-.5", "5.", "1e3"]) expect(collectValues(inputs, { B: bad }).errors.B, bad).toBe("숫자를 입력하세요");
   });
   it("숫자 글은 쉼표를 허용하지 않는다", () => {
     expect(isValidNumberText("1,000")).toBe(false);
     expect(isValidNumberText("")).toBe(true);
-    expect(isValidNumberText("+3.")).toBe(true);
+    expect(isValidNumberText("+3.")).toBe(false);
+    expect(isValidNumberText(" +3.0 ")).toBe(true);
+    // 사본 정규식이 shared evalex(엔진 규칙)와 같은 판정을 한다(F4).
+    for (const t of ["0", "-1", "+2.50", "007", "1.", ".5", "1e3", "1E+3", "0x10", "١٢٣", "1 000", "-", "+.", "1.2.3"]) {
+      expect(isValidNumberText(t), t).toBe(ENGINE_NUMBER_TEXT.test(t));
+    }
     expect(isNumericType("DECIMAL(10,2)")).toBe(true);
     expect(isNumericType("STRING")).toBe(false);
   });

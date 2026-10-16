@@ -38,7 +38,7 @@ class ValueConverterTest {
                 Arguments.of(0.1f, "0.1"),
                 Arguments.of("1.8", "1.8"),
                 Arguments.of("-2", "-2"),
-                Arguments.of("1E+3", "1000"));
+                Arguments.of("+2", "2"));
     }
 
     @ParameterizedTest(name = "{displayName} [{index}] {0}")
@@ -73,6 +73,22 @@ class ValueConverterTest {
     @MethodSource("numberFail")
     void NUMBER_변환_실패(Object in) {
         assertThrows(IllegalArgumentException.class, () -> ValueConverter.toDeclared(in, DataType.NUMBER));
+    }
+
+    /** F4 — 숫자 글자는 도메인 검증({@code expr.ValueConverter})과 같은 규칙. {@code new BigDecimal(String)} 이 받던 모양도 거부한다. */
+    static Stream<Arguments> numberTextRejected() {
+        return Stream.of(
+                Arguments.of("1e3"), Arguments.of("1E+3"), Arguments.of("1.5e-2"),
+                Arguments.of(".5"), Arguments.of("5."), Arguments.of("+.5"),
+                Arguments.of("١٢٣"), Arguments.of("1,000"), Arguments.of("0x10"));
+    }
+
+    @ParameterizedTest(name = "{displayName} [{index}] {0}")
+    @MethodSource("numberTextRejected")
+    void 도메인_검증이_거부하는_숫자_글자는_NUMBER_로_바꾸지_않는다(String in) {
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> ValueConverter.toDeclared(in, DataType.NUMBER));
+        assertEquals("String 값 '" + in + "' 을 NUMBER 로 바꿀 수 없다", e.getMessage());
+        assertThrows(IllegalArgumentException.class, () -> kr.dongkuk.maru.mdm.engine.expr.ValueConverter.convert(in, DataType.NUMBER));
     }
 
     static Stream<Arguments> stringOk() {

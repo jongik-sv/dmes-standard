@@ -8,7 +8,7 @@
  * 화면 결과는 즉시 피드백용이고 서버가 기준이다(EG 8.5). 재현할 수 없는 자리는 `fallback` 으로 서버 미리보기를 부른다.
  */
 export type * from "./engine-contract.generated";
-export { D, NUMBER_TEXT, PLAIN_DECIMAL } from "./decimal";
+export { D, ENGINE_NUMBER_TEXT, NUMBER_TEXT, PLAIN_DECIMAL } from "./decimal";
 export type { Dec } from "./decimal";
 export { PatternRejected, classify } from "./pattern";
 export { FUNCTIONS } from "./functions";

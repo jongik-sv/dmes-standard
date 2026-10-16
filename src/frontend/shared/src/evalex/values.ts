@@ -1,5 +1,5 @@
 import type { DataType, ErrorCode, TypedValue } from "./engine-contract.generated";
-import { BIGDECIMAL_TEXT, D, NUMBER_TEXT, PLAIN_DECIMAL, decimalWithText, isDec, type Dec } from "./decimal";
+import { D, ENGINE_NUMBER_TEXT, NUMBER_TEXT, PLAIN_DECIMAL, decimalWithText, isDec, type Dec } from "./decimal";
 import { EvalexError } from "./errors";
 
 /** 인터프리터 값 — EvalEx 의 NUMBER·STRING·BOOLEAN·NULL. */
@@ -52,10 +52,7 @@ export function convertForType(v: EvalValue | number, dataType: DataType): EvalV
         if (!Number.isFinite(v)) throw conversion(v, dataType);
         return fromNumber(v);
       }
-      if (typeof v === "string") {
-        if (PLAIN_DECIMAL.test(v)) return decimalWithText(v);
-        if (BIGDECIMAL_TEXT.test(v)) return new D(v);
-      }
+      if (typeof v === "string" && ENGINE_NUMBER_TEXT.test(v)) return decimalWithText(v);
       throw conversion(v, dataType);
     case "STRING":
     case "DATE":

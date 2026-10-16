@@ -25,8 +25,11 @@ export const NUMBER_TEXT = new WeakMap<Dec, string>();
 /** 평문 십진(부호 선택). 지수·16진·공백 없음. */
 export const PLAIN_DECIMAL = /^[+-]?(\d+(\.\d*)?|\.\d+)$/;
 
-/** Java `new BigDecimal(s)` 가 받는 모양(지수 허용). */
-export const BIGDECIMAL_TEXT = /^[+-]?(\d+(\.\d*)?|\.\d+)([eE][+-]?\d+)?$/;
+/**
+ * 엔진 `expr.ValueConverter` 의 숫자 글자 — 부호·정수부·소수부만. 레코드 값을 선언 타입 NUMBER 로 바꿀 때 도메인 검증과 같은
+ * 규칙으로 읽는다(F4): 지수·16진·`.5`·`5.`·앞뒤 공백·ASCII 밖 숫자는 거부한다.
+ */
+export const ENGINE_NUMBER_TEXT = /^[+-]?[0-9]+(\.[0-9]+)?$/;
 
 /** 이미 `toPlainString` 모양인 평문(앞 0·`+`·`.5`·`5.`·`-0` 없음). */
 const CANONICAL = /^-?(0|[1-9]\d*)(\.\d+)?$/;

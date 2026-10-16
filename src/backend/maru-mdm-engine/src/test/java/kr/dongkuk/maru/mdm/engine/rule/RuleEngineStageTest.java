@@ -107,6 +107,14 @@ class RuleEngineStageTest {
     }
 
     @Test
+    void 조건_변수의_지수_표기_숫자_글자는_INPUT_CHECK_TYPE_CONVERSION() {
+        // F4 — 도메인 검증과 같은 숫자 글자 규칙. 평문 십진 글자는 그대로 받는다.
+        EngineEvaluationException e = fail(simple("T"), rec("A", "1e3", "B", "b"));
+        assertEquals(List.of("INPUT_CHECK/TYPE_CONVERSION/T/null/A"), violations(e));
+        assertEquals("X", run(simple("T2"), rec("A", "+2.0", "B", "b")).results().get("R"));
+    }
+
+    @Test
     void 앞_단계_위반이_있으면_뒤_단계를_돌지_않는다() {
         RuleDefinition d = RuleFixtures.replaceCell(simple("T"), 1, 1, withText(op("GT", "1"), BOOM));
         EngineEvaluationException e = fail(d, rec("B", "b"));
@@ -275,6 +283,17 @@ class RuleEngineStageTest {
                 row(1, 1, 1, op("GT", "1"), 2, expr("\"abc\""))));
         EngineEvaluationException e = fail(d, rec("A", 5));
         assertEquals(List.of("RESULT_EVAL/TYPE_CONVERSION/RT/1/R"), violations(e));
+    }
+
+    @Test
+    void 결과_식이_지수_표기_글자를_내면_NUMBER_선언에서_RESULT_EVAL_TYPE_CONVERSION() {
+        // F4 — 식 결과 글자도 같은 숫자 글자 규칙으로 선언 타입에 맞춘다.
+        RuleDefinition d = gen(decision("RX", 1, HitPolicy.FIRST, FROM,
+                List.of(condVar(1, DispType.ONE, "A", NUMBER, 1), resultVar(2, DispType.EXPRESSION, "R", NUMBER, 1)),
+                contract(vts("A", NUMBER)),
+                row(1, 1, 1, op("GT", "1"), 2, expr("\"1e3\""))));
+        EngineEvaluationException e = fail(d, rec("A", 5));
+        assertEquals(List.of("RESULT_EVAL/TYPE_CONVERSION/RX/1/R"), violations(e));
     }
 
     @Test

@@ -1832,6 +1832,123 @@
       }
     },
     {
+      "id": "cell.type.number-exponent-string",
+      "kind": "cell",
+      "variable": {
+        "name": "COIL_THK",
+        "dataType": "NUMBER"
+      },
+      "cell": {
+        "op": "GE",
+        "left": "2.5"
+      },
+      "value": {
+        "type": "STRING",
+        "value": "1e3"
+      },
+      "expect": {
+        "error": "TYPE_CONVERSION"
+      }
+    },
+    {
+      "id": "cell.type.number-exponent-upper-string",
+      "kind": "cell",
+      "variable": {
+        "name": "COIL_THK",
+        "dataType": "NUMBER"
+      },
+      "cell": {
+        "op": "GE",
+        "left": "2.5"
+      },
+      "value": {
+        "type": "STRING",
+        "value": "1E+3"
+      },
+      "expect": {
+        "error": "TYPE_CONVERSION"
+      }
+    },
+    {
+      "id": "cell.type.number-leading-dot-string",
+      "kind": "cell",
+      "variable": {
+        "name": "COIL_THK",
+        "dataType": "NUMBER"
+      },
+      "cell": {
+        "op": "GE",
+        "left": "2.5"
+      },
+      "value": {
+        "type": "STRING",
+        "value": ".5"
+      },
+      "expect": {
+        "error": "TYPE_CONVERSION"
+      }
+    },
+    {
+      "id": "cell.type.number-trailing-dot-string",
+      "kind": "cell",
+      "variable": {
+        "name": "COIL_THK",
+        "dataType": "NUMBER"
+      },
+      "cell": {
+        "op": "GE",
+        "left": "2.5"
+      },
+      "value": {
+        "type": "STRING",
+        "value": "5."
+      },
+      "expect": {
+        "error": "TYPE_CONVERSION"
+      }
+    },
+    {
+      "id": "cell.type.number-non-ascii-digit-string",
+      "kind": "cell",
+      "variable": {
+        "name": "COIL_THK",
+        "dataType": "NUMBER"
+      },
+      "cell": {
+        "op": "GE",
+        "left": "2.5"
+      },
+      "value": {
+        "type": "STRING",
+        "value": "١٢٣"
+      },
+      "expect": {
+        "error": "TYPE_CONVERSION"
+      }
+    },
+    {
+      "id": "cell.type.number-plus-sign-string",
+      "kind": "cell",
+      "variable": {
+        "name": "COIL_THK",
+        "dataType": "NUMBER"
+      },
+      "cell": {
+        "op": "GE",
+        "left": "2.5"
+      },
+      "value": {
+        "type": "STRING",
+        "value": "+2.50"
+      },
+      "expect": {
+        "value": {
+          "type": "BOOLEAN",
+          "value": "true"
+        }
+      }
+    },
+    {
       "id": "cell.type.bool-from-string",
       "kind": "cell",
       "variable": {

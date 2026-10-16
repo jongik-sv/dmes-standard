@@ -244,10 +244,16 @@ export function isNumericType(dataType: string): boolean {
 
 const NUMBER_TEXT = /^[+-]?(\d+\.?\d*|\.\d+)$/;
 
+/**
+ * 숫자 칸 입력 모양 — 서버(RuleCalcService)·엔진 레코드 값 규칙과 같다(F4): 부호·정수부·소수부만, 지수·`.5`·`5.` 는 거부한다.
+ * shared evalex `ENGINE_NUMBER_TEXT` 와 같은 식이다. 이 모델은 decimal.js 없이 글자 연산만 하므로 evalex 를 가져오지 않고 사본을 둔다.
+ */
+const INPUT_NUMBER_TEXT = /^[+-]?[0-9]+(\.[0-9]+)?$/;
+
 /** 숫자 칸 입력값이 숫자 모양인지(빈 값은 true — 필수 검사는 따로). 쉼표는 허용하지 않는다. */
 export function isValidNumberText(text: string): boolean {
   const t = text.trim();
-  return t === "" || NUMBER_TEXT.test(t);
+  return t === "" || INPUT_NUMBER_TEXT.test(t);
 }
 
 export interface RuleCalcValues {
