@@ -102,4 +102,25 @@ class DomainChainAssemblerTest {
         assertEquals(List.of("COIL_NET_WGT"), g.bizRequiredVars());
         assertNull(g.effectiveCodeRef());
     }
+
+    @Test
+    void typeOf_는_assemble_과_같은_타입_길이_소수를_낸다() {
+        DomainTreeSnapshot t = tree();
+        for (long id = 1; id <= 10; id++) {
+            List<DomainNode> chain = t.chainRootFirst(id);
+            EffectiveDomainView v = assembler.assemble(chain);
+            assertEquals(new DomainChainAssembler.TypeSpec(v.dataType(), v.length(), v.scale()),
+                    DomainChainAssembler.typeOf(chain), "id=" + id);
+        }
+        assertEquals(new DomainChainAssembler.TypeSpec("NUMBER", 8, 1), DomainChainAssembler.typeOf(t.chainRootFirst(3L)));
+    }
+
+    @Test
+    void typeOf_의_타입은_자식_행이_아니라_최상위_값이다() {
+        List<DomainNode> chain = List.of(
+                node(1).name("아이디").std("ID").kind("TEXT").type("STRING").length(30).build(ev),
+                node(2).name("숫자 아이디").std("NO_ID").kind("TEXT").type("NUMBER").parent(1L).build(ev));
+        assertEquals(new DomainChainAssembler.TypeSpec("STRING", 30, null), DomainChainAssembler.typeOf(chain));
+        assertEquals("STRING", assembler.assemble(chain).dataType());
+    }
 }
