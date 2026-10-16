@@ -28,7 +28,7 @@ public class ErdStreamController {
     @GetMapping(path = "/stream/{modelId}", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter stream(@PathVariable String modelId, @RequestParam String session,
                              @RequestParam(defaultValue = "-1") long sinceRev,
-                             @RequestParam(defaultValue = "UI") String source) {
+                             @RequestParam(defaultValue = ErdSources.UI) String source) {
         return hub.subscribe(modelId, session, currentUser.userId(), source, sinceRev);
     }
 

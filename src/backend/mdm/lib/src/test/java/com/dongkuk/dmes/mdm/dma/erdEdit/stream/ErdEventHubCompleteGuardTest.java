@@ -51,7 +51,7 @@ class ErdEventHubCompleteGuardTest {
         }
     }
 
-    final ErdEventHub hub = new ErdEventHub(null, null);
+    final ErdEventHub hub = new ErdEventHub(null, null, null);
     final Logger hubLogger = (Logger) LoggerFactory.getLogger(ErdEventHub.class);
     final ListAppender<ILoggingEvent> logs = new ListAppender<>();
     Level oldLevel;

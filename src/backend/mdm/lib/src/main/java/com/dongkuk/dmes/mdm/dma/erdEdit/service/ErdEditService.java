@@ -38,6 +38,8 @@ import com.dongkuk.dmes.mdm.dma.erdEdit.standard.ErdDictionaryLoader;
 import com.dongkuk.dmes.mdm.dma.erdEdit.standard.ErdStandardJudge;
 import com.dongkuk.dmes.mdm.dma.erdEdit.standard.ErdTypeMapping;
 import com.dongkuk.dmes.mdm.dma.erdEdit.stream.ErdEventHub;
+import com.dongkuk.dmes.mdm.dma.erdEdit.stream.ErdSources;
+import com.dongkuk.dmes.mdm.dma.erdEdit.stream.ErdVersionReader;
 import com.dongkuk.dmes.mdm.dma.erdEdit.engine.ErdDomainSpec;
 import com.dongkuk.dmes.mdm.dma.naming.NameComposition;
 import com.dongkuk.dmes.mdm.entity.MdmErdModelVer;
@@ -54,8 +56,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
 /**
@@ -72,8 +72,6 @@ import org.springframework.stereotype.Service;
 @Service("erdEditService")
 public class ErdEditService {
 
-    private static final Set<String> SOURCES = Set.of("UI", "MCP", "CLI");
-
     private final ErdModelStore store;
     private final ErdVersionService versions;
     private final ErdCommandService commands;
@@ -82,8 +80,10 @@ public class ErdEditService {
     private final VersionStateService stateService;
     private final DraftOwnershipService ownership;
     private final MdmCurrentUser currentUser;
-    private final JdbcTemplate jdbc;
+    private final ErdModelQuery modelQuery;
+    private final ErdDiagramQuery diagramQuery;
     private final ErdEventHub hub;
+    private final ErdVersionReader versionReader;
     private final ErdDbMetaReader metaReader;
     private final ErdHintsLoader hintsLoader;
     private final ErdModelDeletion modelDeletion;
@@ -91,9 +91,9 @@ public class ErdEditService {
 
     public ErdEditService(ErdModelStore store, ErdVersionService versions, ErdCommandService commands,
                           ErdConfirmCheck confirmCheck, ErdDictionaryLoader dictionaries, VersionStateService stateService,
-                          DraftOwnershipService ownership, MdmCurrentUser currentUser, JdbcTemplate jdbc,
-                          ErdEventHub hub, ErdDbMetaReader metaReader, ErdHintsLoader hintsLoader,
-                          ErdModelDeletion modelDeletion, Clock clock) {
+                          DraftOwnershipService ownership, MdmCurrentUser currentUser, ErdModelQuery modelQuery,
+                          ErdDiagramQuery diagramQuery, ErdEventHub hub, ErdVersionReader versionReader,
+                          ErdDbMetaReader metaReader, ErdHintsLoader hintsLoader, ErdModelDeletion modelDeletion, Clock clock) {
         this.store = store;
         this.versions = versions;
         this.commands = commands;
@@ -102,8 +102,10 @@ public class ErdEditService {
         this.stateService = stateService;
         this.ownership = ownership;
         this.currentUser = currentUser;
-        this.jdbc = jdbc;
+        this.modelQuery = modelQuery;
+        this.diagramQuery = diagramQuery;
         this.hub = hub;
+        this.versionReader = versionReader;
         this.metaReader = metaReader;
         this.hintsLoader = hintsLoader;
         this.modelDeletion = modelDeletion;
@@ -120,65 +122,13 @@ public class ErdEditService {
         switch (kind(r)) {
             case "" -> { }
             case "SCHEMAS" -> {
-                return schemas();
+                return modelQuery.schemas();
             }
             default -> throw MdmErrors.invalid("search 가 지원하지 않는 kind 입니다: " + r.getKind());
         }
         Map<String, List<ErdModelStore.ReleasedRow>> released = store.releasedByModel();
         LocalDateTime now = LocalDateTime.now(clock);
-        return jdbc.query("""
-                SELECT M.ERD_MODEL_ID
-                     , M.MODULE_ID
-                     , M.SCHEMA_NAME
-                     , M.MODEL_NAME
-                     , M.REV
-                     , M.STATUS AS MODEL_STATUS
-                     , M.C_USR_ID
-                     , (SELECT MAX(R.VER)
-                          FROM TB_MDM_ERD_MODEL_VER R
-                         WHERE R.ERD_MODEL_ID = M.ERD_MODEL_ID
-                           AND R.STATUS = 'RELEASED') AS RELEASED_VER
-                     , D.VER
-                     , D.OWNER_ID
-                  FROM TB_MDM_ERD_MODEL M
-                     , TB_MDM_ERD_MODEL_VER D
-                 WHERE D.ERD_MODEL_ID(+) = M.ERD_MODEL_ID
-                   AND D.STATUS(+) = 'DRAFT'
-                 ORDER BY M.ERD_MODEL_ID
-                """, (rs, i) -> {
-            Map<String, Object> row = new LinkedHashMap<>();
-            row.put("modelId", rs.getString("ERD_MODEL_ID"));
-            row.put("moduleId", rs.getString("MODULE_ID"));
-            row.put("schemaName", rs.getString("SCHEMA_NAME"));
-            row.put("modelName", rs.getString("MODEL_NAME"));
-            row.put("rev", rs.getLong("REV"));
-            BigDecimal draftVer = rs.getBigDecimal("VER");
-            row.put("draftVer", draftVer == null ? null : VersionNumbers.plain(draftVer));
-            row.put("ownerId", rs.getString("OWNER_ID"));
-            row.put("status", RuleVersions.effectiveStatus(rs.getString("MODEL_STATUS"),
-                    released.getOrDefault(rs.getString("ERD_MODEL_ID"), List.of()), now));
-            BigDecimal releasedVer = rs.getBigDecimal("RELEASED_VER");
-            row.put("releasedVer", releasedVer == null ? null : VersionNumbers.plain(releasedVer));
-            row.put("createdBy", rs.getString("C_USR_ID"));
-            return row;
-        });
-    }
-
-    /**
-     * 스키마 후보(ERD 2차 §7.2) — {@code ALL_USERS} 중 Oracle 이 관리하지 않는 사용자({@code ORACLE_MAINTAINED='N'}) 이름, 이름 순.
-     * 행 = {@code {schemaName}}. 비거나 실패하면 화면은 직접 입력을 받는다.
-     */
-    private List<Map<String, Object>> schemas() {
-        return jdbc.query("""
-                SELECT USERNAME
-                  FROM ALL_USERS
-                 WHERE ORACLE_MAINTAINED = 'N'
-                 ORDER BY USERNAME
-                """, (rs, i) -> {
-            Map<String, Object> row = new LinkedHashMap<>();
-            row.put("schemaName", rs.getString("USERNAME"));
-            return row;
-        });
+        return modelQuery.list(released, now);
     }
 
     /**
@@ -209,85 +159,12 @@ public class ErdEditService {
         long rev = store.rev(modelId);
         MdmErdModelVer v = r.getVer() == null ? store.current(modelId)
                 : store.find(ref(modelId, r.getVer())).orElseThrow(() -> MdmErrors.of(MdmErrorCode.ERD_MODEL_NOT_FOUND));
-        List<String> editors = jdbc.queryForList(
-                "SELECT USER_ID FROM TB_MDM_ERD_EDITOR WHERE ERD_MODEL_ID = ? AND VER = ? ORDER BY USER_ID",
-                String.class, modelId, v.getVer());
-        List<Map<String, Object>> diagrams = jdbc.query("""
-                SELECT DIAGRAM_ID
-                     , AREA_NAME
-                     , DIAGRAM_NAME
-                     , SORT_SEQ
-                  FROM TB_MDM_ERD_DIAGRAM
-                 WHERE ERD_MODEL_ID = ?
-                 ORDER BY SORT_SEQ, DIAGRAM_ID
-                """, (rs, i) -> {
-            Map<String, Object> d = new LinkedHashMap<>();
-            d.put("id", rs.getString("DIAGRAM_ID"));
-            d.put("areaName", rs.getString("AREA_NAME"));
-            d.put("diagramName", rs.getString("DIAGRAM_NAME"));
-            d.put("sortSeq", rs.getInt("SORT_SEQ"));
-            return d;
-        }, modelId);
-        List<Map<String, Object>> nodes = jdbc.query("""
-                SELECT N.DIAGRAM_ID
-                     , N.TABLE_UUID
-                     , N.POS_X
-                     , N.POS_Y
-                     , N.FOLD_MODE
-                     , N.SIZE_W
-                     , N.SIZE_H
-                  FROM TB_MDM_ERD_DIAGRAM_NODE N
-                     , TB_MDM_ERD_DIAGRAM D
-                 WHERE D.DIAGRAM_ID = N.DIAGRAM_ID
-                   AND D.ERD_MODEL_ID = ?
-                """, (rs, i) -> {
-            Map<String, Object> n = new LinkedHashMap<>();
-            n.put("diagram", rs.getString("DIAGRAM_ID"));
-            n.put("table", rs.getString("TABLE_UUID"));
-            n.put("x", rs.getInt("POS_X"));
-            n.put("y", rs.getInt("POS_Y"));
-            n.put("foldMode", rs.getString("FOLD_MODE"));
-            // 표 크기(README §7.4). NULL = 자동 크기라 키를 넣지 않는다.
-            int w = rs.getInt("SIZE_W");
-            if (!rs.wasNull()) n.put("w", w);
-            int h = rs.getInt("SIZE_H");
-            if (!rs.wasNull()) n.put("h", h);
-            return n;
-        }, modelId);
-        // 관계선 꺾임점(ERD 2차 §7.1). points 는 [{x, y}, …] 를 맵 목록으로 풀어 싣는다(OASIS 가 평범한 값으로 직렬화한다).
-        List<Map<String, Object>> routes = jdbc.query("""
-                SELECT R.DIAGRAM_ID
-                     , R.REL_UUID
-                     , R.POINTS_JSON
-                     , R.CHILD_SIDE
-                     , R.PARENT_SIDE
-                  FROM TB_MDM_ERD_DIAGRAM_ROUTE R
-                     , TB_MDM_ERD_DIAGRAM D
-                 WHERE D.DIAGRAM_ID = R.DIAGRAM_ID
-                   AND D.ERD_MODEL_ID = ?
-                 ORDER BY R.DIAGRAM_ID, R.REL_UUID
-                """, (rs, i) -> {
-            Map<String, Object> o = new LinkedHashMap<>();
-            o.put("diagram", rs.getString("DIAGRAM_ID"));
-            o.put("relation", rs.getString("REL_UUID"));
-            o.put("points", routePoints(rs.getString("POINTS_JSON")));
-            // 끝점 변(README §7.5). NULL = 자동 변이라 키를 넣지 않는다.
-            String childSide = rs.getString("CHILD_SIDE");
-            if (childSide != null) o.put("childSide", childSide);
-            String parentSide = rs.getString("PARENT_SIDE");
-            if (parentSide != null) o.put("parentSide", parentSide);
-            return o;
-        }, modelId);
+        List<String> editors = versionReader.editors(modelId, v.getVer());
+        List<Map<String, Object>> diagrams = diagramQuery.diagrams(modelId);
+        List<Map<String, Object>> nodes = diagramQuery.nodes(modelId);
+        List<Map<String, Object>> routes = diagramQuery.routes(modelId);
         return new ErdModelView(modelId, rev, VersionNumbers.plain(v.getVer()), v.getStatus(), v.getOwnerId(), editors,
                 v.getRowVersion(), v.getModelJson(), diagrams, nodes, routes, hub.presence(modelId));
-    }
-
-    private static List<Map<String, Object>> routePoints(String json) {
-        try {
-            return ErdModelCodec.MAPPER.readValue(json, new TypeReference<List<Map<String, Object>>>() { });
-        } catch (JsonProcessingException e) {
-            throw new IllegalStateException("POINTS_JSON 을 읽을 수 없습니다", e);
-        }
     }
 
     /**
@@ -360,7 +237,7 @@ public class ErdEditService {
     private Map<String, Object> dbDiff(ErdEditRequest r) {
         String modelId = requireModelId(r);
         long rev = store.rev(modelId);
-        String schema = moduleAndSchema(modelId)[1];
+        String schema = modelQuery.moduleAndSchema(modelId)[1];
         ErdModel m = ErdModelCodec.read(store.current(modelId).getModelJson());
         ErdDbDiffView out = new ErdDbDiffView(modelId, rev, schema, ErdDbDiff.diff(m, metaReader.read(schema)));
         touch(modelId, r, currentUser.userId());
@@ -460,7 +337,7 @@ public class ErdEditService {
         String me = currentUser.userId();
         String session = session(r, me);
         String source = source(r);
-        String[] moduleSchema = moduleAndSchema(modelId);
+        String[] moduleSchema = modelQuery.moduleAndSchema(modelId);
         ErdDbMeta meta = metaReader.read(moduleSchema[1]);
         if (meta.tables().isEmpty()) {
             throw MdmErrors.invalid("스키마 " + moduleSchema[1] + " 에 가져올 표가 없습니다(스키마 이름과 읽기 권한을 확인하세요)");
@@ -490,7 +367,7 @@ public class ErdEditService {
         String me = currentUser.userId();
         String session = session(r, me);
         String source = source(r);
-        ErdDbMeta meta = metaReader.read(moduleAndSchema(modelId)[1]);
+        ErdDbMeta meta = metaReader.read(modelQuery.moduleAndSchema(modelId)[1]);
         ErdDiffApplyResult res = commands.applyDiff(modelId, r.getBaseRev(), me, session, source, meta, dictionaries.load(), ids);
         if (!res.applied()) touch(modelId, r, me);
         return plain(res);
@@ -516,15 +393,6 @@ public class ErdEditService {
             throw MdmErrors.invalid("고른 차이 항목은 1~" + MAX_DIFF_ITEMS + "개여야 합니다(지금 " + ids.size() + "개)");
         }
         return List.copyOf(ids);
-    }
-
-    /** 모델 행의 [MODULE_ID, SCHEMA_NAME]. 없으면 ERD_MODEL_NOT_FOUND. */
-    private String[] moduleAndSchema(String modelId) {
-        List<String[]> rows = jdbc.query("SELECT MODULE_ID, SCHEMA_NAME FROM TB_MDM_ERD_MODEL WHERE ERD_MODEL_ID = ?",
-                (rs, i) -> new String[]{rs.getString(1), rs.getString(2)}, modelId);
-        if (rows.isEmpty()) throw MdmErrors.of(MdmErrorCode.ERD_MODEL_NOT_FOUND);
-        if (rows.get(0)[1] == null || rows.get(0)[1].isBlank()) throw MdmErrors.invalid("모델에 스키마 이름이 없습니다: " + modelId);
-        return rows.get(0);
     }
 
     /** 요청 kind 가 k 인가(앞뒤 공백·대소문자 무시). */
@@ -641,7 +509,7 @@ public class ErdEditService {
      */
     private void announce(String modelId, String reason) {
         store.flush();
-        var event = hub.versionNow(modelId, reason, currentUser.userId());
+        var event = versionReader.versionNow(modelId, reason, currentUser.userId());
         if (event != null) hub.publishVersion(event);
     }
 
@@ -663,8 +531,8 @@ public class ErdEditService {
 
     /** 접속자 표시용 출처. 읽기 액션은 source 를 검사하지 않으므로 모르는 값이면 null(시한 항목을 만들지 않는다). */
     private static String sourceOrNull(ErdEditRequest r) {
-        String s = notBlank(r.getSource()) ? r.getSource().trim().toUpperCase(Locale.ROOT) : "UI";
-        return SOURCES.contains(s) ? s : null;
+        String s = notBlank(r.getSource()) ? r.getSource().trim().toUpperCase(Locale.ROOT) : ErdSources.UI;
+        return ErdSources.COMMAND.contains(s) ? s : null;
     }
 
     /**
@@ -717,8 +585,8 @@ public class ErdEditService {
     }
 
     private static String source(ErdEditRequest r) {
-        String s = notBlank(r.getSource()) ? r.getSource().trim().toUpperCase(Locale.ROOT) : "UI";
-        if (!SOURCES.contains(s)) throw MdmErrors.invalid("source 는 UI·MCP·CLI 중 하나입니다: " + r.getSource());
+        String s = notBlank(r.getSource()) ? r.getSource().trim().toUpperCase(Locale.ROOT) : ErdSources.UI;
+        if (!ErdSources.COMMAND.contains(s)) throw MdmErrors.invalid("source 는 UI·MCP·CLI 중 하나입니다: " + r.getSource());
         return s;
     }
 

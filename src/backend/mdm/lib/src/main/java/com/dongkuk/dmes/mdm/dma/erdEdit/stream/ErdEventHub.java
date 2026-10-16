@@ -2,15 +2,11 @@ package com.dongkuk.dmes.mdm.dma.erdEdit.stream;
 
 import com.dongkuk.dmes.cactus.common.ResponseCodeAware;
 import com.dongkuk.dmes.mdm.common.support.MdmErrors;
-import com.dongkuk.dmes.mdm.common.version.VersionNumbers;
 import com.dongkuk.dmes.mdm.contract.common.MdmErrorCode;
 import com.dongkuk.dmes.mdm.dma.erdEdit.dto.ErdChangesView;
 import com.dongkuk.dmes.mdm.dma.erdEdit.dto.ErdClaimResult;
 import com.dongkuk.dmes.mdm.dma.erdEdit.model.ErdModelCodec;
-import com.dongkuk.dmes.mdm.dma.erdEdit.service.ErdCommandService;
 import jakarta.annotation.PreDestroy;
-import java.math.BigDecimal;
-import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Comparator;
@@ -41,9 +37,6 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -155,8 +148,11 @@ public class ErdEventHub {
     private final Map<String, ClaimRefresh> claimRefresh = new ConcurrentHashMap<>();
     /** 지운 모델의 마지막 rev(reload 로 보낸 값). 같은 id 를 다시 등록하면 rev 를 여기서 잇는다 — 서버 1대·메모리(스펙 5절)라 재시작하면 잊는다. */
     private final Map<String, Long> deletedRevs = new ConcurrentHashMap<>();
-    private final ObjectProvider<ErdCommandService> commandsProvider;
+    private final ErdChangeSource changes;
+    private final ErdVersionReader versionReader;
     private final JdbcTemplate jdbc;
+    /** 작업 중 표시 표의 SQL. 허브와 같은 JdbcTemplate 을 쓴다. */
+    private final ErdClaimStore claimStore;
     private final ScheduledExecutorService pinger;
     /** 재생 읽기와 작업 중 표시 다시 읽기. 소켓에는 쓰지 않는다. */
     private final ExecutorService reader;
@@ -166,10 +162,12 @@ public class ErdEventHub {
     /** 소켓 쓰기 상한(ms). 시험이 줄인다. */
     volatile long sendDeadlineMs = SEND_DEADLINE_MS;
 
-    /** ErdCommandService 는 이 허브를 받으므로 ObjectProvider 로 늦게 꺼낸다(순환 의존 회피). */
-    public ErdEventHub(ObjectProvider<ErdCommandService> commandsProvider, JdbcTemplate jdbc) {
-        this.commandsProvider = commandsProvider;
+    /** 놓친 델타는 {@link ErdChangeSource} 로, 구독 직후 버전 상태는 {@link ErdVersionReader} 로 읽는다 — 둘 다 허브를 받지 않으므로 생성자로 바로 받는다. */
+    public ErdEventHub(ErdChangeSource changes, ErdVersionReader versionReader, JdbcTemplate jdbc) {
+        this.changes = changes;
+        this.versionReader = versionReader;
         this.jdbc = jdbc;
+        this.claimStore = new ErdClaimStore(jdbc);
         // MDM 앱에는 @EnableScheduling 이 없다 — 허브가 스레드 하나를 직접 둔다(ping·막힌 쓰기 감시·해제).
         this.pinger = Executors.newSingleThreadScheduledExecutor(daemon("erd-sse-ping"));
         pinger.scheduleAtFixedRate(this::pingAll, PING_MS, PING_MS, TimeUnit.MILLISECONDS);
@@ -300,8 +298,8 @@ public class ErdEventHub {
         try {
             record Read(ErdChangesView snapshot, ErdVersionEvent version) {}
             // 구독마다 버전 상태 하나(S2-12 SUBSCRIBE). 보내기는 재생분 바로 뒤, 큐(presence·claim·실시간 델타)보다 먼저다.
-            Read read = dbRead(() -> new Read(commandsProvider.getObject().changesSince(sub.modelId, sinceRev),
-                    versionNow(sub.modelId, "SUBSCRIBE", sub.userId)));
+            Read read = dbRead(() -> new Read(changes.changesSince(sub.modelId, sinceRev),
+                    versionReader.versionNow(sub.modelId, "SUBSCRIBE", sub.userId)));
             Runnable pause = replayPauseForTest;
             if (pause != null) pause.run();
             synchronized (sub) {
@@ -432,33 +430,6 @@ public class ErdEventHub {
 
     // ── 버전 이벤트(S2-12) ─────────────────────────────────────────────
 
-    /**
-     * 지금 버전 상태 — view(ver 없음)가 돌려줄 값과 같다: DRAFT 가 있으면 그것, 없으면 가장 높은 RELEASED. 버전 행이 없으면 null.
-     * JdbcTemplate 으로 읽는다. 동작 뒤 이벤트는 호출자(ErdEditService)가 같은 트랜잭션 안에서 영속성 문맥을 내보낸 뒤 부른다 —
-     * 엔티티는 네이티브 CAS 뒤에 낡은 값을 가질 수 있다. 구독 직후 이벤트는 읽기 스레드가 {@link #dbRead} 안에서 부른다.
-     */
-    public ErdVersionEvent versionNow(String modelId, String reason, String userId) {
-        record Row(BigDecimal ver, String status, String ownerId, long rowVersion) {}
-        List<Row> rows = jdbc.query("""
-                SELECT VER
-                     , STATUS
-                     , OWNER_ID
-                     , ROW_VERSION
-                  FROM TB_MDM_ERD_MODEL_VER
-                 WHERE ERD_MODEL_ID = ?
-                   AND STATUS IN ('DRAFT', 'RELEASED')
-                 ORDER BY CASE STATUS WHEN 'DRAFT' THEN 0 ELSE 1 END
-                        , VER DESC
-                """, (rs, i) -> new Row(rs.getBigDecimal(1), rs.getString(2), rs.getString(3), rs.getLong(4)), modelId);
-        if (rows.isEmpty()) return null;
-        Row v = rows.get(0);
-        List<String> editors = jdbc.queryForList(
-                "SELECT USER_ID FROM TB_MDM_ERD_EDITOR WHERE ERD_MODEL_ID = ? AND VER = ? ORDER BY USER_ID",
-                String.class, modelId, v.ver());
-        return new ErdVersionEvent(modelId, VersionNumbers.plain(v.ver()), v.status(), v.ownerId(), List.copyOf(editors),
-                v.rowVersion(), reason, userId, Instant.now().toString());
-    }
-
     /** 버전 이벤트를 커밋 뒤에(트랜잭션 밖이면 바로) 그 모델의 구독자 큐에 넣는다. 소켓 쓰기는 보내기 스레드가 한다. */
     public void publishVersion(ErdVersionEvent event) {
         afterCommit(() -> {
@@ -495,7 +466,7 @@ public class ErdEventHub {
 
     /** 시한 접속자를 만드는 출처. UI 는 SSE 구독이 접속자를 만든다. */
     public static boolean isTimedSource(String source) {
-        return "MCP".equals(source) || "CLI".equals(source);
+        return ErdSources.MCP.equals(source) || ErdSources.CLI.equals(source);
     }
 
     /**
@@ -594,45 +565,13 @@ public class ErdEventHub {
      */
     public ErdClaimResult claimFor(String modelId, String tableId, String session, String userId, long ttlSeconds) {
         Instant at = Instant.now().truncatedTo(ChronoUnit.MICROS); // EXPIRES_AT 은 TIMESTAMP(6) — 돌려주는 글과 저장 값을 같게
-        Timestamp now = Timestamp.from(at);
         Instant until = at.plusSeconds(ttlSeconds);
-        Timestamp untilTs = Timestamp.from(until);
-        int n;
-        try {
-            n = jdbc.update("""
-                MERGE INTO TB_MDM_ERD_CLAIM T
-                USING (
-                       SELECT ? AS ERD_MODEL_ID
-                            , ? AS TABLE_UUID
-                         FROM DUAL
-                      ) S
-                   ON (T.ERD_MODEL_ID = S.ERD_MODEL_ID AND T.TABLE_UUID = S.TABLE_UUID)
-                 WHEN MATCHED THEN UPDATE
-                         SET T.SESSION_NM = ?
-                           , T.USER_ID    = ?
-                           , T.EXPIRES_AT = ?
-                           , T.U_USR_ID   = ?
-                           , T.U_AT       = ?
-                       WHERE T.SESSION_NM = ?
-                          OR T.EXPIRES_AT <= ?
-                 WHEN NOT MATCHED THEN INSERT
-                       (ERD_MODEL_ID, TABLE_UUID, SESSION_NM, USER_ID, EXPIRES_AT, C_USR_ID, C_AT, U_USR_ID, U_AT, VER)
-                       VALUES (S.ERD_MODEL_ID, S.TABLE_UUID, ?, ?, ?, ?, ?, ?, ?, 0)
-                """, modelId, tableId, session, userId, untilTs, userId, now, session, now,
-                    session, userId, untilTs, userId, now, userId, now);
-        } catch (DuplicateKeyException e) {
-            n = 0; // 같은 표를 다른 세션이 동시에 처음 표시했다 — 먼저 들어간 쪽이 이긴다
-        } catch (DataIntegrityViolationException e) {
-            // 모델 삭제(ERD 2차 §7.2)와 겹쳤다 — 부모 모델 행이 사라져 FK 위반(ORA-02291). 원시 오류(S001) 대신 ERD_MODEL_NOT_FOUND.
-            // 이 경로는 저장 잠금(모델 행)을 기다리지 않는다 — 풀 연결을 아끼려고 잠그지 않고 FK 로 판정한다.
-            if (!String.valueOf(e.getMostSpecificCause().getMessage()).contains("FK_TB_MDM_ERD_CLAIM_MODEL")) throw e;
-            throw MdmErrors.of(MdmErrorCode.ERD_MODEL_NOT_FOUND);
-        }
+        int n = claimStore.upsert(modelId, tableId, session, userId, at, until);
         if (n > 0) {
             afterCommit(() -> refreshClaims(modelId));
             return new ErdClaimResult(true, session, userId, until.toString());
         }
-        return holder(modelId, tableId)
+        return claimStore.holder(modelId, tableId)
                 .map(h -> new ErdClaimResult(false, h.session(), h.userId(), h.expiresAt()))
                 .orElseGet(() -> new ErdClaimResult(false, null, null, null));
     }
@@ -642,26 +581,9 @@ public class ErdEventHub {
         return claimFor(modelId, tableId, session, userId, ttlSeconds).ok();
     }
 
-    /** 지금 그 표를 쥔 살아 있는 표시. 호출자 트랜잭션 연결로 읽는다. */
-    private Optional<ErdClaimView> holder(String modelId, String tableId) {
-        return jdbc.query("""
-                SELECT TABLE_UUID
-                     , SESSION_NM
-                     , USER_ID
-                     , EXPIRES_AT
-                  FROM TB_MDM_ERD_CLAIM
-                 WHERE ERD_MODEL_ID = ?
-                   AND TABLE_UUID = ?
-                   AND EXPIRES_AT > ?
-                """, (rs, i) -> new ErdClaimView(rs.getString(1), rs.getString(2), rs.getString(3),
-                        rs.getTimestamp(4).toInstant().toString()), modelId, tableId, Timestamp.from(Instant.now()))
-                .stream().findFirst();
-    }
-
     /** 작업 중 표시를 지운다. 쓰기·방송 시점은 {@link #claim} 과 같다. */
     public void release(String modelId, String tableId, String session) {
-        int n = jdbc.update("DELETE FROM TB_MDM_ERD_CLAIM WHERE ERD_MODEL_ID = ? AND TABLE_UUID = ? AND SESSION_NM = ?",
-                modelId, tableId, session);
+        int n = claimStore.delete(modelId, tableId, session);
         if (n > 0) afterCommit(() -> refreshClaims(modelId));
     }
 
@@ -709,19 +631,9 @@ public class ErdEventHub {
         }
     }
 
-    /** 만료가 지나지 않은 표시만. 시각 비교는 애플리케이션 시각으로 한다(쓰기와 같은 시계). */
+    /** 만료가 지나지 않은 표시만, 표 id 순. 시각 비교는 애플리케이션 시각으로 한다(쓰기와 같은 시계). 호출자 트랜잭션이 있으면 그 연결로 읽는다. */
     public List<ErdClaimView> claims(String modelId) {
-        return jdbc.query("""
-                SELECT TABLE_UUID
-                     , SESSION_NM
-                     , USER_ID
-                     , EXPIRES_AT
-                  FROM TB_MDM_ERD_CLAIM
-                 WHERE ERD_MODEL_ID = ?
-                   AND EXPIRES_AT > ?
-                 ORDER BY TABLE_UUID
-                """, (rs, i) -> new ErdClaimView(rs.getString(1), rs.getString(2), rs.getString(3), rs.getTimestamp(4).toInstant().toString()),
-                modelId, Timestamp.from(Instant.now()));
+        return claimStore.live(modelId);
     }
 
     // ── 보내기 ────────────────────────────────────────────────────────
@@ -848,7 +760,7 @@ public class ErdEventHub {
                     }
                     gapFrom = s.lastRev;
                 }
-                ErdChangesView v = dbRead(() -> commandsProvider.getObject().changesSince(s.modelId, gapFrom));
+                ErdChangesView v = dbRead(() -> changes.changesSince(s.modelId, gapFrom));
                 synchronized (s) {
                     if (s.overflowed || s.closeRev >= 0 || s.dropped) continue; // 읽는 사이에 넘쳤다(모델이 지워졌다) — 다음 바퀴가 reload 뒤 닫는다
                     if (s.lastRev == gapFrom) sendGap(s, v, gapFrom); // 사이에 다른 경로가 lastRev 를 옮기지 않았을 때만

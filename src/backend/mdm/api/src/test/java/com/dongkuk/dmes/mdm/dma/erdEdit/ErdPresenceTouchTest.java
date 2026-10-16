@@ -116,6 +116,35 @@ class ErdPresenceTouchTest extends AbstractMdmSharedDbTest {
         assertThat(presence("claude-d")).isNull();
     }
 
+    /**
+     * OASIS 출처: 다듬고 대문자로 바꾼다. 모르는 값은 쓰기만 입력 오류(MDM021)이고, 읽기는 통과하되 시한 항목을 만들지 않는다.
+     */
+    @Test
+    void oasisSourceIsTrimmedUpperCasedAndUnknownOnlyBlocksWrites() throws Exception {
+        JsonNode saved = c.call("save", "owner", Map.of("modelId", "mcm", "baseRev", 0, "session", "s-src", "source", " mcp ",
+                "commandsJson", "[{\"op\":\"addTable\",\"audit\":false,\"id\":\"t-1\",\"phys\":\"TB_A\",\"logical\":\"에이\"}]"));
+        assertThat(saved.at("/data/result/applied").asBoolean()).as(saved.toString()).isTrue();
+        assertThat(jdbc.queryForObject("SELECT SOURCE FROM TB_MDM_ERD_CMD_LOG WHERE ERD_MODEL_ID = 'mcm' AND REV = 1", String.class))
+                .isEqualTo("MCP");
+        // 모르는 출처는 쓰기에서 막는다 — 다른 칸은 모두 올바르다
+        JsonNode bad = c.call("save", "owner", Map.of("modelId", "mcm", "baseRev", 1, "session", "s-src", "source", "WEB",
+                "commandsJson", "[{\"op\":\"updateTable\",\"id\":\"t-1\",\"set\":{\"comment\":\"메모\"}}]"));
+        assertThat(bad.at("/meta/code").asText()).as(bad.toString()).isEqualTo("MDM021");
+        assertThat(bad.at("/meta/message").asText() + bad).contains("source 는 UI·MCP·CLI");
+        assertThat(jdbc.queryForObject("SELECT REV FROM TB_MDM_ERD_MODEL WHERE ERD_MODEL_ID = 'mcm'", Long.class)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM TB_MDM_ERD_CMD_LOG WHERE ERD_MODEL_ID = 'mcm'", Integer.class)).isEqualTo(1);
+        // 읽기는 모르는 출처도 통과하고 시한 항목을 만들지 않는다
+        JsonNode web = c.call("view", "owner", Map.of("modelId", "mcm", "session", "s-web", "source", "web"));
+        assertThat(web.at("/data/result/model").isTextual()).as(web.toString()).isTrue();
+        assertThat(presence("s-web")).isNull();
+        // 소문자 cli 는 CLI 시한 항목을 만든다
+        c.call("view", "owner", Map.of("modelId", "mcm", "session", "s-cli", "source", "cli"));
+        ErdPresence cli = presence("s-cli");
+        assertThat(cli).isNotNull();
+        assertThat(cli.source()).isEqualTo("CLI");
+        assertThat(cli.expiresAt()).isNotNull();
+    }
+
     /** deferred 25: 키·관계·컬럼 삭제처럼 표 델타가 없는 변경도 그 표를 접속자 표시에 넣는다(엔진 touchedTables). */
     @Test
     void mcpKeyChangeTouchesItsTable() throws Exception {

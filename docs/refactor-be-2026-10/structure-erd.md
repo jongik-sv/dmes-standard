@@ -104,6 +104,52 @@ UNION ALL SELECT 'erd_columns_on_changed_domain', COUNT(*) FROM cols c JOIN chan
 - 영향 범위: `TermRegPopService`, `TermMngService`(약어 중복 조회 한 줄), `MdmTermRepository`(파생 쿼리 이름). Spring Data 가 `UPPER(ENG_ABBR) = UPPER(?)` 로 만든다(Oracle. 시험도 Oracle 시험 PDB 에서 돈다). 응답 JSON 모양은 그대로다.
 - 되돌리는 방법: `c22f650f8`, `c4ce04bee` 를 각각 revert 한다(서로 독립).
 
+## S5. C8 — ERD 실시간 허브 나누기·`stream` ↔ `service` 순환 없애기·인라인 SQL 옮기기
+
+- 커밋: 단계마다 특성 시험(test)을 먼저 커밋하고 옛 코드에서 통과시킨 뒤 refactor 커밋을 했다. 머지 때는 squash 커밋 1개가 되며, 본문에 원래 커밋 목록을 남긴다.
+
+  | 단계 | 커밋 | 바뀐 것 |
+  |---|---|---|
+  | S2 | `c4278f3c2` test · `a9aebd122` refactor · `ef622deee` test | `stream/ErdChangeSource`(인터페이스 하나) + `service/ErdChangeFeed`(구현, `ErdCommandService.changesSince` 본문을 옮김). 허브가 `ObjectProvider<ErdCommandService>` 대신 `ErdChangeSource` 를 받는다. lib `stream/ErdStreamLayerArchitectureTest`(stream → service 금지) |
+  | S3 | `a35d82f88` test · `d660c7079` refactor | `stream/ErdClaimStore`(package-private): 선점 MERGE·지우기·보유자·살아 있는 목록 SQL 과 예외 바꾸기(중복 키 → 0건, FK → MDM029). 커밋 뒤 갱신(`afterCommit`)·DB 읽기 세마포어·읽기 스레드는 허브에 남는다 |
+  | S4+S7 | `1b7efd356` test · `415680bda` refactor | `stream/ErdVersionReader`(`versionNow`·`editors`). 허브와 `ErdEditService`(view 편집자·버전 알림)가 같은 편집자 목록 SQL 을 쓴다. `currentRev` 는 허브에 남는다 |
+  | S5 | `c64b77d50` test · `e21b1ad0d` refactor | `service/ErdModelQuery`(모델 목록 바깥 조인·스키마·모듈과 스키마), `service/ErdDiagramQuery`(view 다이어그램·노드·꺾임점). `ErdEditService` 에서 `JdbcTemplate` 이 빠졌다 |
+  | S6 | `a99c4ca33` test · `d4b0b443e` refactor | `service/ErdDiagramRows`: 다이어그램 행의 키·순서·NULL 규칙 하나. view 는 맵 그대로, 저장소(`ErdDiagramStore.row`·`routeRow`)는 `MAPPER.valueToTree` 로 JsonNode 를 만든다 |
+  | S8 | `4155ca081` test · `05725d17c` test · `1f1b948f7` refactor | `stream/ErdSources`: 출처 상수(UI·MCP·CLI, 표시 행 SYSTEM·system) 한 곳. 검사 규칙은 클래스마다 그대로 |
+
+- 바뀌기 전: `stream/ErdEventHub`(930줄)가 SSE·접속자·선점 저장 SQL·버전 읽기 SQL 을 한 클래스에 담고, 델타 읽기를 위해 `service/ErdCommandService` 에 기댔다(`stream` ↔ `service` 순환). `ErdEditService`(729줄)에 모델 목록·다이어그램·편집자 SQL 이 인라인으로 있었다. 다이어그램 행 JSON 을 view(`LinkedHashMap`)와 저장소(`ObjectNode`)가 따로 만들었다. 출처 값이 클래스마다 문자열로 흩어져 있었다.
+- 바뀐 뒤: 허브 842줄, `ErdEditService` 596줄. 배치 규칙은 아래와 같다.
+  - `stream` 이 쓰는 것은 `stream` 에 둔다(`ErdChangeSource`·`ErdClaimStore`·`ErdVersionReader`·`ErdSources`). `service` → `stream` 은 되고 `stream` → `service` 는 안 된다(ArchUnit 규칙 하나).
+  - `ErdChangeSource` 의 구현은 `service/ErdChangeFeed` 하나뿐이다(시험이 람다로 넘길 수 있게 메서드 하나).
+  - 새 query 클래스(`ErdModelQuery`·`ErdDiagramQuery`·`ErdVersionReader`)는 `@Transactional` 을 붙이지 않는다. `JdbcTemplate` 으로 OASIS 바깥 트랜잭션에 합류한다.
+
+  ```mermaid
+  graph LR
+    ES[service.ErdEditService] --> MQ[service.ErdModelQuery]
+    ES --> DQ[service.ErdDiagramQuery]
+    DQ --> DR[service.ErdDiagramRows]
+    DS[service.ErdDiagramStore] --> DR
+    ES --> VR[stream.ErdVersionReader]
+    ES --> HUB[stream.ErdEventHub]
+    HUB --> VR
+    HUB --> CS[stream.ErdClaimStore]
+    HUB --> SRC[stream.ErdChangeSource]
+    CF[service.ErdChangeFeed] -. implements .-> SRC
+  ```
+- 바꾼 이유: 허브를 읽으려면 SSE 와 SQL 을 함께 읽어야 했고, 순환 때문에 `ObjectProvider` 로 늦게 꺼내야 했다. 같은 편집자 SQL·다이어그램 행 모양이 두 벌이면 한쪽만 고쳐지기 쉽다.
+- 동작 보존 근거: 단계마다 특성 시험을 먼저 넣었다. 주요 시험은 다음과 같다.
+  - S2: 델타 읽기 구간·reload·롤백. S3: SSE `claim` 이벤트, MATCHED 갈래의 선점 넘겨받기. S4+S7: 버전 고르기 경계, 편집자 순서(사용자 id 순, 그 버전의 것만).
+  - S5: 모델 목록 바깥 조인 행, view 다이어그램 행 = 같은 묶음의 델타 행(`ErdModelManageTest.assertSameRow`), 없는 모델 가져오기 MDM029.
+  - S6: lib `ErdDiagramRowShapeTest`(키 순서·IntNode·foldMode NULL 은 키 있음·크기와 변 NULL 은 키 없음·points 숫자 형식). 되돌리기 충돌 판정(`JsonNode.equals`)을 쓰는 api 시험들이 함께 지킨다.
+  - S8: lib `ErdSourceRulesTest`(명령 출처는 글자 그대로 UI·MCP·CLI, 검사 순서 userId → session → source → 묶음 크기, `isTimedSource`, 실시간 채널은 그대로 넘기고 기본값 UI, 표시 행은 SYSTEM 일 때뿐). api `ErdPresenceTouchTest#oasisSourceIsTrimmedUpperCasedAndUnknownOnlyBlocksWrites`(" mcp " → 기록 SOURCE 'MCP', "WEB" 저장은 MDM021, "web" 읽기는 통과하되 접속자 없음, "cli" 읽기는 CLI 시한 접속자). api `ErdEditOasisHttpTest`(출처·세션을 빼면 UI·ui-<사용자> 로 기록), `ErdCommandServiceTest#deleteDraftBumpsRevAndChangesSinceReloads`(표시 행 세션 'system', 단언 2줄).
+  - 각 단계 opus 리뷰 CLEAN. erdEdit 시험: S8 뒤 lib 223·api 191 통과.
+- 영향 범위: `dma/erdEdit` 의 `stream`·`service` 패키지. 공개 API·OASIS 액션·SSE 이벤트·응답 JSON 모양·Bean 이름(`erdEditService`)은 그대로다.
+- 되돌리는 방법: 머지한 squash 커밋을 revert 한다. 모두 동작 보존이라 다른 항목과 엮이지 않는다.
+- 남은 점(고치지 않음):
+  - `stream` ↔ `dto` 순환: `dto/ErdChangesView` 가 `stream.ErdDelta` 를, `dto/ErdModelView` 가 `stream.ErdPresence` 를 import 하고, 허브·`ErdChangeSource` 가 `dto` 를 import 한다. 이번 범위는 `stream` ↔ `service` 뿐이다(조정자 결정).
+  - `ErdVersionReader.versionNow` 와 `ErdModelStore.current` 는 합치지 않았다(아래 「감사 정정」 C8).
+  - 접속자(presence) 관리를 허브에서 떼어 내는 일은 보류했다(조정자 결정).
+
 ## 감사 정정
 
 ### F3 (findings F3, 「미확인」 → 코드 확인)
@@ -116,7 +162,7 @@ UNION ALL SELECT 'erd_columns_on_changed_domain', COUNT(*) FROM cols c JOIN chan
 
 - 「`ErdEventHub` 가 SSE·스레드 풀·접속자·선점 저장·버전 읽기를 한 클래스에 섞는다」, 「`stream` ↔ `service` 순환」, 「`ErdEditService` 인라인 SQL」은 맞다. 순환에서 허브가 `service` 쪽에 기대는 것은 `ErdCommandService.changesSince` 하나뿐이다.
 - 「다이어그램 JSON 매퍼 두 벌」은 키·순서가 같고 담는 그릇만 다르다(`LinkedHashMap` 대 `ObjectNode`). 보기 쿼리의 노드 조회에 `ORDER BY` 가 없다. undo 는 저장소 쪽 행만 비교한다(`JsonNode.equals` 는 숫자 타입까지 본다). 하나로 합칠 때 이 차이를 시험으로 먼저 고정한다.
-- 「편집자 쿼리 사본: `ErdEventHub`, `ErdEditService`, `ErdModelStore:84-135`」는 일부 틀렸다. `ErdEventHub` 와 `ErdEditService` 의 편집자 목록 SQL 은 같다. `ErdModelStore:84-135` 에는 편집자 SQL 이 없고 버전 고르기다. 허브의 `versionNow` 와 `ErdModelStore.current` 는 같은 순서로 고른다(DRAFT 먼저, 없으면 가장 높은 RELEASED). 그러나 고를 버전이 없을 때 `versionNow` 는 null 을 돌려주고 `current` 는 MDM029 를 던진다. 또 `versionNow` 는 JDBC 로 표의 지금 값을 읽고, `current` 는 JPA 엔티티를 읽는다. 그래서 합치지 않는다.
+- 「편집자 쿼리 사본: `ErdEventHub`, `ErdEditService`, `ErdModelStore:84-135`」는 일부 틀렸다. `ErdEventHub` 와 `ErdEditService` 의 편집자 목록 SQL 은 같다. `ErdModelStore:84-135` 에는 편집자 SQL 이 없고 버전 고르기다. 허브의 `versionNow` 와 `ErdModelStore.current` 는 같은 순서로 고른다(DRAFT 먼저, 없으면 가장 높은 RELEASED). 그러나 고를 버전이 없을 때 `versionNow` 는 null 을 돌려주고 `current` 는 MDM029 를 던진다. 또 `versionNow` 는 JDBC 로 표의 지금 값을 읽고, `current` 는 JPA 엔티티를 읽는다. 그래서 합치지 않는다. 허브의 `versionNow` 는 C8 S4 에서 `stream/ErdVersionReader` 로 옮겼다(규칙은 그대로).
 - 「요청 출처·길이 검사 3곳」은 규칙이 서로 다르다(`ErdEditService` 는 trim·대문자, `ErdCommandService` 는 그대로 비교, 허브 `isTimedSource` 는 다른 개념, `ErdStreamController` 에 네 번째가 있다). 동작을 지키기 위해 출처 상수만 한 곳(`ErdSources`)에 모으고 검사 규칙은 합치지 않는다.
 - 「이름 미리보기 두 벌(선택)」은 두 화면의 응답 계약이 달라 합치지 않는다.
 
@@ -125,3 +171,7 @@ UNION ALL SELECT 'erd_columns_on_changed_domain', COUNT(*) FROM cols c JOIN chan
 - D1 엔티티 5개(`MdmErdClaim`·`MdmErdCmdLog`·`MdmErdDiagram`·`MdmErdDiagramNode`·`MdmErdDiagramRoute`): D1 범위가 Repository 뿐이라 엔티티는 남겼다(조정자 결정 2026-10-16). 엔티티를 빼면 Hibernate 스키마 검증·엔티티 스캔 결과가 바뀔 수 있으므로, 쓰는 코드가 없는지와 함께 다음 회차에 따로 본다.
 - C9 남은 점: `TermMngService` 의 인코더 직접 확인(위 S3).
 - F3 fix ③ 뒤: `UPPER(ENG_ABBR)` 조건은 `IX_TB_MDM_TERM_ABBR` 를 쓰지 못해 용어 관리 저장마다 표 전체를 읽는다. 용어가 1만 건 수준이면 문제가 없고, 팝업은 이미 저장마다 표 전체를 읽는다. 느려지면 새 Flyway 버전으로 함수 기반 인덱스를 더한다.
+- C8 뒤 `stream` ↔ `dto` 순환: `dto/ErdChangesView`(→ `stream.ErdDelta`)·`dto/ErdModelView`(→ `stream.ErdPresence`)와 허브·`ErdChangeSource`(→ `dto`)가 서로 import 한다. `ErdDelta`·`ErdPresence` 를 `dto` 로 옮기거나 허브가 받는 값을 `stream` 안의 타입으로 바꾸면 풀린다. 이번 범위는 `stream` ↔ `service` 뿐이었다(조정자 결정).
+- C8 뒤 허브(`stream/ErdEventHub`, 842줄)에 SSE 큐·재전송·접속자(presence)·작업 중 표시 facade 가 함께 있다. 접속자 관리를 따로 떼는 일은 보류했다(조정자 결정). 떼려면 시험 훅(`attachForTest`·`sweepPresence` 등)과 api 의 같은 패키지 시험을 함께 옮겨야 한다.
+- view 의 다이어그램 노드 조회(`service/ErdDiagramQuery.nodes`)에 `ORDER BY` 가 없다. 노드 순서가 DB 실행 계획에 따라 바뀔 수 있다. 화면이 순서에 기대지 않는지 확인한 뒤 `ORDER BY DIAGRAM_ID, TABLE_UUID` 를 더하는 것은 동작 변경이라 `fix` 커밋으로 따로 한다.
+- 출처 검사 규칙이 입구마다 다르다: `ErdCommandService` 는 글자 그대로, `ErdEditService` 는 다듬고 대문자, `ErdStreamController` 는 검사 없음. C8 은 값만 `stream/ErdSources` 로 모았다. 규칙을 하나로 하려면 MCP·CLI 클라이언트가 보내는 값을 먼저 확인해야 한다(동작 변경).

@@ -2,6 +2,7 @@ package com.dongkuk.dmes.mdm.dma.erdEdit.service;
 
 import com.dongkuk.dmes.mdm.dma.erdEdit.stream.ErdDelta;
 import com.dongkuk.dmes.mdm.dma.erdEdit.stream.ErdEventHub;
+import com.dongkuk.dmes.mdm.dma.erdEdit.stream.ErdSources;
 import java.math.BigDecimal;
 import java.util.List;
 import org.springframework.stereotype.Component;
@@ -43,9 +44,9 @@ public class ErdReloadMarker {
         long rev = store.lockRev(modelId) + 1;
         store.setRev(modelId, rev);
         // 표시 행 USER_ID 는 50자다(감사 칼럼은 100자). 넘거나 비면 SYSTEM 으로 남긴다 — 표시 때문에 삭제·copy 가 S001 이 되지 않게.
-        String who = userId == null || userId.isBlank() || userId.length() > MAX_USER_ID ? ErdDelta.MARKER_SOURCE : userId;
+        String who = userId == null || userId.isBlank() || userId.length() > MAX_USER_ID ? ErdSources.MARKER_SOURCE : userId;
         log.insertMarker(modelId, rev, ver, who, reason);
-        ErdDelta marker = new ErdDelta(modelId, rev, who, ErdDelta.MARKER_SESSION, ErdDelta.MARKER_SOURCE, null, List.of(),
+        ErdDelta marker = new ErdDelta(modelId, rev, who, ErdSources.MARKER_SESSION, ErdSources.MARKER_SOURCE, null, List.of(),
                 ErdDelta.atOf(java.time.LocalDateTime.now()));
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override

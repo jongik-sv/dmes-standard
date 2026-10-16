@@ -62,7 +62,7 @@ class ErdEventHubQueueTest {
         }
     }
 
-    final ErdEventHub hub = new ErdEventHub(null, null);
+    final ErdEventHub hub = new ErdEventHub(null, null, null);
 
     @AfterEach
     void close() {

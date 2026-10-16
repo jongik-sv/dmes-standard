@@ -181,6 +181,9 @@ class ErdEditOasisHttpTest extends AbstractMdmSharedDbTest {
         JsonNode saved = call("save", "kim", Map.of("modelId", "mcm", "baseRev", 0, "commandsJson",
                 "[{\"op\":\"addTable\",\"audit\":false,\"id\":\"t-1\",\"phys\":\"TB_A\",\"logical\":\"에이\"}]"));
         assertThat(saved.at("/data/result/applied").asBoolean()).as(saved.toString()).isTrue();
+        // source·session 을 빼면 UI·ui-<사용자> 로 기록한다
+        assertThat(jdbc.queryForMap("SELECT SOURCE, SESSION_NM FROM TB_MDM_ERD_CMD_LOG WHERE ERD_MODEL_ID = 'mcm' AND REV = 1"))
+                .containsEntry("SOURCE", "UI").containsEntry("SESSION_NM", "ui-kim");
         JsonNode removed = call("execute", "owner", Map.of("modelId", "mcm", "kind", "REMOVE_EDITOR", "userId", "kim"));
         assertThat(removed.at("/data/result/ok").asBoolean()).as(removed.toString()).isTrue();
         JsonNode validate = call("validate", "owner", Map.of("modelId", "mcm"));

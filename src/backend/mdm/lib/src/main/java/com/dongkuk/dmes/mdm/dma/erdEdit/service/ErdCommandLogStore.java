@@ -4,6 +4,7 @@ import com.dongkuk.dmes.mdm.common.version.VersionNumbers;
 import com.dongkuk.dmes.mdm.dma.erdEdit.engine.ErdChange;
 import com.dongkuk.dmes.mdm.dma.erdEdit.model.ErdModelCodec;
 import com.dongkuk.dmes.mdm.dma.erdEdit.stream.ErdDelta;
+import com.dongkuk.dmes.mdm.dma.erdEdit.stream.ErdSources;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import jakarta.persistence.EntityManager;
@@ -57,7 +58,7 @@ public class ErdCommandLogStore {
     public void insertMarker(String modelId, long rev, BigDecimal modelVer, String userId, String reason) {
         String cmd = write(List.of(java.util.Map.of("op", "marker", "reason", reason,
                 "ver", modelVer == null ? "" : VersionNumbers.plain(modelVer))));
-        insert(modelId, rev, modelVer, userId, ErdDelta.MARKER_SESSION, ErdDelta.MARKER_SOURCE, cmd, "[]", List.of());
+        insert(modelId, rev, modelVer, userId, ErdSources.MARKER_SESSION, ErdSources.MARKER_SOURCE, cmd, "[]", List.of());
     }
 
     // CLOB 은 읽는 동안 연결이 살아 있어야 하므로 읽기 메서드는 읽기 전용 트랜잭션 안에서 문자열로 바꾼다.
@@ -72,7 +73,7 @@ public class ErdCommandLogStore {
                 .setParameter(1, modelId).setParameter(2, sinceRev).setParameter(3, currentRev).getResultList();
         List<ErdDelta> out = new ArrayList<>();
         for (Object[] r : rows) {
-            if (ErdDelta.MARKER_SOURCE.equals(r[3])) return Optional.empty();
+            if (ErdSources.MARKER_SOURCE.equals(r[3])) return Optional.empty();
             out.add(new ErdDelta(modelId, ((Number) r[0]).longValue(), (String) r[1], (String) r[2], (String) r[3],
                     null, read(clob(r[4])), atOf(r[5])));
         }
@@ -93,7 +94,7 @@ public class ErdCommandLogStore {
                 SELECT MAX(REV) FROM TB_MDM_ERD_CMD_LOG
                  WHERE ERD_MODEL_ID = ? AND REV > ? AND REV <= ? AND SOURCE = ?""")
                 .setParameter(1, modelId).setParameter(2, afterRev).setParameter(3, currentRev)
-                .setParameter(4, ErdDelta.MARKER_SOURCE).getSingleResult();
+                .setParameter(4, ErdSources.MARKER_SOURCE).getSingleResult();
         return Optional.ofNullable(n).map(Number::longValue);
     }
 
@@ -103,7 +104,7 @@ public class ErdCommandLogStore {
                 SELECT COUNT(*) FROM TB_MDM_ERD_CMD_LOG
                  WHERE ERD_MODEL_ID = ? AND REV > ? AND REV <= ? AND SOURCE = ?""")
                 .setParameter(1, modelId).setParameter(2, afterRev).setParameter(3, currentRev)
-                .setParameter(4, ErdDelta.MARKER_SOURCE).getSingleResult();
+                .setParameter(4, ErdSources.MARKER_SOURCE).getSingleResult();
         return n.longValue() > 0;
     }
 

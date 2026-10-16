@@ -499,6 +499,7 @@ class ErdCommandServiceTest extends AbstractMdmSharedDbTest {
         off.run();
         assertThat(jdbc.queryForObject("SELECT REV FROM TB_MDM_ERD_MODEL WHERE ERD_MODEL_ID='mcm'", Long.class)).isEqualTo(3);
         assertThat(jdbc.queryForObject("SELECT SOURCE FROM TB_MDM_ERD_CMD_LOG WHERE ERD_MODEL_ID='mcm' AND REV=3", String.class)).isEqualTo("SYSTEM");
+        assertThat(jdbc.queryForObject("SELECT SESSION_NM FROM TB_MDM_ERD_CMD_LOG WHERE ERD_MODEL_ID='mcm' AND REV=3", String.class)).isEqualTo("system");
         var crossing = commands.changesSince("mcm", 2);
         assertThat(crossing.reload()).isTrue();
         assertThat(crossing.rev()).isEqualTo(3);
@@ -506,6 +507,7 @@ class ErdCommandServiceTest extends AbstractMdmSharedDbTest {
         assertThat(commands.changesSince("mcm", 3).reload()).isFalse();
         assertThat(seen).extracting(ErdDelta::rev).containsExactly(2L, 3L);
         assertThat(seen.get(1).source()).isEqualTo("SYSTEM");
+        assertThat(seen.get(1).session()).isEqualTo("system");
     }
 
     /** I1: 확정 버전이 없는 모델의 첫 DRAFT 는 지울 수 없다 — 지우면 모델에 버전이 하나도 없어 모듈이 막힌다(B6 모듈 유일). */

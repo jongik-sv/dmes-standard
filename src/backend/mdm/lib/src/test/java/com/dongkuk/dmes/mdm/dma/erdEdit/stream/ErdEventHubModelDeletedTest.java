@@ -6,13 +6,11 @@ import static org.mockito.Mockito.when;
 
 import com.dongkuk.dmes.mdm.common.support.MdmErrors;
 import com.dongkuk.dmes.mdm.contract.common.MdmErrorCode;
-import com.dongkuk.dmes.mdm.dma.erdEdit.service.ErdCommandService;
 import com.dongkuk.dmes.mdm.dma.erdEdit.stream.ErdEventHubQueueTest.RecordingEmitter;
 import java.util.List;
 import java.util.function.BooleanSupplier;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -23,7 +21,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
  */
 class ErdEventHubModelDeletedTest {
 
-    final ErdEventHub hub = new ErdEventHub(null, null);
+    final ErdEventHub hub = new ErdEventHub(null, null, null);
 
     @AfterEach
     void close() {
@@ -44,11 +42,8 @@ class ErdEventHubModelDeletedTest {
      */
     @Test
     void deleteDuringReplaySendsReloadInsteadOfError() throws Exception {
-        ErdCommandService commands = mock(ErdCommandService.class);
-        when(commands.changesSince("m", 3L)).thenThrow(MdmErrors.of(MdmErrorCode.ERD_MODEL_NOT_FOUND));
-        @SuppressWarnings("unchecked")
-        ObjectProvider<ErdCommandService> provider = mock(ObjectProvider.class);
-        when(provider.getObject()).thenReturn(commands);
+        ErdChangeSource changes = mock(ErdChangeSource.class);
+        when(changes.changesSince("m", 3L)).thenThrow(MdmErrors.of(MdmErrorCode.ERD_MODEL_NOT_FOUND));
         JdbcTemplate jdbc = new JdbcTemplate() {
             @Override
             @SuppressWarnings("unchecked")
@@ -57,7 +52,7 @@ class ErdEventHubModelDeletedTest {
             }
         };
         RecordingEmitter e = new RecordingEmitter(null);
-        ErdEventHub h = new ErdEventHub(provider, jdbc) {
+        ErdEventHub h = new ErdEventHub(changes, null, jdbc) {
             @Override
             SseEmitter newEmitter() {
                 return e;

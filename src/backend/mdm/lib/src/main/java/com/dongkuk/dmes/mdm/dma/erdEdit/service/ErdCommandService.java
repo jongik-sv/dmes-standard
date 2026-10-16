@@ -25,6 +25,7 @@ import com.dongkuk.dmes.mdm.dma.erdEdit.standard.ErdDictionary;
 import com.dongkuk.dmes.mdm.dma.erdEdit.standard.ErdDictionaryLoader;
 import com.dongkuk.dmes.mdm.dma.erdEdit.stream.ErdDelta;
 import com.dongkuk.dmes.mdm.dma.erdEdit.stream.ErdEventHub;
+import com.dongkuk.dmes.mdm.dma.erdEdit.stream.ErdSources;
 import com.dongkuk.dmes.mdm.entity.MdmErdModelVer;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.exc.InvalidTypeIdException;
@@ -38,7 +39,6 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import org.hibernate.Session;
@@ -64,8 +64,6 @@ import org.springframework.transaction.support.TransactionTemplate;
 public class ErdCommandService {
 
     static final int MAX_BATCH = 200;
-    /** SYSTEM 은 표시 행(ErdReloadMarker) 전용이라 명령 출처로 받지 않는다 — SOURCE=SYSTEM 이면 언제나 표시 행이다. */
-    private static final Set<String> SOURCES = Set.of("UI", "MCP", "CLI");
 
     private final ErdModelStore store;
     private final ErdDiagramStore diagrams;
@@ -74,13 +72,14 @@ public class ErdCommandService {
     private final VersionWriteGuard writeGuard;
     private final ErdEventHub hub;
     private final TransactionTemplate tx;
-    private final TransactionTemplate readTx;
+    private final ErdChangeFeed changes;
     private final ErdCoEditors coEditors;
     private final EntityManager em;
 
     public ErdCommandService(ErdModelStore store, ErdDiagramStore diagrams, ErdCommandLogStore log,
                              ErdDictionaryLoader dictionaries, VersionWriteGuard writeGuard, ErdEventHub hub,
-                             ErdCoEditors coEditors, PlatformTransactionManager transactionManager, EntityManager em) {
+                             ErdCoEditors coEditors, PlatformTransactionManager transactionManager, EntityManager em,
+                             ErdChangeFeed changes) {
         this.em = em;
         this.store = store;
         this.diagrams = diagrams;
@@ -90,8 +89,7 @@ public class ErdCommandService {
         this.hub = hub;
         this.coEditors = coEditors;
         this.tx = new TransactionTemplate(transactionManager);
-        this.readTx = new TransactionTemplate(transactionManager);
-        this.readTx.setReadOnly(true);
+        this.changes = changes;
     }
 
     /** 클라이언트 명령 묶음 적용. {@code restore}·{@code restoreDiagram} 은 거절한다(R4-3). */
@@ -156,7 +154,7 @@ public class ErdCommandService {
         if (session == null || session.isBlank() || session.length() > 100) {
             return rejectedNow(modelId, invalid(0, "session 은 1~100자여야 합니다", "세션 이름을 넣으세요"));
         }
-        if (source == null || !SOURCES.contains(source)) {
+        if (source == null || !ErdSources.COMMAND.contains(source)) {
             return rejectedNow(modelId, invalid(0, "source 는 UI·MCP·CLI 중 하나입니다", "호출 경로에 맞는 값을 넣으세요"));
         }
         if (o.atLock() == null && (raw == null || raw.isEmpty() || raw.size() > MAX_BATCH)) {
@@ -366,26 +364,9 @@ public class ErdCommandService {
         });
     }
 
-    /**
-     * sinceRev 뒤에 커밋된 델타. 500건을 넘게 밀렸거나 사이에 다시 읽기 표시가 있거나 sinceRev 가 서버 rev 보다 크면(서버가 되돌려졌거나
-     * 잘못된 값) reload=true 와 빈 목록 — 호출자가 모델 전체를 다시 읽는다. rev 와 기록을 한 읽기 트랜잭션에서 읽어 사이에 낀 새 명령이
-     * 섞이지 않는다.
-     *
-     * <p>앞의 두 경우는 fromRev 에 기록을 줄 수 있는 가장 이른 sinceRev 를 싣는다 — max(sinceRev, rev-500) 뒤 마지막 표시 rev, 없으면
-     * 그 하한. 변경 기록 화면이 이 값으로 한 번 더 읽는다. sinceRev 가 rev 보다 크면 줄 기록이 없으므로 null 이다.
-     */
+    /** sinceRev 뒤에 커밋된 델타. 규칙과 트랜잭션은 {@link ErdChangeFeed#changesSince} 가 정한다 — 여기는 넘기기만 한다. */
     public ErdChangesView changesSince(String modelId, long sinceRev) {
-        return readTx.execute(status -> {
-            long rev = store.rev(modelId);
-            if (sinceRev > rev) return new ErdChangesView(rev, true, List.of());
-            return log.since(modelId, sinceRev, rev)
-                    .map(ds -> new ErdChangesView(rev, false, ds))
-                    .orElseGet(() -> {
-                        long floor = Math.max(sinceRev, rev - ErdCommandLogStore.MAX_REPLAY);
-                        long fromRev = log.lastMarker(modelId, floor, rev).orElse(floor);
-                        return new ErdChangesView(rev, true, List.of(), fromRev);
-                    });
-        });
+        return changes.changesSince(modelId, sinceRev);
     }
 
     /**

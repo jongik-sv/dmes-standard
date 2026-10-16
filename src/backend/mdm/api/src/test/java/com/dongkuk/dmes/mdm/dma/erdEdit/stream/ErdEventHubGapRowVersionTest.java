@@ -7,7 +7,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.dongkuk.dmes.mdm.dma.erdEdit.dto.ErdChangesView;
-import com.dongkuk.dmes.mdm.dma.erdEdit.service.ErdCommandService;
 import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -15,7 +14,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 /**
@@ -57,19 +55,16 @@ class ErdEventHubGapRowVersionTest {
     }
 
     @Test
-    @SuppressWarnings("unchecked")
     void gapFillKeepsLiveRowVersionOfQueuedDeltas() throws Exception {
         CountDownLatch reading = new CountDownLatch(1);
         CountDownLatch queued = new CountDownLatch(1);
-        ErdCommandService commands = mock(ErdCommandService.class);
-        when(commands.changesSince(anyString(), anyLong())).thenAnswer(inv -> {
+        ErdChangeSource changes = mock(ErdChangeSource.class);
+        when(changes.changesSince(anyString(), anyLong())).thenAnswer(inv -> {
             reading.countDown();
             queued.await(5, TimeUnit.SECONDS);                       // 읽는 사이에 rev 1·3 의 afterCommit 이 온다
             return new ErdChangesView(3, false, List.of(logged(1), logged(2), logged(3)));
         });
-        ObjectProvider<ErdCommandService> provider = mock(ObjectProvider.class);
-        when(provider.getObject()).thenReturn(commands);
-        hub = new ErdEventHub(provider, null);
+        hub = new ErdEventHub(changes, null, null);
         RecordingEmitter e = new RecordingEmitter();
         hub.attachForTest("m", "a", e, 0);
 

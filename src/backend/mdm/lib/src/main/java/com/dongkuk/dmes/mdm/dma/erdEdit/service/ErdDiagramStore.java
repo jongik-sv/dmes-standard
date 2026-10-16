@@ -23,7 +23,6 @@ import com.dongkuk.dmes.mdm.dma.erdEdit.engine.ErdRejection;
 import com.dongkuk.dmes.mdm.dma.erdEdit.model.ErdModel;
 import com.dongkuk.dmes.mdm.dma.erdEdit.model.ErdModelCodec;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.Query;
 import java.util.ArrayList;
@@ -320,23 +319,16 @@ public class ErdDiagramStore {
         if (!before.containsKey(key)) before.put(key, row(modelId, kind, id));
     }
 
-    /**
-     * 행 JSON. diagram: {id, areaName, diagramName, sortSeq}, diagramNode: {diagram, table, x, y, foldMode} + 크기가 있으면 w·h
-     * (NULL 이면 키를 넣지 않는다 — V8 전 되돌리기 기록의 값과 같게 비교되도록, README §7.4),
-     * diagramRoute: {diagram, relation, points:[{x, y}, …]} + 변이 지정돼 있으면 childSide·parentSide(NULL 이면 키 없음, README §7.5).
-     * 없으면 null.
-     */
+    /** 행 JSON(모양은 {@link ErdDiagramRows}). 없으면 null. */
     @SuppressWarnings("unchecked")
     JsonNode row(String modelId, String kind, String id) {
-        ObjectNode o = ErdModelCodec.MAPPER.createObjectNode();
         if (kind.equals("diagram")) {
             List<Object[]> rows = em.createNativeQuery(
                             "SELECT AREA_NAME, DIAGRAM_NAME, SORT_SEQ FROM TB_MDM_ERD_DIAGRAM WHERE DIAGRAM_ID = ? AND ERD_MODEL_ID = ?")
                     .setParameter(1, id).setParameter(2, modelId).getResultList();
             if (rows.isEmpty()) return null;
             Object[] r = rows.get(0);
-            return o.put("id", id).put("areaName", (String) r[0]).put("diagramName", (String) r[1])
-                    .put("sortSeq", ((Number) r[2]).intValue());
+            return tree(ErdDiagramRows.diagram(id, (String) r[0], (String) r[1], ((Number) r[2]).intValue()));
         }
         String[] k = id.split(":", 2);
         if (k.length < 2) return null;
@@ -355,11 +347,20 @@ public class ErdDiagramStore {
                 .setParameter(1, k[0]).setParameter(2, k[1]).setParameter(3, modelId).getResultList();
         if (rows.isEmpty()) return null;
         Object[] r = rows.get(0);
-        o.put("diagram", k[0]).put("table", k[1]).put("x", ((Number) r[0]).intValue())
-                .put("y", ((Number) r[1]).intValue()).put("foldMode", (String) r[2]);
-        if (r[3] != null) o.put("w", ((Number) r[3]).intValue());
-        if (r[4] != null) o.put("h", ((Number) r[4]).intValue());
-        return o;
+        return tree(ErdDiagramRows.node(k[0], k[1], ((Number) r[0]).intValue(), ((Number) r[1]).intValue(), (String) r[2],
+                intOrNull(r[3]), intOrNull(r[4])));
+    }
+
+    /**
+     * 행 맵 → JsonNode. int 칸은 IntNode, points 는 읽은 트리의 형식 그대로, NULL 값은 NullNode(키 있음)다 — putPOJO 를 쓰지 않는다
+     * (JsonNode 비교가 깨진다).
+     */
+    private static JsonNode tree(Map<String, Object> row) {
+        return ErdModelCodec.MAPPER.valueToTree(row);
+    }
+
+    private static Integer intOrNull(Object v) {
+        return v == null ? null : ((Number) v).intValue();
     }
 
     /**
@@ -440,15 +441,11 @@ public class ErdDiagramStore {
     }
 
     /**
-     * diagramRoute 행 JSON {diagram, relation, points} + 변이 있을 때만 childSide·parentSide. row() 와 dropRoutes 가 같은 모양을 쓴다
+     * diagramRoute 행 JSON({@link ErdDiagramRows#route}). row() 와 dropRoutes 가 같은 모양을 쓴다
      * (되돌리기 충돌 판정이 JsonNode 로 비교한다 — NULL 변은 키를 넣지 않아 V9 전 기록과 같게 비교된다).
      */
     private static JsonNode routeRow(String diagram, String relation, String pointsJson, String childSide, String parentSide) {
-        ObjectNode o = ErdModelCodec.MAPPER.createObjectNode().put("diagram", diagram).put("relation", relation);
-        o.set("points", readPoints(pointsJson));
-        if (childSide != null) o.put("childSide", childSide);
-        if (parentSide != null) o.put("parentSide", parentSide);
-        return o;
+        return tree(ErdDiagramRows.route(diagram, relation, readPoints(pointsJson), childSide, parentSide));
     }
 
     private static void requireSide(String v, String field, String elementId, int index) {

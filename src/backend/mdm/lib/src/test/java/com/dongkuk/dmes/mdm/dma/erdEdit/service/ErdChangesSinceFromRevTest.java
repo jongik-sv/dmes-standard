@@ -1,13 +1,21 @@
 package com.dongkuk.dmes.mdm.dma.erdEdit.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.catchThrowable;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
+import com.dongkuk.dmes.cactus.common.BusinessException;
+import com.dongkuk.dmes.cactus.common.ResponseCodeAware;
+import com.dongkuk.dmes.mdm.common.support.MdmErrors;
+import com.dongkuk.dmes.mdm.contract.common.MdmErrorCode;
 import com.dongkuk.dmes.mdm.contract.version.VersionWriteGuard;
 import com.dongkuk.dmes.mdm.dma.erdEdit.dto.ErdChangesView;
 import com.dongkuk.dmes.mdm.dma.erdEdit.standard.ErdDictionaryLoader;
@@ -18,7 +26,11 @@ import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.TransactionStatus;
 
 /**
  * 변경 기록 fromRev(defect.historyEmptyBeforeSpan) — 요청 구간을 줄 수 없어 reload 일 때 기록을 줄 수 있는 가장 이른 sinceRev 를 싣는다.
@@ -30,15 +42,17 @@ class ErdChangesSinceFromRevTest {
 
     private ErdModelStore store;
     private ErdCommandLogStore log;
+    private PlatformTransactionManager ptm;
     private ErdCommandService service;
 
     @BeforeEach
     void setUp() {
         store = mock(ErdModelStore.class);
         log = mock(ErdCommandLogStore.class);
+        ptm = mock(PlatformTransactionManager.class);
         service = new ErdCommandService(store, mock(ErdDiagramStore.class), log, mock(ErdDictionaryLoader.class),
                 mock(VersionWriteGuard.class), mock(ErdEventHub.class), mock(ErdCoEditors.class),
-                mock(PlatformTransactionManager.class), mock(EntityManager.class));
+                ptm, mock(EntityManager.class), new ErdChangeFeed(store, log, ptm));
     }
 
     @Test
@@ -114,5 +128,51 @@ class ErdChangesSinceFromRevTest {
         assertThat(v.reload()).isTrue();
         assertThat(v.fromRev()).isNull();
         verify(log, never()).since(anyString(), anyLong(), anyLong());
+    }
+
+    /**
+     * 변경 읽기는 읽기 전용·REQUIRED 트랜잭션 하나에서 rev → 기록 순서로 읽고 커밋한다. REQUIRED 라 OASIS 바깥 트랜잭션이 있으면 합류해
+     * view·sinceRev 가 연결 하나만 쓴다.
+     */
+    @Test
+    void changesSinceRunsInOneReadOnlyRequiredTransaction() {
+        TransactionStatus status = mock(TransactionStatus.class);
+        when(ptm.getTransaction(any())).thenReturn(status);
+        when(store.rev(MODEL)).thenReturn(40L);
+        when(log.since(MODEL, 38, 40)).thenReturn(Optional.of(List.of()));
+
+        service.changesSince(MODEL, 38);
+
+        ArgumentCaptor<TransactionDefinition> def = ArgumentCaptor.forClass(TransactionDefinition.class);
+        verify(ptm).getTransaction(def.capture());
+        assertThat(def.getValue().isReadOnly()).isTrue();
+        assertThat(def.getValue().getPropagationBehavior()).isEqualTo(TransactionDefinition.PROPAGATION_REQUIRED);
+        InOrder order = inOrder(ptm, store, log);
+        order.verify(ptm).getTransaction(any());
+        order.verify(store).rev(MODEL);
+        order.verify(log).since(MODEL, 38, 40);
+        order.verify(ptm).commit(status);
+        verifyNoMoreInteractions(ptm);
+    }
+
+    /**
+     * 모델이 없으면 store.rev 의 ERD_MODEL_NOT_FOUND(MDM029)를 감싸지 않고 그대로 던지고 트랜잭션은 되돌린다 — 허브 재생 읽기가 이 코드로
+     * reload 를 고른다.
+     */
+    @Test
+    void missingModelRethrowsModelNotFoundUnwrapped() {
+        TransactionStatus status = mock(TransactionStatus.class);
+        when(ptm.getTransaction(any())).thenReturn(status);
+        BusinessException notFound = MdmErrors.of(MdmErrorCode.ERD_MODEL_NOT_FOUND);
+        when(store.rev(MODEL)).thenThrow(notFound);
+
+        Throwable thrown = catchThrowable(() -> service.changesSince(MODEL, 38));
+
+        assertThat(thrown).isSameAs(notFound).isInstanceOf(ResponseCodeAware.class);
+        assertThat(((ResponseCodeAware) thrown).responseCode()).isEqualTo("MDM029");
+        verify(log, never()).since(anyString(), anyLong(), anyLong());
+        verify(log, never()).lastMarker(anyString(), anyLong(), anyLong());
+        verify(ptm).rollback(status);
+        verify(ptm, never()).commit(any());
     }
 }

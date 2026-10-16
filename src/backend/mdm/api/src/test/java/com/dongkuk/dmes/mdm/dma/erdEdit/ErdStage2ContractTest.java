@@ -11,6 +11,7 @@ import com.dongkuk.dmes.mdm.dma.erdEdit.stream.ErdDelta;
 import com.dongkuk.dmes.mdm.dma.erdEdit.stream.ErdEventHub;
 import com.dongkuk.dmes.mdm.dma.erdEdit.stream.ErdPresence;
 import com.fasterxml.jackson.databind.JsonNode;
+import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
@@ -335,6 +336,85 @@ class ErdStage2ContractTest extends AbstractMdmSharedDbTest {
         assertThat(r.applied()).as(String.valueOf(r.rejection())).isTrue();
         assertThat(r.warnings()).filteredOn(w -> w.code().equals("CLAIMED"))
                 .extracting(com.dongkuk.dmes.mdm.dma.erdEdit.engine.ErdWarning::elementId).containsExactly("t-1");
+    }
+
+    /** 구독 직후 version 은 DRAFT 우선, 없으면 VER 숫자 순으로 가장 높은 RELEASED, 둘 다 없으면 보내지 않는다(view 는 MDM029). */
+    @Test
+    void subscribeVersionEventPrefersDraftThenHighestReleasedElseNone() throws Exception {
+        // 버전 행은 모두 DRAFT 1.000 이 있을 때 넣는다(addVersion 이 DRAFT 의 JSON 을 복사한다)
+        addVersion("2.000", "RELEASED");
+        addVersion("9.000", "RELEASED");
+        addVersion("10.000", "RELEASED");
+        addVersion("11.000", "APPROVED");
+
+        // B) DRAFT 1.000 과 더 높은 RELEASED 가 같이 있으면 DRAFT 다
+        JsonNode draft = subscribeVersion("ver-b");
+        assertThat(draft.path("ver").asText()).isEqualTo("1.000");
+        assertThat(draft.path("status").asText()).isEqualTo("DRAFT");
+        assertSameAsView(draft);
+
+        // A) DRAFT 가 없으면 가장 높은 RELEASED — 문자열 순("9.000")이 아니라 숫자 순(10.000)이고 APPROVED 11.000 은 보지 않는다
+        jdbc.update("UPDATE TB_MDM_ERD_MODEL_VER SET STATUS='RELEASED', APPLY_FROM=SYSTIMESTAMP - 1, APPLY_TO=TIMESTAMP '9999-12-31 00:00:00' "
+                + "WHERE ERD_MODEL_ID='mcm' AND VER IN (1, 2)");
+        JsonNode released = subscribeVersion("ver-a");
+        assertThat(released.path("ver").asText()).isEqualTo("10.000");
+        assertThat(released.path("status").asText()).isEqualTo("RELEASED");
+        assertSameAsView(released);
+
+        // C) DRAFT·RELEASED 가 없으면 version 을 보내지 않는다. presence 는 재전송·version 뒤에 나가므로 스트림이 살아 있다는 증거다
+        jdbc.update("UPDATE TB_MDM_ERD_MODEL_VER SET STATUS='APPROVED' WHERE ERD_MODEL_ID='mcm'");
+        var q = c.open("mcm", "ver-c", 0, "owner");
+        List<String> head = c.until(q, "presence");
+        assertThat(head).as(head.toString()).noneMatch(s -> s.startsWith("version|") || s.startsWith("reload|")
+                || s.startsWith(ErdTestClient.END + "|"));
+        assertThat(ErdTestClient.entry(c.om.readTree(head.get(head.size() - 1).substring("presence|".length())), "ver-c"))
+                .as(head.toString()).isNotNull();
+        c.assertNone(q, "version", 700);
+        JsonNode view = c.call("view", "owner", Map.of("modelId", "mcm"));
+        assertThat(view.at("/meta/code").asText()).as(view.toString()).isEqualTo("MDM029");
+    }
+
+    /** 편집자 목록은 USER_ID 순이고 그 버전 것만이다 — 동작 뒤 version·구독 직후 version·view 가 같다. */
+    @Test
+    void editorsAreOrderedByUserIdAndScopedToVersionInViewAndEvent() throws Exception {
+        addVersion("0.500", "RELEASED");                                                           // 다른 버전의 편집자
+        jdbc.update("INSERT INTO TB_MDM_ERD_EDITOR (ERD_MODEL_ID, VER, USER_ID) VALUES ('mcm', ?, 'zed')", new BigDecimal("0.500"));
+        var q = c.open("mcm", "ed-a", 0, "owner");
+        c.until(q, "version");                                                                     // SUBSCRIBE 는 건너뛴다
+
+        for (String user : List.of("lee", "kim")) {
+            JsonNode r = c.call("execute", "owner", Map.of("modelId", "mcm", "kind", "ADD_EDITOR", "userId", user));
+            assertThat(r.at("/meta/success").asBoolean()).as(r.toString()).isTrue();
+        }
+        JsonNode first = c.next(q, "version", v -> v.path("reason").asText().equals("ADD_EDITOR"));
+        assertThat(first.path("editors").toString()).isEqualTo("[\"lee\"]");
+        JsonNode added = c.next(q, "version", v -> v.path("reason").asText().equals("ADD_EDITOR") && v.path("editors").size() == 2);
+        assertThat(added.path("ver").asText()).isEqualTo("1.000");
+        assertThat(added.path("editors").toString()).isEqualTo("[\"kim\",\"lee\"]");
+        assertSameAsView(added);
+
+        JsonNode view = c.call("view", "owner", Map.of("modelId", "mcm")).at("/data/result");
+        assertThat(view.path("editors").toString()).as(view.toString()).isEqualTo("[\"kim\",\"lee\"]");
+        assertThat(subscribeVersion("ed-b").path("editors").toString()).isEqualTo("[\"kim\",\"lee\"]");
+        JsonNode old = c.call("view", "owner", Map.of("modelId", "mcm", "ver", "0.500")).at("/data/result");
+        assertThat(old.path("editors").toString()).as(old.toString()).isEqualTo("[\"zed\"]");
+    }
+
+    /** 새 세션으로 구독해 재전송 뒤 첫 version(SUBSCRIBE)을 받는다. */
+    JsonNode subscribeVersion(String session) throws Exception {
+        var q = c.open("mcm", session, 0, "owner");
+        List<String> head = c.until(q, "version");
+        JsonNode v = c.om.readTree(head.get(head.size() - 1).substring("version|".length()));
+        assertThat(v.path("reason").asText()).as(v.toString()).isEqualTo("SUBSCRIBE");
+        return v;
+    }
+
+    /** 버전 행 하나를 더한다(DRAFT 의 JSON·소유자 복사, ROW_VERSION 0). DRAFT 가 아니면 적용 기간이 있어야 한다(CK_TB_MDM_ERD_MODEL_VER_APPLY). */
+    void addVersion(String ver, String status) {
+        jdbc.update("""
+                INSERT INTO TB_MDM_ERD_MODEL_VER (ERD_MODEL_ID, VER, VER_KIND, STATUS, OWNER_ID, APPLY_FROM, APPLY_TO, MODEL_JSON, ROW_VERSION)
+                SELECT ERD_MODEL_ID, ?, 'MAJOR', ?, OWNER_ID, SYSTIMESTAMP - 1, TIMESTAMP '9999-12-31 00:00:00', MODEL_JSON, 0
+                  FROM TB_MDM_ERD_MODEL_VER WHERE ERD_MODEL_ID = 'mcm' AND STATUS = 'DRAFT'""", new BigDecimal(ver), status);
     }
 
     void assertSameAsView(JsonNode ev) throws Exception {

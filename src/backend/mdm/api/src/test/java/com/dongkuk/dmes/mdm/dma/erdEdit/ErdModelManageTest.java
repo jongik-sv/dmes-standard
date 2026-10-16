@@ -5,11 +5,13 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.dongkuk.dmes.mdm.common.testdb.AbstractMdmSharedDbTest;
 import com.dongkuk.dmes.mdm.dma.erdEdit.dto.ErdApplyResult;
+import com.dongkuk.dmes.mdm.dma.erdEdit.dto.ErdClaimResult;
 import com.dongkuk.dmes.mdm.dma.erdEdit.engine.ErdChange;
 import com.dongkuk.dmes.cactus.common.BusinessException;
 import com.dongkuk.dmes.mdm.dma.erdEdit.service.ErdCommandService;
 import com.dongkuk.dmes.mdm.dma.erdEdit.service.ErdModelDeletion;
 import com.dongkuk.dmes.mdm.dma.erdEdit.service.ErdVersionService;
+import com.dongkuk.dmes.mdm.dma.erdEdit.stream.ErdClaimView;
 import com.dongkuk.dmes.mdm.dma.erdEdit.stream.ErdEventHub;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.math.BigDecimal;
@@ -20,6 +22,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -223,6 +226,38 @@ class ErdModelManageTest extends AbstractMdmSharedDbTest {
         assertThat(names).contains(me).doesNotContain("SYS", "SYSTEM", "XDB").isSorted();
     }
 
+    /** 모델 목록은 모델 id 순이고, DRAFT 가 없는 모델도 draftVer·ownerId 칸을 null 로 싣는다(바깥 조인). 행 칸 순서도 고정한다. */
+    @Test
+    void modelListIsOrderedByIdAndModelWithoutDraftHasNullDraftColumns() throws Exception {
+        JsonNode mes = c.call("reg", "lee", Map.of("modelId", "mes", "moduleId", "mes", "schemaName", "mesapuser", "modelName", "MES"));
+        assertThat(mes.at("/meta/success").asBoolean()).as(mes.toString()).isTrue();
+        JsonNode mcm = c.call("reg", "owner", Map.of("modelId", "mcm", "moduleId", "mcm", "schemaName", "MCMAPUSER", "modelName", "MCM"));
+        assertThat(mcm.at("/meta/success").asBoolean()).as(mcm.toString()).isTrue();
+        // mes 의 하나뿐인 버전(1.000)을 적용 시각이 지난 확정본으로 — DRAFT 가 없어진다(버전 행의 OWNER_ID 는 남는다)
+        jdbc.update("UPDATE TB_MDM_ERD_MODEL_VER SET STATUS = 'RELEASED', APPLY_FROM = SYSTIMESTAMP - 1, "
+                + "APPLY_TO = TIMESTAMP '9999-12-31 00:00:00' WHERE ERD_MODEL_ID = 'mes' AND VER = 1");
+        JsonNode rows = c.call("search", "viewer", Map.of()).at("/grids/result/rows");
+        assertThat(rows.size()).as(rows.toString()).isEqualTo(2);
+        List<String> ids = new ArrayList<>();
+        rows.forEach(r -> ids.add(r.path("modelId").asText()));
+        assertThat(ids).containsExactly("mcm", "mes");                              // 등록 순(mes 먼저)이 아니라 id 순
+        for (JsonNode r : rows) {
+            assertThat(fieldNames(r)).as(r.toString()).containsExactly("modelId", "moduleId", "schemaName", "modelName", "rev",
+                    "draftVer", "ownerId", "status", "releasedVer", "createdBy");
+            assertThat(r.get("rev").isIntegralNumber()).as(r.toString()).isTrue();
+        }
+        assertThat(rows.get(0)).isEqualTo(c.om.readTree("""
+                {"modelId":"mcm","moduleId":"mcm","schemaName":"MCMAPUSER","modelName":"MCM","rev":%d,"draftVer":"1.000",
+                 "ownerId":"owner","status":"CREATED","releasedVer":null,"createdBy":"owner"}""".formatted(rev("mcm"))));
+        // DRAFT 없는 모델: 칸은 있고 값이 null. 적용 시각이 지난 확정본이 있어 계산 상태는 INUSE
+        JsonNode noDraft = rows.get(1);
+        assertThat(noDraft.get("draftVer").isNull()).as(noDraft.toString()).isTrue();
+        assertThat(noDraft.get("ownerId").isNull()).as(noDraft.toString()).isTrue();
+        assertThat(noDraft).isEqualTo(c.om.readTree("""
+                {"modelId":"mes","moduleId":"mes","schemaName":"MESAPUSER","modelName":"MES","rev":%d,"draftVer":null,
+                 "ownerId":null,"status":"INUSE","releasedVer":"1.000","createdBy":"lee"}""".formatted(rev("mes"))));
+    }
+
     // ── delete kind=MODEL ─────────────────────────────────────────────
 
     @Test
@@ -373,6 +408,26 @@ class ErdModelManageTest extends AbstractMdmSharedDbTest {
         assertThat(counts().values()).allMatch(n -> n == 0);
     }
 
+    /** 같은 표를 두 세션이 동시에 처음 표시하면 늦은 쪽은 상대 커밋을 기다린 뒤 키 위반으로 지고, 먼저 들어간 세션을 돌려받는다. */
+    @Test
+    void concurrentFirstClaimLaterRequestGetsEarlierSession() throws Exception {
+        versions.createModel("mcm", "mcm", "MCMAPUSER", "MCM", "owner");
+        AtomicReference<ErdClaimResult> first = new AtomicReference<>();
+        Thread t = holdUncommitted(() -> first.set(hub.claimFor("mcm", "t-x", "s-a", "kim", 600)), 1500);
+        assertThat(t.isAlive()).as("상대 트랜잭션이 아직 커밋 전이어야 한다").isTrue();
+        long started = System.nanoTime();
+        ErdClaimResult r = hub.claimFor("mcm", "t-x", "s-b", "lee", 600);
+        long waitedMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - started);
+        t.join();
+        assertThat(first.get().ok()).isTrue();
+        assertThat(waitedMs).as("키 잠금에서 상대 커밋을 기다렸다(MATCHED 경로가 아니다)").isGreaterThanOrEqualTo(1000);
+        assertThat(r.ok()).isFalse();
+        assertThat(r.claimedBy()).isEqualTo("s-a");
+        assertThat(r.userId()).isEqualTo("kim");
+        assertThat(r.expiresAt()).isNotNull().isEqualTo(first.get().expiresAt());
+        assertThat(hub.claims("mcm")).extracting(ErdClaimView::session).containsExactly("s-a");
+    }
+
     @Test
     void deleteKindsAndMissingModel() throws Exception {
         assertThat(deleteModel("boss", "MDM_STD_ADMIN").at("/meta/code").asText()).isEqualTo("MDM029");
@@ -382,6 +437,106 @@ class ErdModelManageTest extends AbstractMdmSharedDbTest {
         assertThat(noVer.at("/meta/success").asBoolean()).as(noVer.toString()).isFalse();
         assertThat(c.call("delete", "owner", Map.of("modelId", "mcm", "kind", "NOPE")).at("/meta/code").asText()).isEqualTo("MDM021");
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM TB_MDM_ERD_MODEL", Integer.class)).isEqualTo(1);
+    }
+
+    // ── view·import 의 모델 읽기 ──────────────────────────────────────
+
+    /** view 의 diagrams·nodes·routes 순서·모양·모델 범위 — view 행은 같은 묶음 델타의 행과 키 순서까지 같다. */
+    @Test
+    void viewDiagramsNodesRoutesKeepOrderShapeAndModelScope() throws Exception {
+        seedFull();                                                                 // d-1(sortSeq 3) · 노드 t-r·t-m · 꺾임점 d-1:r-1
+        seed("mes", "d-mes");                                                       // 다른 모델 — view 에 섞이면 안 된다
+        long base = rev();
+        ok(base, """
+                [{"op":"addTable","audit":false,"id":"t-x","phys":"TB_OTHER","logical":"기타"},
+                 {"op":"addRelation","id":"r-0","child":"t-x","parent":"t-r"}]""");
+        var r = ok(base + 1, """
+                [{"op":"addDiagram","id":"d-9","areaName":"b","diagramName":"아홉","sortSeq":1},
+                 {"op":"addDiagram","id":"d-0","areaName":"a","diagramName":"영","sortSeq":3},
+                 {"op":"placeTables","diagram":"d-9","nodes":[{"table":"t-r","x":5,"y":6}]},
+                 {"op":"resizeNodes","diagram":"d-1","nodes":[{"table":"t-m","w":320,"h":null}]},
+                 {"op":"setRoute","diagram":"d-0","relation":"r-1","points":[{"x":7,"y":-40}]},
+                 {"op":"setRoute","diagram":"d-1","relation":"r-0","points":[{"x":1,"y":2}]},
+                 {"op":"setRouteSides","diagram":"d-1","relation":"r-0","childSide":"L","parentSide":null}]""");
+        JsonNode view = c.call("view", "owner", Map.of("modelId", "mcm")).at("/data/result");
+        // 다이어그램: SORT_SEQ, DIAGRAM_ID 순(d-0·d-1 은 같은 3 이라 id 순)
+        List<JsonNode> diagrams = items(view.path("diagrams"));
+        assertThat(diagrams).as(view.toString()).containsExactly(
+                c.om.readTree("{\"id\":\"d-9\",\"areaName\":\"b\",\"diagramName\":\"아홉\",\"sortSeq\":1}"),
+                c.om.readTree("{\"id\":\"d-0\",\"areaName\":\"a\",\"diagramName\":\"영\",\"sortSeq\":3}"),
+                c.om.readTree("{\"id\":\"d-1\",\"areaName\":\"a\",\"diagramName\":\"하나\",\"sortSeq\":3}"));
+        for (JsonNode d : diagrams) {
+            assertThat(fieldNames(d)).containsExactly("id", "areaName", "diagramName", "sortSeq");
+            assertThat(d.get("sortSeq").isInt()).as(d.toString()).isTrue();
+        }
+        // 노드: ORDER BY 가 없어 집합으로 본다. d-mes 의 노드는 없다. 크기는 값이 있는 방향만 키가 있다(t-m 은 w 만).
+        List<JsonNode> nodes = items(view.path("nodes"));
+        assertThat(nodes).as(view.toString()).containsExactlyInAnyOrder(
+                c.om.readTree("{\"diagram\":\"d-1\",\"table\":\"t-r\",\"x\":0,\"y\":0,\"foldMode\":\"NONE\"}"),
+                c.om.readTree("{\"diagram\":\"d-1\",\"table\":\"t-m\",\"x\":300,\"y\":40,\"foldMode\":\"KEYS\",\"w\":320}"),
+                c.om.readTree("{\"diagram\":\"d-9\",\"table\":\"t-r\",\"x\":5,\"y\":6,\"foldMode\":\"NONE\"}"));
+        for (JsonNode n : nodes) {
+            List<String> keys = n.path("table").asText().equals("t-m") && n.path("diagram").asText().equals("d-1")
+                    ? List.of("diagram", "table", "x", "y", "foldMode", "w") : List.of("diagram", "table", "x", "y", "foldMode");
+            assertThat(fieldNames(n)).as(n.toString()).isEqualTo(keys);
+        }
+        // 꺾임점: (DIAGRAM_ID, REL_UUID) 순 — d-1:r-0 은 d-1:r-1 보다 늦게 썼어도 앞이다. 음수 y 그대로, 변은 값이 있을 때만 키가 있다.
+        List<JsonNode> routes = items(view.path("routes"));
+        assertThat(routes).as(view.toString()).containsExactly(
+                c.om.readTree("{\"diagram\":\"d-0\",\"relation\":\"r-1\",\"points\":[{\"x\":7,\"y\":-40}]}"),
+                c.om.readTree("{\"diagram\":\"d-1\",\"relation\":\"r-0\",\"points\":[{\"x\":1,\"y\":2}],\"childSide\":\"L\"}"),
+                c.om.readTree("{\"diagram\":\"d-1\",\"relation\":\"r-1\",\"points\":" + P1 + "}"));
+        assertThat(fieldNames(routes.get(0))).containsExactly("diagram", "relation", "points");
+        assertThat(fieldNames(routes.get(1))).containsExactly("diagram", "relation", "points", "childSide");
+        assertThat(fieldNames(routes.get(2))).containsExactly("diagram", "relation", "points");
+        // view 행 = 같은 묶음 델타의 행(ErdDiagramStore.row) — 값과 키 순서 모두
+        assertSameRow(diagrams.get(0), delta(r, "diagram", "d-9"));
+        assertSameRow(diagrams.get(1), delta(r, "diagram", "d-0"));
+        assertSameRow(node(nodes, "d-9", "t-r"), delta(r, "diagramNode", "d-9:t-r"));
+        assertSameRow(node(nodes, "d-1", "t-m"), delta(r, "diagramNode", "d-1:t-m"));
+        assertSameRow(routes.get(0), delta(r, "diagramRoute", "d-0:r-1"));
+        assertSameRow(routes.get(1), delta(r, "diagramRoute", "d-1:r-0"));
+    }
+
+    /** 없는 모델의 가져오기(FROM_DB·APPLY_DIFF)는 모델 행 읽기(moduleAndSchema)에서 ERD_MODEL_NOT_FOUND 다. 아무것도 만들지 않는다. */
+    @Test
+    void importFromDbOfMissingModelIsModelNotFound() throws Exception {
+        JsonNode fromDb = c.call("import", "owner", Map.of("modelId", "nope", "kind", "FROM_DB", "baseRev", 0));
+        assertThat(fromDb.at("/meta/success").asBoolean()).as(fromDb.toString()).isFalse();
+        assertThat(fromDb.at("/meta/code").asText()).as(fromDb.toString()).isEqualTo("MDM029");
+        JsonNode applyDiff = c.call("import", "owner", Map.of("modelId", "nope", "kind", "APPLY_DIFF", "baseRev", 0,
+                "itemsJson", "[\"x\"]"));
+        assertThat(applyDiff.at("/meta/success").asBoolean()).as(applyDiff.toString()).isFalse();
+        assertThat(applyDiff.at("/meta/code").asText()).as(applyDiff.toString()).isEqualTo("MDM029");
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM TB_MDM_ERD_MODEL", Integer.class)).isZero();
+    }
+
+    static List<JsonNode> items(JsonNode array) {
+        List<JsonNode> out = new ArrayList<>();
+        array.forEach(out::add);
+        return out;
+    }
+
+    /** 객체의 칸 이름(직렬화 순서 그대로). */
+    static List<String> fieldNames(JsonNode n) {
+        List<String> out = new ArrayList<>();
+        n.fieldNames().forEachRemaining(out::add);
+        return out;
+    }
+
+    static JsonNode delta(ErdApplyResult r, String kind, String id) {
+        return r.changes().stream().filter(x -> x.kind().equals(kind) && x.id().equals(id)).findFirst().orElseThrow().value();
+    }
+
+    static JsonNode node(List<JsonNode> nodes, String diagram, String table) {
+        return nodes.stream().filter(n -> n.path("diagram").asText().equals(diagram) && n.path("table").asText().equals(table))
+                .findFirst().orElseThrow();
+    }
+
+    /** view 행과 델타 행이 값·키 순서 모두 같다. */
+    static void assertSameRow(JsonNode view, JsonNode delta) {
+        assertThat(view).as("view %s / delta %s", view, delta).isEqualTo(delta);
+        assertThat(fieldNames(view)).as("view %s / delta %s", view, delta).isEqualTo(fieldNames(delta));
     }
 
     // ── copyDiagram ───────────────────────────────────────────────────

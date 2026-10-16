@@ -7,14 +7,18 @@ import com.dongkuk.dmes.mdm.contract.version.VersionRef;
 import com.dongkuk.dmes.mdm.contract.version.VersionStateService;
 import com.dongkuk.dmes.mdm.contract.version.VersionTarget;
 import com.dongkuk.dmes.mdm.dma.erdEdit.dto.ErdApplyResult;
+import com.dongkuk.dmes.mdm.dma.erdEdit.dto.ErdClaimResult;
 import com.dongkuk.dmes.mdm.dma.erdEdit.engine.ErdWarning;
 import com.dongkuk.dmes.mdm.dma.erdEdit.service.*;
+import com.dongkuk.dmes.mdm.dma.erdEdit.stream.ErdClaimView;
 import com.dongkuk.dmes.mdm.dma.erdEdit.stream.ErdEventHub;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.net.URI;
 import java.net.http.*;
+import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.*;
 import org.junit.jupiter.api.BeforeEach;
@@ -150,6 +154,78 @@ class ErdStreamTest extends AbstractMdmSharedDbTest {
         assertThat(java.time.Instant.parse(w.expiresAt())).isAfter(java.time.Instant.now());
         assertThat(w.message()).contains("claude-b");
         hub.release("mcm", "t-1", "claude-b");
+        assertThat(hub.claims("mcm")).isEmpty();
+    }
+
+    /** claim 이벤트를 원소가 size 개인 것이 올 때까지 읽는다(앞서 예약된 다시 읽기가 낡은 목록을 먼저 보낼 수 있다). */
+    JsonNode nextClaims(BlockingQueue<String> q, int size) throws Exception {
+        long until = System.currentTimeMillis() + 10_000;
+        while (System.currentTimeMillis() < until) {
+            String s = q.poll(500, TimeUnit.MILLISECONDS);
+            if (s == null || !s.startsWith("claim|")) continue;
+            JsonNode n = om.readTree(s.substring("claim|".length()));
+            if (n.size() == size) return n;
+        }
+        throw new AssertionError("원소 " + size + "개인 claim 이벤트가 오지 않았습니다");
+    }
+
+    /** 구독하면 claim 이벤트로 살아 있는 작업 중 표시를 표 id 순으로 받고(만료분 제외), 해제하면 줄어든 목록을 다시 받는다. */
+    @Test
+    void claimEventListsLiveClaimsInTableOrder() throws Exception {
+        ErdClaimResult r2 = hub.claimFor("mcm", "t-2", "s-a", "kim", 600);
+        ErdClaimResult r1 = hub.claimFor("mcm", "t-1", "s-b", "lee", 600);
+        hub.claimFor("mcm", "t-0", "s-c", "kim", -1); // 이미 만료
+        var q = open("watch", 0);
+        JsonNode list = nextClaims(q, 2);
+        var expected = om.createArrayNode();
+        expected.addObject().put("tableId", "t-1").put("session", "s-b").put("userId", "lee").put("expiresAt", r1.expiresAt());
+        expected.addObject().put("tableId", "t-2").put("session", "s-a").put("userId", "kim").put("expiresAt", r2.expiresAt());
+        assertThat(list).isEqualTo(expected);
+        for (JsonNode e : list) {
+            List<String> names = new ArrayList<>();
+            e.fieldNames().forEachRemaining(names::add);
+            assertThat(names).as(e.toString()).containsExactly("tableId", "session", "userId", "expiresAt");
+        }
+        assertThat(hub.claims("mcm")).isEqualTo(List.of(
+                new ErdClaimView("t-1", "s-b", "lee", r1.expiresAt()),
+                new ErdClaimView("t-2", "s-a", "kim", r2.expiresAt())));
+        hub.release("mcm", "t-1", "s-b");
+        JsonNode after = nextClaims(q, 1);
+        assertThat(after.get(0).get("tableId").asText()).as(after.toString()).isEqualTo("t-2");
+    }
+
+    /** 만료된 표시는 다른 세션이 가져가고(만든 사람 칸은 그대로), 같은 세션은 연장하며, 쥔 세션만 해제한다. */
+    @Test
+    void expiredClaimIsTakenOverSameSessionExtendsOnlyHolderReleases() throws Exception {
+        ErdClaimResult a = hub.claimFor("mcm", "t-1", "s-a", "kim", -1);
+        assertThat(a.ok()).isTrue();
+        assertThat(a.claimedBy()).isEqualTo("s-a");
+        assertThat(hub.claims("mcm")).isEmpty();
+
+        ErdClaimResult b = hub.claimFor("mcm", "t-1", "s-b", "lee", 600);
+        assertThat(b.ok()).isTrue();
+        assertThat(b.claimedBy()).isEqualTo("s-b");
+        assertThat(b.userId()).isEqualTo("lee");
+        List<String> row = jdbc.queryForObject(
+                "SELECT SESSION_NM, USER_ID, C_USR_ID, U_USR_ID FROM TB_MDM_ERD_CLAIM WHERE ERD_MODEL_ID = 'mcm' AND TABLE_UUID = 't-1'",
+                (rs, i) -> List.of(rs.getString(1), rs.getString(2), rs.getString(3), rs.getString(4)));
+        assertThat(row).isEqualTo(List.of("s-b", "lee", "kim", "lee"));
+
+        Thread.sleep(2);
+        ErdClaimResult b2 = hub.claimFor("mcm", "t-1", "s-b", "lee", 600);
+        assertThat(b2.ok()).isTrue();
+        assertThat(Instant.parse(b2.expiresAt())).isAfter(Instant.parse(b.expiresAt()));
+
+        ErdClaimResult c = hub.claimFor("mcm", "t-1", "s-a", "kim", 600);
+        assertThat(c.ok()).isFalse();
+        assertThat(c.claimedBy()).isEqualTo("s-b");
+        assertThat(c.userId()).isEqualTo("lee");
+        assertThat(c.expiresAt()).isEqualTo(b2.expiresAt());
+
+        hub.release("mcm", "t-1", "s-a");
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM TB_MDM_ERD_CLAIM WHERE ERD_MODEL_ID = 'mcm' AND TABLE_UUID = 't-1'", Integer.class))
+                .isEqualTo(1);
+        hub.release("mcm", "t-1", "s-b");
         assertThat(hub.claims("mcm")).isEmpty();
     }
 
