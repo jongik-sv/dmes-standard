@@ -66,7 +66,7 @@
 | D2 | mcm-core `Mom*` 엔티티 7개·`KeyStore` 등 약 1,360줄 보관 | mcm-core | S | L | 미확인 | | 대기 | mcm | |
 | D3 | `McmSecurityDefaults` 의 없는 BPMN matcher 7개 정리 | mcm-core | S | L | 미확인 | | 대기 | mcm | |
 | D4 | `RuleSetRunner` OASIS 진입(약 200줄, 시험 BPMN 만 사용) | mdm | S | L | 미확인 | | 대기 | rule | 보관. OASIS 계약 검사 ERROR 0 |
-| D5 | mls·mpp·mqc·mpn 의 쓰지 않는 jsoup 의존 | 빌드 | S | L | 미확인 | | 대기 | build | |
+| D5 | mls 의 쓰지 않는 jsoup 의존(재확인: mpp·mqc·mpn 에는 선언 없음) | 빌드 | S | L | 확인 | | 진행 | build | |
 | D6 | 모듈 5개의 `Sample*` 슬라이스(템플릿 예시) | 빌드, 여러 모듈 | M | M | 미확인 | | 제외 | | 유지(템플릿 저장소의 예시) |
 
 ### 3단계 — 구조 (위험 중간)
@@ -133,3 +133,4 @@
 |---|---|
 | 2026-10-16 | 감사 6개 완료, 이 문서와 findings.md 작성 |
 | 2026-10-16 | 결정 9건 권고안대로 확정(D4 는 「쓸 계획 없음」으로 간주). 범위 1·2단계, 레인 5개 확정 |
+| 2026-10-16 | 레인 5개 착수(rbe-mdm-version-c9·rbe-mdm-erd-a5·rbe-mdm-rule-78·rbe-mcm-71·rbe-build-f9). D5 범위 정정: mls 1건 |
