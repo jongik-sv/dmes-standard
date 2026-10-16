@@ -1,4 +1,4 @@
-package com.dongkuk.dmes.mdm.common.rule;
+package com.dongkuk.dmes.mdm.dme.ruleEdit.service;
 
 import com.dongkuk.dmes.cactus.common.BusinessException;
 import com.dongkuk.dmes.cactus.common.ErrorCode;
