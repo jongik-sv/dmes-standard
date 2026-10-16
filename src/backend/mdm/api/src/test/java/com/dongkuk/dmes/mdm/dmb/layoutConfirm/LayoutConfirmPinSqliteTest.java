@@ -92,7 +92,7 @@ class LayoutConfirmPinSqliteTest extends LayoutServiceTestSupport {
         LayoutVersionRequest r = new LayoutVersionRequest();
         r.setLayoutId(id);
         r.setVerKind("MINOR");
-        return versions.newVersion(r, kind).getVer();
+        return versions.newVersion(r.toCommand(), kind).ver();
     }
 
     /** M201 본문 마지막 여분 25 를 추가 항목 3 + 여분 22 로 쪼갠 화면 행(순차 전환). */
@@ -157,7 +157,7 @@ class LayoutConfirmPinSqliteTest extends LayoutServiceTestSupport {
         r.setLayoutId(id);
         r.setVer(ver);
         r.setRowVersion(rowVersion(id, ver));
-        versions.cancelConfirm(r, kind);
+        versions.cancelConfirm(r.toCommand(), kind);
     }
 
     /** {@code 물리명=고정표시:타입|단위|소수}(물리명 없는 항목은 뺀다), SEQ 순. */

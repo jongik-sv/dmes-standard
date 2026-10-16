@@ -1,5 +1,7 @@
 package com.dongkuk.dmes.mdm.dmb.layoutMng.dto;
 
+import com.dongkuk.dmes.mdm.dmb.layout.LayoutDraftAttrs;
+
 /**
  * {@code layoutMng} action={@code save} 요청(TSK-05-02 design.md §6.1). grid {@code headers}·{@code consts}·{@code items} — 헤더 항목을 받는 칸은 없다(불변 I8).
  *
@@ -48,4 +50,9 @@ public class LayoutMngSaveRequest {
     public String getRcvSystem() { return rcvSystem; }
 
     public void setRcvSystem(String v) { this.rcvSystem = v; }
+
+    /** 코어 DRAFT 검사·조립({@code LayoutDraftBuilder.build})이 읽는 전문 머리 값 — 버전·row_version·판정 시각은 넘기지 않는다(C5). */
+    public LayoutDraftAttrs toDraftAttrs() {
+        return new LayoutDraftAttrs(layoutId, layoutName, eaiCode, sndSystem, rcvSystem);
+    }
 }

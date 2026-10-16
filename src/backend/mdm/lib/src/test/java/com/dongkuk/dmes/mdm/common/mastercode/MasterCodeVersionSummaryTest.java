@@ -85,6 +85,17 @@ class MasterCodeVersionSummaryTest {
     }
 
     @Test
+    void S5b_REQUESTED_와_APPROVED_도_미적용이다() {
+        Summary s = MasterCodeVersionSummary.summarize(List.of(
+                row("1.000", "RELEASED", NOW.minusDays(5), OPEN),
+                row("1.001", "REQUESTED", NOW.plusDays(30), OPEN),
+                row("1.002", "APPROVED", NOW.plusDays(30), OPEN)), "INUSE", NOW);
+        assertEquals("v1.001 REQUESTED, v1.002 APPROVED", s.unappliedLabel());
+        assertTrue(MasterCodeVersionSummary.isUnapplied(row("1.001", "REQUESTED", NOW.plusDays(30), OPEN), NOW));
+        assertTrue(MasterCodeVersionSummary.isUnapplied(row("1.002", "APPROVED", NOW.plusDays(30), OPEN), NOW));
+    }
+
+    @Test
     void S6_저장_CREATED_와_적용된_RELEASED_면_INUSE_로_계산() {
         assertEquals("INUSE", MasterCodeVersionSummary.summarize(List.of(
                 row("1.000", "RELEASED", NOW.minusDays(1), OPEN)), "CREATED", NOW).effectiveStatus());

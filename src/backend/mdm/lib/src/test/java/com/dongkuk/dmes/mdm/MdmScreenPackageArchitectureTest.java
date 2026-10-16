@@ -41,16 +41,13 @@ class MdmScreenPackageArchitectureTest {
 
     /** 허용한 예외 — {@code 원 단위 → 대상 단위}(단위 = {@code common.<하위>} 또는 {@code <그룹>.<화면>}). */
     private static final Set<String> EXCEPTIONS = Set.of(
-            // C5(version 레인) — layout 코어가 layoutMng 화면 DTO 를 내부 모델로 쓴다.
-            "dmb.layout -> dmb.layoutMng",
-            // C5(version 레인) — HeaderMngService 가 layoutMng 화면 DTO(LayoutVersionRequest·LayoutVersionResult)를 그대로 쓴다.
+            // 다음 회차 후보: 공용 layout DTO 분리 — HeaderMngService 가 layoutMng 화면 DTO(LayoutVersionRequest·LayoutVersionResult)를
+            // 그대로 쓴다. BPMN dto FQCN 계약이 걸려 이번 범위(C5 layout 코어) 밖이다(조정자 결정 2026-10-16).
             "dmb.headerMng -> dmb.layoutMng",
             // C5 — LayoutConstJudge 가 DomainTestCaseRunner.preview 를 쓴다. preview 계열 common 추출 후보(조정자 결정 2026-10-16).
             "dmb.layout -> dma.domainMng",
             // C7 뒤 후보 — dataHistory 가 dataItemMng 의 목록 조회·행 모델을 쓴다.
-            "dmd.dataHistory -> dmd.dataItemMng",
-            // C5 범위 밖(version 레인 영역) — DefaultVersionStateService 가 LayoutQueries 로 레이아웃 버전 상태를 읽는다.
-            "common.version -> dmb.layout");
+            "dmd.dataHistory -> dmd.dataItemMng");
 
     private static JavaClasses classes;
 

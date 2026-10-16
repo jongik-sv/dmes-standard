@@ -32,7 +32,6 @@ import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Optional;
-import java.util.Set;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -51,9 +50,6 @@ import org.springframework.transaction.support.TransactionTemplate;
  */
 @Service
 public class RuleSetVersionService {
-
-    /** 승인 흐름 상태 — 공통 가드의 미적용 판정(DRAFT·미래 RELEASED)에 들지 않으므로 룰처럼 따로 막는다. */
-    private static final Set<String> IN_APPROVAL = Set.of("REQUESTED", "APPROVED");
 
     private final MdmRuleSetRepository setRepository;
     private final MdmRuleSetVerRepository verRepository;
@@ -101,7 +97,8 @@ public class RuleSetVersionService {
         stewardCheck.requireSteward();
         writeGuard.checkCanCreateVersion(VersionTarget.RULE_SET, id);                       // MDM006
         List<MdmRuleSetVer> versions = setVersions.versions(id);
-        if (versions.stream().anyMatch(v -> IN_APPROVAL.contains(v.getStatus()))) {
+        // 결재 중(REQUESTED·APPROVED) — C2 부터 바로 위 공통 가드도 이 두 상태를 미적용으로 보아 같은 MDM006 을 먼저 낸다. 겹치는 검사로 남겨 둔다.
+        if (versions.stream().anyMatch(v -> VersionRules.isInApproval(v.getStatus()))) {
             throw MdmErrors.of(MdmErrorCode.UNAPPLIED_VERSION_EXISTS);
         }
         Optional<MdmRuleSetVer> source = RuleVersions.latestReleased(versions);

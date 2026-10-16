@@ -56,4 +56,14 @@ class LayoutVersionsTest {
         assertThat(LayoutVersions.hasUnapplied(noDraft, JUL1.minusDays(1))).isTrue();
         assertThat(LayoutVersions.hasUnapplied(noDraft, JUL1)).isFalse();
     }
+
+    @Test
+    void hasUnappliedCountsVersionsInApproval() {
+        // 넓은 뜻(C2 fix) — 결재 중(REQUESTED·APPROVED)도 미적용이다. 적용 시작이 지났어도 RELEASED 가 아니면 미적용이다.
+        for (String status : List.of("REQUESTED", "APPROVED")) {
+            MdmLayoutVer v = released("2.000", JUL1.minusDays(30), LocalDateTime.of(9999, 12, 31, 0, 0));
+            v.setStatus(status);
+            assertThat(LayoutVersions.hasUnapplied(List.of(all.get(0), v), JUL1)).as(status).isTrue();
+        }
+    }
 }

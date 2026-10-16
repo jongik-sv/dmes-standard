@@ -23,7 +23,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 /**
  * 레이아웃 메타 변경 기록(spec 2026-10-02-mdm-meta-cache-design §3.3, ADR-0007) — 피드 값이 바뀌는 쓰기에만 한 번 기록한다.
  * 확정·확정 취소는 공통 엔진({@code DefaultVersionStateService.record})의 LAYOUT 분기 한 곳에서 기록하고, 헤더면 그 헤더를 쌓은 전문까지
- * 펼친다. DRAFT 저장·새 버전은 기록하지 않되, 버전 무관 부모 칸(이름·송수신 시스템)이 RELEASED 가 있는 레이아웃에서 바뀌면 기록한다.
+ * 펼친다(LAYOUT 분기는 {@code VersionReleasedChangeSpi} → {@code LayoutReleasedChange} 위임, C4). DRAFT 저장·새 버전은 기록하지 않되, 버전 무관 부모 칸(이름·송수신 시스템)이 RELEASED 가 있는 레이아웃에서 바뀌면 기록한다.
  *
  * 컬럼·도메인 저장은 그 물리명을 쓰는 RELEASED 전문(헤더면 쌓은 전문까지)도 LAYOUT 키로 펼친다 — 합성의 타입·단위·소수가 사전에서 온다(검토 I1).
  *
@@ -51,7 +51,7 @@ class LayoutMetaRevisionSqliteTest extends LayoutServiceTestSupport {
         LayoutVersionRequest r = new LayoutVersionRequest();
         r.setLayoutId(id);
         r.setVerKind("MINOR");
-        return versions.newVersion(r, kind).getVer();
+        return versions.newVersion(r.toCommand(), kind).ver();
     }
 
     private String name(long id) {
@@ -138,7 +138,7 @@ class LayoutMetaRevisionSqliteTest extends LayoutServiceTestSupport {
         cancel.setLayoutId(m.l110());
         cancel.setVer(ver);
         cancel.setRowVersion(rowVersion(m.l110(), ver));
-        versions.cancelConfirm(cancel, "HEADER");
+        versions.cancelConfirm(cancel.toCommand(), "HEADER");
         assertThat(MetaRevTestSupport.rows(jdbc)).containsExactly(row(m.l110()), row(m.message()));
     }
 

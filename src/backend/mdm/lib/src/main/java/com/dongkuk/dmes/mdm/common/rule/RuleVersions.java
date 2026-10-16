@@ -1,12 +1,12 @@
 package com.dongkuk.dmes.mdm.common.rule;
 
+import com.dongkuk.dmes.mdm.common.version.VersionRules;
 import com.dongkuk.dmes.mdm.common.version.VersionedRow;
 import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
-import java.util.Set;
 
 /**
  * 룰·룰 세트 버전 목록에서 고르기(TSK-08-02 design §6.3.1·I4, D-144 2단계). 미적용 = DRAFT·REQUESTED·APPROVED·{@code APPLY_FROM > now} 인
@@ -15,14 +15,12 @@ import java.util.Set;
  */
 public final class RuleVersions {
 
-    private static final Set<String> PENDING_STATUSES = Set.of("DRAFT", "REQUESTED", "APPROVED");
-
     private RuleVersions() {
     }
 
+    /** 미적용 — 공통 {@link VersionRules#isUnapplied}(넓은 뜻). */
     public static <T extends VersionedRow> boolean isUnapplied(T v, LocalDateTime now) {
-        return PENDING_STATUSES.contains(v.getStatus())
-                || ("RELEASED".equals(v.getStatus()) && v.getApplyFrom() != null && v.getApplyFrom().isAfter(now));
+        return VersionRules.isUnapplied(v.getStatus(), v.getApplyFrom(), now);
     }
 
     public static <T extends VersionedRow> boolean isCurrentReleased(T v, LocalDateTime now) {

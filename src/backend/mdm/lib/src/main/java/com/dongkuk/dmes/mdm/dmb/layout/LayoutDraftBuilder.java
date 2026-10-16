@@ -1,9 +1,7 @@
 package com.dongkuk.dmes.mdm.dmb.layout;
 
 import com.dongkuk.dmes.mdm.common.dictionary.EffectiveDomainView;
-import com.dongkuk.dmes.mdm.common.version.VersionNumbers;
 import com.dongkuk.dmes.mdm.contract.layout.MdmFillKind;
-import com.dongkuk.dmes.mdm.dmb.layoutMng.dto.LayoutMngSaveRequest;
 import com.dongkuk.dmes.mdm.entity.MdmEai;
 import com.dongkuk.dmes.mdm.entity.MdmLayout;
 import com.dongkuk.dmes.mdm.entity.MdmLayoutConst;
@@ -29,7 +27,7 @@ import java.util.stream.Collectors;
 import org.springframework.stereotype.Component;
 
 /**
- * 전문 저장 요청 → 검사 → 초안(TSK-05-03 design.md §2 — 불변 I19). 05-02 {@code LayoutMngService.save} 의 ②~⑥(기본 속성 L11,
+ * 전문 머리 값·구성 → 검사 → 초안(TSK-05-03 design.md §2 — 불변 I19). 05-02 {@code LayoutMngService.save} 의 ②~⑥(기본 속성 L11,
  * 헤더 구성·EAI 표준 헤더 끼움 L09, 재정의 L10, 본문 L01~L08, 길이·배치)을 그대로 옮기고 03 등록 거부 #2·#3·#4·#7(L12~L15, 재정의
  * 값 포함)을 더한 한 곳이다. 이슈는 모두 모은다. save 는 이슈가 있으면 쓰기 전에 거부하고, validate 는 7행 표로, execute 는 렌더
  * 여부로 쓴다. 쓰기는 하지 않는다.
@@ -79,16 +77,16 @@ public class LayoutDraftBuilder {
      * @param insertEaiHeader 참이면 EAI 표준 헤더가 구성에 없을 때 맨 앞에 끼운다(I14 — 그 헤더에 {@code asOf} 시점 RELEASED 가 있을
      *                        때만). 화면 경로(save·validate·execute)는 참, 확정 검사는 저장된 구성 그대로 보므로 거짓
      */
-    public Built build(LayoutMngSaveRequest request, List<Map<String, Object>> headers, List<Map<String, Object>> consts,
+    public Built build(LayoutDraftAttrs draftAttrs, List<Map<String, Object>> headers, List<Map<String, Object>> consts,
                        List<Map<String, Object>> items, LocalDateTime asOf, boolean insertEaiHeader) {
         // ① 대상 — 부모만 읽는다. 동시 수정(row_version)은 저장이 beginDraftWrite 로 본다
-        MdmLayout layout = request.getLayoutId() == null ? null : message(request.getLayoutId());
+        MdmLayout layout = draftAttrs.layoutId() == null ? null : message(draftAttrs.layoutId());
         List<LayoutIssue> issues = new ArrayList<>();
         List<LayoutIssue> warnings = new ArrayList<>();
-        String name = LayoutRows.text(request.getLayoutName());
-        String eaiCode = LayoutRows.text(request.getEaiCode());
-        String snd = LayoutRows.text(request.getSndSystem());
-        String rcv = LayoutRows.text(request.getRcvSystem());
+        String name = LayoutRows.text(draftAttrs.layoutName());
+        String eaiCode = LayoutRows.text(draftAttrs.eaiCode());
+        String snd = LayoutRows.text(draftAttrs.sndSystem());
+        String rcv = LayoutRows.text(draftAttrs.rcvSystem());
         if (name == null) {
             issues.add(LayoutIssue.of(LayoutIssueCode.L11, null, "LAYOUT_NAME", "전문 이름이 비었다"));
         }
@@ -207,7 +205,7 @@ public class LayoutDraftBuilder {
     }
 
     /**
-     * 저장된 버전 행을 화면 요청 모양으로 바꿔 같은 검사를 탄다(확정 검사 — 판정 시각 = apply_from). EAI 표준 헤더를 끼우지 않고 저장된
+     * 저장된 버전 행을 코어 입력({@link LayoutDraftAttrs})으로 바꿔 같은 검사를 탄다(확정 검사 — 판정 시각 = apply_from). EAI 표준 헤더를 끼우지 않고 저장된
      * 구성 그대로 본다. 재정의는 저장된 헤더 항목 물리명을 {@code asOf} 시점 헤더 버전의 SEQ 로 바꿔 넣는다 — 그 버전에 같은 물리명이 없으면
      * L10(헤더 항목 순서가 바뀌어도 물리명으로 따라가고, 대상이 없어지면 조용히 기본값으로 나가지 않는다).
      *
@@ -216,13 +214,8 @@ public class LayoutDraftBuilder {
     public Built buildStored(long messageId, BigDecimal ver, LocalDateTime asOf) {
         MdmLayout layout = message(messageId);
         MdmLayoutVer v = versionStore.find(messageId, ver).orElseThrow(() -> LayoutRejections.noVersion(messageId, ver));
-        LayoutMngSaveRequest request = new LayoutMngSaveRequest();
-        request.setLayoutId(messageId);
-        request.setVer(VersionNumbers.plain(v.getVer()));
-        request.setLayoutName(layout.getLayoutName());
-        request.setEaiCode(v.getEaiCode());
-        request.setSndSystem(layout.getSndSystem());
-        request.setRcvSystem(layout.getRcvSystem());
+        LayoutDraftAttrs draftAttrs = new LayoutDraftAttrs(messageId, layout.getLayoutName(), v.getEaiCode(), layout.getSndSystem(),
+                layout.getRcvSystem());
         List<Map<String, Object>> headers = new ArrayList<>();
         for (MdmLayoutHeader h : queries.headersOf(messageId, v.getVer())) {
             Map<String, Object> row = new LinkedHashMap<>();
@@ -247,7 +240,7 @@ public class LayoutDraftBuilder {
             consts.add(row);
         }
         // 저장된 구성 그대로 — EAI 표준 헤더를 끼우지 않는다
-        Built built = build(request, headers, consts, LayoutRows.items(queries.itemsOf(messageId, v.getVer()), Map.of()), asOf, false);
+        Built built = build(draftAttrs, headers, consts, LayoutRows.items(queries.itemsOf(messageId, v.getVer()), Map.of()), asOf, false);
         if (unresolved.isEmpty()) {
             return built;
         }

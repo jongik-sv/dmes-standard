@@ -1,8 +1,16 @@
 package com.dongkuk.dmes.mdm.dmc.codeItemEdit.service;
 
-import static com.dongkuk.dmes.mdm.common.support.MdmErrors.invalid;
+import static com.dongkuk.dmes.mdm.common.mastercode.MasterCodeScreenSupport.defaultVersion;
+import static com.dongkuk.dmes.mdm.common.mastercode.MasterCodeScreenSupport.display;
+import static com.dongkuk.dmes.mdm.common.mastercode.MasterCodeScreenSupport.parseVer;
+import static com.dongkuk.dmes.mdm.common.mastercode.MasterCodeScreenSupport.ref;
+import static com.dongkuk.dmes.mdm.common.mastercode.MasterCodeScreenSupport.verText;
+import static com.dongkuk.dmes.mdm.common.mastercode.MasterCodeScreenSupport.version;
 import static com.dongkuk.dmes.mdm.common.mastercode.MasterCodeSegments.same;
 import static com.dongkuk.dmes.mdm.common.mastercode.MasterCodeSegments.valid;
+import static com.dongkuk.dmes.mdm.common.support.MdmErrors.invalid;
+import static com.dongkuk.dmes.mdm.common.support.MdmStrings.emptyToNull;
+import static com.dongkuk.dmes.mdm.common.support.MdmStrings.isBlank;
 
 import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeCateSaves;
 import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeCategoryResolver;
@@ -16,10 +24,11 @@ import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeItemProjection.Change;
 import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeItemSegmentOps;
 import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeRejections;
 import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeRows;
+import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeScreenSupport;
 import com.dongkuk.dmes.mdm.common.metarev.MetaRevisionRecorder;
 import com.dongkuk.dmes.mdm.common.security.MdmCurrentUser;
+import com.dongkuk.dmes.mdm.common.support.MdmCheckIssueMaps;
 import com.dongkuk.dmes.mdm.common.support.MdmErrors;
-import com.dongkuk.dmes.mdm.common.version.VersionRules;
 import com.dongkuk.dmes.mdm.contract.category.CategoryConventions;
 import com.dongkuk.dmes.mdm.contract.common.MdmCheckIssue;
 import com.dongkuk.dmes.mdm.contract.common.MdmErrorCode;
@@ -34,7 +43,6 @@ import com.dongkuk.dmes.mdm.contract.mastercode.MasterCodeVersionView;
 import com.dongkuk.dmes.mdm.contract.security.MdmRoles;
 import com.dongkuk.dmes.mdm.contract.version.VersionRef;
 import com.dongkuk.dmes.mdm.contract.version.VersionStatus;
-import com.dongkuk.dmes.mdm.contract.version.VersionTarget;
 import com.dongkuk.dmes.mdm.contract.version.VersionWriteGuard;
 import com.dongkuk.dmes.mdm.dmc.codeItemEdit.dto.CodeItemPatchRequest;
 import com.dongkuk.dmes.mdm.dmc.codeItemEdit.dto.CodeItemPreviewRequest;
@@ -48,10 +56,6 @@ import com.dongkuk.dmes.mdm.entity.MdmCodeItem;
 import com.dongkuk.dmes.mdm.entity.MdmCodeVer;
 import com.dongkuk.dmes.mdm.repository.MdmCodeItemRepository;
 import java.math.BigDecimal;
-import java.time.Clock;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
-import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
@@ -86,8 +90,6 @@ import org.springframework.stereotype.Service;
 @Service("codeItemEditService")
 public class CodeItemEditService {
 
-    private static final DateTimeFormatter DATE_TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
-    private static final int VER_SCALE = VersionTarget.MASTER_CODE.versionScale();
     /** 경미 수정을 막는 확정 전 상태(D8). */
     private static final Set<String> PATCH_BLOCKING = Set.of(VersionStatus.DRAFT.name(),
             VersionStatus.REQUESTED.name(), VersionStatus.APPROVED.name());
@@ -98,12 +100,12 @@ public class CodeItemEditService {
     private final VersionWriteGuard versionWriteGuard;
     private final MdmCurrentUser currentUser;
     private final MdmCodeItemRepository itemRepository;
-    private final Clock clock;
+    private final MasterCodeScreenSupport support;
     private final MetaRevisionRecorder recorder;
 
     public CodeItemEditService(MasterCodeRows rows, MasterCodeSegmentService segments, MasterCodeItemSegmentOps itemOps,
                                VersionWriteGuard versionWriteGuard, MdmCurrentUser currentUser,
-                               MdmCodeItemRepository itemRepository, Clock clock,
+                               MdmCodeItemRepository itemRepository, MasterCodeScreenSupport support,
                                MetaRevisionRecorder recorder) {
         this.rows = rows;
         this.segments = segments;
@@ -111,7 +113,7 @@ public class CodeItemEditService {
         this.versionWriteGuard = versionWriteGuard;
         this.currentUser = currentUser;
         this.itemRepository = itemRepository;
-        this.clock = clock;
+        this.support = support;
         this.recorder = recorder;
     }
 
@@ -141,12 +143,12 @@ public class CodeItemEditService {
     // ── action: view ──────────────────────────────────────────────────────
 
     public Map<String, Object> view(CodeItemViewRequest request) {
-        MdmCode code = header(request.getMaruCodeId());
+        MdmCode code = support.header(request.getMaruCodeId());
         List<MdmCodeVer> versions = rows.versions(code.getMaruCodeId()).stream()
                 .sorted(Comparator.comparing(MdmCodeVer::getVer).reversed()).toList();
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("header", headerMap(code));
-        result.put("versions", versions.stream().map(CodeItemEditService::versionMap).toList());
+        result.put("versions", versions.stream().map(MasterCodeScreenSupport::versionMap).toList());
 
         Optional<MdmCodeVer> chosen = isBlank(request.getVer()) ? defaultVersion(versions)
                 : Optional.of(version(versions, parseVer(request.getVer())));
@@ -161,10 +163,10 @@ public class CodeItemEditService {
         MdmCodeVer selected = chosen.get();
         BigDecimal v = selected.getVer();
         boolean mdm = MasterCodeSourceKind.MDM.name().equals(code.getSourceKind());
-        long unapplied = versions.stream().filter(this::isUnapplied).count();
+        long unapplied = versions.stream().filter(support::isUnapplied).count();
         boolean draft = VersionStatus.DRAFT.name().equals(selected.getStatus());
         Map<String, Object> sel = new LinkedHashMap<>();
-        sel.put("ver", str(v));
+        sel.put("ver", verText(v));
         sel.put("display", display(v));
         sel.put("status", selected.getStatus());
         sel.put("ownerId", selected.getOwnerId());
@@ -179,7 +181,7 @@ public class CodeItemEditService {
         List<MdmCodeItem> items = rows.items(id);
         List<MdmCodeCateItem> cateItems = rows.cateItems(id);
         Map<String, String> statusByVer = new LinkedHashMap<>();
-        versions.forEach(ver -> statusByVer.put(str(ver.getVer()), ver.getStatus()));
+        versions.forEach(ver -> statusByVer.put(verText(ver.getVer()), ver.getStatus()));
         Set<BigDecimal> blockingVers = new HashSet<>();
         versions.stream().filter(ver -> PATCH_BLOCKING.contains(ver.getStatus())).forEach(ver -> blockingVers.add(ver.getVer()));
 
@@ -200,7 +202,7 @@ public class CodeItemEditService {
                     m.put("tableCategories", cateItems.stream()
                             .filter(ci -> ci.getCode().equals(r.code()) && valid(ci.getFromVer(), ci.getToVer(), v))
                             .map(MdmCodeCateItem::getCateId).sorted().toList());
-                    boolean fromReleased = VersionStatus.RELEASED.name().equals(statusByVer.get(str(r.fromVer())));
+                    boolean fromReleased = VersionStatus.RELEASED.name().equals(statusByVer.get(verText(r.fromVer())));
                     m.put("patchBlocked", fromReleased && items.stream().anyMatch(e -> e.getCode().equals(r.code())
                             && blockingVers.stream().anyMatch(b -> same(b, e.getFromVer()))));
                     rowMaps.add(m);
@@ -237,7 +239,7 @@ public class CodeItemEditService {
 
     /** 카테고리 미리보기 — 저장된 정의 기준, V 에 유효한 카테고리만(D11). */
     public Map<String, Object> preview(CodeItemPreviewRequest request) {
-        MdmCode code = header(request.getMaruCodeId());
+        MdmCode code = support.header(request.getMaruCodeId());
         BigDecimal v = parseVer(request.getVer());
         version(rows.versions(code.getMaruCodeId()), v);
         MasterCodeVersionView view = segments.viewAt(ref(code.getMaruCodeId(), v));
@@ -249,14 +251,14 @@ public class CodeItemEditService {
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("cateId", cate.definition().cateId());
         result.put("cateName", cate.definition().cateName());
-        result.put("ver", str(v));
+        result.put("ver", verText(v));
         result.put("defKind", r.defKind());
         result.put("defTarget", r.defTarget());
         result.put("defExpr", r.defExpr());
         result.put("hitCount", r.hitCount());
         result.put("total", r.total());
         result.put("invalidExpression", r.invalidExpression());
-        result.put("warnings", r.warnings().stream().map(CodeItemEditService::issueMap).toList());
+        result.put("warnings", r.warnings().stream().map(MdmCheckIssueMaps::of).toList());
         List<Map<String, Object>> list = new ArrayList<>();
         for (ResolvedRow row : r.rows()) {
             Map<String, Object> m = new LinkedHashMap<>();
@@ -281,24 +283,24 @@ public class CodeItemEditService {
      */
     public Map<String, Object> validate(CodeItemSaveRequest request, List<Map<String, Object>> rows,
                                         List<Map<String, Object>> categories, List<Map<String, Object>> members) {
-        MdmCode code = header(request.getMaruCodeId());
+        MdmCode code = support.header(request.getMaruCodeId());
         BigDecimal v = parseVer(request.getVer());
         version(this.rows.versions(code.getMaruCodeId()), v);
         Map<String, Object> result = new LinkedHashMap<>();
         if (MasterCodeSourceKind.EXTERNAL.name().equals(code.getSourceKind())) {
-            result.put("issues", List.of(issueMap(externalIssue(code))));
+            result.put("issues", List.of(MdmCheckIssueMaps.of(externalIssue(code))));
             result.put("cateIssues", List.of());
             return result;
         }
         Projected projected = project(code, v, orEmpty(rows), orEmpty(categories), orEmpty(members));
-        result.put("issues", projected.issues().stream().map(CodeItemEditService::issueMap).toList());
+        result.put("issues", projected.issues().stream().map(MdmCheckIssueMaps::of).toList());
         List<MdmCheckIssue> cateIssues = new ArrayList<>(projected.cate().issues());
         if (projected.cate().touchesBase()) {
             // save 는 RESERVED_CATEGORY 로 거부한다 — validate 도 같은 판정을 이슈로 알린다.
             cateIssues.add(new MdmCheckIssue(MdmErrorCode.RESERVED_CATEGORY.name(),
                     "BASE 는 예약 카테고리라 바꿀 수 없다", null, CategoryConventions.BASE_CATE_ID));
         }
-        result.put("cateIssues", cateIssues.stream().map(CodeItemEditService::issueMap).toList());
+        result.put("cateIssues", cateIssues.stream().map(MdmCheckIssueMaps::of).toList());
         return result;
     }
 
@@ -312,9 +314,9 @@ public class CodeItemEditService {
      */
     public Map<String, Object> save(CodeItemSaveRequest request, List<Map<String, Object>> rows,
                                     List<Map<String, Object>> categories, List<Map<String, Object>> members) {
-        MdmCode code = header(request.getMaruCodeId());
+        MdmCode code = support.header(request.getMaruCodeId());
         BigDecimal v = parseVer(request.getVer());
-        requireVersionExists(code.getMaruCodeId(), v);
+        support.requireVersionExists(code.getMaruCodeId(), v);
         if (MasterCodeSourceKind.EXTERNAL.name().equals(code.getSourceKind())) {
             throw MasterCodeRejections.saveRejected(List.of(externalIssue(code)));
         }
@@ -348,9 +350,9 @@ public class CodeItemEditService {
     // ── action: restore ───────────────────────────────────────────────────
 
     public Map<String, Object> revert(CodeItemRevertRequest request) {
-        MdmCode code = header(request.getMaruCodeId());
+        MdmCode code = support.header(request.getMaruCodeId());
         BigDecimal v = parseVer(request.getVer());
-        requireVersionExists(code.getMaruCodeId(), v);
+        support.requireVersionExists(code.getMaruCodeId(), v);
         if (MasterCodeSourceKind.EXTERNAL.name().equals(code.getSourceKind())) {
             throw MasterCodeRejections.saveRejected(List.of(externalIssue(code)));
         }
@@ -378,20 +380,20 @@ public class CodeItemEditService {
      */
     public Map<String, Object> patch(CodeItemPatchRequest request) {
         requireSteward();
-        MdmCode code = header(request.getMaruCodeId());
+        MdmCode code = support.header(request.getMaruCodeId());
         if (MasterCodeSourceKind.EXTERNAL.name().equals(code.getSourceKind())) {
             throw MasterCodeRejections.patchRejected(List.of(externalIssue(code)));
         }
         String id = code.getMaruCodeId();
         List<MdmCodeVer> versions = rows.versions(id);
-        if (versions.stream().filter(this::isUnapplied).count() >= 2) {
+        if (versions.stream().filter(support::isUnapplied).count() >= 2) {
             throw MdmErrors.of(MdmErrorCode.MULTIPLE_UNAPPLIED_VERSIONS);
         }
         BigDecimal from = parseVer(request.getFromVer());
         List<MdmCodeItem> items = rows.items(id);
         MdmCodeItem target = items.stream()
                 .filter(e -> e.getCode().equals(request.getCode()) && same(e.getFromVer(), from)).findFirst()
-                .orElseThrow(() -> invalid("경미 수정할 행이 없습니다: " + request.getCode() + "@" + str(from)));
+                .orElseThrow(() -> invalid("경미 수정할 행이 없습니다: " + request.getCode() + "@" + verText(from)));
         MdmCodeVer fromVersion = version(versions, from);
         if (!VersionStatus.RELEASED.name().equals(fromVersion.getStatus())) {
             throw MasterCodeRejections.patchRejected(List.of(new MdmCheckIssue(
@@ -408,14 +410,14 @@ public class CodeItemEditService {
         }
         // checkRow 를 거치지 않으므로 4000바이트 상한(ORA-12899 예방)을 여기서 따로 본다 — 쓰기 전.
         List<MdmCheckIssue> lengthIssues = MasterCodeItemChecks.checkPatchText(request.getCode(),
-                text(request.getName()), text(request.getAlterName()), text(request.getDescription()));
+                emptyToNull(request.getName()), emptyToNull(request.getAlterName()), emptyToNull(request.getDescription()));
         if (!lengthIssues.isEmpty()) {
             throw MasterCodeRejections.patchRejected(lengthIssues);
         }
-        target.setName(text(request.getName()));
-        target.setAlterName(text(request.getAlterName()));
+        target.setName(emptyToNull(request.getName()));
+        target.setAlterName(emptyToNull(request.getAlterName()));
         target.setSeq(request.getSeq());
-        target.setDescription(text(request.getDescription()));
+        target.setDescription(emptyToNull(request.getDescription()));
         MdmCodeItem saved = itemRepository.saveAndFlush(target);
         recorder.code(id); // RELEASED 행 제자리 수정 — 메타 캐시 무효화(spec 2026-10-02 §3.3)
         return Map.of("row", rowMap(MasterCodeItemSegmentOps.row(saved)));
@@ -475,59 +477,14 @@ public class CodeItemEditService {
                 c.getAttr10Name());
     }
 
-    private MdmCode header(String maruCodeId) {
-        if (isBlank(maruCodeId)) {
-            throw invalid("maruCodeId 가 필요합니다");
-        }
-        return rows.code(maruCodeId).orElseThrow(() -> invalid("마루 코드가 없습니다: " + maruCodeId));
-    }
-
-    private void requireVersionExists(String id, BigDecimal v) {
-        if (rows.versions(id).stream().noneMatch(e -> same(e.getVer(), v))) {
-            throw MdmErrors.of(MdmErrorCode.ROW_VERSION_CONFLICT);
-        }
-    }
-
-    private static MdmCodeVer version(List<MdmCodeVer> versions, BigDecimal v) {
-        return versions.stream().filter(e -> same(e.getVer(), v)).findFirst()
-                .orElseThrow(() -> invalid("버전이 없습니다: " + str(v)));
-    }
-
-    /** DRAFT → 없으면 CANCELLED 가 아닌 가장 큰 버전(versions 는 내림차순). */
-    private static Optional<MdmCodeVer> defaultVersion(List<MdmCodeVer> versions) {
-        Optional<MdmCodeVer> draft = versions.stream()
-                .filter(e -> VersionStatus.DRAFT.name().equals(e.getStatus())).findFirst();
-        return draft.isPresent() ? draft : versions.stream()
-                .filter(e -> !VersionStatus.CANCELLED.name().equals(e.getStatus())).findFirst();
-    }
-
-    /**
-     * 미적용 = DRAFT, 또는 적용 시작이 지금보다 뒤인 RELEASED(경계 = now 는 적용됨, F5). REQUESTED·APPROVED 는 결재 보류로
-     * 지금 생기지 않지만 생기면 미적용으로 센다. {@code VersionPreconditions} 가 package-private 이라 같은 정의를 둔다.
-     */
-    private boolean isUnapplied(MdmCodeVer ver) {
-        String status = ver.getStatus();
-        if (VersionStatus.DRAFT.name().equals(status) || VersionStatus.REQUESTED.name().equals(status)
-                || VersionStatus.APPROVED.name().equals(status)) {
-            return true;
-        }
-        LocalDateTime now = LocalDateTime.now(clock).truncatedTo(ChronoUnit.SECONDS);
-        return VersionStatus.RELEASED.name().equals(status) && ver.getApplyFrom() != null
-                && ver.getApplyFrom().isAfter(now);
-    }
-
     private static MdmCheckIssue externalIssue(MdmCode code) {
         return new MdmCheckIssue(MasterCodeItemIssueCode.SOURCE_EXTERNAL.name(),
                 "원천이 EXTERNAL 인 마루 코드는 MDM 화면에서 저장하지 않는다", null, code.getMaruCodeId());
     }
 
+    /** 헤더 응답 — 공용 5키({@link MasterCodeScreenSupport#headerMap}) 뒤에 비어 있지 않은 속성 라벨 {@code {no, label}} 을 더한다. */
     private static Map<String, Object> headerMap(MdmCode code) {
-        Map<String, Object> m = new LinkedHashMap<>();
-        m.put("maruCodeId", code.getMaruCodeId());
-        m.put("maruCodeName", code.getMaruCodeName());
-        m.put("sourceKind", code.getSourceKind());
-        m.put("status", code.getStatus());
-        m.put("lvlCnt", code.getLvlCnt());
+        Map<String, Object> m = MasterCodeScreenSupport.headerMap(code);
         List<Map<String, Object>> attrLabels = new ArrayList<>();
         List<String> labels = labels(code);
         for (int i = 0; i < labels.size(); i++) {
@@ -539,23 +496,11 @@ public class CodeItemEditService {
         return m;
     }
 
-    private static Map<String, Object> versionMap(MdmCodeVer ver) {
-        Map<String, Object> m = new LinkedHashMap<>();
-        m.put("ver", str(ver.getVer()));
-        m.put("display", display(ver.getVer()));
-        m.put("status", ver.getStatus());
-        m.put("verKind", ver.getVerKind());
-        m.put("ownerId", ver.getOwnerId());
-        m.put("applyFrom", ver.getApplyFrom() == null ? null : DATE_TIME.format(ver.getApplyFrom()));
-        m.put("applyTo", ver.getApplyTo() == null ? null : DATE_TIME.format(ver.getApplyTo()));
-        return m;
-    }
-
     private static Map<String, Object> rowMap(MasterCodeItemRow r) {
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("code", r.code());
-        m.put("fromVer", str(r.fromVer()));
-        m.put("toVer", str(r.toVer()));
+        m.put("fromVer", verText(r.fromVer()));
+        m.put("toVer", verText(r.toVer()));
         m.putAll(valueMap(r.values()));
         return m;
     }
@@ -573,42 +518,5 @@ public class CodeItemEditService {
             m.put(String.format("attr%02d", i + 1), v.attrs().get(i));
         }
         return m;
-    }
-
-    private static Map<String, Object> issueMap(MdmCheckIssue i) {
-        Map<String, Object> m = new LinkedHashMap<>();
-        m.put("code", i.code());
-        m.put("message", i.message());
-        m.put("field", i.field());
-        m.put("itemKey", i.itemKey());
-        return m;
-    }
-
-    private static VersionRef ref(String id, BigDecimal v) {
-        return new VersionRef(VersionTarget.MASTER_CODE, id, v);
-    }
-
-    /** 요청·응답의 버전은 문자열이다(JS number 는 2.000 의 소수 자릿수를 잃는다, §6.1). */
-    private static BigDecimal parseVer(String raw) {
-        if (isBlank(raw)) {
-            throw invalid("ver 가 필요합니다");
-        }
-        return VersionRules.parseVer(raw);
-    }
-
-    private static String str(BigDecimal v) {
-        return v == null ? null : v.setScale(VER_SCALE).toPlainString();
-    }
-
-    private static String display(BigDecimal v) {
-        return "v" + str(v);
-    }
-
-    private static String text(String s) {
-        return s == null || s.isEmpty() ? null : s;
-    }
-
-    private static boolean isBlank(String s) {
-        return s == null || s.isBlank();
     }
 }

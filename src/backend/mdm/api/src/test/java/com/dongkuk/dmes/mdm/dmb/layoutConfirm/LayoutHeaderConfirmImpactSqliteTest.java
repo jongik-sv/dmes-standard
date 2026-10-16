@@ -48,7 +48,7 @@ class LayoutHeaderConfirmImpactSqliteTest extends LayoutServiceTestSupport {
         LayoutVersionRequest r = new LayoutVersionRequest();
         r.setLayoutId(id);
         r.setVerKind("MAJOR");
-        String ver = versions.newVersion(r, "HEADER").getVer();
+        String ver = versions.newVersion(r.toCommand(), "HEADER").ver();
         // 화면처럼 새 버전 행이 이어받은 EAI 를 그대로 돌려보낸다 — 저장 요청의 EAI 가 버전 행 EAI_CODE 의 정본이다(Ruling P3-15)
         String eai = jdbc.queryForObject("SELECT EAI_CODE FROM TB_MDM_LAYOUT_VER WHERE LAYOUT_ID = ? AND VER = ?", String.class, id,
                 new BigDecimal(ver));
@@ -66,7 +66,7 @@ class LayoutHeaderConfirmImpactSqliteTest extends LayoutServiceTestSupport {
         LayoutVersionRequest r = new LayoutVersionRequest();
         r.setLayoutId(id);
         r.setVerKind("MINOR");
-        String ver = versions.newVersion(r, "HEADER").getVer();
+        String ver = versions.newVersion(r.toCommand(), "HEADER").ver();
         headerService.save(headerReq(layoutRow(id).get("LAYOUT_NAME").toString(), q -> {
             q.setLayoutId(id);
             q.setVer(ver);
@@ -205,7 +205,7 @@ class LayoutHeaderConfirmImpactSqliteTest extends LayoutServiceTestSupport {
         del.setLayoutId(m.l100());
         del.setVer(ver);
         del.setRowVersion(rowVersion(m.l100(), ver));
-        versions.deleteDraft(del, "HEADER");
+        versions.deleteDraft(del.toCommand(), "HEADER");
         String ver2 = newMajorHeader(m.l100(), numbered(removed));
         Map<String, Object> out = validate(m.l100(), ver2);
         assertThat(list(out, "checks")).filteredOn(c -> "ORPHAN_OVERRIDE".equals(c.get("code"))).singleElement().satisfies(c -> {

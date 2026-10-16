@@ -13,8 +13,6 @@ import com.dongkuk.dmes.mdm.contract.version.VersionRef;
 import com.dongkuk.dmes.mdm.contract.version.VersionStateService;
 import com.dongkuk.dmes.mdm.contract.version.VersionTarget;
 import com.dongkuk.dmes.mdm.contract.version.VersionWriteGuard;
-import com.dongkuk.dmes.mdm.dmb.layoutMng.dto.LayoutVersionRequest;
-import com.dongkuk.dmes.mdm.dmb.layoutMng.dto.LayoutVersionResult;
 import com.dongkuk.dmes.mdm.entity.MdmLayout;
 import com.dongkuk.dmes.mdm.entity.MdmLayoutVer;
 import com.dongkuk.dmes.mdm.repository.MdmLayoutRepository;
@@ -25,7 +23,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import org.springframework.stereotype.Service;
 
 /**
@@ -45,8 +42,6 @@ import org.springframework.stereotype.Service;
 @Service
 public class LayoutVersionService {
 
-    /** 승인 흐름 상태 — 공통 가드의 미적용 판정(DRAFT·미래 RELEASED)에 들지 않으므로 룰 세트처럼 따로 막는다. */
-    private static final Set<String> IN_APPROVAL = Set.of("REQUESTED", "APPROVED");
     private static final String DEPRECATED = "DEPRECATED";
 
     private final LayoutVersionStore store;
@@ -74,9 +69,9 @@ public class LayoutVersionService {
      * 버전이 하나도 없으면(유일한 DRAFT 를 지운 레이아웃) 빈 1.000 MAJOR DRAFT 를 만든다 — 항목·헤더 구성·재정의 없음(룰 세트와 같다,
      * Ruling P3-11). 버전이 있는데 RELEASED 가 없으면 거부한다.
      */
-    public LayoutVersionResult newVersion(LayoutVersionRequest request, String kind) {
-        VersionKind verKind = VersionRules.parseKind(request.getVerKind());
-        MdmLayout layout = load(request.getLayoutId(), kind);
+    public LayoutVersionOutcome newVersion(LayoutVersionCommand command, String kind) {
+        VersionKind verKind = VersionRules.parseKind(command.verKind());
+        MdmLayout layout = load(command.layoutId(), kind);
         if (DEPRECATED.equals(layout.getStatus())) {
             throw MdmErrors.of(MdmErrorCode.TRANSITION_NOT_ALLOWED, "폐기한 레이아웃은 새 버전을 만들 수 없습니다", List.of());
         }
@@ -100,60 +95,60 @@ public class LayoutVersionService {
         });
         store.save(created);                                                                   // FK: 버전 행 먼저
         source.ifPresent(s -> writer.copyVersionRows(layout.getLayoutId(), s.getVer(), next));
-        return new LayoutVersionResult(layout.getLayoutId(), VersionNumbers.plain(next), verKind.name(), 0L);
+        return new LayoutVersionOutcome(layout.getLayoutId(), VersionNumbers.plain(next), verKind.name(), 0L);
     }
 
     /**
      * action delete — target {@code CONFIRM} 이면 확정 취소, {@code VERSION}(비면 기본)이면 DRAFT 삭제. 그 밖의 값은 INVALID_VALUE 로
      * 거부한다(2단계 J6 와 같은 결, Ruling P3-12).
      */
-    public LayoutVersionResult delete(LayoutVersionRequest request, String kind) {
-        String target = request.getTarget() == null || request.getTarget().isBlank() ? LayoutVersionRequest.TARGET_VERSION
-                : request.getTarget().trim();
-        if (LayoutVersionRequest.TARGET_CONFIRM.equals(target)) {
-            return cancelConfirm(request, kind);
+    public LayoutVersionOutcome delete(LayoutVersionCommand command, String kind) {
+        String target = command.target() == null || command.target().isBlank() ? LayoutVersionCommand.TARGET_VERSION
+                : command.target().trim();
+        if (LayoutVersionCommand.TARGET_CONFIRM.equals(target)) {
+            return cancelConfirm(command, kind);
         }
-        if (LayoutVersionRequest.TARGET_VERSION.equals(target)) {
-            return deleteDraft(request, kind);
+        if (LayoutVersionCommand.TARGET_VERSION.equals(target)) {
+            return deleteDraft(command, kind);
         }
         throw new BusinessException(ErrorCode.INVALID_VALUE, "삭제 대상은 VERSION·CONFIRM 중 하나여야 합니다: " + target);
     }
 
     /** DRAFT 삭제(delete target VERSION). 소유자·DRAFT·row_version 은 공통 서비스가, 자식 행 정리는 {@link LayoutDraftDeletion} 이 한다. */
-    public LayoutVersionResult deleteDraft(LayoutVersionRequest request, String kind) {
-        VersionRef ref = ref(load(request.getLayoutId(), kind), request.getVer());
-        stateService.deleteDraft(ref, LayoutVersions.requireRowVersion(request.getRowVersion()), currentUser.userId());
+    public LayoutVersionOutcome deleteDraft(LayoutVersionCommand command, String kind) {
+        VersionRef ref = ref(load(command.layoutId(), kind), command.ver());
+        stateService.deleteDraft(ref, LayoutVersions.requireRowVersion(command.rowVersion()), currentUser.userId());
         return result(ref, null);
     }
 
     /** 확정 취소(delete target CONFIRM, ADR-0002 D8) — 아직 적용 시각이 오지 않은 확정 버전을 작성 중으로 되돌린다. */
-    public LayoutVersionResult cancelConfirm(LayoutVersionRequest request, String kind) {
-        VersionRef ref = ref(load(request.getLayoutId(), kind), request.getVer());
-        stateService.cancelConfirm(ref, LayoutVersions.requireRowVersion(request.getRowVersion()), currentUser.userId());
+    public LayoutVersionOutcome cancelConfirm(LayoutVersionCommand command, String kind) {
+        VersionRef ref = ref(load(command.layoutId(), kind), command.ver());
+        stateService.cancelConfirm(ref, LayoutVersions.requireRowVersion(command.rowVersion()), currentUser.userId());
         return result(ref, null);
     }
 
     /** 선점 — 공통 서비스가 담당자 역할(MDM013)·빈 소유자(MDM004)를 본다. 새 row_version 을 돌려준다. */
-    public LayoutVersionResult lock(LayoutVersionRequest request, String kind) {
-        VersionRef ref = ref(load(request.getLayoutId(), kind), request.getVer());
-        return result(ref, ownership.acquire(ref, LayoutVersions.requireRowVersion(request.getRowVersion()), currentUser.userId()));
+    public LayoutVersionOutcome lock(LayoutVersionCommand command, String kind) {
+        VersionRef ref = ref(load(command.layoutId(), kind), command.ver());
+        return result(ref, ownership.acquire(ref, LayoutVersions.requireRowVersion(command.rowVersion()), currentUser.userId()));
     }
 
     /** 해제 — 소유자만(MDM003). */
-    public LayoutVersionResult unlock(LayoutVersionRequest request, String kind) {
-        VersionRef ref = ref(load(request.getLayoutId(), kind), request.getVer());
-        return result(ref, ownership.release(ref, LayoutVersions.requireRowVersion(request.getRowVersion()), currentUser.userId()));
+    public LayoutVersionOutcome unlock(LayoutVersionCommand command, String kind) {
+        VersionRef ref = ref(load(command.layoutId(), kind), command.ver());
+        return result(ref, ownership.release(ref, LayoutVersions.requireRowVersion(command.rowVersion()), currentUser.userId()));
     }
 
     /** 넘기기 — 소유자만(MDM003), 받는 사람은 담당자(MDM005). */
-    public LayoutVersionResult handover(LayoutVersionRequest request, String kind) {
-        VersionRef ref = ref(load(request.getLayoutId(), kind), request.getVer());
-        return result(ref, ownership.handover(ref, LayoutVersions.requireRowVersion(request.getRowVersion()), currentUser.userId(),
-                request.getNewOwnerId()));
+    public LayoutVersionOutcome handover(LayoutVersionCommand command, String kind) {
+        VersionRef ref = ref(load(command.layoutId(), kind), command.ver());
+        return result(ref, ownership.handover(ref, LayoutVersions.requireRowVersion(command.rowVersion()), currentUser.userId(),
+                command.newOwnerId()));
     }
 
     /**
-     * 화면 새 버전 버튼 — 폐기했거나, 미적용 버전(DRAFT·미래 RELEASED)·승인 흐름 버전이 있거나, 버전은 있는데 복사할 RELEASED 가 없으면 둘
+     * 화면 새 버전 버튼 — 폐기했거나, 미적용 버전(DRAFT·결재 중·미래 RELEASED)이 있거나, 버전은 있는데 복사할 RELEASED 가 없으면 둘
      * 다 false(마스터코드·룰과 같은 이름). 버전이 하나도 없으면 major 만 켜고 다음 번호는 1.000 이다(Ruling P3-11). 다음 번호는 그 버튼이
      * 켜질 때만 채운다. 이미 읽은 버전 목록으로만 계산한다(조회 수를 늘리지 않는다).
      */
@@ -170,8 +165,9 @@ public class LayoutVersionService {
         return out;
     }
 
+    /** 결재 중(REQUESTED·APPROVED) — C2 부터 공통 가드와 {@link LayoutVersions#hasUnapplied} 도 이 두 상태를 미적용으로 본다. 겹치는 검사로 남겨 둔다. */
     private static boolean inApproval(Collection<MdmLayoutVer> versions) {
-        return versions.stream().anyMatch(v -> IN_APPROVAL.contains(v.getStatus()));
+        return versions.stream().anyMatch(v -> VersionRules.isInApproval(v.getStatus()));
     }
 
     private MdmLayout load(Long layoutId, String kind) {
@@ -186,7 +182,7 @@ public class LayoutVersionService {
         return new VersionRef(VersionTarget.LAYOUT, String.valueOf(layout.getLayoutId()), LayoutVersions.requireVer(ver));
     }
 
-    private static LayoutVersionResult result(VersionRef ref, Long rowVersion) {
-        return new LayoutVersionResult(Long.valueOf(ref.objectId()), VersionNumbers.plain(ref.ver()), null, rowVersion);
+    private static LayoutVersionOutcome result(VersionRef ref, Long rowVersion) {
+        return new LayoutVersionOutcome(Long.valueOf(ref.objectId()), VersionNumbers.plain(ref.ver()), null, rowVersion);
     }
 }

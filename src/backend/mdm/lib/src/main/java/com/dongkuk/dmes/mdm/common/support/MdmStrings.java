@@ -7,7 +7,8 @@ import java.sql.SQLException;
  * 서비스들이 따로 두던 문자열 보조 메서드의 공용 정본.
  *
  * <p>{@code blankToNull} 과 {@code trimToNull} 은 비어 있다고 보는 기준이 다르다. 앞은 유니코드 공백만 있어도(isBlank) null,
- * 뒤는 {@link String#trim()} 결과가 빈 문자열일 때만 null 이다. 호출부가 쓰던 기준 그대로 이름을 골라 쓴다.
+ * 뒤는 {@link String#trim()} 결과가 빈 문자열일 때만 null 이다. {@code emptyToNull} 은 빈 문자열만 null 로 바꾸고 자르지 않는다.
+ * 호출부가 쓰던 기준 그대로 이름을 골라 쓴다.
  */
 public final class MdmStrings {
 
@@ -53,5 +54,15 @@ public final class MdmStrings {
             }
         }
         return value.toString();
+    }
+
+    /** null·빈 문자열이면 null, 아니면 그대로다. 공백만 있는 문자열은 그대로 두고 {@code trim()} 도 하지 않는다. */
+    public static String emptyToNull(String s) {
+        return s == null || s.isEmpty() ? null : s;
+    }
+
+    /** null 이거나 공백(유니코드 공백 포함)만 있으면 참. */
+    public static boolean isBlank(String s) {
+        return s == null || s.isBlank();
     }
 }

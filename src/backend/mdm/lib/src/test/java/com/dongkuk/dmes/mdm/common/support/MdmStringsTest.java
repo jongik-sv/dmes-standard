@@ -25,6 +25,24 @@ class MdmStringsTest {
     }
 
     @Test
+    void emptyToNull_빈_문자열만_null_공백은_그대로() {
+        assertThat(MdmStrings.emptyToNull(null)).isNull();
+        assertThat(MdmStrings.emptyToNull("")).isNull();
+        assertThat(MdmStrings.emptyToNull("  ")).isEqualTo("  ");
+        assertThat(MdmStrings.emptyToNull(" a ")).isEqualTo(" a ");
+    }
+
+    @Test
+    void isBlank_null이거나_공백만_있으면_참() {
+        assertThat(MdmStrings.isBlank(null)).isTrue();
+        assertThat(MdmStrings.isBlank("")).isTrue();
+        assertThat(MdmStrings.isBlank(" \t")).isTrue();
+        assertThat(MdmStrings.isBlank(" ")).isTrue();
+        assertThat(MdmStrings.isBlank("\u3000")).isTrue();
+        assertThat(MdmStrings.isBlank(" a ")).isFalse();
+    }
+
+    @Test
     void str_null이면_null_아니면_toString() {
         assertThat(MdmStrings.str(null)).isNull();
         assertThat(MdmStrings.str(12)).isEqualTo("12");

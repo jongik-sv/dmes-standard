@@ -8,6 +8,7 @@ import com.dongkuk.dmes.mdm.common.support.MdmStrings;
 import com.dongkuk.dmes.mdm.contract.common.MdmErrorCode;
 import com.dongkuk.dmes.mdm.contract.version.VersionConventions;
 import com.dongkuk.dmes.mdm.contract.version.VersionKind;
+import com.dongkuk.dmes.mdm.contract.version.VersionStatus;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -15,7 +16,8 @@ import java.time.format.DateTimeParseException;
 import java.util.List;
 
 /**
- * 버전 입력 처리 공통 규칙(D-144) — 화면이 보낸 버전·종류·적용 시작 일시 문자열 해석, 새 버전 번호 검사, 새 버전 가능 여부 플래그.
+ * 버전 입력 처리 공통 규칙(D-144) — 화면이 보낸 버전·종류·적용 시작 일시 문자열 해석, 새 버전 번호 검사, 새 버전 가능 여부 플래그,
+ * 미적용·결재 중 판정.
  * 룰·룰 세트·레이아웃·마스터코드·ERD 화면 서비스가 같이 쓴다. 번호 계산 자체는 {@link VersionNumbers}.
  */
 public final class VersionRules {
@@ -118,5 +120,22 @@ public final class VersionRules {
                 allowed && minorLeft,
                 VersionNumbers.plain(VersionNumbers.nextMajor(max)),
                 minorLeft ? VersionNumbers.plain(VersionNumbers.nextMinor(max)) : null);
+    }
+
+    /**
+     * 미적용(넓은 뜻, BE 리팩토링 2회차 C2) — DRAFT·REQUESTED·APPROVED, 또는 적용 시작이 {@code now} 보다 뒤인 RELEASED(04:284).
+     * 경계({@code applyFrom == now})는 적용됨이다. 적용 시작이 없는 RELEASED 와 CANCELLED 는 미적용이 아니다. REQUESTED·APPROVED 는
+     * 결재 보류로 지금은 생기지 않지만 생기면 미적용으로 센다. {@code now} 를 몇 자리로 자를지는 호출자가 정한다.
+     */
+    public static boolean isUnapplied(String status, LocalDateTime applyFrom, LocalDateTime now) {
+        if (VersionStatus.DRAFT.name().equals(status) || isInApproval(status)) {
+            return true;
+        }
+        return VersionStatus.RELEASED.name().equals(status) && applyFrom != null && applyFrom.isAfter(now);
+    }
+
+    /** 결재 중 — REQUESTED·APPROVED(C2). 결재 보류로 지금은 생기지 않는다. */
+    public static boolean isInApproval(String status) {
+        return VersionStatus.REQUESTED.name().equals(status) || VersionStatus.APPROVED.name().equals(status);
     }
 }

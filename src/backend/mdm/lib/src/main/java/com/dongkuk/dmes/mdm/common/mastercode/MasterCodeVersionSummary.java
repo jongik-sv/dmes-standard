@@ -1,5 +1,6 @@
 package com.dongkuk.dmes.mdm.common.mastercode;
 
+import com.dongkuk.dmes.mdm.common.version.VersionRules;
 import com.dongkuk.dmes.mdm.contract.version.MaruObjectStatus;
 import com.dongkuk.dmes.mdm.contract.version.VersionStatus;
 import java.math.BigDecimal;
@@ -12,9 +13,9 @@ import java.util.stream.Collectors;
 /**
  * 마루 코드 버전 행 목록의 계산값(TSK-06-02 design.md §6.3, 불변 규칙 I17·I18, 원천 04 「버전 상태와 적용시점」).
  *
- * <p>현재 버전·배포 대기·미적용·표시 상태는 저장 칼럼 없이 {@code now} 기준으로 계산한다. 미적용 정의는 공통 서비스
- * {@code VersionPreconditions.isUnapplied}(package-private)와 같은 식이다: DRAFT, 또는 {@code applyFrom} 이 now 보다 뒤인
- * RELEASED. 경계({@code applyFrom == now})는 적용됨.
+ * <p>현재 버전·배포 대기·미적용·표시 상태는 저장 칼럼 없이 {@code now} 기준으로 계산한다. 미적용 정의는 공통
+ * {@link VersionRules#isUnapplied}(넓은 뜻, C2)다: DRAFT·REQUESTED·APPROVED, 또는 {@code applyFrom} 이 now 보다 뒤인 RELEASED.
+ * 경계({@code applyFrom == now})는 적용됨.
  */
 public final class MasterCodeVersionSummary {
 
@@ -81,12 +82,9 @@ public final class MasterCodeVersionSummary {
                 currentVer);
     }
 
-    /** DRAFT, 또는 applyFrom 이 now 보다 뒤인 RELEASED. 경계 now 는 적용됨(I5). */
+    /** 미적용 — {@link VersionRules#isUnapplied}(DRAFT·REQUESTED·APPROVED, 또는 applyFrom 이 now 보다 뒤인 RELEASED). 경계 now 는 적용됨(I5). */
     public static boolean isUnapplied(VerRow row, LocalDateTime now) {
-        if (VersionStatus.DRAFT.name().equals(row.status())) {
-            return true;
-        }
-        return isReleased(row) && row.applyFrom() != null && row.applyFrom().isAfter(now);
+        return VersionRules.isUnapplied(row.status(), row.applyFrom(), now);
     }
 
     private static boolean isReleased(VerRow row) {

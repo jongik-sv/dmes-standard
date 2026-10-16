@@ -403,27 +403,27 @@ public class HeaderMngService {
 
     /** 새 버전 — {@code verKind} 가 비면 MAJOR. 직전 RELEASED 의 항목을 복사한다. */
     public LayoutVersionResult copy(LayoutVersionRequest request) {
-        return versionService.newVersion(request, HEADER);
+        return LayoutVersionResult.of(versionService.newVersion(request.toCommand(), HEADER));
     }
 
     /** {@code target} CONFIRM 이면 확정 취소, VERSION(비면 기본)이면 DRAFT 삭제, 그 밖의 값은 INVALID_VALUE. */
     public LayoutVersionResult delete(LayoutVersionRequest request) {
-        return versionService.delete(request, HEADER);
+        return LayoutVersionResult.of(versionService.delete(request.toCommand(), HEADER));
     }
 
     /** DRAFT 선점(담당자만) — 새 row_version. */
     public LayoutVersionResult lock(LayoutVersionRequest request) {
-        return versionService.lock(request, HEADER);
+        return LayoutVersionResult.of(versionService.lock(request.toCommand(), HEADER));
     }
 
     /** DRAFT 해제(소유자만) — 새 row_version. */
     public LayoutVersionResult unlock(LayoutVersionRequest request) {
-        return versionService.unlock(request, HEADER);
+        return LayoutVersionResult.of(versionService.unlock(request.toCommand(), HEADER));
     }
 
     /** DRAFT 넘기기(소유자만, 받는 사람은 담당자) — 새 row_version. */
     public LayoutVersionResult handover(LayoutVersionRequest request) {
-        return versionService.handover(request, HEADER);
+        return LayoutVersionResult.of(versionService.handover(request.toCommand(), HEADER));
     }
 
     /** 요청 값이 비어 있지 않고 지금 값과 다르다. */

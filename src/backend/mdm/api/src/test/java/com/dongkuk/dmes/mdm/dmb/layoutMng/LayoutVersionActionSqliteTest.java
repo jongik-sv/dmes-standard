@@ -61,10 +61,10 @@ class LayoutVersionActionSqliteTest extends LayoutServiceTestSupport {
     @Test
     void minorCopiesLatestReleasedRowsAndRecordsKind() {
         M201 m = m201(List.of(l100Const(2, "B1")));             // 상수 재정의 1행 — 복사가 0 == 0 으로 통과하지 않게
-        var out = versions.newVersion(req(m.message(), null, "MINOR", null), "MESSAGE");
-        assertThat(out.getVer()).isEqualTo("1.001");
-        assertThat(out.getVerKind()).isEqualTo("MINOR");
-        assertThat(out.getRowVersion()).isZero();
+        var out = versions.newVersion(req(m.message(), null, "MINOR", null).toCommand(), "MESSAGE");
+        assertThat(out.ver()).isEqualTo("1.001");
+        assertThat(out.verKind()).isEqualTo("MINOR");
+        assertThat(out.rowVersion()).isZero();
         assertThat(itemRows(m.message(), "1.001")).hasSameSizeAs(itemRows(m.message(), "1"));
         assertThat(constCount(m.message(), "1")).isEqualTo(1);
         assertThat(constCount(m.message(), "1.001")).isEqualTo(1);
@@ -89,8 +89,8 @@ class LayoutVersionActionSqliteTest extends LayoutServiceTestSupport {
         assertThat(before.get("nextMajor")).isEqualTo("2.000");
         assertThat(before.get("nextMinor")).isEqualTo("1.001");
 
-        versions.newVersion(req(m.message(), null, "MAJOR", null), "MESSAGE");
-        BusinessException e = rejected(() -> versions.newVersion(req(m.message(), null, "MINOR", null), "MESSAGE"));
+        versions.newVersion(req(m.message(), null, "MAJOR", null).toCommand(), "MESSAGE");
+        BusinessException e = rejected(() -> versions.newVersion(req(m.message(), null, "MINOR", null).toCommand(), "MESSAGE"));
         assertThat(code(e)).isEqualTo("MDM006");
         Map<String, Object> view = layoutService.view(v);
         assertThat(view.get("canNewMajor")).isEqualTo(false);
@@ -106,7 +106,7 @@ class LayoutVersionActionSqliteTest extends LayoutServiceTestSupport {
         jdbc.update("INSERT INTO TB_MDM_LAYOUT_VER (LAYOUT_ID, VER, VER_KIND, STATUS, OWNER_ID, APPLY_FROM, APPLY_TO, OWN_LENGTH) "
                 + "VALUES (?, ?, 'MAJOR', 'REQUESTED', 'kim', TIMESTAMP '2026-01-01 00:00:00', TIMESTAMP '9999-12-31 00:00:00', 0)", m.l110(),
                 new BigDecimal("2.000"));
-        BusinessException e = rejected(() -> versions.newVersion(req(m.l110(), null, "MAJOR", null), "HEADER"));
+        BusinessException e = rejected(() -> versions.newVersion(req(m.l110(), null, "MAJOR", null).toCommand(), "HEADER"));
         assertThat(code(e)).isEqualTo("MDM006");
         HeaderMngViewRequest v = new HeaderMngViewRequest();
         v.setLayoutId(m.l110());
@@ -119,10 +119,10 @@ class LayoutVersionActionSqliteTest extends LayoutServiceTestSupport {
     @Test
     void deletingDraftRemovesOnlyThatVersionsRows() {
         M201 m = m201(List.of(l100Const(2, "B1")));
-        versions.newVersion(req(m.message(), null, "MINOR", null), "MESSAGE");
+        versions.newVersion(req(m.message(), null, "MINOR", null).toCommand(), "MESSAGE");
         assertThat(constCount(m.message(), "1.001")).isEqualTo(1);
-        var out = versions.deleteDraft(req(m.message(), "1.001", null, 0L), "MESSAGE");
-        assertThat(out.getVer()).isEqualTo("1.001");
+        var out = versions.deleteDraft(req(m.message(), "1.001", null, 0L).toCommand(), "MESSAGE");
+        assertThat(out.ver()).isEqualTo("1.001");
         assertThat(versionRows(m.message())).hasSize(1);
         assertThat(itemRows(m.message(), "1.001")).isEmpty();
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM TB_MDM_LAYOUT_HEADER WHERE LAYOUT_ID = ? AND VER = 1.001", Integer.class,
@@ -142,11 +142,11 @@ class LayoutVersionActionSqliteTest extends LayoutServiceTestSupport {
     @Test
     void headerNewVersionWorksTooAndLockNeedsSteward() {
         M201 m = m201();
-        var h = versions.newVersion(req(m.l110(), null, "MAJOR", null), "HEADER");
-        assertThat(h.getVer()).isEqualTo("2.000");
-        assertThat(versions.unlock(req(m.l110(), "2.000", null, 0L), "HEADER").getRowVersion()).isEqualTo(1L);
+        var h = versions.newVersion(req(m.l110(), null, "MAJOR", null).toCommand(), "HEADER");
+        assertThat(h.ver()).isEqualTo("2.000");
+        assertThat(versions.unlock(req(m.l110(), "2.000", null, 0L).toCommand(), "HEADER").rowVersion()).isEqualTo(1L);
         user.set("lee", Set.of(MdmRoles.STD_ADMIN));
-        BusinessException e = rejected(() -> versions.lock(req(m.l110(), "2.000", null, 1L), "HEADER"));
+        BusinessException e = rejected(() -> versions.lock(req(m.l110(), "2.000", null, 1L).toCommand(), "HEADER"));
         assertThat(code(e)).isEqualTo("MDM013");
         assertThat(jdbc.queryForObject("SELECT OWNER_ID FROM TB_MDM_LAYOUT_VER WHERE LAYOUT_ID = ? AND VER = 2", String.class, m.l110()))
                 .isNull();
@@ -155,18 +155,18 @@ class LayoutVersionActionSqliteTest extends LayoutServiceTestSupport {
     @Test
     void lockThenHandoverMovesOwnershipThroughCommonService() {
         M201 m = m201();
-        versions.newVersion(req(m.l110(), null, "MINOR", null), "HEADER");
-        versions.unlock(req(m.l110(), "1.001", null, 0L), "HEADER");
-        assertThat(versions.lock(req(m.l110(), "1.001", null, 1L), "HEADER").getRowVersion()).isEqualTo(2L);
+        versions.newVersion(req(m.l110(), null, "MINOR", null).toCommand(), "HEADER");
+        versions.unlock(req(m.l110(), "1.001", null, 0L).toCommand(), "HEADER");
+        assertThat(versions.lock(req(m.l110(), "1.001", null, 1L).toCommand(), "HEADER").rowVersion()).isEqualTo(2L);
         LayoutVersionRequest handover = req(m.l110(), "1.001", null, 2L);
         handover.setNewOwnerId("nobody");
-        BusinessException e = rejected(() -> versions.handover(handover, "HEADER"));
+        BusinessException e = rejected(() -> versions.handover(handover.toCommand(), "HEADER"));
         assertThat(code(e)).isEqualTo("MDM005");
         assertThat(jdbc.queryForObject("SELECT OWNER_ID FROM TB_MDM_LAYOUT_VER WHERE LAYOUT_ID = ? AND VER = 1.001", String.class,
                 m.l110())).isEqualTo(KIM);
         stewards.set(Set.of("park"));
         handover.setNewOwnerId("park");
-        assertThat(versions.handover(handover, "HEADER").getRowVersion()).isEqualTo(3L);
+        assertThat(versions.handover(handover.toCommand(), "HEADER").rowVersion()).isEqualTo(3L);
         assertThat(jdbc.queryForObject("SELECT OWNER_ID FROM TB_MDM_LAYOUT_VER WHERE LAYOUT_ID = ? AND VER = 1.001", String.class,
                 m.l110())).isEqualTo("park");
     }
@@ -174,14 +174,14 @@ class LayoutVersionActionSqliteTest extends LayoutServiceTestSupport {
     @Test
     void kindMismatchIsRejectedAsNotFound() {
         M201 m = m201();
-        BusinessException e = rejected(() -> versions.newVersion(req(m.l110(), null, "MAJOR", null), "MESSAGE"));
+        BusinessException e = rejected(() -> versions.newVersion(req(m.l110(), null, "MAJOR", null).toCommand(), "MESSAGE"));
         assertThat(e.getMessage()).startsWith("전문 저장 거부: L11");
     }
 
     @Test
     void cancelConfirmReturnsFutureReleasedToDraftAndReopensPrevious() {
         M201 m = m201();
-        versions.newVersion(req(m.message(), null, "MAJOR", null), "MESSAGE");
+        versions.newVersion(req(m.message(), null, "MAJOR", null).toCommand(), "MESSAGE");
         release(m.message(), "2.000", "2026-12-01 00:00:00");
         assertThat(versionStore.find(m.message(), new BigDecimal("1.000")).orElseThrow().getApplyTo())
                 .isEqualTo(LocalDateTime.of(2026, 12, 1, 0, 0));
@@ -201,31 +201,31 @@ class LayoutVersionActionSqliteTest extends LayoutServiceTestSupport {
     @Test
     void layoutTargetRejectionsGoThroughCommonEngineWithIntegerObjectId() {
         M201 m = m201();
-        versions.newVersion(req(m.message(), null, "MINOR", null), "MESSAGE");      // 1.001 DRAFT, 소유자 kim, rowVersion 0
+        versions.newVersion(req(m.message(), null, "MINOR", null).toCommand(), "MESSAGE");      // 1.001 DRAFT, 소유자 kim, rowVersion 0
         // 낡은 rowVersion — MDM001
-        assertThat(code(rejected(() -> versions.unlock(req(m.message(), "1.001", null, 5L), "MESSAGE")))).isEqualTo("MDM001");
+        assertThat(code(rejected(() -> versions.unlock(req(m.message(), "1.001", null, 5L).toCommand(), "MESSAGE")))).isEqualTo("MDM001");
         LayoutVersionRequest staleHandover = req(m.message(), "1.001", null, 5L);
         staleHandover.setNewOwnerId("park");
-        assertThat(code(rejected(() -> versions.handover(staleHandover, "MESSAGE")))).isEqualTo("MDM001");
+        assertThat(code(rejected(() -> versions.handover(staleHandover.toCommand(), "MESSAGE")))).isEqualTo("MDM001");
         // 소유자가 있는 DRAFT 선점 — MDM004(낡은 rowVersion 이면 MDM001)
-        assertThat(code(rejected(() -> versions.lock(req(m.message(), "1.001", null, 0L), "MESSAGE")))).isEqualTo("MDM004");
-        assertThat(code(rejected(() -> versions.lock(req(m.message(), "1.001", null, 5L), "MESSAGE")))).isEqualTo("MDM001");
+        assertThat(code(rejected(() -> versions.lock(req(m.message(), "1.001", null, 0L).toCommand(), "MESSAGE")))).isEqualTo("MDM004");
+        assertThat(code(rejected(() -> versions.lock(req(m.message(), "1.001", null, 5L).toCommand(), "MESSAGE")))).isEqualTo("MDM001");
         // 소유자가 아닌 사람 — 해제·넘기기·삭제 MDM003
         user.set("lee", Set.of(MdmRoles.STEWARD, MdmRoles.STD_ADMIN));
-        assertThat(code(rejected(() -> versions.unlock(req(m.message(), "1.001", null, 0L), "MESSAGE")))).isEqualTo("MDM003");
+        assertThat(code(rejected(() -> versions.unlock(req(m.message(), "1.001", null, 0L).toCommand(), "MESSAGE")))).isEqualTo("MDM003");
         LayoutVersionRequest foreignHandover = req(m.message(), "1.001", null, 0L);
         foreignHandover.setNewOwnerId("lee");
-        assertThat(code(rejected(() -> versions.handover(foreignHandover, "MESSAGE")))).isEqualTo("MDM003");
-        assertThat(code(rejected(() -> versions.deleteDraft(req(m.message(), "1.001", null, 0L), "MESSAGE")))).isEqualTo("MDM003");
+        assertThat(code(rejected(() -> versions.handover(foreignHandover.toCommand(), "MESSAGE")))).isEqualTo("MDM003");
+        assertThat(code(rejected(() -> versions.deleteDraft(req(m.message(), "1.001", null, 0L).toCommand(), "MESSAGE")))).isEqualTo("MDM003");
         assertThat(jdbc.queryForObject("SELECT OWNER_ID FROM TB_MDM_LAYOUT_VER WHERE LAYOUT_ID = ? AND VER = 1.001", String.class,
                 m.message())).isEqualTo(KIM);
         assertThat(rowVersion(m.message(), "1.001")).isZero();
         // 미래 RELEASED 가 있으면 새 버전 MDM006
         user.set(KIM, Set.of(MdmRoles.STEWARD, MdmRoles.STD_ADMIN));
-        versions.deleteDraft(req(m.message(), "1.001", null, 0L), "MESSAGE");
-        versions.newVersion(req(m.message(), null, "MAJOR", null), "MESSAGE");
+        versions.deleteDraft(req(m.message(), "1.001", null, 0L).toCommand(), "MESSAGE");
+        versions.newVersion(req(m.message(), null, "MAJOR", null).toCommand(), "MESSAGE");
         release(m.message(), "2.000", "2026-12-01 00:00:00");
-        assertThat(code(rejected(() -> versions.newVersion(req(m.message(), null, "MINOR", null), "MESSAGE")))).isEqualTo("MDM006");
+        assertThat(code(rejected(() -> versions.newVersion(req(m.message(), null, "MINOR", null).toCommand(), "MESSAGE")))).isEqualTo("MDM006");
         LayoutMngViewRequest v = new LayoutMngViewRequest();
         v.setLayoutId(m.message());
         assertThat(layoutService.view(v).get("canNewMajor")).isEqualTo(false);
@@ -241,9 +241,9 @@ class LayoutVersionActionSqliteTest extends LayoutServiceTestSupport {
                 + "VALUES (900200, ?, 'MINOR', 'RELEASED', TIMESTAMP '2026-01-01 00:00:00', TIMESTAMP '9999-12-31 00:00:00', 5)", new BigDecimal("1.999"));
         jdbc.update("INSERT INTO TB_MDM_LAYOUT_ITEM (LAYOUT_ID, VER, SEQ, FILL_KIND, FILLER_LENGTH, \"OFFSET\", \"LENGTH\") "
                 + "VALUES (900200, ?, 1, 'FILLER', 5, 0, 5)", new BigDecimal("1.999"));
-        BusinessException e = rejected(() -> versions.newVersion(req(900200L, null, "MINOR", null), "HEADER"));
+        BusinessException e = rejected(() -> versions.newVersion(req(900200L, null, "MINOR", null).toCommand(), "HEADER"));
         assertThat(e.getMessage()).contains("major 를 올리십시오");
-        assertThat(versions.newVersion(req(900200L, null, "MAJOR", null), "HEADER").getVer()).isEqualTo("2.000");
+        assertThat(versions.newVersion(req(900200L, null, "MAJOR", null).toCommand(), "HEADER").ver()).isEqualTo("2.000");
         assertThat(itemRows(900200L, "2")).hasSize(1);
     }
 
@@ -253,7 +253,7 @@ class LayoutVersionActionSqliteTest extends LayoutServiceTestSupport {
     @SuppressWarnings("unchecked")
     void 유일한_DRAFT_를_지우면_major_1_000_만_켜지고_새_버전은_빈_1_000_DRAFT_다() {
         long header = ((Number) headerService.save(headerReq(uniq("빈 헤더 "), r -> {}), l110Items()).get("layoutId")).longValue();
-        versions.deleteDraft(req(header, "1.000", null, 0L), "HEADER");
+        versions.deleteDraft(req(header, "1.000", null, 0L).toCommand(), "HEADER");
         assertThat(versionRows(header)).isEmpty();
         assertThat(itemRows(header, "1")).isEmpty();
 
@@ -268,11 +268,11 @@ class LayoutVersionActionSqliteTest extends LayoutServiceTestSupport {
         assertThat(empty.get("canNewMinor")).isEqualTo(false);
         assertThat(empty.get("nextMinor")).isNull();
 
-        BusinessException minor = rejected(() -> versions.newVersion(req(header, null, "MINOR", null), "HEADER"));
+        BusinessException minor = rejected(() -> versions.newVersion(req(header, null, "MINOR", null).toCommand(), "HEADER"));
         assertThat(code(minor)).isEqualTo("MDM021");
-        var out = versions.newVersion(req(header, null, "MAJOR", null), "HEADER");
-        assertThat(out.getVer()).isEqualTo("1.000");
-        assertThat(out.getVerKind()).isEqualTo("MAJOR");
+        var out = versions.newVersion(req(header, null, "MAJOR", null).toCommand(), "HEADER");
+        assertThat(out.ver()).isEqualTo("1.000");
+        assertThat(out.verKind()).isEqualTo("MAJOR");
         assertThat(versionRows(header)).singleElement().satisfies(r -> {
             assertThat(r.get("STATUS")).isEqualTo("DRAFT");
             assertThat(r.get("OWNER_ID")).isEqualTo(KIM);
@@ -286,7 +286,7 @@ class LayoutVersionActionSqliteTest extends LayoutServiceTestSupport {
 
         // 전문도 같다 — 버전이 없으면 빈 화면과 major 1.000
         long msg = saveLayout(layoutReq(uniq("빈 전문 "), null, r -> {}), List.of(), List.of(), m201Items());
-        versions.deleteDraft(req(msg, "1.000", null, 0L), "MESSAGE");
+        versions.deleteDraft(req(msg, "1.000", null, 0L).toCommand(), "MESSAGE");
         LayoutMngViewRequest lv = new LayoutMngViewRequest();
         lv.setLayoutId(msg);
         Map<String, Object> emptyMsg = layoutService.view(lv);
@@ -294,14 +294,14 @@ class LayoutVersionActionSqliteTest extends LayoutServiceTestSupport {
         assertThat((List<?>) emptyMsg.get("items")).isEmpty();
         assertThat(emptyMsg.get("canNewMajor")).isEqualTo(true);
         assertThat(emptyMsg.get("nextMajor")).isEqualTo("1.000");
-        assertThat(versions.newVersion(req(msg, null, null, null), "MESSAGE").getVer()).isEqualTo("1.000");
+        assertThat(versions.newVersion(req(msg, null, null, null).toCommand(), "MESSAGE").ver()).isEqualTo("1.000");
         assertThat(itemRows(msg, "1")).isEmpty();
     }
 
     @Test
     void delete_target_은_VERSION_CONFIRM_만_받고_그_밖은_INVALID_VALUE_다() {
         M201 m = m201();
-        versions.newVersion(req(m.l110(), null, "MINOR", null), "HEADER");
+        versions.newVersion(req(m.l110(), null, "MINOR", null).toCommand(), "HEADER");
         LayoutVersionRequest bad = req(m.l110(), "1.001", null, 0L);
         bad.setTarget("SET");
         BusinessException e = rejected(() -> headerService.delete(bad));
@@ -312,7 +312,7 @@ class LayoutVersionActionSqliteTest extends LayoutServiceTestSupport {
         assertThat(headerService.delete(ok).getVer()).isEqualTo("1.001");
         assertThat(draftVer(m.l110())).isNull();
         // target 이 비면 VERSION(기본) — 화면 위임 경로(layoutMng)
-        versions.newVersion(req(m.message(), null, "MINOR", null), "MESSAGE");
+        versions.newVersion(req(m.message(), null, "MINOR", null).toCommand(), "MESSAGE");
         LayoutVersionRequest blank = req(m.message(), "1.001", null, 0L);
         assertThat(layoutService.delete(blank).getVer()).isEqualTo("1.001");
         assertThat(draftVer(m.message())).isNull();

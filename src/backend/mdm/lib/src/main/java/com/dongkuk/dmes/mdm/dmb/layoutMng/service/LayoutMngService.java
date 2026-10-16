@@ -497,7 +497,7 @@ public class LayoutMngService {
         LocalDateTime asOf = LayoutTimes.asOf(request.getAsOf(), clock);
         String me = currentUser.userId();
         // ①~⑤ 대상 → 검사 → 길이·배치(LayoutDraftBuilder 한 곳, TSK-05-03 I19)
-        LayoutDraftBuilder.Built built = draftBuilder.build(request, headers, consts, items, asOf, true);
+        LayoutDraftBuilder.Built built = draftBuilder.build(request.toDraftAttrs(), headers, consts, items, asOf, true);
         if (!built.issues().isEmpty()) {
             throw LayoutRejections.reject(LayoutRejections.MESSAGE_PREFIX, built.issues());
         }
@@ -564,7 +564,7 @@ public class LayoutMngService {
     public Map<String, Object> validate(LayoutMngSaveRequest request, List<Map<String, Object>> headers,
                                         List<Map<String, Object>> consts, List<Map<String, Object>> items) {
         LocalDateTime asOf = LayoutTimes.asOf(request.getAsOf(), clock);
-        LayoutDraftBuilder.Built built = draftBuilder.build(request, headers, consts, items, asOf, true);
+        LayoutDraftBuilder.Built built = draftBuilder.build(request.toDraftAttrs(), headers, consts, items, asOf, true);
         LayoutCheckTable.Result r = LayoutCheckTable.build(built.issues(), built.warnings());
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("checks", r.checks());
@@ -592,7 +592,7 @@ public class LayoutMngService {
         if (stored.isPresent() && !stored.get().isDraft()) {
             snapshot = composer.compose(request.getLayoutId(), stored.get().getVer(), asOf);
         } else {
-            LayoutDraftBuilder.Built built = draftBuilder.build(request.toSaveRequest(), headers, consts, items, asOf, true);
+            LayoutDraftBuilder.Built built = draftBuilder.build(request.toSaveRequest().toDraftAttrs(), headers, consts, items, asOf, true);
             if (!built.issues().isEmpty()) {
                 Map<String, Object> out = new LinkedHashMap<>();
                 out.put("issues", issueRows(built.issues()));
@@ -642,27 +642,27 @@ public class LayoutMngService {
 
     /** 새 버전 — {@code verKind} 가 비면 MAJOR. 직전 RELEASED 의 항목·헤더 구성·재정의를 복사한다. */
     public LayoutVersionResult copy(LayoutVersionRequest request) {
-        return versionService.newVersion(request, MESSAGE);
+        return LayoutVersionResult.of(versionService.newVersion(request.toCommand(), MESSAGE));
     }
 
     /** {@code target} CONFIRM 이면 확정 취소, VERSION(비면 기본)이면 DRAFT 삭제, 그 밖의 값은 INVALID_VALUE. */
     public LayoutVersionResult delete(LayoutVersionRequest request) {
-        return versionService.delete(request, MESSAGE);
+        return LayoutVersionResult.of(versionService.delete(request.toCommand(), MESSAGE));
     }
 
     /** DRAFT 선점(담당자만) — 새 row_version. */
     public LayoutVersionResult lock(LayoutVersionRequest request) {
-        return versionService.lock(request, MESSAGE);
+        return LayoutVersionResult.of(versionService.lock(request.toCommand(), MESSAGE));
     }
 
     /** DRAFT 해제(소유자만) — 새 row_version. */
     public LayoutVersionResult unlock(LayoutVersionRequest request) {
-        return versionService.unlock(request, MESSAGE);
+        return LayoutVersionResult.of(versionService.unlock(request.toCommand(), MESSAGE));
     }
 
     /** DRAFT 넘기기(소유자만, 받는 사람은 담당자) — 새 row_version. */
     public LayoutVersionResult handover(LayoutVersionRequest request) {
-        return versionService.handover(request, MESSAGE);
+        return LayoutVersionResult.of(versionService.handover(request.toCommand(), MESSAGE));
     }
 
     /** 스냅샷에 쓰인 물리명 → 표시명(label_long ?? 논리명). */

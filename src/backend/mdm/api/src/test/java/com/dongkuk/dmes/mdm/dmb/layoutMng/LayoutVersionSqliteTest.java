@@ -210,7 +210,7 @@ class LayoutVersionSqliteTest extends LayoutServiceTestSupport {
         Headers h = headers();
         List<Map<String, Object>> consts = List.of(constRow(h.l100(), 2, "B1"));
         LayoutMngSaveRequest r = layoutReq(uniq("초안 "), h.eai(), x -> {});
-        LayoutDraftBuilder.Built built = draftBuilder.build(r, List.of(headerRow(h.l110())), consts, m201Items(), DmeTestSupport.NOW, true);
+        LayoutDraftBuilder.Built built = draftBuilder.build(r.toDraftAttrs(), List.of(headerRow(h.l110())), consts, m201Items(), DmeTestSupport.NOW, true);
         assertTrue(built.issues().isEmpty(), built.issues().toString());
         MdmLayoutSnapshot draft = assembler.fromDraft(built.draft(), null, built.draft().headers());
         long id = saveLayout(r, List.of(headerRow(h.l110())), consts, m201Items());

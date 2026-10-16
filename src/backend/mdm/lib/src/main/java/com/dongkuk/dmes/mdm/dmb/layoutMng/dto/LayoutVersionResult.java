@@ -1,5 +1,7 @@
 package com.dongkuk.dmes.mdm.dmb.layoutMng.dto;
 
+import com.dongkuk.dmes.mdm.dmb.layout.LayoutVersionOutcome;
+
 /**
  * 레이아웃·헤더 버전 조작 응답(D-144 3단계) — 새 버전 번호·종류(copy), 새 row_version(copy 는 0, lock·unlock·handover 는 갱신 값).
  * 해당 없는 칸은 null. 버전은 문자열({@code "1.001"}, {@code VersionNumbers.plain}).
@@ -20,6 +22,11 @@ public class LayoutVersionResult {
         this.ver = ver;
         this.verKind = verKind;
         this.rowVersion = rowVersion;
+    }
+
+    /** 코어 결과({@code LayoutVersionService})를 응답으로 — 칸 값을 그대로 옮긴다(C5). */
+    public static LayoutVersionResult of(LayoutVersionOutcome outcome) {
+        return new LayoutVersionResult(outcome.layoutId(), outcome.ver(), outcome.verKind(), outcome.rowVersion());
     }
 
     public Long getLayoutId() { return layoutId; }

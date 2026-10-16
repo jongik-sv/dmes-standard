@@ -2,6 +2,7 @@ package com.dongkuk.dmes.mdm.dmb.layout;
 
 import com.dongkuk.dmes.mdm.common.support.MdmErrors;
 import com.dongkuk.dmes.mdm.common.version.VersionNumbers;
+import com.dongkuk.dmes.mdm.common.version.VersionRules;
 import com.dongkuk.dmes.mdm.contract.common.MdmErrorCode;
 import com.dongkuk.dmes.mdm.entity.MdmLayoutVer;
 import java.math.BigDecimal;
@@ -91,10 +92,9 @@ public final class LayoutVersions {
         return versions.stream().filter(MdmLayoutVer::isReleased).max(BY_VER);
     }
 
-    /** 미적용 = DRAFT 이거나 apply_from 이 now 보다 뒤인 RELEASED(04:284). */
+    /** 미적용 버전이 있는가 — {@link VersionRules#isUnapplied}(넓은 뜻: DRAFT·REQUESTED·APPROVED, 또는 apply_from 이 now 보다 뒤인 RELEASED, C2). */
     public static boolean hasUnapplied(Collection<MdmLayoutVer> versions, LocalDateTime now) {
-        return versions.stream().anyMatch(v -> v.isDraft()
-                || v.isReleased() && v.getApplyFrom() != null && v.getApplyFrom().isAfter(now));
+        return versions.stream().anyMatch(v -> VersionRules.isUnapplied(v.getStatus(), v.getApplyFrom(), now));
     }
 
     public static BigDecimal maxVer(Collection<MdmLayoutVer> versions) {

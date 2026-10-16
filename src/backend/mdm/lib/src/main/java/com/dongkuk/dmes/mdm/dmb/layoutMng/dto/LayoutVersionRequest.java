@@ -1,13 +1,16 @@
 package com.dongkuk.dmes.mdm.dmb.layoutMng.dto;
 
+import com.dongkuk.dmes.mdm.dmb.layout.LayoutVersionCommand;
+
 /**
  * 레이아웃·헤더 버전 조작 요청(D-144 3단계, {@code layoutMng}·{@code headerMng} 공용) — copy·delete(target)·lock·unlock·handover.
  * 버전은 소수 셋째 자리 문자열({@code "1.001"}). {@code delete} 의 {@code target} 은 VERSION(DRAFT 삭제)·CONFIRM(확정 취소)이다.
+ * 코어 {@code LayoutVersionService} 에는 {@link #toCommand()} 로 바꿔 넘긴다(코어가 화면 DTO 를 알지 않게, C5).
  */
 public class LayoutVersionRequest {
 
-    public static final String TARGET_VERSION = "VERSION";
-    public static final String TARGET_CONFIRM = "CONFIRM";
+    public static final String TARGET_VERSION = LayoutVersionCommand.TARGET_VERSION;
+    public static final String TARGET_CONFIRM = LayoutVersionCommand.TARGET_CONFIRM;
 
     private Long layoutId;
     private String ver;
@@ -29,4 +32,9 @@ public class LayoutVersionRequest {
     public void setRowVersion(Long v) { this.rowVersion = v; }
     public void setNewOwnerId(String v) { this.newOwnerId = v; }
     public void setTarget(String v) { this.target = v; }
+
+    /** 코어 입력으로 — 칸 값을 그대로 옮긴다. */
+    public LayoutVersionCommand toCommand() {
+        return new LayoutVersionCommand(layoutId, ver, verKind, rowVersion, newOwnerId, target);
+    }
 }

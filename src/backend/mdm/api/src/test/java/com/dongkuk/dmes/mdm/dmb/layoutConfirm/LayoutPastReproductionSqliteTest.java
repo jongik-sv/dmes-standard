@@ -76,7 +76,7 @@ class LayoutPastReproductionSqliteTest extends LayoutServiceTestSupport {
         LayoutVersionRequest nv = new LayoutVersionRequest();
         nv.setLayoutId(m.l110());
         nv.setVerKind("MAJOR");
-        String ver = versions.newVersion(nv, "HEADER").getVer();
+        String ver = versions.newVersion(nv.toCommand(), "HEADER").ver();
         List<Map<String, Object>> items = l110Items();
         items.set(5, filler(8));
         headerService.save(headerReq("L2 구간 헤더", r -> {

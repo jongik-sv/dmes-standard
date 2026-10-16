@@ -25,7 +25,7 @@ import com.dongkuk.dmes.mdm.contract.version.VersionConventions;
 import com.dongkuk.dmes.mdm.contract.version.VersionRef;
 import com.dongkuk.dmes.mdm.contract.version.VersionStateService;
 import com.dongkuk.dmes.mdm.contract.version.VersionStatus;
-import com.dongkuk.dmes.mdm.dmb.layout.LayoutQueries;
+import com.dongkuk.dmes.mdm.contract.version.VersionTarget;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
@@ -55,12 +55,11 @@ public class DefaultVersionStateService implements VersionStateService {
     private final MdmNativeAuditSupport audit;
     private final Clock clock;
     private final MetaRevisionRecorder recorder;
-    private final LayoutQueries layoutQueries;
 
     public DefaultVersionStateService(PlatformTransactionManager transactionManager, VersionRowStore store,
                                       MdmCurrentUser currentUser, ApplyFromOrderCheck applyFromOrderCheck,
                                       VersionSpiRegistry spis, MdmNativeAuditSupport audit, Clock clock,
-                                      MetaRevisionRecorder recorder, LayoutQueries layoutQueries) {
+                                      MetaRevisionRecorder recorder) {
         this.tx = new TransactionTemplate(transactionManager);
         this.store = store;
         this.pre = new VersionPreconditions(currentUser, store);
@@ -69,7 +68,6 @@ public class DefaultVersionStateService implements VersionStateService {
         this.audit = audit;
         this.clock = clock;
         this.recorder = recorder;
-        this.layoutQueries = layoutQueries;
     }
 
     @Override
@@ -214,14 +212,16 @@ public class DefaultVersionStateService implements VersionStateService {
      * 호출하는 쪽({@code RuleConfirmService}·{@code RuleSetConfirmService}·{@code RuleSetVersionService}·{@code LayoutConfirmService}·
      * {@code LayoutVersionService} 등)에 또 걸면 이중 기록이다. DRAFT 삭제는 RELEASED 를 바꾸지 않아 기록하지 않는다. switch 식이라
      * {@code VersionTarget} 에 대상이 늘면 여기서 컴파일이 깨져 기록 누락을 막는다. 레이아웃은 헤더의 RELEASED 가 바뀌면 그 헤더를 쌓은 전문의
-     * 시각 T 합성도 바뀌므로 쌓은 전문까지 펼친다({@link LayoutQueries#withStackingMessages}).
+     * 시각 T 합성도 바뀌므로 쌓은 전문까지 펼친다 — 그 펼침은 레이아웃이 등록한 「RELEASED 변경」 SPI
+     * ({@link com.dongkuk.dmes.mdm.contract.version.VersionReleasedChangeSpi VersionReleasedChangeSpi})가 한다. 공통 서비스는
+     * {@code VersionSpiRegistry.releasedChange} 로 조회만 한다(dmb 를 직접 알지 않게, C4). 등록이 없으면 실패한다.
      */
     private void record(VersionRef ref) {
         Runnable write = switch (ref.target()) {
             case BUSINESS_RULE -> () -> recorder.rule(ref.objectId());
             case MASTER_CODE -> () -> recorder.code(ref.objectId());
             case RULE_SET -> () -> recorder.ruleSet(ref.objectId());
-            case LAYOUT -> () -> recorder.layouts(layoutQueries.withStackingMessages(Long.valueOf(ref.objectId())));
+            case LAYOUT -> () -> spis.releasedChange(VersionTarget.LAYOUT).afterReleasedChange(ref);
             // ERD 모델은 메타 캐시 대상이 아니다(MetaTargetType 에 없음) — 기록할 것이 없다.
             case ERD_MODEL -> () -> { };
         };

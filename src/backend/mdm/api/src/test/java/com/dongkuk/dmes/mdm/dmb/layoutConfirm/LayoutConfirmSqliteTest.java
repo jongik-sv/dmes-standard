@@ -61,7 +61,7 @@ class LayoutConfirmSqliteTest extends LayoutServiceTestSupport {
         LayoutVersionRequest r = new LayoutVersionRequest();
         r.setLayoutId(id);
         r.setVerKind("MINOR");
-        return versions.newVersion(r, kind).getVer();
+        return versions.newVersion(r.toCommand(), kind).ver();
     }
 
     /** M201 본문 마지막 여분 25 를 추가 항목 3 + 여분 22 로 쪼갠다(순차 전환). */
@@ -249,7 +249,7 @@ class LayoutConfirmSqliteTest extends LayoutServiceTestSupport {
         cancel.setLayoutId(claimer);
         cancel.setVer("1.000");
         cancel.setRowVersion(rowVersion(claimer, "1.000"));
-        versions.cancelConfirm(cancel, "HEADER");
+        versions.cancelConfirm(cancel.toCommand(), "HEADER");
 
         assertThat(composer.eaiHeaderAt(m.eai(), LocalDateTime.of(2026, 8, 1, 0, 0, 0))).contains(m.l100());
         assertThat(eaiColumn(m.eai())).isNull();
@@ -290,7 +290,7 @@ class LayoutConfirmSqliteTest extends LayoutServiceTestSupport {
         cancel.setLayoutId(claimer);
         cancel.setVer(dropped);
         cancel.setRowVersion(rowVersion(claimer, dropped));
-        versions.cancelConfirm(cancel, "HEADER");
+        versions.cancelConfirm(cancel.toCommand(), "HEADER");
         assertThat(composer.eaiHeaderAt(m.eai(), LocalDateTime.of(2026, 8, 1, 0, 0, 0))).contains(claimer);
         clock.setLocal(LocalDateTime.of(2026, 8, 2, 9, 0, 0));
         assertThat(stackOfNewMessage(m)).containsExactly(claimer, m.l110());

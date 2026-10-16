@@ -92,12 +92,12 @@ final class VersionPreconditions {
         }
     }
 
-    /** 미적용 = DRAFT, 또는 APPLY_FROM 이 now 보다 뒤인 RELEASED(04:284, ADR-0002 D2). 경계(= now)는 적용됨. */
+    /**
+     * 미적용 — {@link VersionRules#isUnapplied}(넓은 뜻: DRAFT·REQUESTED·APPROVED, 또는 APPLY_FROM 이 now 보다 뒤인 RELEASED).
+     * 경계(= now)는 적용됨. ADR-0002 D2 는 DRAFT·미래 RELEASED 만 적었으나(원천 04:284 는 결재 중도 포함), BE 리팩토링 2회차 C2 에서
+     * 결재 중 두 상태도 미적용으로 센다(원천·룰·코드 화면과 같은 뜻, 조정자 결정 2026-10-16).
+     */
     static boolean isUnapplied(VersionRow row, LocalDateTime now) {
-        if (VersionStatus.DRAFT.name().equals(row.status())) {
-            return true;
-        }
-        return VersionStatus.RELEASED.name().equals(row.status())
-                && row.applyFrom() != null && row.applyFrom().isAfter(now);
+        return VersionRules.isUnapplied(row.status(), row.applyFrom(), now);
     }
 }

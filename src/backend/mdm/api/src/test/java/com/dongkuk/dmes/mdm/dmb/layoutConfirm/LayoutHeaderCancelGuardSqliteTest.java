@@ -60,7 +60,7 @@ class LayoutHeaderCancelGuardSqliteTest extends LayoutServiceTestSupport {
         r.setLayoutId(id);
         r.setVer(ver);
         r.setRowVersion(rowVersion(id, ver));
-        versions.cancelConfirm(r, kind);
+        versions.cancelConfirm(r.toCommand(), kind);
     }
 
     private String status(long id, String ver) {
@@ -77,7 +77,7 @@ class LayoutHeaderCancelGuardSqliteTest extends LayoutServiceTestSupport {
         LayoutVersionRequest r = new LayoutVersionRequest();
         r.setLayoutId(m.message());
         r.setVerKind("MINOR");
-        String ver = versions.newVersion(r, "MESSAGE").getVer();
+        String ver = versions.newVersion(r.toCommand(), "MESSAGE").ver();
         layoutService.save(layoutReq((String) layoutRow(m.message()).get("LAYOUT_NAME"), m.eai(), q -> {
             q.setLayoutId(m.message());
             q.setVer(ver);
@@ -122,7 +122,7 @@ class LayoutHeaderCancelGuardSqliteTest extends LayoutServiceTestSupport {
         LayoutVersionRequest r = new LayoutVersionRequest();
         r.setLayoutId(m.l110());
         r.setVerKind("MINOR");
-        String hv = versions.newVersion(r, "HEADER").getVer();
+        String hv = versions.newVersion(r.toCommand(), "HEADER").ver();
         confirm(m.l110(), hv, F_H);                                // L110 1.001 을 미래 F_H 로(1.000 은 F_H 에 닫힌다)
         String mv = messageDraftStacking(m, m.l110(), F_H);
         confirm(m.message(), mv, F_M);
