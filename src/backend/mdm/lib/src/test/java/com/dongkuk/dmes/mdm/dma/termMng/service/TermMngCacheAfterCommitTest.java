@@ -14,6 +14,7 @@ import static org.mockito.Mockito.when;
 
 import com.dongkuk.dmes.mdm.common.embedding.TermEmbeddingEncoder;
 import com.dongkuk.dmes.mdm.common.embedding.TermEmbeddingRepository;
+import com.dongkuk.dmes.mdm.dma.support.TermWriter;
 import com.dongkuk.dmes.mdm.dma.termMng.TermRecommendationCache;
 import com.dongkuk.dmes.mdm.dma.termMng.dto.TermDeleteRequest;
 import com.dongkuk.dmes.mdm.dma.termMng.dto.TermSaveRequest;
@@ -50,8 +51,9 @@ class TermMngCacheAfterCommitTest {
     void setUp() {
         repo = mock(MdmTermRepository.class);
         cache = mock(TermRecommendationCache.class);
-        service = new TermMngService(repo, mock(TermEmbeddingRepository.class), cache,
-                mock(TermEmbeddingEncoder.class)); // 인코더 mock — isEnabled()=false 라 임베딩 경로는 지우기만 한다
+        TermEmbeddingRepository embeddings = mock(TermEmbeddingRepository.class);
+        TermEmbeddingEncoder encoder = mock(TermEmbeddingEncoder.class); // 인코더 mock — isEnabled()=false 라 임베딩 경로는 지우기만 한다
+        service = new TermMngService(repo, embeddings, cache, encoder, new TermWriter(repo, embeddings, cache, encoder));
         // saveAndFlush 가 ID 를 채운 것처럼 돌려준다(ID 가 null 이면 refresh(null) 이라 대역의 예외 스텁이 맞지 않는다).
         when(repo.saveAndFlush(any(MdmTerm.class))).thenAnswer(inv -> {
             MdmTerm t = inv.getArgument(0);

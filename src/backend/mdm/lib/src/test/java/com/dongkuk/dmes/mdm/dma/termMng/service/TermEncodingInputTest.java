@@ -2,6 +2,7 @@ package com.dongkuk.dmes.mdm.dma.termMng.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import com.dongkuk.dmes.mdm.dma.support.TermWriter;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -13,22 +14,22 @@ class TermEncodingInputTest {
     @Test
     void 세_값이_모두_있으면_전체_형식() {
         assertEquals("실평량: 실제로 잰 평량 (ActualWeightAmount)",
-                TermMngService.buildEncodingInput(" 실평량 ", " 실제로 잰 평량 ", " ActualWeightAmount "));
+                TermWriter.buildEncodingInput(" 실평량 ", " 실제로 잰 평량 ", " ActualWeightAmount "));
     }
 
     @Test
     void 정의가_비면_정의_부분을_뺀다() {
-        assertEquals("실평량 (ActualWeightAmount)", TermMngService.buildEncodingInput("실평량", "", "ActualWeightAmount"));
-        assertEquals("실평량 (ActualWeightAmount)", TermMngService.buildEncodingInput("실평량", null, "ActualWeightAmount"));
+        assertEquals("실평량 (ActualWeightAmount)", TermWriter.buildEncodingInput("실평량", "", "ActualWeightAmount"));
+        assertEquals("실평량 (ActualWeightAmount)", TermWriter.buildEncodingInput("실평량", null, "ActualWeightAmount"));
     }
 
     @Test
     void 영문명이_비면_영문명_부분을_뺀다() {
-        assertEquals("반제품: 첫공정 불출부터 제품입고 전까지", TermMngService.buildEncodingInput("반제품", "첫공정 불출부터 제품입고 전까지", " "));
+        assertEquals("반제품: 첫공정 불출부터 제품입고 전까지", TermWriter.buildEncodingInput("반제품", "첫공정 불출부터 제품입고 전까지", " "));
     }
 
     @Test
     void 표기만_있으면_표기만() {
-        assertEquals("코일", TermMngService.buildEncodingInput("코일", null, null));
+        assertEquals("코일", TermWriter.buildEncodingInput("코일", null, null));
     }
 }
