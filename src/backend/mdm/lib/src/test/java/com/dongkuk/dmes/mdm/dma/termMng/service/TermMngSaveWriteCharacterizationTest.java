@@ -18,12 +18,14 @@ import com.dongkuk.dmes.mdm.common.embedding.TermEmbeddingEncoder;
 import com.dongkuk.dmes.mdm.common.embedding.TermEmbeddingRepository;
 import com.dongkuk.dmes.mdm.dma.support.TermWriter;
 import com.dongkuk.dmes.mdm.dma.termMng.TermRecommendationCache;
+import com.dongkuk.dmes.mdm.dma.termMng.dto.ReencodeBatchRequest;
 import com.dongkuk.dmes.mdm.dma.termMng.dto.TermDeleteRequest;
 import com.dongkuk.dmes.mdm.dma.termMng.dto.TermSaveRequest;
 import com.dongkuk.dmes.mdm.dma.termMng.dto.TermSaveResult;
 import com.dongkuk.dmes.mdm.entity.MdmTerm;
 import com.dongkuk.dmes.mdm.repository.MdmTermRepository;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -83,6 +85,12 @@ class TermMngSaveWriteCharacterizationTest {
         r.setEngAbbr("DEV");
         r.setContext(context);
         return r;
+    }
+
+    private static MdmTerm term(Long id, String name) {
+        MdmTerm t = new MdmTerm(name, 1, "정의 " + name);
+        ReflectionTestUtils.setField(t, "termId", id);
+        return t;
     }
 
     private MdmTerm existing() {
@@ -168,6 +176,37 @@ class TermMngSaveWriteCharacterizationTest {
 
         assertEquals(List.of("ENG_ABBR_DUP"), result.getWarnings());
         verify(repo).saveAndFlush(any(MdmTerm.class));
+    }
+
+    @Test
+    void 재인코딩_배치는_갱신된_행만_세고_그_행만_캐시를_갱신한다() {
+        when(encoder.isEnabled()).thenReturn(true);
+        when(embeddings.findStaleTermIds("m1")).thenReturn(List.of(7L, 8L, 9L));
+        when(repo.findById(7L)).thenReturn(Optional.of(term(7L, "가")));
+        when(repo.findById(8L)).thenReturn(Optional.of(term(8L, "나")));
+        when(repo.findById(9L)).thenReturn(Optional.empty()); // 배치 중 지워진 행
+        when(embeddings.updateEmbedding(eq(8L), any(byte[].class), eq("m1"))).thenReturn(0);
+        ReencodeBatchRequest req = new ReencodeBatchRequest();
+        req.setChunkSize(10);
+
+        Map<String, Object> out = service.reencodeBatch(req);
+
+        assertEquals(Map.of("enabled", true, "processed", 1, "remaining", 2, "done", false), out);
+        verify(encoder).encode("가: 정의 가");
+        verify(cache).refresh(7L);
+        verify(cache, never()).refresh(8L);
+        verify(cache, never()).refresh(9L);
+    }
+
+    @Test
+    void 인코더가_꺼져_있으면_재인코딩_배치는_아무_것도_건드리지_않는다() {
+        when(encoder.isEnabled()).thenReturn(false);
+
+        Map<String, Object> out = service.reencodeBatch(new ReencodeBatchRequest());
+
+        assertEquals(Map.of("enabled", false, "processed", 0, "remaining", 0, "done", true), out);
+        verify(embeddings, never()).findStaleTermIds(anyString());
+        verify(cache, never()).refresh(any());
     }
 
     @Test
