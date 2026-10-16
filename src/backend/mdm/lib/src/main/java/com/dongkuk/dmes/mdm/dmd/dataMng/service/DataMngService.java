@@ -3,16 +3,14 @@ package com.dongkuk.dmes.mdm.dmd.dataMng.service;
 import static com.dongkuk.dmes.mdm.common.support.MdmStrings.trimToNull;
 import static com.dongkuk.dmes.mdm.common.support.MdmErrors.invalid;
 
-import com.dongkuk.dmes.mdm.common.naming.NamingRules;
 import com.dongkuk.dmes.mdm.common.segment.DataCategorySegmentCore;
 import com.dongkuk.dmes.mdm.common.segment.DataCateValue;
 import com.dongkuk.dmes.mdm.common.segment.LockedMaruData;
+import com.dongkuk.dmes.mdm.common.support.MaruHeaderRules;
 import com.dongkuk.dmes.mdm.common.support.MdmErrors;
-import com.dongkuk.dmes.mdm.common.support.MdmTextLimits;
 import com.dongkuk.dmes.mdm.contract.category.CategoryConventions;
 import com.dongkuk.dmes.mdm.contract.category.CategoryOwner;
 import com.dongkuk.dmes.mdm.contract.common.MdmErrorCode;
-import com.dongkuk.dmes.mdm.contract.category.MaruIdRules;
 import com.dongkuk.dmes.mdm.dmd.dataMng.dto.DataMngRegRequest;
 import com.dongkuk.dmes.mdm.dmd.dataMng.dto.DataMngRegResult;
 import com.dongkuk.dmes.mdm.dmd.dataMng.dto.DataMngRow;
@@ -27,7 +25,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.regex.Pattern;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -49,10 +46,6 @@ import org.springframework.transaction.support.TransactionTemplate;
 public class DataMngService {
 
     private static final Logger log = LoggerFactory.getLogger(DataMngService.class);
-
-    static final int ID_MAX = 50;
-    static final int NAME_MAX = 100;
-    private static final Pattern FORBIDDEN = Pattern.compile(MaruIdRules.FORBIDDEN_CHAR_PATTERN);
 
     private final EntityManager entityManager;
     private final MdmDataRepository dataRepo;
@@ -110,21 +103,11 @@ public class DataMngService {
             throw invalid("등록할 값이 없습니다");
         }
         String id = trimToNull(request.getMaruDataId());
-        String name = trimToNull(request.getMaruDataName());
-        requireValidId(id);
-        if (name == null || name.length() > NAME_MAX) {
-            throw invalid("이름은 1~" + NAME_MAX + "자여야 합니다");
-        }
-        if (MdmTextLimits.overBytes(trimToNull(request.getDescription()))) {
-            throw invalid("설명은 4000바이트(한글 약 1,333자)를 넘을 수 없습니다");
-        }
-        String codePattern = trimToNull(request.getCodePattern());
-        if (codePattern == null) {
-            throw invalid("키 패턴을 입력하세요");
-        }
-        if (MdmTextLimits.overBytes(codePattern)) {
-            throw invalid("키 패턴은 4000바이트(한글 약 1,333자)를 넘을 수 없습니다");
-        }
+        MaruHeaderRules.requireValidId(id, MaruHeaderRules.DATA); // F15 — 마루 코드와 같은 규칙
+        String name = MaruHeaderRules.requireName(request.getMaruDataName());
+        String description = MaruHeaderRules.requireDescription(request.getDescription());
+        String codePattern = MaruHeaderRules.requireCodePattern(request.getCodePattern());
+        MaruHeaderRules.requireCodePatternRegex(codePattern); // 헤더 저장(dataEdit save)과 같은 검사
         int lvlCnt = request.getLvlCnt() == null ? 0 : request.getLvlCnt();
         if (lvlCnt < 0 || lvlCnt > 5) {
             throw invalid("계층 칸 수는 0~5 이어야 합니다");
@@ -135,7 +118,7 @@ public class DataMngService {
 
         return tx.execute(status -> {
             MdmData entity = new MdmData(id, name, LockedMaruData.INUSE, LockedMaruData.MDM, codePattern);
-            entity.setDescription(trimToNull(request.getDescription()));
+            entity.setDescription(description);
             entity.setLvlCnt(lvlCnt);
             dataRepo.save(entity);
 
@@ -150,19 +133,6 @@ public class DataMngService {
     }
 
     // ── 공통 ────────────────────────────────────────────────────────────────
-
-    /** F15 대칭 — 04 {@code CodeMngService.requireValidId} 와 같은 규칙(마루 ID 금지 문자·물리명 규칙). */
-    static void requireValidId(String id) {
-        if (id == null || id.length() > ID_MAX) {
-            throw invalid("마루 데이터 ID 는 1~" + ID_MAX + "자여야 합니다");
-        }
-        if (FORBIDDEN.matcher(id).find()) {
-            throw invalid("마루 데이터 ID 에 점·콤마·공백을 쓸 수 없습니다");
-        }
-        if (!NamingRules.STD_PHYS_NAME.matcher(id).matches()) {
-            throw invalid("마루 데이터 ID 는 영문 대문자로 시작하고 영문 대문자·숫자·_ 만 쓸 수 있습니다");
-        }
-    }
 
     private static String escapeLike(String value) {
         return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");

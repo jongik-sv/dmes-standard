@@ -6,6 +6,7 @@ import com.dongkuk.dmes.mdm.common.segment.DataCateValue;
 import com.dongkuk.dmes.mdm.common.segment.DataSegmentRowStore;
 import com.dongkuk.dmes.mdm.common.segment.ItemSegmentRow;
 import com.dongkuk.dmes.mdm.common.segment.LockedMaruData;
+import com.dongkuk.dmes.mdm.common.segment.MaruDataHeaderReads;
 import com.dongkuk.dmes.mdm.common.support.MdmTemporalBinder;
 import com.dongkuk.dmes.mdm.contract.category.CategoryConventions;
 import com.dongkuk.dmes.mdm.contract.data.MdmTemporalSegmentRules;
@@ -65,21 +66,15 @@ public class DataItemListQuery {
         return out;
     }
 
-    /** 머리 — 없는 마루 데이터면 null. */
+    /** 머리 — 없는 마루 데이터면 null. 라벨은 공백({@code isBlank})이면 빼고 나머지는 trim 해 있는 번호만 준다(Q5). */
     public DataItemHeader header(String maruDataId) {
-        List<?> found = entityManager.createNativeQuery("SELECT MARU_DATA_ID, MARU_DATA_NAME, STATUS, SOURCE_KIND, "
-                        + "SOURCE_SYSTEM, LVL_CNT, ATTR01_NAME, ATTR02_NAME, ATTR03_NAME, ATTR04_NAME, ATTR05_NAME, "
-                        + "ATTR06_NAME, ATTR07_NAME, ATTR08_NAME, ATTR09_NAME, ATTR10_NAME FROM TB_MDM_DATA "
-                        + "WHERE MARU_DATA_ID = :md").unwrap(NativeQuery.class)
-                .setParameter("md", maruDataId, String.class)
-                .getResultList();
-        if (found.isEmpty()) {
+        MaruDataHeaderReads.Header r = MaruDataHeaderReads.find(entityManager, maruDataId);
+        if (r == null) {
             return null;
         }
-        Object[] r = (Object[]) found.get(0);
         List<AttrLabel> labels = new ArrayList<>();
         for (int i = 0; i < 10; i++) {
-            String label = (String) r[6 + i];
+            String label = r.attrNames().get(i);
             if (label != null && !label.isBlank()) {
                 labels.add(new AttrLabel(String.format("attr%02d", i + 1), label.trim()));
             }
@@ -93,11 +88,9 @@ public class DataItemListQuery {
                 categories.add(option);
             }
         }
-        String status = (String) r[2];
-        String sourceKind = (String) r[3];
-        boolean editable = LockedMaruData.MDM.equals(sourceKind) && LockedMaruData.INUSE.equals(status);
-        return new DataItemHeader((String) r[0], (String) r[1], status, sourceKind, (String) r[4],
-                ((Number) r[5]).intValue(), labels, editable, categories);
+        boolean editable = LockedMaruData.MDM.equals(r.sourceKind()) && LockedMaruData.INUSE.equals(r.status());
+        return new DataItemHeader(r.maruDataId(), r.maruDataName(), r.status(), r.sourceKind(), r.sourceSystem(),
+                r.lvlCnt(), labels, editable, categories);
     }
 
     /** 열린 카테고리 행 — 없으면 null. */

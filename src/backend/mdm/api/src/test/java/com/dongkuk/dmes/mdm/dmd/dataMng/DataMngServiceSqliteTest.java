@@ -18,6 +18,7 @@ import com.dongkuk.dmes.mdm.common.segment.DmdSegmentTestSupport;
 import com.dongkuk.dmes.mdm.common.testdb.AbstractMdmSharedDbTest;
 import com.dongkuk.dmes.mdm.common.version.VersionScenarioFakes.MutableClock;
 import com.dongkuk.dmes.mdm.contract.category.CategoryConventions;
+import com.dongkuk.dmes.mdm.contract.common.MdmErrorCode;
 import com.dongkuk.dmes.mdm.dmd.dataMng.dto.DataMngRegRequest;
 import com.dongkuk.dmes.mdm.dmd.dataMng.dto.DataMngSearchRequest;
 import com.dongkuk.dmes.mdm.dmd.dataMng.service.DataMngService;
@@ -140,6 +141,24 @@ class DataMngServiceSqliteTest extends AbstractMdmSharedDbTest {
         BusinessException ex = assertThrows(BusinessException.class,
                 () -> service.register(regRequest("DUPID", "중복", "^[0-9A-Z]{1,20}$", 0)));
         assertTrue(ex.getMessage().contains("마루 코드·마루 데이터에 같은 ID 가 있습니다"), ex.getMessage());
+    }
+
+    // ── 키 패턴 정규식 — 헤더 저장(dataEdit save)과 같은 검사 ─────────────────────
+
+    @Test
+    void 등록은_컴파일되지_않는_키_패턴을_거부하고_행을_만들지_않는다() {
+        for (String bad : List.of("  [  ", "^(A")) {
+            BusinessException ex = assertThrows(BusinessException.class,
+                    () -> service.register(regRequest("SHIPY", "조선소", bad, 0)));
+            assertEquals(MdmErrorCode.INVALID_INPUT.code(), ex.getErrors().get(0).code());
+            assertEquals("입력값이 올바르지 않습니다: 키 패턴 정규식이 올바르지 않습니다: " + bad.trim(), ex.getMessage());
+        }
+        // 헤더 저장과 같이 계층 칸 수보다 먼저 본다
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> service.register(regRequest("SHIPY", "조선소", "[", 9)));
+        assertEquals("입력값이 올바르지 않습니다: 키 패턴 정규식이 올바르지 않습니다: [", ex.getMessage());
+        assertEquals(0, jdbc.queryForObject("SELECT COUNT(*) FROM TB_MDM_DATA", Integer.class));
+        assertEquals(0, jdbc.queryForObject("SELECT COUNT(*) FROM TB_MDM_DATA_CATE", Integer.class));
     }
 
     // ── R1 — 한 트랜잭션(카테고리 등록 실패 시 마루 데이터 행도 롤백) ────────────────────

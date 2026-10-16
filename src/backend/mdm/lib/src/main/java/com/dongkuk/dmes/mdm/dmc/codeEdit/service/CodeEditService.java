@@ -14,8 +14,8 @@ import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeVersionSummary.VerRow;
 import com.dongkuk.dmes.mdm.common.metarev.MetaRevisionRecorder;
 import com.dongkuk.dmes.mdm.common.security.MdmCurrentUser;
 import com.dongkuk.dmes.mdm.common.security.MdmStewardGuard;
+import com.dongkuk.dmes.mdm.common.support.MaruHeaderRules;
 import com.dongkuk.dmes.mdm.common.support.MdmErrors;
-import com.dongkuk.dmes.mdm.common.support.MdmTextLimits;
 import com.dongkuk.dmes.mdm.common.version.VersionRules;
 import com.dongkuk.dmes.mdm.contract.common.MdmErrorCode;
 import com.dongkuk.dmes.mdm.contract.mastercode.MasterCodeConventions;
@@ -53,7 +53,6 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -79,8 +78,6 @@ public class CodeEditService {
 
     private static final Logger log = LoggerFactory.getLogger(CodeEditService.class);
 
-    static final int NAME_MAX = 100;
-    static final int LABEL_MAX = 100;
     private static final DateTimeFormatter TEXT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     private final EntityManager entityManager;
@@ -156,25 +153,18 @@ public class CodeEditService {
         if (summary.unapplied().size() >= 2) {
             throw MdmErrors.of(MdmErrorCode.MULTIPLE_UNAPPLIED_VERSIONS); // I6
         }
-        requireAuditVer(code, request.getAuditVer());
+        MaruHeaderRules.requireAuditVer(code.getVersion(), request.getAuditVer()); // I19
 
-        String name = trimToNull(request.getMaruCodeName());
-        if (name == null || name.length() > NAME_MAX) {
-            throw invalid("이름은 1~" + NAME_MAX + "자여야 합니다");
-        }
-        if (MdmTextLimits.overBytes(trimToNull(request.getDescription()))) {
-            throw invalid("설명은 4000바이트(한글 약 1,333자)를 넘을 수 없습니다");
-        }
+        String name = MaruHeaderRules.requireName(request.getMaruCodeName());
+        String description = MaruHeaderRules.requireDescription(request.getDescription());
         int lvlCnt = request.getLvlCnt() == null ? code.getLvlCnt() : request.getLvlCnt();
         if (lvlCnt < MasterCodeConventions.LVL_CNT_MIN || lvlCnt > MasterCodeConventions.LVL_CNT_MAX) {
             throw invalid("계층 칸 수는 " + MasterCodeConventions.LVL_CNT_MIN + "~" + MasterCodeConventions.LVL_CNT_MAX
                     + " 이어야 합니다");
         }
-        String[] labels = {
-            label(request.getAttr01Name(), 1), label(request.getAttr02Name(), 2), label(request.getAttr03Name(), 3),
-            label(request.getAttr04Name(), 4), label(request.getAttr05Name(), 5), label(request.getAttr06Name(), 6),
-            label(request.getAttr07Name(), 7), label(request.getAttr08Name(), 8), label(request.getAttr09Name(), 9),
-            label(request.getAttr10Name(), 10)};
+        String[] labels = MaruHeaderRules.labels(request.getAttr01Name(), request.getAttr02Name(),
+                request.getAttr03Name(), request.getAttr04Name(), request.getAttr05Name(), request.getAttr06Name(),
+                request.getAttr07Name(), request.getAttr08Name(), request.getAttr09Name(), request.getAttr10Name());
         if (lvlCnt < code.getLvlCnt()) {
             // 줄이기 — 현재 적용 버전보다 뒤에 닫히는(열린 행 포함) 코드 행이 뒤 칸에 값을 가지면 거부한다.
             int used = ledger.maxLvlInUse(code.getMaruCodeId(), summary.currentAppliedVer());
@@ -184,7 +174,7 @@ public class CodeEditService {
         }
 
         code.setMaruCodeName(name);
-        code.setDescription(trimToNull(request.getDescription()));
+        code.setDescription(description);
         code.setLvlCnt(lvlCnt);
         code.setAttr01Name(labels[0]);
         code.setAttr02Name(labels[1]);
@@ -218,7 +208,7 @@ public class CodeEditService {
         if (unapplied == 1) {
             throw MdmErrors.of(MdmErrorCode.TRANSITION_NOT_ALLOWED, "미적용 버전이 있어 폐기할 수 없습니다", List.of());
         }
-        requireAuditVer(code, request.getAuditVer());
+        MaruHeaderRules.requireAuditVer(code.getVersion(), request.getAuditVer());
         // 행(VER·ITEM·CATE)은 지우지 않는다 — 과거 기준일 판정이 계속된다(04 「코드 삭제와 마루 코드 폐기」).
         code.setStatus(MaruObjectStatus.DEPRECATED.name());
         recorder.code(code.getMaruCodeId()); // 메타 캐시 무효화(spec 2026-10-02 §3.3)
@@ -323,7 +313,7 @@ public class CodeEditService {
                         List.of());
             }
         }
-        requireAuditVer(code, request.getAuditVer());
+        MaruHeaderRules.requireAuditVer(code.getVersion(), request.getAuditVer());
         List<String> domains = removal.referencingDomainIds(id);
         if (!domains.isEmpty()) {
             throw MdmErrors.of(MdmErrorCode.TRANSITION_NOT_ALLOWED,
@@ -624,22 +614,8 @@ public class CodeEditService {
         return view;
     }
 
-    static void requireAuditVer(MdmCode code, Long expected) {
-        if (expected == null || !Objects.equals(expected, code.getVersion())) {
-            throw MdmErrors.of(MdmErrorCode.ROW_VERSION_CONFLICT); // I19
-        }
-    }
-
     LocalDateTime now() {
         return LocalDateTime.now(clock).truncatedTo(ChronoUnit.SECONDS);
-    }
-
-    private static String label(String value, int slot) {
-        String v = trimToNull(value);
-        if (v != null && v.length() > LABEL_MAX) {
-            throw invalid("라벨 attr" + (slot < 10 ? "0" : "") + slot + " 은 " + LABEL_MAX + "자 이내여야 합니다");
-        }
-        return v;
     }
 
     private static String text(LocalDateTime value) {

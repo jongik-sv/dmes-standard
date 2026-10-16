@@ -11,9 +11,7 @@ import com.dongkuk.dmes.mdm.common.segment.DataSegmentLock;
 import com.dongkuk.dmes.mdm.common.segment.DataSegmentRowStore;
 import com.dongkuk.dmes.mdm.common.segment.ItemSegmentRow;
 import com.dongkuk.dmes.mdm.common.segment.LockedMaruData;
-import com.dongkuk.dmes.mdm.common.support.MdmErrors;
-import com.dongkuk.dmes.mdm.common.support.MdmTextLimits;
-import com.dongkuk.dmes.mdm.contract.common.MdmErrorCode;
+import com.dongkuk.dmes.mdm.common.support.MaruHeaderRules;
 import com.dongkuk.dmes.mdm.dmd.dataEdit.dto.CategorySummaryRow;
 import com.dongkuk.dmes.mdm.dmd.dataEdit.dto.DataEditDeprecateRequest;
 import com.dongkuk.dmes.mdm.dmd.dataEdit.dto.DataEditHeaderSaveRequest;
@@ -23,9 +21,6 @@ import com.dongkuk.dmes.mdm.entity.MdmData;
 import com.dongkuk.dmes.mdm.repository.MdmDataRepository;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
-import java.util.regex.Pattern;
-import java.util.regex.PatternSyntaxException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -50,9 +45,6 @@ import org.springframework.transaction.support.TransactionTemplate;
 public class DataEditService {
 
     private static final Logger log = LoggerFactory.getLogger(DataEditService.class);
-
-    static final int NAME_MAX = 100;
-    static final int LABEL_MAX = 100;
 
     private final DataSegmentLock lock;
     private final DataItemChecks checks;
@@ -91,42 +83,25 @@ public class DataEditService {
             LockedMaruData locked = lock.lock(id); // R2 — 값을 읽기 전에 정확히 한 번
             checks.requireActive(locked); // R7 — DEPRECATED 는 모든 쓰기 거부
 
-            String name = trimToNull(request.getMaruDataName());
-            if (name == null || name.length() > NAME_MAX) {
-                throw invalid("이름은 1~" + NAME_MAX + "자여야 합니다");
-            }
-            if (MdmTextLimits.overBytes(trimToNull(request.getDescription()))) {
-                throw invalid("설명은 4000바이트(한글 약 1,333자)를 넘을 수 없습니다");
-            }
-            String codePattern = trimToNull(request.getCodePattern());
-            if (codePattern == null) {
-                throw invalid("키 패턴을 입력하세요");
-            }
-            if (MdmTextLimits.overBytes(codePattern)) {
-                throw invalid("키 패턴은 4000바이트(한글 약 1,333자)를 넘을 수 없습니다");
-            }
-            try {
-                Pattern.compile(codePattern);
-            } catch (PatternSyntaxException e) {
-                throw invalid("키 패턴 정규식이 올바르지 않습니다: " + codePattern);
-            }
+            String name = MaruHeaderRules.requireName(request.getMaruDataName());
+            String description = MaruHeaderRules.requireDescription(request.getDescription());
+            String codePattern = MaruHeaderRules.requireCodePattern(request.getCodePattern());
+            MaruHeaderRules.requireCodePatternRegex(codePattern);
             int lvlCnt = request.getLvlCnt() == null ? locked.lvlCnt() : request.getLvlCnt();
             if (lvlCnt < 0 || lvlCnt > 5) {
                 throw invalid("계층 칸 수는 0~5 이어야 합니다");
             }
-            String[] labels = {
-                label(request.getAttr01Name(), 1), label(request.getAttr02Name(), 2), label(request.getAttr03Name(), 3),
-                label(request.getAttr04Name(), 4), label(request.getAttr05Name(), 5), label(request.getAttr06Name(), 6),
-                label(request.getAttr07Name(), 7), label(request.getAttr08Name(), 8), label(request.getAttr09Name(), 9),
-                label(request.getAttr10Name(), 10)};
+            String[] labels = MaruHeaderRules.labels(request.getAttr01Name(), request.getAttr02Name(),
+                    request.getAttr03Name(), request.getAttr04Name(), request.getAttr05Name(), request.getAttr06Name(),
+                    request.getAttr07Name(), request.getAttr08Name(), request.getAttr09Name(), request.getAttr10Name());
             if (lvlCnt < locked.lvlCnt()) {
                 requireNoValueBeyond(id, lvlCnt); // R11·D6 — latestItemRows(닫힌 키 포함) 스캔
             }
 
             MdmData entity = dataRepo.findById(id).orElseThrow(DataEditService::noMaruData);
-            requireAuditVer(entity, request.getAuditVer());
+            MaruHeaderRules.requireAuditVer(entity.getVersion(), request.getAuditVer()); // F9
             entity.setMaruDataName(name);
-            entity.setDescription(trimToNull(request.getDescription()));
+            entity.setDescription(description);
             entity.setCodePattern(codePattern);
             entity.setLvlCnt(lvlCnt);
             entity.setAttr01Name(labels[0]);
@@ -154,7 +129,7 @@ public class DataEditService {
             checks.requireActive(locked); // R7 — 이미 DEPRECATED 면 재시도도 거부
 
             MdmData entity = dataRepo.findById(id).orElseThrow(DataEditService::noMaruData);
-            requireAuditVer(entity, request.getAuditVer());
+            MaruHeaderRules.requireAuditVer(entity.getVersion(), request.getAuditVer()); // F9
             entity.setStatus(LockedMaruData.DEPRECATED);
 
             log.info("[dataEdit] delete(deprecate) — id={}", id);
@@ -238,12 +213,6 @@ public class DataEditService {
         return view;
     }
 
-    static void requireAuditVer(MdmData entity, Long expected) {
-        if (expected == null || !Objects.equals(expected, entity.getVersion())) {
-            throw MdmErrors.of(MdmErrorCode.ROW_VERSION_CONFLICT); // F9
-        }
-    }
-
     private static RuntimeException noMaruData() {
         return invalid("없는 마루 데이터입니다");
     }
@@ -254,13 +223,5 @@ public class DataEditService {
             throw invalid("마루 데이터를 고르세요");
         }
         return id;
-    }
-
-    private static String label(String value, int slot) {
-        String v = trimToNull(value);
-        if (v != null && v.length() > LABEL_MAX) {
-            throw invalid("라벨 attr" + (slot < 10 ? "0" : "") + slot + " 은 " + LABEL_MAX + "자 이내여야 합니다");
-        }
-        return v;
     }
 }

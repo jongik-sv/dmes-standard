@@ -144,6 +144,27 @@
 - 영향 범위: 두 서비스, `common/mastercode` 새 클래스 1개, `MdmStrings` 메서드 2개, `MdmCheckIssueMaps` Javadoc. 응답 JSON·오류 코드는 그대로.
 - 되돌리는 방법: `0c85991fd` revert. 시험 `6be7a0014` 은 그대로 둬도 통과한다.
 
+## S6. 헤더 규칙·TB_MDM_DATA 헤더 SQL (C7)
+
+- 커밋: `ccd70cba5`(특성 시험), `d986b6cf3`·`9cf510382`·`b07afdfd2`(refactor), `e26329da4`(fix, 동작 변경)
+- 바뀌기 전:
+  - 헤더 검사 사본이 네 벌이었다. 코드 등록 `dmc/codeMng/service/CodeMngService` 와 데이터 등록 `dmd/dataMng/service/DataMngService` 에 `requireValidId`(1~50자·금지 문자·물리명 규칙)·이름 1~100자·설명 4000바이트가 있었다. 코드 헤더 저장 `dmc/codeEdit/service/CodeEditService` 와 데이터 헤더 저장 `dmd/dataEdit/service/DataEditService` 에 이름·설명·`label`(attr01~attr10)·`requireAuditVer` 가 있었다. 데이터 쪽 키 패턴 검사도 등록·헤더 저장에 두 벌이었다.
+  - `TB_MDM_DATA` 머리 SELECT 가 세 벌이었다. `common/segment/DataSegmentLock`(잠금 뒤 재조회), `dmd/dataItemMng/service/DataItemListQuery.header`, `dmd/dataCateEdit/service/DataCateEditService.header`. 칼럼 목록이 조금씩 달랐다.
+- 바뀐 뒤:
+  - `common/support/MaruHeaderRules`(정적) — `requireValidId(id, 명사)`·`requireName`·`requireDescription`·`requireCodePattern`·`requireCodePatternRegex`·`labels`·`requireAuditVer(지금 값, 요청 값)`. 검사를 하나씩 두고 순서는 호출자가 그대로 정한다. 코드 헤더 저장은 auditVer 를 먼저 보고, 데이터 헤더 저장은 맨 끝에 본다. 명사만 다르던 ID 문구는 명사(「마루 코드」·「마루 데이터」)를 인자로 받는다.
+  - `common/segment/MaruDataHeaderReads.find(EntityManager, id)`(정적) — 머리 한 행을 SELECT 하나로 읽고 라벨은 DB 값 그대로 준다. 라벨 다듬기와 없을 때 처리는 호출자에 그대로 있다. 잠금 재조회는 trim 뒤 비면 null, 항목 관리는 `isBlank` 를 빼고 trim, 카테고리 편집은 그대로다. 정적 메서드라 세 클래스의 생성자(시험 하위 클래스 포함)는 바뀌지 않았다.
+  - 합치지 않은 것: 조정자 지시로 계층 칸 수 범위(코드는 `MasterCodeConventions`, 데이터는 0~5 상수), `job/ExchangeRateSyncService.LABELS_SQL`(job 패키지의 JdbcTemplate 읽기이고 라벨을 대문자로 바꾼다), `common/rule/check/ledger/RuleLedgerReads`. 뜻이 달라 계층 칸 수 줄이기 검사(코드는 원장 질의, 데이터는 선분 스캔)와 `DataItemListQuery.maruDataOptions`(목록 칼럼만 읽는다).
+- 바꾼 이유: 같은 규칙·같은 문구를 한 곳에서 고치게 한다. 사본은 이미 갈라져 있었다(등록에만 정규식 검사가 빠짐, 아래 fix).
+- 동작 보존 근거(refactor):
+  - 특성 시험 27건을 옛 코드에 먼저 걸어 통과시켰다(`ccd70cba5`). `CodeMngHeaderRulesCharacterizationSqliteTest`(6)·`CodeEditHeaderRulesCharacterizationSqliteTest`(6)·`DataMngHeaderRulesCharacterizationSqliteTest`(6)·`DataEditHeaderRulesCharacterizationSqliteTest`(6)·`MaruDataHeaderReadsCharacterizationSqliteTest`(3). 문구는 글자 전체로 비교한다. 오류 코드, 여러 규칙을 함께 어긴 입력으로 검사 순서, U+3000·탭이 섞인 라벨의 다듬기를 본다.
+  - 머리 읽기는 호출마다 SELECT 하나 그대로다. 문 수 상한 시험 `DataEditQueryCountTest`·`DataCateEditQueryCountTest` 가 통과한다.
+  - 차이 1건: 잠금 재조회가 `getSingleResult` 에서 목록 읽기로 바뀌었다. 잠금이 행을 맞췄는데 재조회가 비면 예외 종류가 다르다(`NoResultException` → NPE). 같은 트랜잭션 안이라 생기지 않는다.
+  - 찾은 내용과 다른 점: 「dmd 는 lvlCnt 0..5 하드코딩, dmc 는 `MasterCodeConventions`」는 상수 출처만 다르다. `MasterCodeConventions` 도 0~5(기본 0)라 범위와 문구는 같다. 둘 다 그대로 두었다.
+- 동작 변경(fix): `DataMngService.register` 가 컴파일되지 않는 키 패턴을 MDM021 「키 패턴 정규식이 올바르지 않습니다: <패턴>」으로 거부한다. 헤더 저장과 같은 자리(키 패턴 길이 검사 뒤, 계층 칸 수 앞)이고 문구도 같다. 전에는 그대로 저장되고, 그 뒤 항목 저장마다 `DataItemChecks` 가 같은 문구로 거부했다. 시험 `DataMngServiceSqliteTest.등록은_컴파일되지_않는_키_패턴을_거부하고_행을_만들지_않는다` — 옛 코드에서 실패(예외 없음)를 확인한 뒤 고쳤다.
+- 대상 시험: lib·api 의 `common.support`·`common.segment`·`dmc.codeMng`·`dmc.codeEdit`·`dmd` — lib 21 통과, api 274 통과(실패·건너뜀 0).
+- 영향 범위: 위 7개 클래스. 공개 API·화면 응답·오류 코드 종류는 그대로다. `dme/ruleMng/service/RuleHeaderService` Javadoc 과 `RuleHeaderServiceTest` 주석이 지운 `CodeEditService.requireAuditVer` 를 가리킨다(rule 레인 파일이라 두었다). `dmd.dataHistory → dmd.dataItemMng` 의존은 그대로다(`DataItemHeader`·`MaruDataOption`·`DataItemListQuery`·`DataItemRows` 를 쓴다).
+- 되돌리는 방법: `e26329da4`(fix) → `b07afdfd2` → `9cf510382` → `d986b6cf3` 순서로 revert. 시험 `ccd70cba5` 은 그대로 둬도 통과한다.
+
 ## 보고만 한 후보 (이번에 고치지 않음)
 
 조정자 지시(2026-10-16)로 고치지 않고 다음 판단을 위해 남긴다.

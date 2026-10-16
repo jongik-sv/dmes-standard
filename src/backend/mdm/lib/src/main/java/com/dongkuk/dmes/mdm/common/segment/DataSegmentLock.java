@@ -16,7 +16,8 @@ import org.springframework.stereotype.Component;
  * 같은 마루 데이터의 사건을 직렬화한다(SQLite 시절에는 DB 전체 쓰기 잠금으로 직렬화됐다). 배포 순번 발급(PRD §2 규칙 7 보류)이
  * 풀리면 이 문을 {@code LAST_CHG_SEQ + 1} 로 바꾸기만 하면 된다(05 「배포 순번」).
  *
- * <p>0행이면 없는 마루 데이터로 거부한다(L3). 잠금 뒤 같은 행을 네이티브로 다시 읽어 돌려준다 — 검사는 이 값으로 한다(L1).
+ * <p>0행이면 없는 마루 데이터로 거부한다(L3). 잠금 뒤 같은 행을 네이티브로 다시 읽어 돌려준다({@link MaruDataHeaderReads}) — 검사는
+ * 이 값으로 한다(L1). 라벨은 trim 뒤 비면 null 로 다듬는다.
  * 호출자 트랜잭션 안에서만 쓴다.
  */
 @Component
@@ -25,10 +26,6 @@ public class DataSegmentLock {
     /** L2 — 쓰기 문이고 값을 바꾸지 않는다. */
     public static final String LOCK_SQL =
             "UPDATE TB_MDM_DATA SET LAST_CHG_SEQ = LAST_CHG_SEQ WHERE MARU_DATA_ID = :id";
-
-    private static final String READ_SQL = "SELECT MARU_DATA_ID, STATUS, SOURCE_KIND, SOURCE_SYSTEM, CODE_PATTERN, LVL_CNT, "
-            + "ATTR01_NAME, ATTR02_NAME, ATTR03_NAME, ATTR04_NAME, ATTR05_NAME, ATTR06_NAME, ATTR07_NAME, ATTR08_NAME, "
-            + "ATTR09_NAME, ATTR10_NAME FROM TB_MDM_DATA WHERE MARU_DATA_ID = :id";
 
     private final EntityManager entityManager;
 
@@ -44,14 +41,13 @@ public class DataSegmentLock {
         if (locked == 0) {
             throw MdmErrors.of(MdmErrorCode.INVALID_INPUT, DataItemMessages.NO_MARU_DATA + ": " + maruDataId, List.of());
         }
-        Object[] r = (Object[]) entityManager.createNativeQuery(READ_SQL).unwrap(NativeQuery.class)
-                .setParameter("id", maruDataId, String.class)
-                .getSingleResult();
+        // 잠금이 행을 맞췄으므로 같은 트랜잭션의 재조회는 비지 않는다.
+        MaruDataHeaderReads.Header r = MaruDataHeaderReads.find(entityManager, maruDataId);
         List<String> attrNames = new ArrayList<>(DataItemValue.ATTR_COUNT);
         for (int i = 0; i < DataItemValue.ATTR_COUNT; i++) {
-            attrNames.add(DataItemValue.clean((String) r[6 + i]));
+            attrNames.add(DataItemValue.clean(r.attrNames().get(i)));
         }
-        return new LockedMaruData((String) r[0], (String) r[1], (String) r[2], (String) r[3], (String) r[4],
-                ((Number) r[5]).intValue(), Collections.unmodifiableList(attrNames));
+        return new LockedMaruData(r.maruDataId(), r.status(), r.sourceKind(), r.sourceSystem(), r.codePattern(),
+                r.lvlCnt(), Collections.unmodifiableList(attrNames));
     }
 }

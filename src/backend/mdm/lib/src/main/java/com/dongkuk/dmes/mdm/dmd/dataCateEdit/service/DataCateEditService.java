@@ -2,7 +2,6 @@ package com.dongkuk.dmes.mdm.dmd.dataCateEdit.service;
 
 import static com.dongkuk.dmes.mdm.common.support.MdmErrors.invalid;
 
-import com.dongkuk.dmes.cactus.common.BusinessException;
 import com.dongkuk.dmes.mdm.common.segment.CateSegmentRow;
 import com.dongkuk.dmes.mdm.common.segment.DataCategoryResolver;
 import com.dongkuk.dmes.mdm.common.segment.DataCategorySegmentCore;
@@ -11,9 +10,8 @@ import com.dongkuk.dmes.mdm.common.segment.DataItemChecks;
 import com.dongkuk.dmes.mdm.common.segment.DataItemMessages;
 import com.dongkuk.dmes.mdm.common.segment.DataSegmentRowStore;
 import com.dongkuk.dmes.mdm.common.segment.ItemSegmentRow;
-import com.dongkuk.dmes.mdm.common.support.MdmErrors;
+import com.dongkuk.dmes.mdm.common.segment.MaruDataHeaderReads;
 import com.dongkuk.dmes.mdm.contract.common.MdmCheckIssue;
-import com.dongkuk.dmes.mdm.contract.common.MdmErrorCode;
 import com.dongkuk.dmes.mdm.dmd.dataCateEdit.dto.CateCompareRequest;
 import com.dongkuk.dmes.mdm.dmd.dataCateEdit.dto.CateCompareResult;
 import com.dongkuk.dmes.mdm.dmd.dataCateEdit.dto.CateRegRequest;
@@ -31,7 +29,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
-import org.hibernate.query.NativeQuery;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -80,7 +77,7 @@ public class DataCateEditService {
     public CateSearchResult search(CateSearchRequest request) {
         String maruDataId = requireId(request == null ? null : request.getMaruDataId());
         return readTx.execute(status -> {
-            Header header = header(maruDataId);
+            MaruDataHeaderReads.Header header = header(maruDataId);
             List<ItemSegmentRow> openItems = openItemRows(maruDataId);
             Set<String> openItemCodes = codes(openItems);
             List<CateRow> list = new ArrayList<>();
@@ -89,9 +86,9 @@ public class DataCateEditService {
             }
             CateSearchResult result = new CateSearchResult();
             result.setMaruDataId(maruDataId);
-            result.setMaruDataName(header.name());
+            result.setMaruDataName(header.maruDataName());
             result.setLvlCnt(header.lvlCnt());
-            result.setAttrLabels(header.attrLabels());
+            result.setAttrLabels(new ArrayList<>(header.attrNames())); // DB 값 그대로 10개
             result.setList(list);
             log.info("[dataCateEdit] search — maruDataId={} count={}", maruDataId, list.size());
             return result;
@@ -295,25 +292,13 @@ public class DataCateEditService {
         return items.stream().map(r -> r.key().code()).collect(Collectors.toCollection(LinkedHashSet::new));
     }
 
-    private record Header(String maruDataId, String name, int lvlCnt, List<String> attrLabels) {
-    }
-
-    /** {@code TB_MDM_DATA} 머리(이름·계층 칸 수·라벨) — 읽기 전용, 잠그지 않는다(R2′, {@code DataItemListQuery.header()} 선례). */
-    private Header header(String maruDataId) {
-        List<?> found = entityManager.createNativeQuery("SELECT MARU_DATA_NAME, LVL_CNT, ATTR01_NAME, ATTR02_NAME, "
-                        + "ATTR03_NAME, ATTR04_NAME, ATTR05_NAME, ATTR06_NAME, ATTR07_NAME, ATTR08_NAME, ATTR09_NAME, "
-                        + "ATTR10_NAME FROM TB_MDM_DATA WHERE MARU_DATA_ID = :md").unwrap(NativeQuery.class)
-                .setParameter("md", maruDataId, String.class)
-                .getResultList();
-        if (found.isEmpty()) {
+    /** {@code TB_MDM_DATA} 머리(이름·계층 칸 수·라벨) — 읽기 전용, 잠그지 않는다(R2′). 없으면 거부한다. */
+    private MaruDataHeaderReads.Header header(String maruDataId) {
+        MaruDataHeaderReads.Header header = MaruDataHeaderReads.find(entityManager, maruDataId);
+        if (header == null) {
             throw invalid(DataItemMessages.NO_MARU_DATA + ": " + maruDataId);
         }
-        Object[] r = (Object[]) found.get(0);
-        List<String> labels = new ArrayList<>(10);
-        for (int i = 0; i < 10; i++) {
-            labels.add((String) r[2 + i]);
-        }
-        return new Header(maruDataId, (String) r[0], ((Number) r[1]).intValue(), labels);
+        return header;
     }
 
     // ── 공통 ────────────────────────────────────────────────────────────────

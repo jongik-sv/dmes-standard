@@ -9,12 +9,10 @@ import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeVersionSegments;
 import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeVersionSummary;
 import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeVersionSummary.Summary;
 import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeVersionSummary.VerRow;
-import com.dongkuk.dmes.mdm.common.naming.NamingRules;
 import com.dongkuk.dmes.mdm.common.security.MdmCurrentUser;
 import com.dongkuk.dmes.mdm.common.security.MdmStewardGuard;
+import com.dongkuk.dmes.mdm.common.support.MaruHeaderRules;
 import com.dongkuk.dmes.mdm.common.support.MdmErrors;
-import com.dongkuk.dmes.mdm.common.support.MdmTextLimits;
-import com.dongkuk.dmes.mdm.contract.category.MaruIdRules;
 import com.dongkuk.dmes.mdm.contract.common.MdmErrorCode;
 import com.dongkuk.dmes.mdm.contract.mastercode.MasterCodeConventions;
 import com.dongkuk.dmes.mdm.contract.mastercode.MasterCodeSourceKind;
@@ -37,7 +35,6 @@ import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.regex.Pattern;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -56,10 +53,6 @@ import org.springframework.stereotype.Service;
 public class CodeMngService {
 
     private static final Logger log = LoggerFactory.getLogger(CodeMngService.class);
-
-    static final int ID_MAX = 50;
-    static final int NAME_MAX = 100;
-    private static final Pattern FORBIDDEN = Pattern.compile(MaruIdRules.FORBIDDEN_CHAR_PATTERN);
 
     private final EntityManager entityManager;
     private final MdmCodeRepository codes;
@@ -130,14 +123,9 @@ public class CodeMngService {
             throw invalid("등록할 값이 없습니다");
         }
         String id = trimToNull(request.getMaruCodeId());
-        String name = trimToNull(request.getMaruCodeName());
-        requireValidId(id);
-        if (name == null || name.length() > NAME_MAX) {
-            throw invalid("이름은 1~" + NAME_MAX + "자여야 합니다");
-        }
-        if (MdmTextLimits.overBytes(trimToNull(request.getDescription()))) {
-            throw invalid("설명은 4000바이트(한글 약 1,333자)를 넘을 수 없습니다");
-        }
+        MaruHeaderRules.requireValidId(id, MaruHeaderRules.CODE); // I9
+        String name = MaruHeaderRules.requireName(request.getMaruCodeName());
+        String description = MaruHeaderRules.requireDescription(request.getDescription());
         int lvlCnt = request.getLvlCnt() == null ? MasterCodeConventions.LVL_CNT_DEFAULT : request.getLvlCnt();
         if (lvlCnt < MasterCodeConventions.LVL_CNT_MIN || lvlCnt > MasterCodeConventions.LVL_CNT_MAX) {
             throw invalid("계층 칸 수는 " + MasterCodeConventions.LVL_CNT_MIN + "~" + MasterCodeConventions.LVL_CNT_MAX
@@ -153,7 +141,7 @@ public class CodeMngService {
 
         String userId = currentUser.userId();
         MdmCode code = new MdmCode(id, name, MasterCodeSourceKind.MDM.name());
-        code.setDescription(trimToNull(request.getDescription()));
+        code.setDescription(description);
         code.setLvlCnt(lvlCnt);
         entityManager.persist(code);
 
@@ -171,18 +159,5 @@ public class CodeMngService {
         result.setOwnerId(userId);
         log.info("[codeMng] reg — id={} owner={}", id, userId);
         return result;
-    }
-
-    /** I9 — 컬럼 물리명 규칙(대문자 스네이크) + 1~50자 + 마루 ID 금지 문자(점·콤마·공백) 없음(D8). */
-    static void requireValidId(String id) {
-        if (id == null || id.length() > ID_MAX) {
-            throw invalid("마루 코드 ID 는 1~" + ID_MAX + "자여야 합니다");
-        }
-        if (FORBIDDEN.matcher(id).find()) {
-            throw invalid("마루 코드 ID 에 점·콤마·공백을 쓸 수 없습니다");
-        }
-        if (!NamingRules.STD_PHYS_NAME.matcher(id).matches()) {
-            throw invalid("마루 코드 ID 는 영문 대문자로 시작하고 영문 대문자·숫자·_ 만 쓸 수 있습니다");
-        }
     }
 }
