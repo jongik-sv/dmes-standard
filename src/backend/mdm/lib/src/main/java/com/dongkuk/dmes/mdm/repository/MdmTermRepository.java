@@ -12,14 +12,14 @@ import org.springframework.data.repository.query.Param;
 /**
  * {@code TB_MDM_TERM} JPA Repository(TSK-04-01 design.md §2, D3 — 조립·분기 로직 없음, 선언만).
  *
- * <p>{@code findByTermNameAndSenseNo}(I6 중복 판정)·{@code findByEngAbbr}(I8 경고 판정)는 TSK-04-02 가
- * 추가한 파생 쿼리다. {@link JpaSpecificationExecutor} 는 용어 검색의 DB 1차 거르기(TermSearchPrefilter)가 쓴다.
+ * <p>{@code findByTermNameAndSenseNo}(I6 중복 판정)·{@code findByEngAbbrIgnoreCase}(I8 경고 판정, 대소문자 무시 — 2026-10 F3)는
+ * TSK-04-02 가 추가한 파생 쿼리다. {@link JpaSpecificationExecutor} 는 용어 검색의 DB 1차 거르기(TermSearchPrefilter)가 쓴다.
  */
 public interface MdmTermRepository extends JpaRepository<MdmTerm, Long>, JpaSpecificationExecutor<MdmTerm> {
 
     Optional<MdmTerm> findByTermNameAndSenseNo(String termName, int senseNo);
 
-    List<MdmTerm> findByEngAbbr(String engAbbr);
+    List<MdmTerm> findByEngAbbrIgnoreCase(String engAbbr);
 
     /** TSK-04-04 — 용어 인라인 등록 (표기, 의미 번호) 중복 검사(MDM020). */
     boolean existsByTermNameAndSenseNo(String termName, int senseNo);

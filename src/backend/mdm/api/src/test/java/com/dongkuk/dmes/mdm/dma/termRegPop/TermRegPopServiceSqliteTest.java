@@ -1,6 +1,7 @@
 package com.dongkuk.dmes.mdm.dma.termRegPop;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -14,6 +15,7 @@ import com.dongkuk.dmes.mdm.dma.DmaTestSupport;
 import com.dongkuk.dmes.mdm.dma.DmaTestSupport.MutableCurrentUser;
 import com.dongkuk.dmes.mdm.dma.columnMng.dto.ColumnMngCompareRequest;
 import com.dongkuk.dmes.mdm.dma.columnMng.service.ColumnMngService;
+import com.dongkuk.dmes.mdm.dma.support.TermRecommendationCache;
 import com.dongkuk.dmes.mdm.dma.termRegPop.dto.TermRegPopRegRequest;
 import com.dongkuk.dmes.mdm.dma.termRegPop.dto.TermRegPopSearchRequest;
 import com.dongkuk.dmes.mdm.dma.termRegPop.service.TermRegPopService;
@@ -38,6 +40,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * TSK-04-04 design.md §3.3 R1~R7 — 용어 인라인 등록 팝업 서비스(유사어·약어 제안·등록)를 Oracle 시험 PDB 로 돌린다.
+ * R8·R9 는 2026-10 리팩토링 F3 에서 더했다. R8 은 커밋 뒤 추천 캐시 갱신(F3 수정)을, R9 는 롤백이면 캐시를 건드리지 않는 것을 지킨다.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @ActiveProfiles("local")
@@ -54,6 +57,8 @@ class TermRegPopServiceSqliteTest extends AbstractMdmSharedDbTest {
     MdmTermRepository terms;
     @Autowired
     MdmDomainRepository domains;
+    @Autowired
+    TermRecommendationCache cache;
     @Autowired
     DataSource dataSource;
     @Autowired
@@ -100,7 +105,7 @@ class TermRegPopServiceSqliteTest extends AbstractMdmSharedDbTest {
         assertNull(row.get("SYNONYMS"));
         assertNull(row.get("ALIASES"));
         assertNull(row.get("SYSTEMS"));
-        assertNull(row.get("EMBEDDING"));
+        assertNull(row.get("EMBEDDING")); // 이 시험 컨텍스트는 인코더가 꺼져 있다(mdm.embedding.encoder 기본 none)
         assertEquals(5, count());
     }
 
@@ -194,6 +199,28 @@ class TermRegPopServiceSqliteTest extends AbstractMdmSharedDbTest {
 
         assertEquals("RMTL_COIL_THK_DEV", result.get("physName"));
         assertEquals(Boolean.FALSE, result.get("placeholder"));
+    }
+
+    @Test
+    void R8_등록이_커밋되면_용어_관리_추천_캐시에_들어간다() {
+        Map<String, Object> result = reg(valid());
+
+        @SuppressWarnings("unchecked")
+        long termId = ((Number) ((Map<String, Object>) result.get("term")).get("termId")).longValue();
+        assertNotNull(cache.get(termId), "팝업 등록 용어가 재기동 전까지 추천에 안 나왔다(F3)");
+        assertEquals("편차", cache.get(termId).termName());
+    }
+
+    @Test
+    void R9_등록이_롤백되면_캐시에_남지_않는다() {
+        cache.reloadAll(); // 앞 시험이 커밋 뒤 남긴 항목을 지운다(DB 는 setUp 이 비웠다)
+        assertThrows(RuntimeException.class, () -> tx.execute(s -> {
+            service.reg(valid());
+            throw new RuntimeException("강제 롤백");
+        }));
+
+        assertEquals(4, count());
+        assertTrue(cache.values().stream().noneMatch(c -> "편차".equals(c.termName())));
     }
 
     private TermRegPopRegRequest valid() {

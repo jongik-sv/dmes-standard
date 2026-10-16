@@ -7,6 +7,8 @@ import static org.mockito.Mockito.when;
 
 import com.dongkuk.dmes.mdm.common.embedding.TermEmbeddingEncoder;
 import com.dongkuk.dmes.mdm.common.embedding.TermEmbeddingRepository;
+import com.dongkuk.dmes.mdm.dma.support.TermRecommendationCache;
+import com.dongkuk.dmes.mdm.dma.support.TermWriter;
 import com.dongkuk.dmes.mdm.dma.termMng.dto.TermRow;
 import com.dongkuk.dmes.mdm.dma.termMng.dto.TermSearchRequest;
 import com.dongkuk.dmes.mdm.dma.termMng.service.TermMngService;
@@ -92,7 +94,7 @@ class TermJsonListParserCharacterizationTest {
         MdmTermRepository repo = mock(MdmTermRepository.class);
         TermEmbeddingRepository embeddings = mock(TermEmbeddingRepository.class);
         TermMngService service = new TermMngService(repo, embeddings,
-                new TermRecommendationCache(repo, embeddings), mock(TermEmbeddingEncoder.class));
+                new TermRecommendationCache(repo, embeddings), mock(TermEmbeddingEncoder.class), mock(TermWriter.class));
 
         for (Case c : MATRIX) {
             when(repo.findAll(any(Specification.class), any(Sort.class))).thenReturn(List.of(term(c.raw())));
@@ -111,7 +113,7 @@ class TermJsonListParserCharacterizationTest {
         MdmTermRepository repo = mock(MdmTermRepository.class);
         TermEmbeddingRepository embeddings = mock(TermEmbeddingRepository.class);
         TermMngService service = new TermMngService(repo, embeddings,
-                new TermRecommendationCache(repo, embeddings), mock(TermEmbeddingEncoder.class));
+                new TermRecommendationCache(repo, embeddings), mock(TermEmbeddingEncoder.class), mock(TermWriter.class));
         when(repo.findAll(any(Specification.class), any(Sort.class))).thenReturn(List.of(term("null")));
 
         TermSearchRequest byKeyword = new TermSearchRequest();
@@ -131,7 +133,7 @@ class TermJsonListParserCharacterizationTest {
         MdmTermRepository repo = mock(MdmTermRepository.class);
         TermEmbeddingRepository embeddings = mock(TermEmbeddingRepository.class);
         TermMngService service = new TermMngService(repo, embeddings,
-                new TermRecommendationCache(repo, embeddings), mock(TermEmbeddingEncoder.class));
+                new TermRecommendationCache(repo, embeddings), mock(TermEmbeddingEncoder.class), mock(TermWriter.class));
         TermSearchRequest bySystem = new TermSearchRequest();
         bySystem.setSystems("MES");
 

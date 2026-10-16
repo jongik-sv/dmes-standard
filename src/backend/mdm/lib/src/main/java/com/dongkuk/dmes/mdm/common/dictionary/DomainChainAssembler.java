@@ -33,8 +33,7 @@ public class DomainChainAssembler {
         }
         DomainNode root = chainRootFirst.get(0);
         DomainNode self = chainRootFirst.get(chainRootFirst.size() - 1);
-        Integer length = null;
-        Integer scale = null;
+        TypeSpec type = typeOf(chainRootFirst);
         String unit = null;
         List<CodeRef> refs = new ArrayList<>();
         List<String> stdTexts = new ArrayList<>();
@@ -42,8 +41,6 @@ public class DomainChainAssembler {
         List<String> bizTexts = new ArrayList<>();
         List<Map<String, Object>> bizAsts = new ArrayList<>();
         for (DomainNode n : chainRootFirst) {
-            length = n.length() != null ? n.length() : length;
-            scale = n.scale() != null ? n.scale() : scale;
             unit = n.unitCode() != null ? n.unitCode() : unit;
             // 쌍 단위 대체 — 마루 코드가 없는 행은 참조를 지정하지 않은 것이다(I4)
             refs.add(n.maruCodeId() == null ? null : new CodeRef(n.maruCodeId(), n.cateId()));
@@ -61,10 +58,32 @@ public class DomainChainAssembler {
             stdAstWithCode.add(EffectiveExpressions.codeRefAst(codeRef));
         }
         String biz = EffectiveExpressions.text(bizTexts);
-        return new EffectiveDomainView(self.domainId(), root.domainKind(), root.dataType(), length, scale, unit, codeRef,
-                chainStd, EffectiveExpressions.text(stdWithCode), EffectiveExpressions.ast(stdAstWithCode),
+        return new EffectiveDomainView(self.domainId(), root.domainKind(), type.dataType(), type.length(), type.scale(),
+                unit, codeRef, chainStd, EffectiveExpressions.text(stdWithCode), EffectiveExpressions.ast(stdAstWithCode),
                 biz, EffectiveExpressions.ast(bizAsts), requiredVars(biz));
     }
+
+    /**
+     * 체인의 유효 타입·길이·소수 — {@link #assemble} 과 같은 규칙이다. 타입은 최상위 값, 길이·소수는 최상위부터 자신까지 가장 가까운
+     * non-null 이다. 식 조립 없이 이 셋만 필요한 쪽(ERD 사전)이 도메인마다 식을 파싱하지 않도록 따로 둔다.
+     *
+     * @param chainRootFirst 최상위 조상부터 자신까지(비어 있으면 안 된다)
+     */
+    public static TypeSpec typeOf(List<DomainNode> chainRootFirst) {
+        if (chainRootFirst.isEmpty()) {
+            throw new IllegalArgumentException("빈 체인");
+        }
+        Integer length = null;
+        Integer scale = null;
+        for (DomainNode n : chainRootFirst) {
+            length = n.length() != null ? n.length() : length;
+            scale = n.scale() != null ? n.scale() : scale;
+        }
+        return new TypeSpec(chainRootFirst.get(0).dataType(), length, scale);
+    }
+
+    /** {@link #typeOf} 의 결과 — 유효 데이터 타입·길이·소수 자릿수. */
+    public record TypeSpec(String dataType, Integer length, Integer scale) {}
 
     /** 조립한 비즈니스식이 파싱되지 않으면(예: 비즈니스 함수가 빠졌다) 요구 변수를 알 수 없다 — 빈 목록. 판정은 검증기가 오류로 낸다. */
     private List<String> requiredVars(String biz) {

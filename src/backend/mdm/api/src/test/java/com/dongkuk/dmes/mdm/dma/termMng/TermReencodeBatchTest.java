@@ -11,6 +11,8 @@ import com.dongkuk.dmes.mdm.common.embedding.TermEmbeddingCodec;
 import com.dongkuk.dmes.mdm.common.embedding.TermEmbeddingEncoder;
 import com.dongkuk.dmes.mdm.common.embedding.TermEmbeddingRepository;
 import com.dongkuk.dmes.mdm.common.testdb.AbstractMdmSharedDbTest;
+import com.dongkuk.dmes.mdm.dma.support.TermRecommendationCache;
+import com.dongkuk.dmes.mdm.dma.support.TermWriter;
 import com.dongkuk.dmes.mdm.dma.termMng.dto.ReencodeBatchRequest;
 import com.dongkuk.dmes.mdm.dma.termMng.dto.TermSaveRequest;
 import com.dongkuk.dmes.mdm.dma.termMng.dto.TermSaveResult;
@@ -106,8 +108,9 @@ class TermReencodeBatchTest extends AbstractMdmSharedDbTest {
     @Test
     void I12_인코더가_비활성이면_즉시_반환하고_아무것도_건드리지_않는다() {
         long termId = insertTermWithModel("비활성대상", null);
-        TermMngService disabledService = new TermMngService(
-                termRepository, embeddingRepository, cache, new NoopTermEmbeddingEncoder());
+        NoopTermEmbeddingEncoder noop = new NoopTermEmbeddingEncoder();
+        TermMngService disabledService = new TermMngService(termRepository, embeddingRepository, cache, noop,
+                new TermWriter(termRepository, embeddingRepository, cache, noop));
 
         Map<String, Object> result = disabledService.reencodeBatch(reencodeReq(500));
 
@@ -173,8 +176,9 @@ class TermReencodeBatchTest extends AbstractMdmSharedDbTest {
         TermSaveResult saved = service.save(req("나중에비활성", 1, "원래 정의")); // fake 인코더로 저장 — EMBEDDING 있음.
         assertTrue(embeddingRepository.findEmbedding(saved.getTermId()).isPresent());
 
-        TermMngService disabledService = new TermMngService(
-                termRepository, embeddingRepository, cache, new NoopTermEmbeddingEncoder());
+        NoopTermEmbeddingEncoder noop = new NoopTermEmbeddingEncoder();
+        TermMngService disabledService = new TermMngService(termRepository, embeddingRepository, cache, noop,
+                new TermWriter(termRepository, embeddingRepository, cache, noop));
         TermSaveRequest update = req("나중에비활성", 1, "바뀐 정의"); // 인코딩 입력 필드 변경 → clear 대상(I12).
         update.setTermId(saved.getTermId());
         disabledService.save(update);

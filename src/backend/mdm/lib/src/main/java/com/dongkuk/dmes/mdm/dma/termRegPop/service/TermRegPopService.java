@@ -14,6 +14,7 @@ import com.dongkuk.dmes.mdm.dma.naming.SimilarTerm;
 import com.dongkuk.dmes.mdm.dma.naming.SimilarTermFinder;
 import com.dongkuk.dmes.mdm.dma.naming.TermDictionary;
 import com.dongkuk.dmes.mdm.dma.support.TermDictionaryLoader;
+import com.dongkuk.dmes.mdm.dma.support.TermWriter;
 import com.dongkuk.dmes.mdm.dma.termRegPop.dto.TermRegPopRegRequest;
 import com.dongkuk.dmes.mdm.dma.termRegPop.dto.TermRegPopSearchRequest;
 import com.dongkuk.dmes.mdm.entity.MdmTerm;
@@ -29,8 +30,11 @@ import org.springframework.stereotype.Service;
  * 용어 인라인 등록 팝업({@code termRegPop}) OASIS 진입 서비스(TSK-04-04 design.md §6.2·§6.13).
  *
  * <p>컬럼 사전 분해에서 {@code ***} 로 남은 자리를 메우는 최소 입력(표기·의미 번호·정의·맥락·영문명·약어)만 받는다.
- * 동의어·별칭·사용 시스템 입력과 임베딩 2차 추천은 TSK-04-02(용어 관리) 몫이다(F22). 등록 용어의 {@code EMBEDDING}
- * 은 NULL 로 남는다.
+ * 동의어·별칭·사용 시스템 입력과 임베딩 2차 추천은 TSK-04-02(용어 관리) 몫이다(F22).
+ *
+ * <p>저장은 용어 관리와 같은 {@link TermWriter} 로 한다 — 인코더가 켜져 있으면 {@code EMBEDDING} 을 채우고(꺼져 있으면 NULL),
+ * 커밋 뒤 추천 캐시를 갱신해 등록 직후부터 용어 관리 추천에 나온다(2026-10 리팩토링 F3). 입력 검사·중복 판정·역할 검사는
+ * 이 화면 규칙 그대로다.
  *
  * <p>{@code @Transactional} 을 붙이지 않는다(F11). {@code reg} 는 표준 관리자만 한다(D1·I14). {@code search} 에는
  * 서버 역할 검사가 없다(I15).
@@ -42,10 +46,12 @@ public class TermRegPopService {
 
     private final MdmTermRepository termRepository;
     private final MdmStdAdminGuard guard;
+    private final TermWriter writer;
 
-    public TermRegPopService(MdmTermRepository termRepository, MdmStdAdminGuard guard) {
+    public TermRegPopService(MdmTermRepository termRepository, MdmStdAdminGuard guard, TermWriter writer) {
         this.termRepository = termRepository;
         this.guard = guard;
+        this.writer = writer;
     }
 
     // ── action: search ────────────────────────────────────────────────────
@@ -80,7 +86,7 @@ public class TermRegPopService {
 
     // ── action: reg ───────────────────────────────────────────────────────
 
-    /** 용어 등록(§6.13, 처리 순서 고정): 역할 → 입력 → (표기, 의미 번호) 중복 → 약어 중복(대소문자 무시) → 저장. */
+    /** 용어 등록(§6.13, 처리 순서 고정): 역할 → 입력 → (표기, 의미 번호) 중복 → 약어 중복(대소문자 무시) → 저장(TermWriter). */
     public Map<String, Object> reg(TermRegPopRegRequest request) {
         guard.requireStdAdmin();
         TermRegPopRegRequest req = request == null ? new TermRegPopRegRequest() : request;
@@ -128,7 +134,7 @@ public class TermRegPopService {
         term.setEngName(engName);
         term.setEngAbbr(engAbbr);
         term.setSrcOrigin(SRC_ORIGIN);
-        term = termRepository.save(term);
+        term = writer.save(term, true);
 
         Map<String, Object> saved = new LinkedHashMap<>();
         saved.put("termId", term.getTermId());

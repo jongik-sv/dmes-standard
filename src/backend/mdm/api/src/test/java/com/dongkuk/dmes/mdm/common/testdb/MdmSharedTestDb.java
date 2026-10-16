@@ -1,6 +1,6 @@
 package com.dongkuk.dmes.mdm.common.testdb;
 
-import com.dongkuk.dmes.mdm.dma.termMng.TermRecommendationCache;
+import com.dongkuk.dmes.mdm.dma.support.TermRecommendationCache;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
