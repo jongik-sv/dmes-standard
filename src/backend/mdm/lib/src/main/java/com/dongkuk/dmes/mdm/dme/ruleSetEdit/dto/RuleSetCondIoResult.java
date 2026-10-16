@@ -1,7 +1,7 @@
 package com.dongkuk.dmes.mdm.dme.ruleSetEdit.dto;
 
 import com.dongkuk.dmes.mdm.common.rule.CondIo;
-import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleExprParseResult;
+import com.dongkuk.dmes.mdm.common.rule.dto.RuleExprParseResult;
 import java.util.Map;
 
 /** {@code ruleSetEdit} action={@code validate} 응답(흐름도 2단계 P5) — IF "그 외"가 아닌 조건식 선 ID → 조건식 입력. */

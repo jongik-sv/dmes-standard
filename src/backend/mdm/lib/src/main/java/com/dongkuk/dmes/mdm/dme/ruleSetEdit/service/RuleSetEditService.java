@@ -6,6 +6,7 @@ import com.dongkuk.dmes.mdm.common.dictionary.DomainJson;
 import com.dongkuk.dmes.mdm.common.metarev.MetaRevisionRecorder;
 import com.dongkuk.dmes.mdm.common.rule.CondIo;
 import com.dongkuk.dmes.mdm.common.rule.RuleCaseJudge;
+import com.dongkuk.dmes.mdm.common.rule.RuleExprParser;
 import com.dongkuk.dmes.mdm.common.rule.RuleIdRules;
 import com.dongkuk.dmes.mdm.common.rule.RuleIo;
 import com.dongkuk.dmes.mdm.common.rule.RuleIoReader;
@@ -39,9 +40,6 @@ import com.dongkuk.dmes.mdm.contract.common.MdmNativeAuditSupport;
 import com.dongkuk.dmes.mdm.contract.version.VersionRef;
 import com.dongkuk.dmes.mdm.contract.version.VersionTarget;
 import com.dongkuk.dmes.mdm.contract.version.VersionWriteGuard;
-import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleExprParseRequest;
-import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleExprParseResult;
-import com.dongkuk.dmes.mdm.dme.ruleEdit.service.RuleEditService;
 import com.dongkuk.dmes.mdm.dme.ruleSetEdit.dto.RuleSetCallIoResult;
 import com.dongkuk.dmes.mdm.dme.ruleSetEdit.dto.RuleSetCondIoRequest;
 import com.dongkuk.dmes.mdm.dme.ruleSetEdit.dto.RuleSetCondIoResult;
@@ -130,7 +128,7 @@ public class RuleSetEditService {
     private final RuleSetRunner runner;
     private final RuleSetTestCaseService caseService;
     private final RuleSetTestCaseQueries caseQueries;
-    private final RuleEditService ruleEditService;
+    private final RuleExprParser exprParser;
     private final RuleSetVersionQueries setVersions;
     private final VersionWriteGuard writeGuard;
     private final VersionRowStore versionStore;
@@ -146,7 +144,7 @@ public class RuleSetEditService {
 
     public RuleSetEditService(MdmRuleSetRepository setRepository, RuleQueries queries, RuleIoReader ioReader,
                               RuleStewardCheck stewardCheck, RuleSetWrites writes, RuleSetRunner runner,
-                              RuleSetTestCaseService caseService, RuleSetTestCaseQueries caseQueries, RuleEditService ruleEditService,
+                              RuleSetTestCaseService caseService, RuleSetTestCaseQueries caseQueries, RuleExprParser exprParser,
                               RuleSetVersionQueries setVersions, VersionWriteGuard writeGuard, VersionRowStore versionStore,
                               MdmNativeAuditSupport audit, MdmCurrentUser currentUser, RuleSetVersionService versionService,
                               Clock clock, PlatformTransactionManager transactionManager,
@@ -164,7 +162,7 @@ public class RuleSetEditService {
         this.clock = clock;
         this.caseService = caseService;
         this.caseQueries = caseQueries;
-        this.ruleEditService = ruleEditService;
+        this.exprParser = exprParser;
         this.setRepository = setRepository;
         this.queries = queries;
         this.ioReader = ioReader;
@@ -623,12 +621,8 @@ public class RuleSetEditService {
     public RuleSetCondIoResult condIo(RuleSetCondIoRequest request) {
         String exprText = request == null ? null : blankToNull(request.getExprText());
         if (exprText != null) {
-            // 식 텍스트 파싱(P-D1) — 룰 편집 화면의 parseExpr 와 같은 코드. 파싱 오류는 그 서비스의 INVALID_VALUE 그대로.
-            RuleExprParseRequest parse = new RuleExprParseRequest();
-            parse.setText(exprText);
-            parse.setSlot("RULE_COND_EXPR");
-            RuleExprParseResult parsed = ruleEditService.parseExpr(parse);
-            return new RuleSetCondIoResult(Map.of(), parsed);
+            // 식 텍스트 파싱(P-D1) — 룰 편집 화면의 parseExpr 와 같은 코드(common/rule/RuleExprParser). 파싱 오류는 INVALID_VALUE 그대로.
+            return new RuleSetCondIoResult(Map.of(), exprParser.parse(exprText, "RULE_COND_EXPR"));
         }
         FlowDefinition flow = requestFlow(requireFlowJson(request == null ? null : request.getFlowJson()));
         return new RuleSetCondIoResult(ioReader.condIo(flow));

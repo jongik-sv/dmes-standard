@@ -43,14 +43,44 @@
 
 ## S3. F4 — 숫자 글자를 NUMBER 로 바꾸는 규칙을 도메인 검증과 같게
 
-- 커밋: 4f2ecb140(fix, 동작 변경)
+- 커밋: 875c5bcd5(fix, 동작 변경, squash 머지. 원래 커밋 4f2ecb140)
 - 바뀌기 전: 글자 값 → 선언 타입 NUMBER 변환이 곳마다 달랐다. 도메인 검증(엔진 `expr.ValueConverter`)은 `^[+-]?[0-9]+(\.[0-9]+)?$` 만 받았고, 룰 판정(엔진 `rule.ValueConverter`)·룰 계산기(`RuleCalcService.toNumber`)·코퍼스 하네스는 `new BigDecimal(s)` 로 지수(`1e3`)·`.5`·`5.`·ASCII 밖 숫자까지 받았다. TS `convertForType` 은 `BIGDECIMAL_TEXT` 로 Java `new BigDecimal` 을 흉내 냈다.
 - 바뀐 뒤: 모두 `expr.ValueConverter` 의 숫자 글자 규칙을 쓴다. Java 는 `rule.ValueConverter`·`RuleCalcService`·하네스가 `expr.ValueConverter.convert(s, NUMBER)` 에 맡기고, TS 는 `ENGINE_NUMBER_TEXT`(shared evalex 새 export)를 쓴다. `BIGDECIMAL_TEXT` 는 지웠다. `RuleCalcService` 의 앞뒤 공백 제거·크기 방어(2000자·1000자리)와 `rejectOversizedText` 는 그대로다.
 - 화면 쪽 같이 고친 곳(조정자 승인): m-mdm 열 설정 미리보기 입력(`preview-input.ts`)은 치는 도중의 `1.` 을 글자로 두어 render 예외를 내지 않는다. 경계값 생성기(`boundary-cases.ts`)는 식 상수·초안 셀의 `.5`·`5.` 를 `0.5`·`5` 로 바꿔 쓴다. m-mcm 룰 계산기 입력 검사(`isValidNumberText`)는 서버와 같은 모양만 받는다. mdm-meta `validate.ts` 의 정규식 사본은 shared export 를 쓴다.
 - 바꾼 이유: 같은 값이 도메인 검증에서는 거부되고 룰 판정에서는 숫자로 읽혀 결과가 갈렸다. 조정자 결정(지수 표기 전면 거부, 도메인 검증과 같게)을 따른다.
 - 동작 보존 근거: 동작 변경 커밋이다. 바뀐 동작은 시험으로 고정했다. engine `ValueConverterTest`(거부 9건)·`RuleEngineStageTest`(입력·결과 지수 2건)·`RuleSetFlowEvaluationTest`(갈래 지수 1건), `engine-corpus.json` 셀 거부 5건·`+2.50` 수락 1건(Java·TS 함께), shared `convert-for-type.test.ts`·`contract-parity`(Java·TS 정규식 대조), `RuleCalcServiceValueTest`(거부 10건, 크기 방어는 평문 큰 수로), m-mdm `preview-input.test.ts`·`boundary-cases.test.ts` 2건, m-mcm `rule-calc-model.test.ts`. 시험 결과는 머지 요청에 적는다.
 - 영향 범위: 룰·룰 세트 판정, 룰 계산기 `execute`(문서 `docs/widget-2026-10/rule-calc-api.md` 갱신), 화면 EvalEx 평가기, 룰 편집 화면(미리보기·경계값 생성), 룰 계산기 위젯. **미확인**: 이미 저장된 데이터(룰 시험 케이스 입력, 화면·외부가 보내는 레코드 값)에 지수 표기 숫자 글자가 있는지 확인하지 않았다. 있으면 이 변경 뒤 `TYPE_CONVERSION`·`INPUT_INVALID` 가 된다.
-- 되돌리는 방법: 4f2ecb140 를 revert 한다. 문서 커밋은 따로 되돌린다.
+- 되돌리는 방법: 875c5bcd5 를 revert 한다(문서·D4 기록이 같이 되돌아간다).
+
+## S4. C5 — 식 파싱을 `common/rule/RuleExprParser` 로 추출
+
+- 커밋: C5 나머지 squash 머지 커밋 1개(S4·S5 함께). 원래 커밋은 그 본문에 적는다.
+- 바뀌기 전: 룰 세트 편집 화면의 `RuleSetEditService.condIo`(조건식 IO, P-D1)가 룰 편집 화면 서비스 `RuleEditService.parseExpr` 를 불렀다. 응답 DTO `RuleSetCondIoResult` 도 `dme/ruleEdit/dto/RuleExprParseResult` 를 썼다. 그래서 ruleSetEdit 화면이 ruleEdit 화면에 기댔다.
+- 바뀐 뒤: 파싱 본문(빈 식·칸 종류 검사, `ExpressionChecker` 문제 거르기, AST 내보내기, 화면 평가 가능 여부)은 `common/rule/RuleExprParser.parse(text, slot)`(`@Component`)에 있다. `RuleExprParseResult` 는 `common/rule/dto` 로 옮겼다. `RuleEditService.parseExpr` 는 위임만 하고, `RuleSetEditService` 는 `RuleExprParser` 를 직접 쓴다. `RuleExprParseRequest` 는 `ruleEdit.bpmn` 이 dto FQCN 으로 쓰므로 `dme/ruleEdit/dto` 에 그대로 둔다.
+- 바꾼 이유: 두 화면이 함께 쓰는 식 파싱을 common 에 둬서, 화면 사이의 의존을 없앤다.
+- 동작 보존 근거: 파싱 본문은 옮기기만 했다. 입력 꺼내기(`request == null` 이면 null)와 오류 순서·문구가 같다. 시험 `RuleEditViewTest`(parseExpr)·`RuleSetEditServiceTest`(condIo) 를 그대로 통과한다. 시험 결과는 머지 요청에 적는다.
+- 영향 범위: `RuleEditService`·`RuleSetEditService` 생성자 인자가 바뀐다(Spring 주입). import 줄은 `RuleSetCondIoResult`·`RuleEditViewTest` 도 바뀐다. 화면 응답 JSON 모양은 같다.
+- 되돌리는 방법: C5 나머지 squash 커밋을 revert 한다(S4·S5 가 같이 되돌아간다). S4 만 되돌리려면 S5 시험 예외 목록에 `dme.ruleSetEdit -> dme.ruleEdit` 를 더한다.
+
+## S5. C5 — 화면 패키지 경계를 ArchUnit 으로 고정
+
+- 커밋: S4 와 같은 squash 머지 커밋.
+- 바뀐 뒤: mdm lib 시험 `MdmScreenPackageArchitectureTest` 가 두 규칙을 검사한다. (1) `common` 은 화면 그룹(`dma`·`dmb`·`dmc`·`dmd`·`dme`)에 기대지 않는다. (2) 화면 패키지(`<그룹>.<화면>`)는 다른 화면 패키지에 기대지 않는다. 같은 그룹의 라이브러리 패키지(`dma.naming`·`dma.support`·`dmb.layout`)는 쓸 수 있다.
+- 남은 의존은 예외 목록에 줄마다 항목 ID 와 함께 둔다. 예외가 더는 쓰이지 않으면 두 번째 시험이 실패하므로, 의존을 없앤 레인이 그 줄을 지운다.
+
+| 예외 | 남은 까닭 | 정리할 곳 |
+|---|---|---|
+| `dmb.layout -> dmb.layoutMng` | layout 코어가 layoutMng 화면 DTO 를 내부 모델로 쓴다 | C5 layout 코어 부분(version 레인) |
+| `dmb.headerMng -> dmb.layoutMng` | `HeaderMngService` 가 layoutMng 화면 DTO(`LayoutVersionRequest`·`LayoutVersionResult`)를 쓴다 | C5 layout 코어 부분(version 레인) |
+| `dmb.layout -> dma.domainMng` | `LayoutConstJudge` 가 `DomainTestCaseRunner.preview` 를 쓴다 | `preview` 계열 common 추출 후보 |
+| `dmd.dataHistory -> dmd.dataItemMng` | 목록 조회·행 모델을 쓴다 | C7 뒤 후보 |
+| `common.version -> dmb.layout` | `DefaultVersionStateService` 가 `LayoutQueries` 로 레이아웃 버전 상태를 읽는다 | 범위 밖(version 레인 영역) |
+
+- 바꾼 이유: C5 로 정리한 경계가 다시 무너지지 않게 한다.
+- 영향 범위: 시험만 더한다. 다른 레인이 예외 목록 밖의 화면 사이 의존을 새로 만들면 이 시험이 실패한다.
+- 한계: 예외는 단위 쌍으로 두므로, 예외로 둔 두 단위 사이에 클래스 의존을 더 만들면 잡지 못한다. 다른 화면의 컴파일 상수만 읽는 의존도 클래스 파일에 참조가 남지 않아 잡지 못한다.
+- 머지 순서: 예외 5줄 가운데 3줄(`dmb.layout -> dmb.layoutMng`·`dmb.headerMng -> dmb.layoutMng`·`common.version -> dmb.layout`)은 version 레인 코드다. version 레인이 그 의존을 먼저 없애고 머지하면, 이 시험은 머지 뒤 「쓰이지 않는 예외」로 실패한다. 그 경우 그 줄을 지운다.
+- 되돌리는 방법: 시험 파일 `MdmScreenPackageArchitectureTest` 를 archive 로 옮긴다(`git mv`). squash 커밋 전체를 revert 하면 S4 도 같이 되돌아간다.
 
 ## D4 — `RuleSetRunner` OASIS 진입을 보관하지 않음 (ADR-0005 D2)
 

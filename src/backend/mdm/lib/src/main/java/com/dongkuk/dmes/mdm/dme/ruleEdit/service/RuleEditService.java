@@ -4,8 +4,10 @@ import com.dongkuk.dmes.cactus.common.BusinessException;
 import com.dongkuk.dmes.cactus.common.ErrorCode;
 import com.dongkuk.dmes.mdm.common.dictionary.DomainNode;
 import com.dongkuk.dmes.mdm.common.dictionary.DomainTreeReader;
+import com.dongkuk.dmes.mdm.common.rule.RuleExprParser;
 import com.dongkuk.dmes.mdm.common.rule.RuleQueries;
 import com.dongkuk.dmes.mdm.common.rule.RuleScreenSupport;
+import com.dongkuk.dmes.mdm.common.rule.dto.RuleExprParseResult;
 import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleDomainSearchRequest;
 import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleDomainSearchResult;
 import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleEditSaveRequest;
@@ -15,22 +17,14 @@ import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleEditSearchResult;
 import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleEditViewRequest;
 import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleEditViewResult;
 import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleExprParseRequest;
-import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleExprParseResult;
 import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleTestRequest;
 import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleTestResult;
-import com.ezylang.evalex.parser.ParseException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import kr.dongkuk.maru.mdm.engine.expr.AstExporter;
-import kr.dongkuk.maru.mdm.engine.expr.ExpressionChecker;
-import kr.dongkuk.maru.mdm.engine.expr.ExpressionChecker.Problem;
-import kr.dongkuk.maru.mdm.engine.expr.FunctionSets;
-import kr.dongkuk.maru.mdm.engine.expr.FunctionSets.Slot;
-import kr.dongkuk.maru.mdm.engine.expr.MdmEvaluator;
 import org.springframework.stereotype.Service;
 
 /**
@@ -56,19 +50,17 @@ public class RuleEditService {
 
     private final RuleQueries queries;
     private final RuleViewService viewService;
-    private final ExpressionChecker checker;
-    private final MdmEvaluator evaluator;
+    private final RuleExprParser exprParser;
     private final DomainTreeReader domainTreeReader;
     private final RuleValueTestService valueTestService;
     private final Map<String, RuleEditSavePart> parts = new HashMap<>();
 
-    public RuleEditService(RuleQueries queries, RuleViewService viewService, ExpressionChecker checker, MdmEvaluator evaluator,
+    public RuleEditService(RuleQueries queries, RuleViewService viewService, RuleExprParser exprParser,
                            DomainTreeReader domainTreeReader, RuleValueTestService valueTestService,
                            List<RuleEditSavePart> saveParts) {
         this.queries = queries;
         this.viewService = viewService;
-        this.checker = checker;
-        this.evaluator = evaluator;
+        this.exprParser = exprParser;
         this.domainTreeReader = domainTreeReader;
         this.valueTestService = valueTestService;
         for (RuleEditSavePart part : saveParts) {
@@ -126,61 +118,7 @@ public class RuleEditService {
 
     // action: validate(BPMN) → parseExpr — 식 입력 칸의 디바운스 파싱(서버 EvalEx 단일 진원, 불변 9). 화면은 파싱 결과만 해석한다.
     public RuleExprParseResult parseExpr(RuleExprParseRequest request) {
-        String text = request == null ? null : RuleScreenSupport.blankToNull(request.getText());
-        if (text == null) {
-            throw new BusinessException(ErrorCode.INVALID_VALUE, "식이 비었습니다.");
-        }
-        if (request.getSlot() == null) {
-            throw new BusinessException(ErrorCode.INVALID_VALUE, "식 칸 종류(slot)가 필요합니다.");
-        }
-        Slot slot;
-        try {
-            slot = Slot.valueOf(request.getSlot().trim().toUpperCase(Locale.ROOT));
-        } catch (IllegalArgumentException e) {
-            throw new BusinessException(ErrorCode.INVALID_VALUE, "모르는 식 칸 종류입니다: " + request.getSlot());
-        }
-        List<Map<String, Object>> problems = new ArrayList<>();
-        for (Problem p : checker.check(text, slot)) {
-            if (ExpressionChecker.PARSE.equals(p.kind())) {
-                throw new BusinessException(ErrorCode.INVALID_VALUE, "식을 파싱할 수 없습니다: " + p.detail());
-            }
-            if (ExpressionChecker.VARIABLE.equals(p.kind())) {
-                continue; // 참조 변수는 refVars 로 준다 — 해결 여부는 저장 검사(RuleColumnsService)가 잰다
-            }
-            problems.add(Map.of("kind", p.kind(), "detail", p.detail()));
-        }
-        Map<String, Object> ast;
-        try {
-            ast = AstExporter.export(text, evaluator.configuration());
-        } catch (ParseException e) {
-            throw new BusinessException(ErrorCode.INVALID_VALUE, "식을 파싱할 수 없습니다: " + text);
-        }
-        boolean supported = functions(ast).stream().allMatch(FunctionSets.BASE::contains);
-        return new RuleExprParseResult(ast, List.copyOf(evaluator.usedVariables(text)), supported, problems);
-    }
-
-    private static List<String> functions(Map<String, Object> node) {
-        List<String> out = new ArrayList<>();
-        collectFunctions(node, out);
-        return out;
-    }
-
-    /** AST Map(type·value·params) 에서 함수 이름을 모은다 — BASE 밖이면 화면이 평가하지 못 한다(evalex-guide §8.5). */
-    @SuppressWarnings("unchecked")
-    private static void collectFunctions(Map<String, Object> node, List<String> out) {
-        if (node == null) {
-            return;
-        }
-        if ("FUNCTION".equals(node.get("type")) && node.get("value") != null) {
-            out.add(String.valueOf(node.get("value")).toUpperCase(Locale.ROOT));
-        }
-        if (node.get("params") instanceof List<?> list) {
-            for (Object p : list) {
-                if (p instanceof Map) {
-                    collectFunctions((Map<String, Object>) p, out);
-                }
-            }
-        }
+        return exprParser.parse(request == null ? null : request.getText(), request == null ? null : request.getSlot());
     }
 
     // action: search target=DOMAIN → searchDomains — 값 타입 도메인 검색 위젯(평면 8건). domainMng search 는 트리 응답이라 쓰지 않았다(design 이탈란).

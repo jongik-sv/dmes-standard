@@ -1,11 +1,12 @@
-package com.dongkuk.dmes.mdm.dme.ruleEdit.dto;
+package com.dongkuk.dmes.mdm.common.rule.dto;
 
 import java.util.List;
 import java.util.Map;
 
 /**
- * {@code ruleEdit} action={@code parseExpr} 응답 — 서버 EvalEx 파싱 결과(AST Map·참조 변수)와 화면 평가 가능 여부.
+ * {@code ruleEdit} action={@code validate}({@code parseExpr}) 응답 — 서버 EvalEx 파싱 결과(AST Map·참조 변수)와 화면 평가 가능 여부.
  * {@code supported=false} 면 화면({@code previewRule})이 평가하지 못 하고 서버 평가로 넘긴다는 표시를 낸다.
+ * {@code ruleSetEdit} action={@code validate}(조건식 IO)도 같은 모양을 싣는다. 만드는 곳은 {@link com.dongkuk.dmes.mdm.common.rule.RuleExprParser}.
  */
 public class RuleExprParseResult {
 
