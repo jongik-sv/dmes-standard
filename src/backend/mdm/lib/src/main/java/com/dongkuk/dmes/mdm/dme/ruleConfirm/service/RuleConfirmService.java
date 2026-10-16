@@ -2,7 +2,6 @@ package com.dongkuk.dmes.mdm.dme.ruleConfirm.service;
 
 import com.dongkuk.dmes.cactus.common.BusinessException;
 import com.dongkuk.dmes.cactus.common.ErrorCode;
-import com.dongkuk.dmes.cactus.web.response.ErrorDetail;
 import com.dongkuk.dmes.mdm.common.rule.RuleQueries;
 import com.dongkuk.dmes.mdm.common.rule.RuleScreenSupport;
 import com.dongkuk.dmes.mdm.common.rule.RuleStewardCheck;
@@ -18,8 +17,10 @@ import com.dongkuk.dmes.mdm.common.rule.confirm.RuleConfirmReport.ItemStatus;
 import com.dongkuk.dmes.mdm.common.rule.confirm.RuleConfirmReport.Report;
 import com.dongkuk.dmes.mdm.common.rule.confirm.RuleVersionDiffs;
 import com.dongkuk.dmes.mdm.common.security.MdmCurrentUser;
+import com.dongkuk.dmes.mdm.common.support.MdmCheckIssueMaps;
 import com.dongkuk.dmes.mdm.common.support.MdmErrors;
 import com.dongkuk.dmes.mdm.common.version.VersionNumbers;
+import com.dongkuk.dmes.mdm.common.version.VersionRules;
 import com.dongkuk.dmes.mdm.contract.common.MdmCheckIssue;
 import com.dongkuk.dmes.mdm.contract.common.MdmErrorCode;
 import com.dongkuk.dmes.mdm.contract.rule.MdmRuleDiffConventions;
@@ -27,7 +28,6 @@ import com.dongkuk.dmes.mdm.contract.version.ApplyFromOrderCheck;
 import com.dongkuk.dmes.mdm.contract.version.ConfirmCommand;
 import com.dongkuk.dmes.mdm.contract.version.ConfirmResult;
 import com.dongkuk.dmes.mdm.contract.version.DiffKind;
-import com.dongkuk.dmes.mdm.contract.version.VersionConventions;
 import com.dongkuk.dmes.mdm.contract.version.VersionDiffEntry;
 import com.dongkuk.dmes.mdm.contract.version.VersionRef;
 import com.dongkuk.dmes.mdm.contract.version.VersionStateService;
@@ -49,7 +49,6 @@ import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.time.format.DateTimeParseException;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -80,7 +79,6 @@ public class RuleConfirmService {
     private static final Logger log = LoggerFactory.getLogger(RuleConfirmService.class);
 
     private static final DateTimeFormatter TEXT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
-    private static final String APPLY_FROM = "applyFrom";
     private static final String SOURCE_MDM = "MDM";
     private static final ObjectMapper JSON = new ObjectMapper();
 
@@ -167,7 +165,7 @@ public class RuleConfirmService {
         if (!isDraft(t.version())) {
             throw MdmErrors.of(MdmErrorCode.NOT_DRAFT);
         }
-        LocalDateTime applyFrom = parseApplyFrom(request.getApplyFrom());
+        LocalDateTime applyFrom = VersionRules.parseApplyFrom(request.getApplyFrom());
         LocalDateTime now = now();
         Report report = checks.report(t.ref(), applyFrom);
 
@@ -181,11 +179,11 @@ public class RuleConfirmService {
             Map<String, Object> row = new LinkedHashMap<>();
             row.put("item", item.item().name());
             row.put("status", item.status().name());
-            row.put("issues", item.issues().stream().map(i -> issueMap(i.severity(), i.issue())).toList());
+            row.put("issues", item.issues().stream().map(i -> MdmCheckIssueMaps.of(i.severity(), i.issue())).toList());
             items.add(row);
             for (Issue issue : item.issues()) {
                 if (RuleSaveIssueCode.CONTRACT_CHANGED.name().equals(issue.issue().code())) {
-                    contractWarnings.add(issueMap(issue.severity(), issue.issue()));
+                    contractWarnings.add(MdmCheckIssueMaps.of(issue.severity(), issue.issue()));
                 }
             }
         }
@@ -237,7 +235,7 @@ public class RuleConfirmService {
             throw new BusinessException(ErrorCode.REQUIRED_VALUE, "row_version 은 필수입니다.");
         }
         VersionRef ref = ref(id, ver);
-        LocalDateTime applyFrom = parseApplyFrom(request.getApplyFrom());
+        LocalDateTime applyFrom = VersionRules.parseApplyFrom(request.getApplyFrom());
         boolean acknowledged = Boolean.TRUE.equals(request.getWarningsAcknowledged());
 
         ConfirmResult confirmed = versionState.confirm(new ConfirmCommand(ref, request.getRowVersion(), applyFrom,
@@ -253,7 +251,7 @@ public class RuleConfirmService {
         result.put("confirmed", done);
         result.put("closedPreviousVer", confirmed.closedPrevious() == null ? null
                 : VersionNumbers.plain(confirmed.closedPrevious().ver()));
-        result.put("warnings", confirmed.warnings().stream().map(w -> issueMap("WARNING", w)).toList());
+        result.put("warnings", confirmed.warnings().stream().map(w -> MdmCheckIssueMaps.of("WARNING", w)).toList());
         return result;
     }
 
@@ -416,16 +414,6 @@ public class RuleConfirmService {
         return out;
     }
 
-    private static Map<String, Object> issueMap(String severity, MdmCheckIssue i) {
-        Map<String, Object> m = new LinkedHashMap<>();
-        m.put("severity", severity);
-        m.put("code", i.code());
-        m.put("message", i.message());
-        m.put("field", i.field());
-        m.put("itemKey", i.itemKey());
-        return m;
-    }
-
     private MdmRule loadRule(String ruleId) {
         if (ruleId == null) {
             throw new BusinessException(ErrorCode.REQUIRED_VALUE, "룰 ID 는 필수입니다.");
@@ -446,28 +434,6 @@ public class RuleConfirmService {
 
     private static boolean isDraft(MdmRuleVer v) {
         return VersionStatus.DRAFT.name().equals(v.getStatus());
-    }
-
-    /** {@code yyyy-MM-dd HH:mm:ss}(KST). 빈 값은 REQUIRED_VALUE, 형식 오류·열린 끝 이상은 INVALID_VALUE(field applyFrom). */
-    public static LocalDateTime parseApplyFrom(String value) {
-        String v = trimToNull(value);
-        if (v == null) {
-            throw applyFromError(ErrorCode.REQUIRED_VALUE, "적용 시작 일시를 입력하세요");
-        }
-        LocalDateTime parsed;
-        try {
-            parsed = LocalDateTime.parse(v, TEXT);
-        } catch (DateTimeParseException e) {
-            throw applyFromError(ErrorCode.INVALID_VALUE, "적용 시작 일시는 yyyy-MM-dd HH:mm:ss 형식이어야 합니다: " + v);
-        }
-        if (!parsed.isBefore(VersionConventions.OPEN_END)) {
-            throw applyFromError(ErrorCode.INVALID_VALUE, "적용 시작 일시는 9999-12-31 00:00:00 보다 앞이어야 합니다");
-        }
-        return parsed;
-    }
-
-    private static BusinessException applyFromError(ErrorCode code, String message) {
-        return new BusinessException(code, message, List.of(ErrorDetail.ofGrid(null, null, APPLY_FROM, code.getCode(), message)));
     }
 
     private LocalDateTime now() {

@@ -42,12 +42,13 @@
 | ID | 항목 | 모듈 | 작업량 | 위험 | 검증 | 1회차 | 상태 | 레인 | 커밋 |
 |---|---|---|---|---|---|---|---|---|---|
 | F1 | ERD 가 도메인 상속(길이·소수·타입)을 무시 | mdm | S | M | 확인 | | 대기 | erd-term | |
-| F2 | mcm-core `BusinessException` 사본이라 OASIS 응답에서 행 오류(errors[])·코드가 빠짐 | mcm-core, cactus-core | M | M | 확인(코드), 실행 미확인 | a8 S9 | 대기 | mcm | 현재 출력 특성 시험 먼저 |
-| F3 | 용어 저장 경로 두 개의 규칙 불일치(중복 약어·임베딩·캐시) | mdm | M | M | 미확인 | | 대기 | erd-term | |
+| F2 | mcm-core `BusinessException` 사본이라 OASIS 응답에서 행 오류(errors[])·코드가 빠짐 | mcm-core, cactus-core | M | M | 확인(코드), 실행 미확인 | a8 S9 | 진행 | mcm | 현재 출력 특성 시험 먼저 |
+| F3 | 용어 저장 경로 두 개의 규칙 불일치(중복 약어·임베딩·캐시) | mdm | M | M | 확인 | | 진행 | erd-term | 검사·오류 코드·권한은 화면별 유지. 팝업에 캐시 갱신·임베딩 추가, 관리 화면 약어 중복 대소문자 무시 |
 | F4 | 엔진 `ValueConverter` 두 벌의 지수 표기 처리 불일치 | maru-mdm-engine, mdm | M | H | 확인 | | 대기 | rule | TS 사본·코퍼스 확인 뒤 착수 |
-| F5 | analog `ClientKeyFilter` 에 상수 시간 비교 누락 | analog | S | L | 미확인 | | 대기 | mcm | |
-| F6 | DML 가드(`QueryStatementGuard`) 의 주석·문자열 마스킹이 `SqlGuard` 보다 약함 | mcm-core | S | M | 미확인 | | 대기 | mcm | |
+| F5 | analog `ClientKeyFilter` 에 상수 시간 비교 누락 | analog | S | L | 확인 | | 리뷰 | mcm | c352a1dbf 시험·e6ebc0e2a fix (브랜치) |
+| F6 | DML 가드(`QueryStatementGuard`) 의 주석·문자열 마스킹이 `SqlGuard` 보다 약함 | mcm-core | S | M | 미확인 | | 진행 | mcm | |
 | F7 | `SecUserService` search·save·resetPassword 가 동작하지 않는 죽은 경로 | mcm-core, mcm | S | L | 확인 | a6-1 미룸 | 대기 | mcm | 보관, 메뉴·권한 읽기 유지 |
+| F8 | 권한 마스터 저장(`csa/commRoleMng`·`commPermMng`·`commObjMng`·`commMenuMng`·`commRoleGrpMng`·`commUserRoleCopy`·`commUserMng` save)에 SYSADMIN URL gate 없음. gate 는 없는 옛 서비스 id 에만 걸려 있어 BFF-RBAC 설계 D5 와 어긋남(PERM 매핑만으로 권한 상승 가능) | mcm-core | S | H | 확인(mcm 레인) | | 결정 필요 | | 보안. 2026-10-16 D3 중 발견, 특성 시험이 현재 동작 고정 |
 
 ### 2단계 — 공통화·정리 (위험 낮음)
 
@@ -63,10 +64,10 @@
 | C8 | ERD 정리: `ErdEventHub` 분해, `stream`↔`service` 순환 제거, `ErdEditService` 인라인 SQL → Store, 다이어그램 매퍼·편집자 쿼리 사본 통합 | mdm | M | M | 미확인 | | 대기 | erd-term | |
 | C9 | 용어 저장 `TermWriter` 하나로(F3 와 함께) | mdm | M | M | 미확인 | | 대기 | erd-term | |
 | D1 | 참조 0건 mdm Repository 5개 보관 | mdm | S | L | 확인 | | 대기 | erd-term | |
-| D2 | mcm-core `Mom*` 엔티티 7개·`KeyStore` 등 약 1,360줄 보관 | mcm-core | S | L | 미확인 | | 대기 | mcm | |
-| D3 | `McmSecurityDefaults` 의 없는 BPMN matcher 7개 정리 | mcm-core | S | L | 미확인 | | 대기 | mcm | |
+| D2 | mcm-core `Mom*` 엔티티 7개·`KeyStore` 등 약 1,360줄 보관 | mcm-core | S | L | 확인 | | 보류 | mcm | X1 설계 뒤 |
+| D3 | `McmSecurityDefaults` 의 없는 BPMN matcher 7개 정리 | mcm-core | S | L | 미확인 | | 진행 | mcm | |
 | D4 | `RuleSetRunner` OASIS 진입(약 200줄, 시험 BPMN 만 사용) | mdm | S | L | 미확인 | | 대기 | rule | 보관. OASIS 계약 검사 ERROR 0 |
-| D5 | mls·mpp·mqc·mpn 의 쓰지 않는 jsoup 의존 | 빌드 | S | L | 미확인 | | 대기 | build | |
+| D5 | mls 의 쓰지 않는 jsoup 의존(재확인: mpp·mqc·mpn 에는 선언 없음) | 빌드 | S | L | 확인 | | 리뷰 | build | 6ba1bfd5d (브랜치), war jar 119 → 118 |
 | D6 | 모듈 5개의 `Sample*` 슬라이스(템플릿 예시) | 빌드, 여러 모듈 | M | M | 미확인 | | 제외 | | 유지(템플릿 저장소의 예시) |
 
 ### 3단계 — 구조 (위험 중간)
@@ -133,3 +134,11 @@
 |---|---|
 | 2026-10-16 | 감사 6개 완료, 이 문서와 findings.md 작성 |
 | 2026-10-16 | 결정 9건 권고안대로 확정(D4 는 「쓸 계획 없음」으로 간주). 범위 1·2단계, 레인 5개 확정 |
+| 2026-10-16 | 레인 5개 착수(rbe-mdm-version-c9·rbe-mdm-erd-a5·rbe-mdm-rule-78·rbe-mcm-71·rbe-build-f9). D5 범위 정정: mls 1건 |
+| 2026-10-16 | F4 범위 확정(사용자): 도메인 NUMBER_TEXT 와 완전 동일(지수·.5·5.·비ASCII 숫자 거부), RuleCalcService·shared `convertForType` 포함 |
+| 2026-10-16 | 조정자 판단: F2 cactus 확장점(`BusinessErrorTranslator`), F6 좁은 fix(nq'·단독 CR 거절), D3·F7 범위, version Q1~Q5(ERD 파일 일부 수정 허가, ERD 번호 기준·dmd 키 패턴 검사 fix), rule C5 다른 레인 파일 import 수정 허가·ArchUnit 예외 목록. 머지 순서: rule C5 이동과 version C1 을 먼저 |
+| 2026-10-16 | F8 등록(보안, 사용자 결정 필요): gate 를 실제 서비스로 옮길지, 설계 문서를 현행에 맞출지 |
+| 2026-10-16 | 기준선 mdm(40fa5061a, Oracle clone): lib 2279/0 실패, api 2081 중 1 실패(`CodeCateEditPerformanceSqliteTest.AC4_…800ms` 성능 상한, load 15 이상에서 중앙값 3604ms — 부하 영향, 비교에서 제외) |
+| 2026-10-16 | 기준선 mcm 계열(Oracle clone): mcm-core 1557·mcm:lib 16·mcm:api 169·analog core 192·api 184·cactus-core 974, 원래 실패 0 |
+| 2026-10-16 | 기준선 mls(Oracle 없이): lib 2/0, api 5 중 실패 3(`JobAgentWiringTest`, yml 기본 Oracle ORA-01017 환경 의존)·skip 2. D5 판정은 runtimeClasspath·war jar diff 로 |
+| 2026-10-16 | 기준선 rule: engine 1686/0, shared unit 3099 중 1 실패(grid-header timeout, 부하), m-mdm 4452 중 3 실패(timeout 2 = 부하, `ui-meta-lock.test.ts` 기존 실패), m-mcm rule-calc 125/0 |

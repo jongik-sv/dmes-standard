@@ -128,7 +128,7 @@
 - `common/rule/RuleSetRunner.java:235-450`(`execute`·`warnings`·`collectRuleIds`·`userText`·요청/결과 DTO). 참조 BPMN 은 `mdm/api/src/test/resources/services/probe/ruleSetRunProbe.bpmn` 하나. 운영 코드는 `session()`·`trace` 만 쓴다.
 
 ### D5. jsoup
-- `mls|mpp|mqc|mpn/lib/build.gradle` 의 jsoup. 사용처는 `mcm/lib/…/NoticeHtmlSanitizer.java` 뿐(공지가 2026-10-07 mls → mcm 이동).
+- `mls/lib/build.gradle:38` 의 jsoup(정정 2026-10-16: mpp·mqc·mpn 에는 선언이 없다). 사용처는 `mcm/lib/…/NoticeHtmlSanitizer.java` 와 `mdm/lib/…/ColumnDescriptionSanitizer.java` 이고 둘 다 자기 build.gradle 에 직접 선언한다. mls 는 공지가 2026-10-07 mcm 으로 옮겨진 뒤 쓰지 않는다.
 
 ### D6. `Sample*` 슬라이스
 - mls·mpp·mqc·mpn·aps-core 와 mcm-core·mcm/lib 의 `sample/**`. 각 스텁의 `V1__baseline.sql` 이 샘플 테이블을 만든다. RULE.md 는 이 저장소를 표준 템플릿으로 정의하고 sample 을 예시로 둔다.

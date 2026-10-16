@@ -3,13 +3,13 @@ package com.dongkuk.dmes.mdm.dma.termRegPop.service;
 import static com.dongkuk.dmes.mdm.common.support.MdmStrings.trimToNull;
 import static com.dongkuk.dmes.mdm.common.support.MdmErrors.invalid;
 
+import com.dongkuk.dmes.mdm.common.naming.NamingRules;
 import com.dongkuk.dmes.mdm.common.security.MdmStdAdminGuard;
 import com.dongkuk.dmes.mdm.common.support.MdmErrors;
 import com.dongkuk.dmes.mdm.common.support.MdmTextLimits;
 import com.dongkuk.dmes.mdm.contract.common.MdmErrorCode;
 import com.dongkuk.dmes.mdm.dma.naming.AbbrSuggester;
 import com.dongkuk.dmes.mdm.dma.naming.AbbrSuggestion;
-import com.dongkuk.dmes.mdm.dma.naming.NamingRules;
 import com.dongkuk.dmes.mdm.dma.naming.SimilarTerm;
 import com.dongkuk.dmes.mdm.dma.naming.SimilarTermFinder;
 import com.dongkuk.dmes.mdm.dma.naming.TermDictionary;

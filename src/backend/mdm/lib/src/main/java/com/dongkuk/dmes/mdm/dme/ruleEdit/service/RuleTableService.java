@@ -11,7 +11,6 @@ import com.dongkuk.dmes.mdm.common.rule.ResolvedVar;
 import com.dongkuk.dmes.mdm.common.rule.RuleAnalysisInputMapper;
 import com.dongkuk.dmes.mdm.common.rule.RuleAnalysisInputMapper.StoredRow;
 import com.dongkuk.dmes.mdm.common.rule.RuleCellsCodec;
-import com.dongkuk.dmes.mdm.common.rule.RuleHitPolicies;
 import com.dongkuk.dmes.mdm.common.rule.RuleIssueMaps;
 import com.dongkuk.dmes.mdm.common.rule.RuleNativeWrites;
 import com.dongkuk.dmes.mdm.common.rule.RuleQueries;
