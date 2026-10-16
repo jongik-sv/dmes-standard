@@ -93,6 +93,18 @@ final class VersionPreconditions {
     }
 
     /**
+     * 새 버전 가드 — 같은 객체에 미적용 버전이 하나라도 있으면 MDM006(04:284). 공통 가드 {@code checkCanCreateVersion} 과 새 버전 훅
+     * ({@code DefaultVersionStateService.newVersion}, C3)이 같이 쓴다.
+     */
+    static void requireNoUnapplied(List<VersionRow> rows, LocalDateTime now) {
+        for (VersionRow row : rows) {
+            if (isUnapplied(row, now)) {
+                throw MdmErrors.of(MdmErrorCode.UNAPPLIED_VERSION_EXISTS);
+            }
+        }
+    }
+
+    /**
      * 미적용 — {@link VersionRules#isUnapplied}(넓은 뜻: DRAFT·REQUESTED·APPROVED, 또는 APPLY_FROM 이 now 보다 뒤인 RELEASED).
      * 경계(= now)는 적용됨. ADR-0002 D2 는 DRAFT·미래 RELEASED 만 적었으나(원천 04:284 는 결재 중도 포함), BE 리팩토링 2회차 C2 에서
      * 결재 중 두 상태도 미적용으로 센다(원천·룰·코드 화면과 같은 뜻, 조정자 결정 2026-10-16).

@@ -5,13 +5,13 @@ import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeCategoryChanges.Change;
 import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeConfirmChecks;
 import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeLedgerQueries;
 import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeLedgerQueries.Header;
-import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeVersionNumbers;
 import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeVersionSummary;
 import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeVersionSummary.VerRow;
 import com.dongkuk.dmes.mdm.common.security.MdmCurrentUser;
 import com.dongkuk.dmes.mdm.common.security.MdmStewardGuard;
 import com.dongkuk.dmes.mdm.common.support.MdmCheckIssueMaps;
 import com.dongkuk.dmes.mdm.common.support.MdmErrors;
+import com.dongkuk.dmes.mdm.common.version.VersionNumbers;
 import com.dongkuk.dmes.mdm.common.version.VersionRules;
 import com.dongkuk.dmes.mdm.common.version.VersionSpiRegistry;
 import com.dongkuk.dmes.mdm.contract.common.MdmCheckIssue;
@@ -119,7 +119,7 @@ public class CodeConfirmService {
                 row.put("maruCodeId", h.maruCodeId());
                 row.put("maruCodeName", h.maruCodeName());
                 row.put("ver", v.ver().toPlainString());
-                row.put("verLabel", MasterCodeVersionNumbers.label(v.ver()));
+                row.put("verLabel", VersionNumbers.label(v.ver()));
                 row.put("verKind", v.verKind());
                 row.put("ownerId", v.ownerId());
                 row.put("codeStatus", codeStatus);
@@ -259,7 +259,7 @@ public class CodeConfirmService {
 
         Map<String, Object> version = new LinkedHashMap<>();
         version.put("ver", v.ver().toPlainString());
-        version.put("verLabel", MasterCodeVersionNumbers.label(v.ver()));
+        version.put("verLabel", VersionNumbers.label(v.ver()));
         version.put("verKind", v.verKind());
         version.put("status", v.status());
         version.put("ownerId", v.ownerId());
@@ -273,7 +273,7 @@ public class CodeConfirmService {
         Map<String, Object> previous = t.previous().map(p -> {
             Map<String, Object> m = new LinkedHashMap<>();
             m.put("ver", p.ver().toPlainString());
-            m.put("verLabel", MasterCodeVersionNumbers.label(p.ver()));
+            m.put("verLabel", VersionNumbers.label(p.ver()));
             m.put("applyFrom", text(p.applyFrom()));
             return m;
         }).orElse(null);

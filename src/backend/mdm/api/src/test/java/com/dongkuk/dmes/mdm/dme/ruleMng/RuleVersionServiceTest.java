@@ -29,6 +29,8 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * TSK-08-02 design §3.1 「RuleVersionServiceTest」 — 카드 ② 버전: 새 버전(I4 미적용 거부·I5 직전 RELEASED 전수 복사), DRAFT 삭제
@@ -47,6 +49,8 @@ class RuleVersionServiceTest extends AbstractMdmSharedDbTest {
     FakeStewardDirectory stewards;
     @Autowired
     JdbcTemplate jdbc;
+    @Autowired
+    PlatformTransactionManager txManager;
 
     @BeforeEach
     void seed() {
@@ -209,6 +213,88 @@ class RuleVersionServiceTest extends AbstractMdmSharedDbTest {
     @Test
     void 없는_룰은_INVALID_VALUE_다() {
         assertEquals("INVALID_VALUE", mdm(() -> service.newVersion(req("NO_SUCH", null, null))));
+    }
+
+    // ── BE 리팩토링 2회차 C3 특성 시험(트랜잭션 경계) — 새 버전을 공통 훅으로 옮기기 전 동작을 고정한다 ──
+
+    /** 미적용 버전 가드(MDM006)에 걸리면 버전 행·변수·행·룰 상태 어느 것도 바꾸지 않는다. */
+    @Test
+    void 가드에_걸리면_아무것도_쓰지_않는다() {
+        jdbc.update("UPDATE TB_MDM_RULE SET STATUS = 'CREATED' WHERE MARU_RULE_ID = 'QLTY_GRD_JDG'");
+        DmeTestSupport.pending(jdbc, "QLTY_GRD_JDG", 2, "DRAFT", "lee", "FIRST", 1);
+        assertEquals("MDM006", mdm(() -> service.newVersion(req("QLTY_GRD_JDG", null, null))));
+        assertEquals(2, count(jdbc, "SELECT COUNT(*) FROM TB_MDM_RULE_VER WHERE MARU_RULE_ID = 'QLTY_GRD_JDG'"));
+        assertEquals(0, count(jdbc, "SELECT COUNT(*) FROM TB_MDM_RULE_VAR WHERE MARU_RULE_ID = 'QLTY_GRD_JDG' AND VER <> 1"));
+        assertEquals("CREATED", ruleStatus());
+    }
+
+    /**
+     * 버전 행·변수·행을 쓴 뒤 마지막 단계(룰 CREATED → INUSE)가 실패하면 쓴 것이 모두 되돌아간다. 실패는 이 룰의 INUSE 변경에만 거는
+     * 트리거로 낸다.
+     */
+    @Test
+    void 부모_승격이_실패하면_새_버전과_복사한_정의도_되돌아간다() {
+        jdbc.update("UPDATE TB_MDM_RULE SET STATUS = 'CREATED' WHERE MARU_RULE_ID = 'QLTY_GRD_JDG'");
+        jdbc.execute("CREATE OR REPLACE TRIGGER TR_C3_RULE_PROMOTE_FAIL BEFORE UPDATE ON TB_MDM_RULE FOR EACH ROW "
+                + "WHEN (NEW.MARU_RULE_ID = 'QLTY_GRD_JDG' AND NEW.STATUS = 'INUSE') BEGIN RAISE_APPLICATION_ERROR(-20001, 'forced failure'); END;");
+        try {
+            forced(assertThrows(RuntimeException.class, () -> service.newVersion(req("QLTY_GRD_JDG", null, null))));
+        } finally {
+            jdbc.execute("BEGIN EXECUTE IMMEDIATE 'DROP TRIGGER TR_C3_RULE_PROMOTE_FAIL'; "
+                    + "EXCEPTION WHEN OTHERS THEN IF SQLCODE != -4080 THEN RAISE; END IF; END;");
+        }
+        assertEquals(1, count(jdbc, "SELECT COUNT(*) FROM TB_MDM_RULE_VER WHERE MARU_RULE_ID = 'QLTY_GRD_JDG'"));
+        assertEquals(0, count(jdbc, "SELECT COUNT(*) FROM TB_MDM_RULE_VAR WHERE MARU_RULE_ID = 'QLTY_GRD_JDG' AND VER = 2"));
+        assertEquals(0, count(jdbc, "SELECT COUNT(*) FROM TB_MDM_RULE_ROW WHERE MARU_RULE_ID = 'QLTY_GRD_JDG' AND VER = 2"));
+        assertEquals("CREATED", ruleStatus());
+    }
+
+    /** 새 버전은 호출자 트랜잭션에 합류한다. 성공한 뒤 바깥이 되돌리면 새 버전·복사한 정의·룰 승격 어느 것도 남지 않는다. */
+    @Test
+    void 새_버전은_바깥_트랜잭션에_합류한다() {
+        jdbc.update("UPDATE TB_MDM_RULE SET STATUS = 'CREATED' WHERE MARU_RULE_ID = 'QLTY_GRD_JDG'");
+        assertThrows(IllegalStateException.class, () -> new TransactionTemplate(txManager).executeWithoutResult(s -> {
+            service.newVersion(req("QLTY_GRD_JDG", null, null));
+            throw new IllegalStateException("바깥 트랜잭션 되돌림");
+        }));
+        assertEquals(1, count(jdbc, "SELECT COUNT(*) FROM TB_MDM_RULE_VER WHERE MARU_RULE_ID = 'QLTY_GRD_JDG'"));
+        assertEquals(0, count(jdbc, "SELECT COUNT(*) FROM TB_MDM_RULE_VAR WHERE MARU_RULE_ID = 'QLTY_GRD_JDG' AND VER = 2"));
+        assertEquals(0, count(jdbc, "SELECT COUNT(*) FROM TB_MDM_RULE_ROW WHERE MARU_RULE_ID = 'QLTY_GRD_JDG' AND VER = 2"));
+        assertEquals("CREATED", ruleStatus());
+    }
+
+    /** 바깥 트랜잭션 안에서도 룰 승격이 실패하면 새 버전과 복사한 정의가 남지 않는다. */
+    @Test
+    void 바깥_트랜잭션_안에서_부모_승격이_실패하면_새_버전도_되돌아간다() {
+        jdbc.update("UPDATE TB_MDM_RULE SET STATUS = 'CREATED' WHERE MARU_RULE_ID = 'QLTY_GRD_JDG'");
+        jdbc.execute("CREATE OR REPLACE TRIGGER TR_C3_RULE_PROMOTE_FAIL BEFORE UPDATE ON TB_MDM_RULE FOR EACH ROW "
+                + "WHEN (NEW.MARU_RULE_ID = 'QLTY_GRD_JDG' AND NEW.STATUS = 'INUSE') BEGIN RAISE_APPLICATION_ERROR(-20001, 'forced failure'); END;");
+        try {
+            forced(assertThrows(RuntimeException.class, () -> new TransactionTemplate(txManager).executeWithoutResult(s ->
+                    service.newVersion(req("QLTY_GRD_JDG", null, null)))));
+        } finally {
+            jdbc.execute("BEGIN EXECUTE IMMEDIATE 'DROP TRIGGER TR_C3_RULE_PROMOTE_FAIL'; "
+                    + "EXCEPTION WHEN OTHERS THEN IF SQLCODE != -4080 THEN RAISE; END IF; END;");
+        }
+        assertEquals(1, count(jdbc, "SELECT COUNT(*) FROM TB_MDM_RULE_VER WHERE MARU_RULE_ID = 'QLTY_GRD_JDG'"));
+        assertEquals(0, count(jdbc, "SELECT COUNT(*) FROM TB_MDM_RULE_VAR WHERE MARU_RULE_ID = 'QLTY_GRD_JDG' AND VER = 2"));
+        assertEquals(0, count(jdbc, "SELECT COUNT(*) FROM TB_MDM_RULE_ROW WHERE MARU_RULE_ID = 'QLTY_GRD_JDG' AND VER = 2"));
+        assertEquals("CREATED", ruleStatus());
+    }
+
+    /** 트리거가 낸 실패(ORA-20001)인지 확인한다 — 앞 단계 검사 오류로 일찍 끝난 것과 가른다. */
+    private static void forced(RuntimeException e) {
+        assertTrue(stackTrace(e).contains("ORA-20001"), () -> "트리거 실패가 아니다: " + e);
+    }
+
+    private static String stackTrace(Throwable e) {
+        java.io.StringWriter w = new java.io.StringWriter();
+        e.printStackTrace(new java.io.PrintWriter(w));
+        return w.toString();
+    }
+
+    private String ruleStatus() {
+        return jdbc.queryForObject("SELECT STATUS FROM TB_MDM_RULE WHERE MARU_RULE_ID = 'QLTY_GRD_JDG'", String.class);
     }
 
     // ── DRAFT 삭제 ──

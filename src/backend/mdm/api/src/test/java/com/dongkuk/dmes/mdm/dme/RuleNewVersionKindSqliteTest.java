@@ -4,6 +4,7 @@ import static com.dongkuk.dmes.mdm.dme.DmeTestSupport.STEWARD;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.dongkuk.dmes.cactus.common.BusinessException;
 import com.dongkuk.dmes.mdm.common.testdb.AbstractMdmSharedDbTest;
 import com.dongkuk.dmes.mdm.dme.DmeTestSupport.MutableCurrentUser;
 import com.dongkuk.dmes.mdm.dme.ruleMng.dto.RuleMngViewRequest;
@@ -98,7 +99,8 @@ class RuleNewVersionKindSqliteTest extends AbstractMdmSharedDbTest {
         assertThat(flags.getNextMinor()).isNull();
         assertThat(flags.isCanNewMajor()).isTrue();
         assertThat(flags.getNextMajor()).isEqualTo("2.000");
-        assertThatThrownBy(() -> ruleVersion.newVersion(request("R_K4", "MINOR"))).hasMessageContaining("major 를 올리십시오");
+        assertThatThrownBy(() -> ruleVersion.newVersion(request("R_K4", "MINOR"))).hasMessageContaining("major 를 올리십시오")
+                .isInstanceOfSatisfying(BusinessException.class, e -> assertThat(e.getErrors().get(0).code()).isEqualTo("MDM009"));
     }
 
     @Test

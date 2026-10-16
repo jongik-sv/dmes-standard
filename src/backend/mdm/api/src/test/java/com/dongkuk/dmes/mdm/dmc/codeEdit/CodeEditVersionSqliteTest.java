@@ -153,14 +153,25 @@ class CodeEditVersionSqliteTest extends AbstractMdmSharedDbTest {
     }
 
     @Test
-    void V3_소수부_999_면_minor_는_MDM021_major_는_다음_정수() {
+    void V3_소수부_999_면_minor_는_MDM009_major_는_다음_정수() {
         seeds.seedCode(ID, "INUSE", "MDM");
         seeds.released(ID, "1.999", PAST, OPEN_END);
         assertTrue(view().getFlags().isMinorLimit());
-        BusinessException e = assertCode(MdmErrorCode.INVALID_INPUT, () -> create("MINOR"));
+        BusinessException e = assertCode(MdmErrorCode.TRANSITION_NOT_ALLOWED, () -> create("MINOR"));
         assertTrue(e.getMessage().contains("major 를 올리십시오"), e.getMessage());
         CodeEditView v = create("MAJOR");
         assertEquals("2.000", v.getVersions().get(0).getVer());
+    }
+
+    @Test
+    void V3b_major_상한_9998_이면_major_는_MDM009_이고_행을_만들지_않는다() {
+        seeds.seedCode(ID, "INUSE", "MDM");
+        seeds.released(ID, "9998.000", PAST, OPEN_END);
+        assertFalse(view().getFlags().isCanNewMajor());
+        BusinessException e = assertCode(MdmErrorCode.TRANSITION_NOT_ALLOWED, () -> create("MAJOR"));
+        assertTrue(e.getMessage().contains("major 를 더 올릴 수 없습니다"), e.getMessage());
+        assertCode(MdmErrorCode.TRANSITION_NOT_ALLOWED, () -> tx.execute(s -> service.restoreVersion(restoreReq("MAJOR", "9998.000"))));
+        assertEquals(1, seeds.count("TB_MDM_CODE_VER"));
     }
 
     @Test
@@ -326,6 +337,24 @@ class CodeEditVersionSqliteTest extends AbstractMdmSharedDbTest {
         seeds.released(ID, "1.000", PAST, OPEN_END);
         create("MINOR");
         assertEquals("INUSE", jdbc.queryForObject("SELECT STATUS FROM TB_MDM_CODE", String.class));
+    }
+
+    @Test
+    void V10b_복원_쓰기_경로도_CREATED_를_INUSE_로_저장한다() {
+        seeds.seedCode(ID, "CREATED", "MDM");
+        seeds.released(ID, "1.000", PAST, OPEN_END);
+        CodeEditView v = tx.execute(s -> service.restoreVersion(restoreReq("MINOR", "1.000")));
+        assertEquals("1.001", v.getVersions().get(0).getVer());
+        assertEquals("INUSE", jdbc.queryForObject("SELECT STATUS FROM TB_MDM_CODE", String.class));
+    }
+
+    @Test
+    void V10c_적용된_RELEASED_가_없으면_새_버전도_CREATED_를_둔다() {
+        seeds.seedCode(ID, "CREATED", "MDM");
+        seeds.seedVer(ID, "1.000", "MAJOR", "CANCELLED", PAST, OPEN_END, "stw1"); // 적용 시각이 지나도 CANCELLED 는 적용이 아니다
+        CodeEditView v = create("MAJOR");
+        assertEquals("2.000", v.getVersions().get(0).getVer());
+        assertEquals("CREATED", jdbc.queryForObject("SELECT STATUS FROM TB_MDM_CODE", String.class));
     }
 
     /**

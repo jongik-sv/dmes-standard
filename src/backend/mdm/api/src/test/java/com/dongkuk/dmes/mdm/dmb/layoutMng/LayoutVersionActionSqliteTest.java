@@ -1,6 +1,7 @@
 package com.dongkuk.dmes.mdm.dmb.layoutMng;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.dongkuk.dmes.cactus.common.BusinessException;
 import com.dongkuk.dmes.cactus.common.ErrorCode;
@@ -25,6 +26,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /** D-144 3단계 — 레이아웃 새 버전 major/minor(직전 RELEASED 복사), 미적용 하나(MDM006), DRAFT 삭제는 그 버전 행만. */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
@@ -38,6 +41,8 @@ class LayoutVersionActionSqliteTest extends LayoutServiceTestSupport {
     FakeStewardDirectory stewards;
     @Autowired
     LayoutVersionStore versionStore;
+    @Autowired
+    PlatformTransactionManager txManager;
 
     @BeforeEach
     void setUp() {
@@ -243,8 +248,118 @@ class LayoutVersionActionSqliteTest extends LayoutServiceTestSupport {
                 + "VALUES (900200, ?, 1, 'FILLER', 5, 0, 5)", new BigDecimal("1.999"));
         BusinessException e = rejected(() -> versions.newVersion(req(900200L, null, "MINOR", null).toCommand(), "HEADER"));
         assertThat(e.getMessage()).contains("major 를 올리십시오");
+        assertThat(code(e)).isEqualTo("MDM009");
         assertThat(versions.newVersion(req(900200L, null, "MAJOR", null).toCommand(), "HEADER").ver()).isEqualTo("2.000");
         assertThat(itemRows(900200L, "2")).hasSize(1);
+    }
+
+    // ── BE 리팩토링 2회차 C3 특성 시험 — 새 버전을 공통 훅으로 옮기기 전 동작을 고정한다 ──
+
+    /**
+     * 보고만 한 후보 — 레이아웃 새 버전은 부모 CREATED 를 INUSE 로 올리지 않는다(룰·룰 세트·ERD 와 다르다). 적용된 RELEASED 가 있어도
+     * 그대로다.
+     */
+    @Test
+    void 새_버전은_부모_CREATED_를_올리지_않는다() {
+        M201 m = m201();
+        jdbc.update("UPDATE TB_MDM_LAYOUT SET STATUS = 'CREATED' WHERE LAYOUT_ID = ?", m.message());   // release() 가 올린 INUSE 를 되돌린다
+        assertThat(versions.newVersion(req(m.message(), null, "MAJOR", null).toCommand(), "MESSAGE").ver()).isEqualTo("2.000");
+        assertThat(layoutStatus(m.message())).isEqualTo("CREATED");
+    }
+
+    @Test
+    void 버전은_있는데_RELEASED_가_없으면_MDM009_다() {
+        M201 m = m201();
+        jdbc.update("UPDATE TB_MDM_LAYOUT_VER SET STATUS = 'CANCELLED' WHERE LAYOUT_ID = ? AND VER = 1", m.message());
+        BusinessException e = rejected(() -> versions.newVersion(req(m.message(), null, "MAJOR", null).toCommand(), "MESSAGE"));
+        assertThat(code(e)).isEqualTo("MDM009");
+        assertThat(e.getMessage()).contains("복사할 확정 버전이 없습니다");
+        assertThat(versionRows(m.message())).hasSize(1);
+    }
+
+    /** 트랜잭션 경계 — 미적용 버전 가드(MDM006)에 걸리면 버전 행·항목·부모 상태 어느 것도 바꾸지 않는다. */
+    @Test
+    void 가드에_걸리면_아무것도_쓰지_않는다() {
+        M201 m = m201();
+        versions.newVersion(req(m.message(), null, "MAJOR", null).toCommand(), "MESSAGE");          // 2.000 DRAFT
+        jdbc.update("UPDATE TB_MDM_LAYOUT SET STATUS = 'CREATED' WHERE LAYOUT_ID = ?", m.message());
+        BusinessException e = rejected(() -> versions.newVersion(req(m.message(), null, "MINOR", null).toCommand(), "MESSAGE"));
+        assertThat(code(e)).isEqualTo("MDM006");
+        assertThat(versionRows(m.message())).hasSize(2);
+        assertThat(itemRows(m.message(), "2.001")).isEmpty();
+        assertThat(layoutStatus(m.message())).isEqualTo("CREATED");
+    }
+
+    /**
+     * 트랜잭션 경계 — 운영처럼 바깥 트랜잭션(OASIS action 한 건) 안에서 부를 때, 버전 행·항목·헤더 구성을 쓴 뒤 마지막 재정의 INSERT 가
+     * 실패하면 모두 되돌아간다. 실패는 그 레이아웃의 새 버전에만 거는 트리거로 낸다.
+     */
+    @Test
+    void 바깥_트랜잭션_안에서_쓰기가_실패하면_모두_되돌아간다() {
+        M201 m = m201(List.of(l100Const(2, "B1")));
+        jdbc.update("UPDATE TB_MDM_LAYOUT SET STATUS = 'CREATED' WHERE LAYOUT_ID = ?", m.message());
+        jdbc.execute("CREATE OR REPLACE TRIGGER TR_C3_LAYOUT_CONST_FAIL BEFORE INSERT ON TB_MDM_LAYOUT_CONST FOR EACH ROW "
+                + "WHEN (NEW.LAYOUT_ID = " + m.message() + " AND NEW.VER = 2) BEGIN RAISE_APPLICATION_ERROR(-20001, 'forced failure'); END;");
+        try {
+            forced(assertThrows(RuntimeException.class, () -> new TransactionTemplate(txManager).executeWithoutResult(s ->
+                    versions.newVersion(req(m.message(), null, "MAJOR", null).toCommand(), "MESSAGE"))));
+        } finally {
+            dropTrigger("TR_C3_LAYOUT_CONST_FAIL");
+        }
+        assertThat(versionRows(m.message())).hasSize(1);
+        assertThat(itemRows(m.message(), "2")).isEmpty();
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM TB_MDM_LAYOUT_HEADER WHERE LAYOUT_ID = ? AND VER = 2", Integer.class,
+                m.message())).isZero();
+        assertThat(constCount(m.message(), "2")).isZero();
+        assertThat(layoutStatus(m.message())).isEqualTo("CREATED");
+    }
+
+    /**
+     * 트랜잭션 경계(C3 뒤) — OASIS 밖에서 바로 불러도 쓰기가 실패하면 버전 행까지 되돌아간다. 새 버전 훅의 트랜잭션이 버전 행·딸린 행을
+     * 한 단위로 묶는다. 훅으로 옮기기 전에는 버전 행이 {@code saveAndFlush} 로 먼저 커밋되어 남았다(운영은 OASIS 트랜잭션이라 같았다).
+     */
+    @Test
+    void 바깥_트랜잭션_없이도_쓰기가_실패하면_모두_되돌아간다() {
+        M201 m = m201(List.of(l100Const(2, "B1")));
+        jdbc.update("UPDATE TB_MDM_LAYOUT SET STATUS = 'CREATED' WHERE LAYOUT_ID = ?", m.message());
+        jdbc.execute("CREATE OR REPLACE TRIGGER TR_C3_LAYOUT_CONST_FAIL BEFORE INSERT ON TB_MDM_LAYOUT_CONST FOR EACH ROW "
+                + "WHEN (NEW.LAYOUT_ID = " + m.message() + " AND NEW.VER = 2) BEGIN RAISE_APPLICATION_ERROR(-20001, 'forced failure'); END;");
+        try {
+            forced(assertThrows(RuntimeException.class, () -> versions.newVersion(req(m.message(), null, "MAJOR", null).toCommand(), "MESSAGE")));
+        } finally {
+            dropTrigger("TR_C3_LAYOUT_CONST_FAIL");
+        }
+        assertThat(versionRows(m.message())).hasSize(1);
+        assertThat(itemRows(m.message(), "2")).isEmpty();
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM TB_MDM_LAYOUT_HEADER WHERE LAYOUT_ID = ? AND VER = 2", Integer.class,
+                m.message())).isZero();
+        assertThat(constCount(m.message(), "2")).isZero();
+        assertThat(layoutStatus(m.message())).isEqualTo("CREATED");
+    }
+
+    /** 트랜잭션 경계 — 새 버전은 호출자 트랜잭션에 합류한다. 성공한 뒤 바깥이 되돌리면 새 버전도 남지 않는다(따로 커밋하지 않는다). */
+    @Test
+    void 새_버전은_바깥_트랜잭션에_합류한다() {
+        M201 m = m201();
+        assertThrows(IllegalStateException.class, () -> new TransactionTemplate(txManager).executeWithoutResult(s -> {
+            versions.newVersion(req(m.message(), null, "MAJOR", null).toCommand(), "MESSAGE");
+            throw new IllegalStateException("바깥 트랜잭션 되돌림");
+        }));
+        assertThat(versionRows(m.message())).hasSize(1);
+        assertThat(itemRows(m.message(), "2")).isEmpty();
+    }
+
+    /** 트리거가 낸 실패(ORA-20001)인지 확인한다 — 앞 단계 검사 오류로 일찍 끝난 것과 가른다. */
+    private static void forced(RuntimeException e) {
+        assertThat(e).hasStackTraceContaining("ORA-20001");
+    }
+
+    private String layoutStatus(long layoutId) {
+        return jdbc.queryForObject("SELECT STATUS FROM TB_MDM_LAYOUT WHERE LAYOUT_ID = ?", String.class, layoutId);
+    }
+
+    private void dropTrigger(String name) {
+        jdbc.execute("BEGIN EXECUTE IMMEDIATE 'DROP TRIGGER " + name + "'; EXCEPTION WHEN OTHERS THEN IF SQLCODE != -4080 THEN RAISE; END IF; END;");
     }
 
     // ── Fix round 0 — Ruling P3-11(버전 0개면 빈 1.000)·P3-12(delete target) ──

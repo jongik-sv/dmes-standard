@@ -1,13 +1,15 @@
 package com.dongkuk.dmes.mdm.dma.erdEdit.service;
 
 import com.dongkuk.dmes.mdm.common.support.MdmErrors;
-import com.dongkuk.dmes.mdm.common.version.VersionRowStore;
+import com.dongkuk.dmes.mdm.common.version.StandardParentPromotion;
 import com.dongkuk.dmes.mdm.common.version.VersionRules;
 import com.dongkuk.dmes.mdm.contract.common.MdmErrorCode;
-import com.dongkuk.dmes.mdm.contract.common.MdmNativeAuditSupport;
+import com.dongkuk.dmes.mdm.contract.version.NewVersionCommand;
 import com.dongkuk.dmes.mdm.contract.version.VersionKind;
+import com.dongkuk.dmes.mdm.contract.version.VersionRef;
+import com.dongkuk.dmes.mdm.contract.version.VersionSnapshot;
+import com.dongkuk.dmes.mdm.contract.version.VersionStateService;
 import com.dongkuk.dmes.mdm.contract.version.VersionTarget;
-import com.dongkuk.dmes.mdm.contract.version.VersionWriteGuard;
 import com.dongkuk.dmes.mdm.dma.erdEdit.model.ErdModel;
 import com.dongkuk.dmes.mdm.dma.erdEdit.model.ErdModelCodec;
 import com.dongkuk.dmes.mdm.dma.erdEdit.stream.ErdEventHub;
@@ -19,9 +21,8 @@ import com.dongkuk.dmes.mdm.repository.MdmErdEditorRepository;
 import com.dongkuk.dmes.mdm.repository.MdmErdModelRepository;
 import com.dongkuk.dmes.mdm.repository.MdmErdModelVerRepository;
 import java.math.BigDecimal;
-import java.time.Clock;
-import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -29,36 +30,31 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * ERD 모델 만들기·새 버전·공동 편집자(스펙 2.1-6, D15). 상태·소유자는 공통 버전 서비스가 맡는다. {@code @Transactional} 대신
- * {@link TransactionTemplate} 을 쓴다({@code RuleSetVersionService} 와 같은 방식). 공동 편집자 추가·삭제는 소유자만 한다 — 공동
+ * {@link TransactionTemplate} 을 쓴다(모듈 관례 F19 — 호출자 트랜잭션에 합류하거나 새로 연다). 공동 편집자 추가·삭제는 소유자만 한다 — 공동
  * 편집자는 내용만 쓰고 편집자 명단은 못 바꾼다(MDM003).
  */
 @Service
 public class ErdVersionService {
 
-    private final VersionWriteGuard writeGuard;
-    private final VersionRowStore versionStore;
+    private final VersionStateService stateService;
+    private final StandardParentPromotion promotion;
     private final ErdModelStore store;
     private final MdmErdModelRepository models;
     private final MdmErdModelVerRepository vers;
     private final MdmErdEditorRepository editors;
-    private final MdmNativeAuditSupport audit;
-    private final Clock clock;
     private final ErdReloadMarker marker;
     private final TransactionTemplate tx;
     private final ErdEventHub hub;
 
-    public ErdVersionService(VersionWriteGuard writeGuard, VersionRowStore versionStore, ErdModelStore store,
+    public ErdVersionService(VersionStateService stateService, StandardParentPromotion promotion, ErdModelStore store,
                              MdmErdModelRepository models, MdmErdModelVerRepository vers, MdmErdEditorRepository editors,
-                             MdmNativeAuditSupport audit, Clock clock, ErdReloadMarker marker,
-                             PlatformTransactionManager transactionManager, ErdEventHub hub) {
-        this.writeGuard = writeGuard;
-        this.versionStore = versionStore;
+                             ErdReloadMarker marker, PlatformTransactionManager transactionManager, ErdEventHub hub) {
+        this.stateService = stateService;
+        this.promotion = promotion;
         this.store = store;
         this.models = models;
         this.vers = vers;
         this.editors = editors;
-        this.audit = audit;
-        this.clock = clock;
         this.marker = marker;
         this.tx = new TransactionTemplate(transactionManager);
         this.hub = hub;
@@ -108,31 +104,40 @@ public class ErdVersionService {
     }
 
     /**
-     * 새 DRAFT. 직전 RELEASED 의 JSON 을 그대로 복사한다(UUID 유지). 번호 = 최대 버전에서 {@code kind}(MAJOR|MINOR, 빈 값은 MAJOR)로
-     * 올린 값. 순서는 {@code RuleSetVersionService.newVersion} 을 따른다 — 미적용 버전 검사(MDM006) → 번호 → 한 트랜잭션에서 INSERT.
+     * 새 DRAFT. 직전 RELEASED 의 JSON 을 그대로 복사한다(UUID 유지). 번호 = 상태와 무관한 모든 버전의 최대값에서 {@code kind}
+     * (MAJOR|MINOR, 빈 값은 MAJOR)로 올린 값(룰·룰 세트·레이아웃과 같다, BE 리팩토링 2회차 C3 fix — 전에는 최신 RELEASED 번호에서
+     * 올렸다). 미적용 버전 검사(MDM006) → 원천 → 번호 → INSERT → 부모 승격은 공통 훅 {@link VersionStateService#newVersion} 이 한다
+     * (C3). 원천 RELEASED 가 없으면 MDM029.
      *
-     * <p>모델 행을 먼저 잠근 뒤 검사·INSERT 하고, 같은 트랜잭션에서 rev 를 올려 표시 행을 남긴다(최종 검토 B2) — 구독자는 커밋 뒤
-     * reload 를 받는다. 같은 모델의 동시 copy 는 잠금에서 줄을 서므로 뒤 요청은 앞이 만든 DRAFT 를 보고 MDM006 이 된다.
+     * <p>이 서비스의 트랜잭션 안에서 모델 행이 있는지 보고(MDM029) 모델 행을 먼저 잠근 뒤 훅을 부른다 — 훅의 트랜잭션은 여기에
+     * 합류한다. 같은 트랜잭션에서 rev 를 올려 표시 행을 남긴다(최종 검토 B2) — 구독자는 커밋 뒤 reload 를 받는다. 같은 모델의 동시
+     * copy 는 잠금에서 줄을 서므로 뒤 요청은 앞이 만든 DRAFT 를 보고 MDM006 이 된다.
      */
     public BigDecimal newVersion(String modelId, String kind, String me) {
         VersionKind verKind = VersionRules.parseKind(kind);
         return tx.execute(s -> {
             if (!models.existsById(modelId)) throw MdmErrors.of(MdmErrorCode.ERD_MODEL_NOT_FOUND);
             marker.lock(modelId);
-            writeGuard.checkCanCreateVersion(VersionTarget.ERD_MODEL, modelId);                 // MDM006
-            MdmErdModelVer source = store.latestReleased(modelId)
-                    .orElseThrow(() -> MdmErrors.of(MdmErrorCode.ERD_MODEL_NOT_FOUND));
-            BigDecimal next = VersionRules.nextNumber(source.getVer(), verKind);
-            boolean promote = source.getApplyFrom() != null && !source.getApplyFrom().isAfter(LocalDateTime.now(clock));
-            MdmErdModelVer created = new MdmErdModelVer(modelId, next, verKind.name(), me, source.getModelJson());
-            created.setBaseVer(source.getVer());
-            vers.saveAndFlush(created);
-            if (promote) {
-                versionStore.markParentInUse(VersionTarget.ERD_MODEL, modelId, audit.currentStamp()); // CREATED → INUSE
-            }
-            marker.mark(modelId, next, me, ErdReloadMarker.DRAFT_CREATED);
-            return next;
+            VersionRef draft = stateService.newVersion(new NewVersionCommand(VersionTarget.ERD_MODEL, modelId, verKind, me),
+                    ErdVersionService::pickSource, (newRef, k, owner, source) -> writeDraft(modelId, newRef, k, owner, source),
+                    promotion);
+            marker.mark(modelId, draft.ver(), me, ErdReloadMarker.DRAFT_CREATED);
+            return draft.ver();
         });
+    }
+
+    /** 원천 = RELEASED 가운데 VER 최대. 없으면 MDM029 — ERD 는 원천 없는 새 버전을 만들지 않는다(첫 DRAFT 는 모델 만들기가 만든다). */
+    private static Optional<BigDecimal> pickSource(List<VersionSnapshot> all) {
+        return Optional.of(VersionRules.latestReleased(all).orElseThrow(() -> MdmErrors.of(MdmErrorCode.ERD_MODEL_NOT_FOUND)));
+    }
+
+    /** 새 DRAFT — 원천을 다시 읽어 모델 JSON 을 그대로 복사하고(UUID 유지) BASE_VER 에 원천 번호를 적는다. */
+    private void writeDraft(String modelId, VersionRef draft, VersionKind kind, String owner, Optional<BigDecimal> source) {
+        MdmErdModelVer src = source.flatMap(ver -> store.find(new VersionRef(VersionTarget.ERD_MODEL, modelId, ver)))
+                .orElseThrow(() -> MdmErrors.of(MdmErrorCode.ERD_MODEL_NOT_FOUND));
+        MdmErdModelVer created = new MdmErdModelVer(modelId, draft.ver(), kind.name(), owner, src.getModelJson());
+        created.setBaseVer(src.getVer());
+        vers.saveAndFlush(created);
     }
 
     /**

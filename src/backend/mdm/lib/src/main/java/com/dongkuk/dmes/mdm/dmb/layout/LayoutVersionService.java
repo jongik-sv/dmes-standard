@@ -8,11 +8,13 @@ import com.dongkuk.dmes.mdm.common.version.VersionNumbers;
 import com.dongkuk.dmes.mdm.common.version.VersionRules;
 import com.dongkuk.dmes.mdm.contract.common.MdmErrorCode;
 import com.dongkuk.dmes.mdm.contract.version.DraftOwnershipService;
+import com.dongkuk.dmes.mdm.contract.version.NewVersionCommand;
+import com.dongkuk.dmes.mdm.contract.version.ParentPromotion;
 import com.dongkuk.dmes.mdm.contract.version.VersionKind;
 import com.dongkuk.dmes.mdm.contract.version.VersionRef;
+import com.dongkuk.dmes.mdm.contract.version.VersionSnapshot;
 import com.dongkuk.dmes.mdm.contract.version.VersionStateService;
 import com.dongkuk.dmes.mdm.contract.version.VersionTarget;
-import com.dongkuk.dmes.mdm.contract.version.VersionWriteGuard;
 import com.dongkuk.dmes.mdm.entity.MdmLayout;
 import com.dongkuk.dmes.mdm.entity.MdmLayoutVer;
 import com.dongkuk.dmes.mdm.repository.MdmLayoutRepository;
@@ -31,34 +33,34 @@ import org.springframework.stereotype.Service;
  * {@code handover}, DRAFT 삭제 {@link VersionStateService#deleteDraft}(자식 행 정리는 {@link LayoutDraftDeletion}), 확정 취소
  * {@link VersionStateService#cancelConfirm}(ADR-0002 D8).
  *
- * <p>새 버전은 담당자 역할을 요구하지 않는다(표준 관리자도 만들고, 확정은 담당자에게 넘긴다). 공통 가드로 미적용 버전을 거부하고(MDM006)
- * 승인 흐름 상태(REQUESTED·APPROVED)도 같은 코드로 막는다. 번호는 공통 {@link VersionRules}(MAJOR floor+1, MINOR +0.001, 상한 999),
- * 내용은 직전 RELEASED 의 항목·헤더 구성·재정의를 칼럼 그대로 복사한다({@link LayoutWriter#copyVersionRows}).
+ * <p>새 버전은 담당자 역할을 요구하지 않는다(표준 관리자도 만들고, 확정은 담당자에게 넘긴다). 결재 중(REQUESTED·APPROVED)은 앞단에서
+ * 막고, 공통 훅 {@link VersionStateService#newVersion} 이 미적용 버전을 거부한다(둘 다 MDM006, BE 리팩토링 2회차 C3). 번호는 훅이
+ * 공통 규칙(MAJOR floor+1, MINOR +0.001, 상한 999)으로 정하고, 내용은 직전 RELEASED 의 항목·헤더 구성·재정의를 칼럼 그대로 복사한다
+ * ({@link LayoutWriter#copyVersionRows}). 부모 상태는 올리지 않는다(룰·룰 세트·ERD 와 다르다 — 보고만 한 후보).
  *
  * <p>{@code @Transactional}·{@code TransactionTemplate} 을 쓰지 않는다 — dmb 패키지 불변 I19(LayoutStaticGuardTest). 트랜잭션은 OASIS
  * action 한 건이며, 새 버전은 모든 검사를 끝낸 뒤 버전 행 → 항목·헤더 구성·재정의 순으로 쓴다(저장 {@code save} 와 같은 규칙).
- * 상태·소유자를 바꾸는 공통 서비스는 자기 트랜잭션 경계를 갖고 OASIS 트랜잭션에 합류한다.
+ * 새 버전 훅과 상태·소유자를 바꾸는 공통 서비스는 자기 트랜잭션 경계를 갖고 OASIS 트랜잭션에 합류한다.
  */
 @Service
 public class LayoutVersionService {
 
     private static final String DEPRECATED = "DEPRECATED";
+    /** 새 버전 때 부모를 올리지 않는다(지금 동작 그대로 — 보고만 한 후보). */
+    private static final ParentPromotion NO_PROMOTION = (target, objectId) -> { };
 
     private final LayoutVersionStore store;
     private final LayoutWriter writer;
     private final MdmLayoutRepository layoutRepository;
-    private final VersionWriteGuard writeGuard;
     private final VersionStateService stateService;
     private final DraftOwnershipService ownership;
     private final MdmCurrentUser currentUser;
 
     public LayoutVersionService(LayoutVersionStore store, LayoutWriter writer, MdmLayoutRepository layoutRepository,
-                                VersionWriteGuard writeGuard, VersionStateService stateService, DraftOwnershipService ownership,
-                                MdmCurrentUser currentUser) {
+                                VersionStateService stateService, DraftOwnershipService ownership, MdmCurrentUser currentUser) {
         this.store = store;
         this.writer = writer;
         this.layoutRepository = layoutRepository;
-        this.writeGuard = writeGuard;
         this.stateService = stateService;
         this.ownership = ownership;
         this.currentUser = currentUser;
@@ -67,7 +69,8 @@ public class LayoutVersionService {
     /**
      * 새 버전(action copy). 번호 = 그 레이아웃 버전 최대값에서 {@code verKind} 로 올린 값(비면 MAJOR), 소유자 = 만든 사람, row_version 0.
      * 버전이 하나도 없으면(유일한 DRAFT 를 지운 레이아웃) 빈 1.000 MAJOR DRAFT 를 만든다 — 항목·헤더 구성·재정의 없음(룰 세트와 같다,
-     * Ruling P3-11). 버전이 있는데 RELEASED 가 없으면 거부한다.
+     * Ruling P3-11). 버전이 있는데 RELEASED 가 없으면 거부한다(MDM009). 전문·헤더({@code kind})가 같은 길을 탄다. 여기서는 앞단
+     * 검사(레이아웃 읽기·폐기·결재 중)만 하고, 미적용 버전 가드(MDM006)·원천·번호·쓰기는 공통 훅이 한 트랜잭션에서 한다(C3).
      */
     public LayoutVersionOutcome newVersion(LayoutVersionCommand command, String kind) {
         VersionKind verKind = VersionRules.parseKind(command.verKind());
@@ -75,27 +78,43 @@ public class LayoutVersionService {
         if (DEPRECATED.equals(layout.getStatus())) {
             throw MdmErrors.of(MdmErrorCode.TRANSITION_NOT_ALLOWED, "폐기한 레이아웃은 새 버전을 만들 수 없습니다", List.of());
         }
-        String id = String.valueOf(layout.getLayoutId());
-        writeGuard.checkCanCreateVersion(VersionTarget.LAYOUT, id);                         // MDM006
-        List<MdmLayoutVer> versions = store.versions(layout.getLayoutId());
-        if (inApproval(versions)) {
+        Long layoutId = layout.getLayoutId();
+        // 결재 중 앞단 검사 — 공통 훅의 미적용 가드와 같은 MDM006 이라 겹친다. 남겨 둔다(조정자 결정 2026-10-16).
+        if (inApproval(store.versions(layoutId))) {
             throw MdmErrors.of(MdmErrorCode.UNAPPLIED_VERSION_EXISTS);
         }
-        Optional<MdmLayoutVer> source = LayoutVersions.latestReleased(versions);
-        if (source.isEmpty() && !versions.isEmpty()) {
-            throw MdmErrors.of(MdmErrorCode.TRANSITION_NOT_ALLOWED, "복사할 확정 버전이 없습니다 — 첫 DRAFT 를 확정하십시오", List.of());
+        // 버전이 없으면 훅의 번호 기준이 null → MAJOR 1.000, MINOR 는 훅이 거부한다(MDM021)
+        VersionRef draft = stateService.newVersion(
+                new NewVersionCommand(VersionTarget.LAYOUT, String.valueOf(layoutId), verKind, currentUser.userId()),
+                LayoutVersionService::pickSource, (newRef, k, owner, source) -> writeDraft(layoutId, newRef, k, owner, source),
+                NO_PROMOTION);
+        return new LayoutVersionOutcome(layoutId, VersionNumbers.plain(draft.ver()), verKind.name(), 0L);
+    }
+
+    /** 원천 = RELEASED 가운데 VER 최대. 버전이 하나도 없으면 원천 없이 빈 DRAFT, 버전은 있는데 RELEASED 가 없으면 MDM009. */
+    private static Optional<BigDecimal> pickSource(List<VersionSnapshot> all) {
+        Optional<BigDecimal> source = VersionRules.latestReleased(all);
+        if (source.isEmpty() && !all.isEmpty()) {
+            throw noSource();
         }
-        // 버전이 없으면 max = null → MAJOR 1.000, MINOR 는 nextNumber 가 거부한다
-        BigDecimal next = VersionRules.nextNumber(versions.isEmpty() ? null : LayoutVersions.maxVer(versions), verKind);
-        MdmLayoutVer created = new MdmLayoutVer(layout.getLayoutId(), next, verKind, currentUser.userId());
-        source.ifPresent(s -> {
+        return source;
+    }
+
+    private static BusinessException noSource() {
+        return MdmErrors.of(MdmErrorCode.TRANSITION_NOT_ALLOWED, "복사할 확정 버전이 없습니다 — 첫 DRAFT 를 확정하십시오", List.of());
+    }
+
+    /** 새 DRAFT 버전 행과 딸린 행. 원천이 있으면 다시 읽어 BASE_VER·EAI·자기 길이를 적고 항목·헤더 구성·재정의를 복사한다. */
+    private void writeDraft(Long layoutId, VersionRef draft, VersionKind kind, String owner, Optional<BigDecimal> source) {
+        Optional<MdmLayoutVer> src = source.map(ver -> store.find(layoutId, ver).orElseThrow(LayoutVersionService::noSource));
+        MdmLayoutVer created = new MdmLayoutVer(layoutId, draft.ver(), kind, owner);
+        src.ifPresent(s -> {
             created.setBaseVer(s.getVer());
             created.setEaiCode(s.getEaiCode());
             created.setOwnLength(s.getOwnLength());
         });
         store.save(created);                                                                   // FK: 버전 행 먼저
-        source.ifPresent(s -> writer.copyVersionRows(layout.getLayoutId(), s.getVer(), next));
-        return new LayoutVersionOutcome(layout.getLayoutId(), VersionNumbers.plain(next), verKind.name(), 0L);
+        src.ifPresent(s -> writer.copyVersionRows(layoutId, s.getVer(), draft.ver()));
     }
 
     /**

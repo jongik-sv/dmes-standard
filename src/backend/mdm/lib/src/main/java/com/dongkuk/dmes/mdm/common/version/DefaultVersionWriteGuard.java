@@ -47,11 +47,7 @@ public class DefaultVersionWriteGuard implements VersionWriteGuard {
     public void checkCanCreateVersion(VersionTarget target, String objectId) {
         tx.executeWithoutResult(status -> {
             LocalDateTime now = now();
-            for (VersionRow row : store.findAll(target, objectId)) {
-                if (VersionPreconditions.isUnapplied(row, now)) {
-                    throw MdmErrors.of(MdmErrorCode.UNAPPLIED_VERSION_EXISTS);
-                }
-            }
+            VersionPreconditions.requireNoUnapplied(store.findAll(target, objectId), now);
         });
     }
 

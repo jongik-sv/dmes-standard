@@ -10,7 +10,11 @@ import com.dongkuk.dmes.cactus.common.BusinessException;
 import com.dongkuk.dmes.cactus.common.ErrorCode;
 import com.dongkuk.dmes.mdm.contract.common.MdmErrorCode;
 import com.dongkuk.dmes.mdm.contract.version.VersionKind;
+import com.dongkuk.dmes.mdm.contract.version.VersionSnapshot;
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 class VersionRulesTest {
@@ -133,6 +137,20 @@ class VersionRulesTest {
         assertTrue(f.canNewMajor());
         assertFalse(f.canNewMinor());
         assertNull(f.nextMinor());
+    }
+
+    // ── 새 버전 원천 후보(C3) ─────────────────────────────────────
+
+    @Test
+    void latestReleasedIsMaxReleasedRegardlessOfApplyFrom() {
+        LocalDateTime t = LocalDateTime.of(2026, 6, 15, 9, 0);
+        assertEquals(Optional.of(d("2.001")), VersionRules.latestReleased(List.of(
+                new VersionSnapshot(d("1.000"), "RELEASED", t.minusDays(9)),
+                new VersionSnapshot(d("2.001"), "RELEASED", t.plusDays(1)),
+                new VersionSnapshot(d("3.000"), "CANCELLED", t),
+                new VersionSnapshot(d("4.000"), "DRAFT", null))));
+        assertEquals(Optional.empty(), VersionRules.latestReleased(List.of(new VersionSnapshot(d("1.000"), "CANCELLED", t))));
+        assertEquals(Optional.empty(), VersionRules.latestReleased(List.of()));
     }
 
     @Test

@@ -58,8 +58,9 @@ public class RuleScreenSupport {
     }
 
     /**
-     * 결재 중(REQUESTED·APPROVED) 버전이 있으면 MDM006(D14). C2 부터 공통 {@code VersionWriteGuard.checkCanCreateVersion} 도 이 두
-     * 상태를 미적용으로 보아 같은 MDM006 을 먼저 낸다(호출자는 모두 공통 가드를 먼저 부른다). 겹치는 검사로 남겨 둔다.
+     * 결재 중(REQUESTED·APPROVED) 버전이 있으면 MDM006(D14). C2 부터 공통 미적용 가드({@code VersionWriteGuard.checkCanCreateVersion}·
+     * 새 버전 훅 {@code VersionStateService.newVersion})도 이 두 상태를 미적용으로 보아 같은 MDM006 을 낸다. 이 검사가 가드보다 먼저 돌든
+     * 뒤에 돌든 코드·문구가 같아 결과가 같다(룰 새 버전은 C3 부터 훅보다 먼저 부른다). 겹치는 검사로 남겨 둔다.
      */
     public static void requireNoVersionInApproval(Collection<MdmRuleVer> versions) {
         if (versions.stream().anyMatch(v -> VersionRules.isInApproval(v.getStatus()))) {

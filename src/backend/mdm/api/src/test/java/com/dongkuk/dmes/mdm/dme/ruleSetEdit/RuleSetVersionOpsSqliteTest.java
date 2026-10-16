@@ -27,6 +27,8 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /** D-144 2단계 — 세트 버전 조작이 룰과 같은 공통 흐름을 탄다. 시계 NOW = 2026-06-15 09:00. */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
@@ -42,6 +44,8 @@ class RuleSetVersionOpsSqliteTest extends AbstractMdmSharedDbTest {
     FakeStewardDirectory stewards;
     @Autowired
     JdbcTemplate jdbc;
+    @Autowired
+    PlatformTransactionManager txManager;
 
     @BeforeEach
     void seed() {
@@ -169,6 +173,106 @@ class RuleSetVersionOpsSqliteTest extends AbstractMdmSharedDbTest {
         currentUser.set("lee", DmeTestSupport.STD_ADMIN);
         assertThat(mdm(() -> service.copy(req(null, "MAJOR", null, null)))).isEqualTo("MDM013");
         assertThat(versionCount()).isEqualTo(1);
+    }
+
+    // ── BE 리팩토링 2회차 C3 특성 시험 — 새 버전을 공통 훅으로 옮기기 전 동작을 고정한다 ──
+
+    @Test
+    void minor_가_999_면_MDM009_고_major_는_된다() {
+        jdbc.update("DELETE FROM TB_MDM_RULE_SET_VER WHERE MARU_RULE_SET_ID = 'S_O'");
+        DmeTestSupport.ruleSetVersion(jdbc, "S_O", "1.999", "MINOR", "RELEASED", null, "[]", "2000-01-01 00:00:00", "9999-12-31 00:00:00", 0);
+        assertThatThrownBy(() -> service.copy(req(null, "MINOR", null, null))).hasMessageContaining("major 를 올리십시오");
+        assertThat(mdm(() -> service.copy(req(null, "MINOR", null, null)))).isEqualTo("MDM009");
+        assertThat(service.copy(req(null, "MAJOR", null, null)).getVer()).isEqualTo("2.000");
+    }
+
+    @Test
+    void 버전은_있는데_RELEASED_가_없으면_BUSINESS_ERROR_다() {
+        jdbc.update("UPDATE TB_MDM_RULE_SET_VER SET STATUS = 'CANCELLED' WHERE MARU_RULE_SET_ID = 'S_O'");
+        assertThat(mdm(() -> service.copy(req(null, "MAJOR", null, null)))).isEqualTo("BUSINESS_ERROR");
+        assertThat(versionCount()).isEqualTo(1);
+    }
+
+    @Test
+    void 결재_중_버전이_있으면_MDM006_이다() {
+        DmeTestSupport.ruleSetVersion(jdbc, "S_O", "2.000", "MAJOR", "REQUESTED", "kim", "[]", "2099-01-01 00:00:00", "9999-12-31 00:00:00", 0);
+        assertThat(mdm(() -> service.copy(req(null, "MAJOR", null, null)))).isEqualTo("MDM006");
+        assertThat(versionCount()).isEqualTo(2);
+    }
+
+    /** 저장 CREATED·적용된 RELEASED 가 있는 세트는 새 버전 때 INUSE 로 올린다(룰과 같다). */
+    @Test
+    void 새_버전은_계산_INUSE_인_세트의_저장값을_INUSE_로_올린다() {
+        jdbc.update("UPDATE TB_MDM_RULE_SET SET STATUS = 'CREATED' WHERE MARU_RULE_SET_ID = 'S_O'");
+        assertThat(service.copy(req(null, "MAJOR", null, null)).getVer()).isEqualTo("2.000");
+        assertThat(setStatus()).isEqualTo("INUSE");
+    }
+
+    /** 트랜잭션 경계 — 미적용 버전 가드(MDM006)에 걸리면 버전 행도 부모 상태도 바꾸지 않는다. */
+    @Test
+    void 가드에_걸리면_아무것도_쓰지_않는다() {
+        jdbc.update("UPDATE TB_MDM_RULE_SET SET STATUS = 'CREATED' WHERE MARU_RULE_SET_ID = 'S_O'");
+        DmeTestSupport.ruleSetDraft(jdbc, "S_O", "2.000", "kim", "[]", 0);
+        assertThat(mdm(() -> service.copy(req(null, "MAJOR", null, null)))).isEqualTo("MDM006");
+        assertThat(versionCount()).isEqualTo(2);
+        assertThat(setStatus()).isEqualTo("CREATED");
+    }
+
+    /**
+     * 트랜잭션 경계 — 새 버전 행을 쓴 뒤 마지막 단계(부모 CREATED → INUSE)가 실패하면 새 버전 행도 되돌아간다. 실패는 이 세트의 INUSE 변경에만
+     * 거는 트리거로 낸다.
+     */
+    @Test
+    void 부모_승격이_실패하면_새_버전도_되돌아간다() {
+        jdbc.update("UPDATE TB_MDM_RULE_SET SET STATUS = 'CREATED' WHERE MARU_RULE_SET_ID = 'S_O'");
+        jdbc.execute("CREATE OR REPLACE TRIGGER TR_C3_RULE_SET_PROMOTE_FAIL BEFORE UPDATE ON TB_MDM_RULE_SET FOR EACH ROW "
+                + "WHEN (NEW.MARU_RULE_SET_ID = 'S_O' AND NEW.STATUS = 'INUSE') BEGIN RAISE_APPLICATION_ERROR(-20001, 'forced failure'); END;");
+        try {
+            forced(assertThrows(RuntimeException.class, () -> service.copy(req(null, "MAJOR", null, null))));
+        } finally {
+            jdbc.execute("BEGIN EXECUTE IMMEDIATE 'DROP TRIGGER TR_C3_RULE_SET_PROMOTE_FAIL'; "
+                    + "EXCEPTION WHEN OTHERS THEN IF SQLCODE != -4080 THEN RAISE; END IF; END;");
+        }
+        assertThat(versionCount()).isEqualTo(1);
+        assertThat(setStatus()).isEqualTo("CREATED");
+    }
+
+    /** 트랜잭션 경계 — 새 버전은 호출자 트랜잭션에 합류한다. 성공한 뒤 바깥이 되돌리면 새 버전도 부모 승격도 남지 않는다. */
+    @Test
+    void 새_버전은_바깥_트랜잭션에_합류한다() {
+        jdbc.update("UPDATE TB_MDM_RULE_SET SET STATUS = 'CREATED' WHERE MARU_RULE_SET_ID = 'S_O'");
+        assertThrows(IllegalStateException.class, () -> new TransactionTemplate(txManager).executeWithoutResult(s -> {
+            service.copy(req(null, "MAJOR", null, null));
+            throw new IllegalStateException("바깥 트랜잭션 되돌림");
+        }));
+        assertThat(versionCount()).isEqualTo(1);
+        assertThat(setStatus()).isEqualTo("CREATED");
+    }
+
+    /** 트랜잭션 경계 — 바깥 트랜잭션 안에서도 부모 승격이 실패하면 새 버전 행이 남지 않는다. */
+    @Test
+    void 바깥_트랜잭션_안에서_부모_승격이_실패하면_새_버전도_되돌아간다() {
+        jdbc.update("UPDATE TB_MDM_RULE_SET SET STATUS = 'CREATED' WHERE MARU_RULE_SET_ID = 'S_O'");
+        jdbc.execute("CREATE OR REPLACE TRIGGER TR_C3_RULE_SET_PROMOTE_FAIL BEFORE UPDATE ON TB_MDM_RULE_SET FOR EACH ROW "
+                + "WHEN (NEW.MARU_RULE_SET_ID = 'S_O' AND NEW.STATUS = 'INUSE') BEGIN RAISE_APPLICATION_ERROR(-20001, 'forced failure'); END;");
+        try {
+            forced(assertThrows(RuntimeException.class, () -> new TransactionTemplate(txManager).executeWithoutResult(s ->
+                    service.copy(req(null, "MAJOR", null, null)))));
+        } finally {
+            jdbc.execute("BEGIN EXECUTE IMMEDIATE 'DROP TRIGGER TR_C3_RULE_SET_PROMOTE_FAIL'; "
+                    + "EXCEPTION WHEN OTHERS THEN IF SQLCODE != -4080 THEN RAISE; END IF; END;");
+        }
+        assertThat(versionCount()).isEqualTo(1);
+        assertThat(setStatus()).isEqualTo("CREATED");
+    }
+
+    /** 트리거가 낸 실패(ORA-20001)인지 확인한다 — 앞 단계 검사 오류로 일찍 끝난 것과 가른다. */
+    private static void forced(RuntimeException e) {
+        assertThat(e).hasStackTraceContaining("ORA-20001");
+    }
+
+    private String setStatus() {
+        return jdbc.queryForObject("SELECT STATUS FROM TB_MDM_RULE_SET WHERE MARU_RULE_SET_ID = 'S_O'", String.class);
     }
 
     /**

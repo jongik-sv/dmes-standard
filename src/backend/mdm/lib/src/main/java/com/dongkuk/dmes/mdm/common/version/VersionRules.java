@@ -8,16 +8,19 @@ import com.dongkuk.dmes.mdm.common.support.MdmStrings;
 import com.dongkuk.dmes.mdm.contract.common.MdmErrorCode;
 import com.dongkuk.dmes.mdm.contract.version.VersionConventions;
 import com.dongkuk.dmes.mdm.contract.version.VersionKind;
+import com.dongkuk.dmes.mdm.contract.version.VersionSnapshot;
 import com.dongkuk.dmes.mdm.contract.version.VersionStatus;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
+import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * 버전 입력 처리 공통 규칙(D-144) — 화면이 보낸 버전·종류·적용 시작 일시 문자열 해석, 새 버전 번호 검사, 새 버전 가능 여부 플래그,
- * 미적용·결재 중 판정.
+ * 미적용·결재 중 판정, 새 버전 원천 후보.
  * 룰·룰 세트·레이아웃·마스터코드·ERD 화면 서비스가 같이 쓴다. 번호 계산 자체는 {@link VersionNumbers}.
  */
 public final class VersionRules {
@@ -132,6 +135,15 @@ public final class VersionRules {
             return true;
         }
         return VersionStatus.RELEASED.name().equals(status) && applyFrom != null && applyFrom.isAfter(now);
+    }
+
+    /**
+     * RELEASED 가운데 VER 가 가장 큰 것의 번호(적용 시점과 무관) — 새 버전 훅의 원천 고르기({@code SourcePicker})가 쓴다(C3).
+     * {@code RuleVersions.latestReleased} 와 같은 판정이다. 없으면 empty.
+     */
+    public static Optional<BigDecimal> latestReleased(Collection<VersionSnapshot> versions) {
+        return versions.stream().filter(v -> VersionStatus.RELEASED.name().equals(v.status())).map(VersionSnapshot::ver)
+                .max(BigDecimal::compareTo);
     }
 
     /** 결재 중 — REQUESTED·APPROVED(C2). 결재 보류로 지금은 생기지 않는다. */

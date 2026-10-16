@@ -1,5 +1,6 @@
 package com.dongkuk.dmes.mdm.common.mastercode;
 
+import com.dongkuk.dmes.mdm.common.version.VersionNumbers;
 import com.dongkuk.dmes.mdm.common.version.VersionRules;
 import com.dongkuk.dmes.mdm.contract.version.MaruObjectStatus;
 import com.dongkuk.dmes.mdm.contract.version.VersionStatus;
@@ -68,16 +69,16 @@ public final class MasterCodeVersionSummary {
         BigDecimal currentVer = current == null ? null : current.ver();
         boolean pending = current == null && maxReleased != null;
         String currentLabel = current != null
-                ? MasterCodeVersionNumbers.label(currentVer)
-                : pending ? PENDING_PREFIX + MasterCodeVersionNumbers.label(maxReleased) : UNCONFIRMED_LABEL;
+                ? VersionNumbers.label(currentVer)
+                : pending ? PENDING_PREFIX + VersionNumbers.label(maxReleased) : UNCONFIRMED_LABEL;
         String unappliedLabel = unapplied.isEmpty()
                 ? NONE_LABEL
-                : unapplied.stream().map(r -> MasterCodeVersionNumbers.label(r.ver()) + " " + r.status())
+                : unapplied.stream().map(r -> VersionNumbers.label(r.ver()) + " " + r.status())
                         .collect(Collectors.joining(", "));
         String effective = MaruObjectStatus.CREATED.name().equals(storedStatus) && anyApplied
                 ? MaruObjectStatus.INUSE.name()
                 : storedStatus;
-        BigDecimal max = MasterCodeVersionNumbers.maxVer(rows.stream().map(VerRow::ver).toList());
+        BigDecimal max = VersionNumbers.maxVer(rows.stream().map(VerRow::ver).toList());
         return new Summary(currentVer, currentLabel, pending, List.copyOf(unapplied), unappliedLabel, effective, max,
                 currentVer);
     }

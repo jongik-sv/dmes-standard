@@ -215,6 +215,95 @@ class ErdVersionServiceTest extends AbstractMdmSharedDbTest {
                 .satisfies(e -> assertThat(code(e)).isEqualTo(MdmErrorCode.ERD_MODEL_NOT_FOUND.code()));
     }
 
+    // ── BE 리팩토링 2회차 C3 특성 시험 — 새 버전을 공통 훅으로 옮기기 전 동작을 고정한다 ──
+
+    @Test
+    void newVersionWithOnlyCancelledIsNotFound() {
+        versions.createModel("mcm", "mcm", "MCMAPUSER", "MCM", "owner");
+        jdbc.update("UPDATE TB_MDM_ERD_MODEL_VER SET STATUS='CANCELLED', APPLY_FROM=SYSTIMESTAMP - 1, APPLY_TO=TIMESTAMP '9999-12-31 00:00:00' WHERE ERD_MODEL_ID='mcm'");
+        assertThatThrownBy(() -> versions.newVersion("mcm", "MAJOR", "owner"))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(code(e)).isEqualTo(MdmErrorCode.ERD_MODEL_NOT_FOUND.code()));
+        assertThat(verCount()).isEqualTo(1);
+    }
+
+    /** 트랜잭션 경계 — 미적용 버전 가드(MDM006)에 걸리면 버전 행·모델 상태·rev 어느 것도 바꾸지 않는다. */
+    @Test
+    void newVersionGuardErrorWritesNothing() {
+        versions.createModel("mcm", "mcm", "MCMAPUSER", "MCM", "owner");
+        release("mcm");
+        versions.newVersion("mcm", "MINOR", "owner");                                      // 1.001 DRAFT
+        jdbc.update("UPDATE TB_MDM_ERD_MODEL SET STATUS='CREATED' WHERE ERD_MODEL_ID='mcm'");
+        long rev = store.rev("mcm");
+        assertThatThrownBy(() -> versions.newVersion("mcm", "MAJOR", "owner"))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(code(e)).isEqualTo(MdmErrorCode.UNAPPLIED_VERSION_EXISTS.code()));
+        assertThat(verCount()).isEqualTo(2);
+        assertThat(modelStatus()).isEqualTo("CREATED");
+        assertThat(store.rev("mcm")).isEqualTo(rev);
+    }
+
+    /**
+     * 트랜잭션 경계 — 새 버전 행 INSERT·부모 CREATED → INUSE 뒤 마지막 단계(rev 표시 행)가 실패하면 모두 되돌아간다. 실패는 이 모델의
+     * 명령 로그 INSERT 에만 거는 트리거로 낸다.
+     */
+    @Test
+    void newVersionMarkerFailureRollsBackDraftAndPromotion() {
+        versions.createModel("mcm", "mcm", "MCMAPUSER", "MCM", "owner");
+        release("mcm");
+        long rev = store.rev("mcm");
+        jdbc.execute("CREATE OR REPLACE TRIGGER TR_C3_ERD_MARKER_FAIL BEFORE INSERT ON TB_MDM_ERD_CMD_LOG FOR EACH ROW "
+                + "WHEN (NEW.ERD_MODEL_ID = 'mcm') BEGIN RAISE_APPLICATION_ERROR(-20001, 'forced failure'); END;");
+        try {
+            assertThatThrownBy(() -> versions.newVersion("mcm", "MINOR", "owner")).isInstanceOf(RuntimeException.class)
+                    .hasStackTraceContaining("ORA-20001");
+        } finally {
+            jdbc.execute("BEGIN EXECUTE IMMEDIATE 'DROP TRIGGER TR_C3_ERD_MARKER_FAIL'; "
+                    + "EXCEPTION WHEN OTHERS THEN IF SQLCODE != -4080 THEN RAISE; END IF; END;");
+        }
+        assertThat(verCount()).isEqualTo(1);
+        assertThat(modelStatus()).isEqualTo("CREATED");
+        assertThat(store.rev("mcm")).isEqualTo(rev);
+    }
+
+    /**
+     * C3 fix — 새 번호는 상태와 무관한 모든 버전의 최대값에서 올린다(룰·룰 세트·레이아웃과 같다). 전에는 최신 RELEASED 에서 올렸다.
+     * MAJOR 는 2.000 이 되어 CANCELLED 2.000 행을 DRAFT 로 덮어썼고(복합 키 엔티티라 saveAndFlush 가 merge 한다), MINOR 는 1.001 이었다.
+     * 복사 원천은 그대로 최신 RELEASED 다.
+     */
+    @Test
+    void newVersionNumbersFromMaxOfAllVersions() {
+        versions.createModel("mcm", "mcm", "MCMAPUSER", "MCM", "owner");
+        release("mcm");                                                                      // 1.000 RELEASED
+        cancelled("mcm", "2.000");
+        assertThat(versions.newVersion("mcm", "MAJOR", "owner")).isEqualByComparingTo("3.000");
+        assertThat(store.draft("mcm").orElseThrow().getBaseVer()).isEqualByComparingTo("1.000");
+        assertThat(jdbc.queryForObject("SELECT STATUS FROM TB_MDM_ERD_MODEL_VER WHERE ERD_MODEL_ID='mcm' AND VER=2", String.class))
+                .isEqualTo("CANCELLED");
+    }
+
+    @Test
+    void newMinorVersionNumbersFromMaxOfAllVersions() {
+        versions.createModel("mcm", "mcm", "MCMAPUSER", "MCM", "owner");
+        release("mcm");
+        cancelled("mcm", "2.000");
+        assertThat(versions.newVersion("mcm", "MINOR", "owner")).isEqualByComparingTo("2.001");
+        assertThat(store.draft("mcm").orElseThrow().getBaseVer()).isEqualByComparingTo("1.000");
+    }
+
+    private void cancelled(String modelId, String ver) {
+        jdbc.update("INSERT INTO TB_MDM_ERD_MODEL_VER (ERD_MODEL_ID, VER, VER_KIND, STATUS, APPLY_FROM, APPLY_TO, MODEL_JSON) "
+                + "VALUES (?, ?, 'MAJOR', 'CANCELLED', SYSTIMESTAMP - 1, TIMESTAMP '9999-12-31 00:00:00', '{}')", modelId, new BigDecimal(ver));
+    }
+
+    private int verCount() {
+        return jdbc.queryForObject("SELECT COUNT(*) FROM TB_MDM_ERD_MODEL_VER WHERE ERD_MODEL_ID='mcm'", Integer.class);
+    }
+
+    private String modelStatus() {
+        return jdbc.queryForObject("SELECT STATUS FROM TB_MDM_ERD_MODEL WHERE ERD_MODEL_ID='mcm'", String.class);
+    }
+
     /** 확정 경로(applyFrom 있음)의 검사는 공통 confirm 트랜잭션 안에서 불린다 — 그 트랜잭션에서 돌린다. */
     private ConfirmCheckResult checkInTx(ConfirmCheckRequest req) {
         return new TransactionTemplate(txManager).execute(s -> confirmCheck.check(req));

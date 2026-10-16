@@ -21,11 +21,17 @@ import com.dongkuk.dmes.mdm.contract.version.ConfirmCheckRequest;
 import com.dongkuk.dmes.mdm.contract.version.ConfirmCheckResult;
 import com.dongkuk.dmes.mdm.contract.version.ConfirmCommand;
 import com.dongkuk.dmes.mdm.contract.version.ConfirmResult;
+import com.dongkuk.dmes.mdm.contract.version.DraftWriter;
+import com.dongkuk.dmes.mdm.contract.version.NewVersionCommand;
+import com.dongkuk.dmes.mdm.contract.version.ParentPromotion;
+import com.dongkuk.dmes.mdm.contract.version.SourcePicker;
 import com.dongkuk.dmes.mdm.contract.version.VersionConventions;
 import com.dongkuk.dmes.mdm.contract.version.VersionRef;
+import com.dongkuk.dmes.mdm.contract.version.VersionSnapshot;
 import com.dongkuk.dmes.mdm.contract.version.VersionStateService;
 import com.dongkuk.dmes.mdm.contract.version.VersionStatus;
 import com.dongkuk.dmes.mdm.contract.version.VersionTarget;
+import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
@@ -37,10 +43,11 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * 버전 상태 서비스 — 담당자 확정 DRAFT→RELEASED, DRAFT 삭제(TSK-01-03 B18, design.md §2.3), 확정 취소
- * RELEASED(미적용)→DRAFT(TSK-02-01 D4-1, ADR-0002 D8).
+ * RELEASED(미적용)→DRAFT(TSK-02-01 D4-1, ADR-0002 D8), 새 버전(BE 리팩토링 2회차 C3).
  *
  * <p>확정은 한 트랜잭션이다(불변 규칙 I2): 사전 검사 → apply_from 순서 → 확정 검사 SPI → DRAFT 조건부 UPDATE →
- * 직전 RELEASED 닫기 → 부모 CREATED→INUSE. 하나라도 실패하면 전부 롤백되어 DRAFT 가 그대로 남는다.
+ * 직전 RELEASED 닫기 → 부모 CREATED→INUSE. 하나라도 실패하면 전부 롤백되어 DRAFT 가 그대로 남는다. 새 버전도 한 트랜잭션이다:
+ * 미적용 버전 가드 → 원천 고르기 → 번호 → DRAFT 쓰기 → 부모 승격. 대상마다 다른 단계는 손잡이 세 개({@link SourcePicker}·{@link DraftWriter}·{@link ParentPromotion})로 받는다.
  * {@code @Transactional} 을 쓰지 않는다(CGLIB 프록시가 OASIS 파라미터 이름을 잃는다, F19) — {@link TransactionTemplate}
  * 이 호출자 트랜잭션에 합류하거나 새로 연다.
  */
@@ -172,6 +179,35 @@ public class DefaultVersionStateService implements VersionStateService {
         });
     }
 
+    /**
+     * 새 버전(C3). 순서와 오류는 계약 {@link VersionStateService#newVersion} 이 정본이다. 대상에 따라 필요한 화면 앞단 검사(예: 객체
+     * 읽기·외부 원천(EXTERNAL)·폐기·담당자 역할·결재 중)는 호출자가 이 호출 전에 끝낸다. 미적용 판정과 승격 판정의 {@code now} 는
+     * 초 단위로 자른다(확정·가드와 같다).
+     */
+    @Override
+    public VersionRef newVersion(NewVersionCommand command, SourcePicker source, DraftWriter writer, ParentPromotion promotion) {
+        return tx.execute(status -> {
+            LocalDateTime now = LocalDateTime.now(clock).truncatedTo(ChronoUnit.SECONDS);
+            List<VersionRow> rows = store.findAll(command.target(), command.objectId());
+            VersionPreconditions.requireNoUnapplied(rows, now);                                   // MDM006
+            List<VersionSnapshot> all = rows.stream()
+                    .map(row -> new VersionSnapshot(row.ref().ver(), row.status(), row.applyFrom())).toList();
+            Optional<BigDecimal> picked = source.pick(all);
+            BigDecimal max = VersionNumbers.maxVer(all.stream().map(VersionSnapshot::ver).toList());
+            VersionRef draft = new VersionRef(command.target(), command.objectId(), VersionRules.nextNumber(max, command.kind()));
+            writer.write(draft, command.kind(), command.actorId(), picked);
+            if (rows.stream().anyMatch(row -> isApplied(row, now))) {
+                promotion.promote(command.target(), command.objectId());
+            }
+            return draft;
+        });
+    }
+
+    /** 적용된 RELEASED — 적용 시작이 {@code now} 이전이거나 같다({@code RuleVersions.effectiveStatus} 와 같은 판정). */
+    private static boolean isApplied(VersionRow row, LocalDateTime now) {
+        return VersionStatus.RELEASED.name().equals(row.status()) && row.applyFrom() != null && !row.applyFrom().isAfter(now);
+    }
+
     /** 같은 객체에서 draft 보다 VER 가 작은 RELEASED 중 가장 큰 것. 없으면 최초 버전. */
     private Optional<VersionRow> previousReleased(VersionRow draft) {
         VersionRef ref = draft.ref();
@@ -210,7 +246,7 @@ public class DefaultVersionStateService implements VersionStateService {
     /**
      * 메타 캐시 무효화(spec 2026-10-02 §3.3) — 확정·확정 취소는 룰·코드·룰 세트(D-144 2단계)·레이아웃(3단계) 공통이라 여기 한 곳에서 기록한다.
      * 호출하는 쪽({@code RuleConfirmService}·{@code RuleSetConfirmService}·{@code RuleSetVersionService}·{@code LayoutConfirmService}·
-     * {@code LayoutVersionService} 등)에 또 걸면 이중 기록이다. DRAFT 삭제는 RELEASED 를 바꾸지 않아 기록하지 않는다. switch 식이라
+     * {@code LayoutVersionService} 등)에 또 걸면 이중 기록이다. DRAFT 삭제·새 버전은 RELEASED 를 바꾸지 않아 기록하지 않는다. switch 식이라
      * {@code VersionTarget} 에 대상이 늘면 여기서 컴파일이 깨져 기록 누락을 막는다. 레이아웃은 헤더의 RELEASED 가 바뀌면 그 헤더를 쌓은 전문의
      * 시각 T 합성도 바뀌므로 쌓은 전문까지 펼친다 — 그 펼침은 레이아웃이 등록한 「RELEASED 변경」 SPI
      * ({@link com.dongkuk.dmes.mdm.contract.version.VersionReleasedChangeSpi VersionReleasedChangeSpi})가 한다. 공통 서비스는
