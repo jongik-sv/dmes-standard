@@ -5,7 +5,7 @@ import java.util.List;
 /**
  * 룰 하나의 입출력 — 룰이 최신 RELEASED 버전에서 읽는 이름(conds)과 만드는 이름(results)(TSK-08-06 design §6.1·§6.5, D3·D4).
  * 정의는 엔진이 세트를 실행하기 전에 요구하는 키와 같다(자기 결과 이름 제외, 결과 열 그룹은 {@code resGrp}, EvalEx 상수 제외).
- * DB 에서 계산하는 곳은 {@code RuleIoReader} 한 곳이고, 세트 계산 {@link RuleSetAnalyzer}·{@link RuleSetGuide} 가 이것을 입력으로 받는다.
+ * DB 에서 계산하는 곳은 {@code RuleIoReader} 한 곳이고, 세트 계산 {@link RuleSetAnalyzer}·{@code RuleSetGuide}(dme/ruleSetEdit) 가 이것을 입력으로 받는다.
  *
  * @param exists      룰이 있는가. 없으면 나머지는 null·빈 목록
  * @param releasedVer 입출력을 계산한 RELEASED 버전 — scale 3 문자열({@code "1.001"}, D-144). 룰 세트 화면 응답에 그대로 실리므로 문자열이다.

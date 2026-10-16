@@ -1,4 +1,4 @@
-package com.dongkuk.dmes.mdm.common.rule;
+package com.dongkuk.dmes.mdm.dme.ruleSetEdit.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;

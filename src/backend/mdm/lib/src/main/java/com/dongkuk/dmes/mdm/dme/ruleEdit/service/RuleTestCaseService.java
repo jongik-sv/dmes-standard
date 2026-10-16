@@ -9,7 +9,6 @@ import com.dongkuk.dmes.mdm.common.rule.RuleCaseInputs;
 import com.dongkuk.dmes.mdm.common.rule.RuleStewardCheck;
 import com.dongkuk.dmes.mdm.common.rule.RuleScreenSupport;
 import com.dongkuk.dmes.mdm.common.rule.RuleTestCaseQueries;
-import com.dongkuk.dmes.mdm.common.rule.RuleTestCaseWrites;
 import com.dongkuk.dmes.mdm.common.rule.check.RuleLimits;
 import com.dongkuk.dmes.mdm.common.support.MdmErrors;
 import com.dongkuk.dmes.mdm.common.support.MdmTextLimits;

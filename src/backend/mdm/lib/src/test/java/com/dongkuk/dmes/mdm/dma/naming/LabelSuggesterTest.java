@@ -2,6 +2,7 @@ package com.dongkuk.dmes.mdm.dma.naming;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import com.dongkuk.dmes.mdm.common.naming.NamingRules;
 import org.junit.jupiter.api.Test;
 
 /**

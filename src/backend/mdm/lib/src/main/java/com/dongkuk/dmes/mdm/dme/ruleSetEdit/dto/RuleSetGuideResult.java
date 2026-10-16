@@ -1,7 +1,7 @@
 package com.dongkuk.dmes.mdm.dme.ruleSetEdit.dto;
 
 import com.dongkuk.dmes.mdm.common.rule.RuleIo;
-import com.dongkuk.dmes.mdm.common.rule.RuleSetGuide;
+import com.dongkuk.dmes.mdm.dme.ruleSetEdit.service.RuleSetGuide;
 import java.util.List;
 
 /**

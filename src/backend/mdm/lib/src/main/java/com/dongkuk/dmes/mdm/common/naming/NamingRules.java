@@ -1,4 +1,4 @@
-package com.dongkuk.dmes.mdm.dma.naming;
+package com.dongkuk.dmes.mdm.common.naming;
 
 import java.util.ArrayList;
 import java.util.List;
