@@ -2,7 +2,6 @@ package com.dongkuk.dmes.mdm.dmc.codeConfirm.service;
 
 import com.dongkuk.dmes.cactus.common.BusinessException;
 import com.dongkuk.dmes.cactus.common.ErrorCode;
-import com.dongkuk.dmes.cactus.web.response.ErrorDetail;
 import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeCategoryChanges;
 import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeCategoryChanges.Change;
 import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeConfirmChecks;
@@ -13,6 +12,7 @@ import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeVersionSummary;
 import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeVersionSummary.VerRow;
 import com.dongkuk.dmes.mdm.common.security.MdmCurrentUser;
 import com.dongkuk.dmes.mdm.common.security.MdmStewardGuard;
+import com.dongkuk.dmes.mdm.common.support.MdmCheckIssueMaps;
 import com.dongkuk.dmes.mdm.common.support.MdmErrors;
 import com.dongkuk.dmes.mdm.common.version.VersionRules;
 import com.dongkuk.dmes.mdm.common.version.VersionSpiRegistry;
@@ -31,7 +31,6 @@ import com.dongkuk.dmes.mdm.contract.version.ConfirmCheckRequest;
 import com.dongkuk.dmes.mdm.contract.version.ConfirmCommand;
 import com.dongkuk.dmes.mdm.contract.version.ConfirmResult;
 import com.dongkuk.dmes.mdm.contract.version.VersionConfirmCheckSpi;
-import com.dongkuk.dmes.mdm.contract.version.VersionConventions;
 import com.dongkuk.dmes.mdm.contract.version.VersionDiffEntry;
 import com.dongkuk.dmes.mdm.contract.version.VersionRef;
 import com.dongkuk.dmes.mdm.contract.version.VersionStateService;
@@ -48,7 +47,6 @@ import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.time.format.DateTimeParseException;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -75,7 +73,6 @@ public class CodeConfirmService {
     private static final Logger log = LoggerFactory.getLogger(CodeConfirmService.class);
 
     private static final DateTimeFormatter TEXT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
-    private static final String APPLY_FROM = "applyFrom";
 
     private final MasterCodeLedgerQueries ledger;
     private final MasterCodeSegmentService segments;
@@ -154,7 +151,7 @@ public class CodeConfirmService {
         if (!isDraft(t.version())) {
             throw MdmErrors.of(MdmErrorCode.NOT_DRAFT);
         }
-        LocalDateTime applyFrom = parseApplyFrom(request.getApplyFrom());
+        LocalDateTime applyFrom = VersionRules.parseApplyFrom(request.getApplyFrom());
         LocalDateTime now = now();
         LocalDateTime previousApplyFrom = t.previous().map(VerRow::applyFrom).orElse(null);
         List<MasterCodeCheckItemResult> results = spi().report(new ConfirmCheckRequest(t.ref(), applyFrom,
@@ -178,7 +175,7 @@ public class CodeConfirmService {
             row.put("item", r.item().name());
             row.put("severity", r.item().severity().name());
             row.put("status", status.name());
-            row.put("issues", issues.stream().map(CodeConfirmService::issueMap).toList());
+            row.put("issues", issues.stream().map(MdmCheckIssueMaps::of).toList());
             rows.add(row);
         }
         Map<String, Object> result = new LinkedHashMap<>();
@@ -205,7 +202,7 @@ public class CodeConfirmService {
         if (request.getRowVersion() == null) {
             throw MdmErrors.of(MdmErrorCode.ROW_VERSION_CONFLICT);
         }
-        LocalDateTime applyFrom = parseApplyFrom(request.getApplyFrom());
+        LocalDateTime applyFrom = VersionRules.parseApplyFrom(request.getApplyFrom());
         boolean acknowledged = Boolean.TRUE.equals(request.getWarningsAcknowledged());
 
         ConfirmResult confirmed = versionState.confirm(new ConfirmCommand(ref, request.getRowVersion(), applyFrom,
@@ -218,7 +215,7 @@ public class CodeConfirmService {
         done.put("rowVersion", confirmed.rowVersion());
         result.put("confirmed", done);
         result.put("closedPreviousVer", confirmed.closedPrevious() == null ? null : verText(confirmed.closedPrevious().ver()));
-        result.put("warnings", confirmed.warnings().stream().map(CodeConfirmService::issueMap).toList());
+        result.put("warnings", confirmed.warnings().stream().map(MdmCheckIssueMaps::of).toList());
         return result;
     }
 
@@ -344,40 +341,8 @@ public class CodeConfirmService {
         return m;
     }
 
-    private static Map<String, Object> issueMap(MdmCheckIssue i) {
-        Map<String, Object> m = new LinkedHashMap<>();
-        m.put("code", i.code());
-        m.put("message", i.message());
-        m.put("field", i.field());
-        m.put("itemKey", i.itemKey());
-        return m;
-    }
-
     private static boolean isDraft(VerRow row) {
         return VersionStatus.DRAFT.name().equals(row.status());
-    }
-
-    /** {@code yyyy-MM-dd HH:mm:ss}(KST). 빈 값은 REQUIRED_VALUE, 형식 오류·열린 끝 이상은 INVALID_VALUE(field applyFrom). */
-    static LocalDateTime parseApplyFrom(String value) {
-        String v = trimToNull(value);
-        if (v == null) {
-            throw applyFromError(ErrorCode.REQUIRED_VALUE, "적용 시작 일시를 입력하세요");
-        }
-        LocalDateTime parsed;
-        try {
-            parsed = LocalDateTime.parse(v, TEXT);
-        } catch (DateTimeParseException e) {
-            throw applyFromError(ErrorCode.INVALID_VALUE, "적용 시작 일시는 yyyy-MM-dd HH:mm:ss 형식이어야 합니다: " + v);
-        }
-        if (!parsed.isBefore(VersionConventions.OPEN_END)) {
-            throw applyFromError(ErrorCode.INVALID_VALUE, "적용 시작 일시는 9999-12-31 00:00:00 보다 앞이어야 합니다");
-        }
-        return parsed;
-    }
-
-    private static BusinessException applyFromError(ErrorCode code, String message) {
-        return new BusinessException(code, message,
-                List.of(ErrorDetail.ofGrid(null, null, APPLY_FROM, code.getCode(), message)));
     }
 
     /** "1.001" → 1.001(scale 3). 형식 오류는 MDM021. */

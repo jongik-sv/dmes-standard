@@ -6,18 +6,17 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import com.dongkuk.dmes.cactus.common.BusinessException;
 import com.dongkuk.dmes.cactus.common.ErrorCode;
 import com.dongkuk.dmes.cactus.web.response.ErrorDetail;
-import com.dongkuk.dmes.mdm.dme.ruleConfirm.service.RuleConfirmService;
 import java.time.LocalDateTime;
 import org.junit.jupiter.api.Test;
 
 /**
  * 확정 화면의 적용 시작 일시 해석 특성 시험(BE 리팩토링 2회차 C1) — 오류 코드·문구·칸 이름(applyFrom)·앞뒤 공백·열린 끝 경계를 고정한다.
- * 룰·코드 확정 화면의 두 사본은 글자까지 같았다(공개 범위만 달랐다).
+ * 룰·코드 확정 화면의 두 사본(글자까지 같았다, 공개 범위만 달랐다)을 {@link VersionRules#parseApplyFrom} 하나로 옮겼다.
  */
 class VersionRulesApplyFromTest {
 
     private static LocalDateTime parse(String value) {
-        return RuleConfirmService.parseApplyFrom(value);
+        return VersionRules.parseApplyFrom(value);
     }
 
     private static void assertApplyFromError(ErrorCode code, String message, String value) {

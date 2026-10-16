@@ -2,19 +2,54 @@ package com.dongkuk.dmes.mdm.common.version;
 
 import com.dongkuk.dmes.cactus.common.BusinessException;
 import com.dongkuk.dmes.cactus.common.ErrorCode;
+import com.dongkuk.dmes.cactus.web.response.ErrorDetail;
 import com.dongkuk.dmes.mdm.common.support.MdmErrors;
+import com.dongkuk.dmes.mdm.common.support.MdmStrings;
 import com.dongkuk.dmes.mdm.contract.common.MdmErrorCode;
+import com.dongkuk.dmes.mdm.contract.version.VersionConventions;
 import com.dongkuk.dmes.mdm.contract.version.VersionKind;
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.List;
 
 /**
- * 버전 입력 처리 공통 규칙(D-144) — 화면이 보낸 버전·종류 문자열 해석, 새 버전 번호 검사, 새 버전 가능 여부 플래그.
- * 룰·룰 세트·레이아웃·마스터코드 화면 서비스가 같이 쓴다. 번호 계산 자체는 {@link VersionNumbers}.
+ * 버전 입력 처리 공통 규칙(D-144) — 화면이 보낸 버전·종류·적용 시작 일시 문자열 해석, 새 버전 번호 검사, 새 버전 가능 여부 플래그.
+ * 룰·룰 세트·레이아웃·마스터코드·ERD 화면 서비스가 같이 쓴다. 번호 계산 자체는 {@link VersionNumbers}.
  */
 public final class VersionRules {
 
+    private static final DateTimeFormatter APPLY_FROM_TEXT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+    private static final String APPLY_FROM = "applyFrom";
+
     private VersionRules() {
+    }
+
+    /**
+     * 확정 화면이 보낸 적용 시작 일시 {@code yyyy-MM-dd HH:mm:ss}(KST). 빈 값은 REQUIRED_VALUE, 형식 오류·열린 끝
+     * ({@link VersionConventions#OPEN_END}) 이상은 INVALID_VALUE 이고 둘 다 field {@code applyFrom} 칸 오류를 단다.
+     * 룰·룰 세트·마스터코드·레이아웃·ERD 확정이 같이 쓴다(전에는 룰·코드 확정 화면에 사본이 있었다).
+     */
+    public static LocalDateTime parseApplyFrom(String value) {
+        String v = MdmStrings.trimToNull(value);
+        if (v == null) {
+            throw applyFromError(ErrorCode.REQUIRED_VALUE, "적용 시작 일시를 입력하세요");
+        }
+        LocalDateTime parsed;
+        try {
+            parsed = LocalDateTime.parse(v, APPLY_FROM_TEXT);
+        } catch (DateTimeParseException e) {
+            throw applyFromError(ErrorCode.INVALID_VALUE, "적용 시작 일시는 yyyy-MM-dd HH:mm:ss 형식이어야 합니다: " + v);
+        }
+        if (!parsed.isBefore(VersionConventions.OPEN_END)) {
+            throw applyFromError(ErrorCode.INVALID_VALUE, "적용 시작 일시는 9999-12-31 00:00:00 보다 앞이어야 합니다");
+        }
+        return parsed;
+    }
+
+    private static BusinessException applyFromError(ErrorCode code, String message) {
+        return new BusinessException(code, message, List.of(ErrorDetail.ofGrid(null, null, APPLY_FROM, code.getCode(), message)));
     }
 
     /** 새 버전 가능 여부와 다음 번호(문자열). nextMajor 는 늘 채우고, nextMinor 는 minor 번호가 남았을 때만 채운다(아니면 null). */
