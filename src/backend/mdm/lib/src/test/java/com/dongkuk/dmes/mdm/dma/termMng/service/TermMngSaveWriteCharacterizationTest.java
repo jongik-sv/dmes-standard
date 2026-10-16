@@ -62,7 +62,7 @@ class TermMngSaveWriteCharacterizationTest {
         encoder = mock(TermEmbeddingEncoder.class);
         service = new TermMngService(repo, embeddings, cache, encoder, new TermWriter(repo, embeddings, cache, encoder));
         when(repo.findByTermNameAndSenseNo(anyString(), anyInt())).thenReturn(Optional.empty());
-        when(repo.findByEngAbbr(anyString())).thenReturn(List.of());
+        when(repo.findByEngAbbrIgnoreCase(anyString())).thenReturn(List.of());
         when(repo.saveAndFlush(any(MdmTerm.class))).thenAnswer(inv -> {
             MdmTerm t = inv.getArgument(0);
             if (t.getTermId() == null) {
@@ -170,7 +170,7 @@ class TermMngSaveWriteCharacterizationTest {
         when(encoder.isEnabled()).thenReturn(false);
         MdmTerm other = new MdmTerm("오차", 1, "정의");
         ReflectionTestUtils.setField(other, "termId", 99L);
-        when(repo.findByEngAbbr("DEV")).thenReturn(List.of(other));
+        when(repo.findByEngAbbrIgnoreCase("DEV")).thenReturn(List.of(other));
 
         TermSaveResult result = service.save(req(null, null));
 

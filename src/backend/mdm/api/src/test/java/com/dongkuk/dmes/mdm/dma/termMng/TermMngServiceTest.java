@@ -196,6 +196,20 @@ class TermMngServiceTest extends AbstractMdmSharedDbTest {
     }
 
     @Test
+    void I8_대소문자만_다른_영문약어도_중복으로_경고한다() {
+        TermSaveRequest first = req("코일", 1, "감아 놓은 강판");
+        first.setEngAbbr("coil");
+        service.save(first);
+
+        TermSaveRequest second = req("코일", 2, "다른 의미의 코일");
+        second.setEngAbbr("COIL");
+        TermSaveResult result = service.save(second);
+
+        assertTrue(result.getWarnings().contains("ENG_ABBR_DUP"), result.getWarnings().toString());
+        assertTrue(termRepository.findByTermNameAndSenseNo("코일", 2).isPresent(), "경고여도 저장은 성공해야 한다");
+    }
+
+    @Test
     void I8_약어가_없으면_경고가_없다() {
         TermSaveResult result = service.save(req("무약어", 1, "정의"));
         assertTrue(result.getWarnings().isEmpty());

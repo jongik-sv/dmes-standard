@@ -176,10 +176,10 @@ public class TermMngService {
         String engName = trimToNull(request.getEngName());
         String engAbbr = trimToNull(request.getEngAbbr());
 
-        // I8 — 영문 약어 중복은 저장을 막지 않고 warnings 로만 경고한다(V11, D1).
+        // I8 — 영문 약어 중복은 저장을 막지 않고 warnings 로만 경고한다(V11, D1). 대소문자는 무시한다(팝업 판정과 같게, 2026-10 F3).
         List<String> warnings = new ArrayList<>();
         if (engAbbr != null) {
-            boolean dupAbbr = termRepository.findByEngAbbr(engAbbr).stream()
+            boolean dupAbbr = termRepository.findByEngAbbrIgnoreCase(engAbbr).stream()
                     .anyMatch(t -> existing == null || !t.getTermId().equals(existing.getTermId()));
             if (dupAbbr) {
                 warnings.add("ENG_ABBR_DUP");
