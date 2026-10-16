@@ -3,7 +3,6 @@ package com.dongkuk.dmes.mdm.dma.support;
 import com.dongkuk.dmes.mdm.common.embedding.TermEmbeddingCodec;
 import com.dongkuk.dmes.mdm.common.embedding.TermEmbeddingEncoder;
 import com.dongkuk.dmes.mdm.common.embedding.TermEmbeddingRepository;
-import com.dongkuk.dmes.mdm.dma.termMng.TermRecommendationCache;
 import com.dongkuk.dmes.mdm.entity.MdmTerm;
 import com.dongkuk.dmes.mdm.repository.MdmTermRepository;
 import org.slf4j.Logger;
@@ -143,7 +142,7 @@ public class TermWriter {
         try {
             action.run();
         } catch (RuntimeException e) {
-            log.warn("[termMng] 캐시 갱신 실패 — {} (DB 는 반영됨, 캐시는 다음 갱신·재적재까지 낡음)", what, e);
+            log.warn("[termWriter] 캐시 갱신 실패 — {} (DB 는 반영됨, 캐시는 다음 갱신·재적재까지 낡음)", what, e);
         }
     }
 }

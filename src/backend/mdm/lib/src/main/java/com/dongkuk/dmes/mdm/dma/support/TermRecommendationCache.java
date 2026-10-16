@@ -1,4 +1,4 @@
-package com.dongkuk.dmes.mdm.dma.termMng;
+package com.dongkuk.dmes.mdm.dma.support;
 
 import com.dongkuk.dmes.mdm.common.embedding.TermEmbeddingRepository;
 import com.dongkuk.dmes.mdm.common.support.MdmJsonLists;
@@ -21,6 +21,9 @@ import org.springframework.stereotype.Component;
  * <p>{@link ApplicationReadyEvent} 리스너에서 전체 적재한다 — {@code @PostConstruct} 가 아니다. 부팅
  * 초기에는 Flyway 마이그레이션이 아직 끝나지 않았을 수 있어 그 시점의 JDBC 조회가 부팅 자체를 실패시킬
  * 위험이 있다(design.md §2).
+ *
+ * <p>용어 관리 추천이 읽고 {@link TermWriter} 가 쓴다(용어 관리·용어 인라인 등록 팝업). 두 화면이 함께 쓰므로 화면 패키지가 아니라
+ * {@code dma.support} 에 둔다(2026-10 리팩토링 C9).
  */
 @Component
 public class TermRecommendationCache {

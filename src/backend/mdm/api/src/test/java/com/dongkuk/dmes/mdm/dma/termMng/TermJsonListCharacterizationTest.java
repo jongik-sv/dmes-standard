@@ -7,7 +7,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.dongkuk.dmes.mdm.common.testdb.AbstractMdmSharedDbTest;
-import com.dongkuk.dmes.mdm.dma.termMng.TermRecommendationCache.CachedTerm;
+import com.dongkuk.dmes.mdm.dma.support.TermRecommendationCache;
+import com.dongkuk.dmes.mdm.dma.support.TermRecommendationCache.CachedTerm;
 import com.dongkuk.dmes.mdm.dma.termMng.dto.RecommendCandidate;
 import com.dongkuk.dmes.mdm.dma.termMng.dto.RecommendRequest;
 import com.dongkuk.dmes.mdm.dma.termMng.dto.TermRow;

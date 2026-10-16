@@ -1,8 +1,7 @@
-package com.dongkuk.dmes.mdm.dma.termMng.service;
+package com.dongkuk.dmes.mdm.dma.support;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import com.dongkuk.dmes.mdm.dma.support.TermWriter;
 import org.junit.jupiter.api.Test;
 
 /**
