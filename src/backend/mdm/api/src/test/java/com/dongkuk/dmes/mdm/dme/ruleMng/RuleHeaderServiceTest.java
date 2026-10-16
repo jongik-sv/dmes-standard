@@ -153,7 +153,7 @@ class RuleHeaderServiceTest extends AbstractMdmSharedDbTest {
 
     // ── 낙관적 잠금(D-105 (5)) ──
     // 원래는 TB_MDM_RULE 에 ROW_VERSION 이 없어 "마지막 저장이 이긴다"(06:913)였다. D-105 로 감사 카운터 VER 를 잠금에 쓴다
-    // (CodeEditService.requireAuditVer I19 와 같은 방식, DDL 없음). 아래는 그 계약이 지켜지는지 본다.
+    // (MaruHeaderRules.requireAuditVer I19 와 같은 방식, DDL 없음). 아래는 그 계약이 지켜지는지 본다.
     // 주의 — 카운터는 값이 바뀔 때만 오른다(Hibernate dirty checking). 같은 값을 다시 저장하면 UPDATE 가 없어 카운터도
     // 그대로다. 그래서 동시성 시험은 반드시 "서로 다른 값을 두 사람이 들고 있는 상황"으로 해야 한다.
 

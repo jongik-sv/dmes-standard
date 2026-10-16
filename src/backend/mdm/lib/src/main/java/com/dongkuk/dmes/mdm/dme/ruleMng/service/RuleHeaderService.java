@@ -40,7 +40,7 @@ import org.springframework.transaction.support.TransactionTemplate;
  *
  * <p><b>동시성(D-105 (5))</b>: {@code TB_MDM_RULE} 에 {@code ROW_VERSION} 이 없어 원래는 "마지막 저장이 이긴다"(06:913)였다.
  * {@code MdmRule} 이 {@code CactusAuditEntity} 를 상속하므로 감사 카운터 {@code VER} 가 이미 있고, 마루 코드
- * {@code CodeEditService.requireAuditVer}(I19)와 D-104 의 dataMng 헤더가 쓰는 바로 그 방식으로 <b>DDL 없이</b> 낙관적 잠금을
+ * {@code MaruHeaderRules.requireAuditVer}(I19)와 D-104 의 dataMng 헤더가 쓰는 바로 그 방식으로 <b>DDL 없이</b> 낙관적 잠금을
  * 건다. 화면이 읽어 둔 값과 어긋나면 MDM001 로 거절한다.
  *
  * <p>INUSE 는 계산 상태다(TSK-08-05 design §6.7, I20): 저장 CREATED 이고 적용된 RELEASED 가 있으면 헤더 저장·폐기 트랜잭션에서 저장값을
