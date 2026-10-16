@@ -1,6 +1,8 @@
 package com.dongkuk.dmes.mdm.dma.erdEdit.standard;
 
+import com.dongkuk.dmes.mdm.common.dictionary.DomainChainAssembler;
 import com.dongkuk.dmes.mdm.common.dictionary.DomainNode;
+import com.dongkuk.dmes.mdm.common.dictionary.DomainTreeSnapshot;
 import com.dongkuk.dmes.mdm.dma.erdEdit.engine.ErdDomainSpec;
 import com.dongkuk.dmes.mdm.dma.naming.DomainEntry;
 import com.dongkuk.dmes.mdm.dma.support.TermDictionaryLoader;
@@ -53,10 +55,24 @@ public class ErdDictionaryLoader {
         return new ErdDictionary(TermDictionaryLoader.load(terms), phys, alias, specs, entries, byPhys);
     }
 
-    /** 도메인 행마다 스펙 하나. */
+    /**
+     * 도메인 행마다 스펙 하나. 타입·길이·소수는 상속 체인으로 조립한 유효값이다 — 도메인 화면·레이아웃과 같은 규칙
+     * ({@link DomainChainAssembler#typeOf}). 자식 도메인은 길이·소수를 비워 두고 부모에서 물려받는다.
+     * 체인이 순환하면 그 도메인만 자기 행 값을 쓴다(사전 적재 전체를 실패시키지 않는다).
+     */
     static Map<Long, ErdDomainSpec> specs(List<DomainNode> nodes) {
-        return nodes.stream().collect(Collectors.toMap(DomainNode::domainId,
-                n -> new ErdDomainSpec(n.domainId(), n.domainName(), n.dataType(), n.length(), n.scale())));
+        DomainTreeSnapshot tree = DomainTreeSnapshot.of(nodes);
+        return nodes.stream().collect(Collectors.toMap(DomainNode::domainId, n -> spec(tree, n)));
+    }
+
+    private static ErdDomainSpec spec(DomainTreeSnapshot tree, DomainNode n) {
+        DomainChainAssembler.TypeSpec t;
+        try {
+            t = DomainChainAssembler.typeOf(tree.chainRootFirst(n.domainId()));
+        } catch (DomainTreeSnapshot.CycleException e) {
+            t = new DomainChainAssembler.TypeSpec(n.dataType(), n.length(), n.scale());
+        }
+        return new ErdDomainSpec(n.domainId(), n.domainName(), t.dataType(), t.length(), t.scale());
     }
 
     /**
