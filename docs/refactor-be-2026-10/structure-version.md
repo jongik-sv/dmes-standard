@@ -4,7 +4,7 @@
 
 ## 기준선
 
-- 기준 커밋: `40fa5061a`(태그 `refactor-be-2026-10-base` 다음 문서 커밋)
+- 기준 커밋: `40fa5061a`(= 태그 `refactor-be-2026-10-base`, 관리 문서 커밋)
 - 명령: `cd src/backend/mdm && ../gradlew test --continue -Pdmes.ora.test=clone`(heavy.mjs 로 감쌈, 27분)
 - 결과: `:lib:test` 2279 통과. `:api:test` 2081 중 실패 1·건너뜀 13
 - 이미 실패하던 시험: `CodeCateEditPerformanceSqliteTest.AC4_1000건_소속_이동_저장은_중앙값이_800ms_미만이다` — 중앙값 3604ms(기준 800ms), 실행 때 PC 부하(load) 약 15. 성능 기준 시험이라 부하 영향으로 본다(추정)
@@ -30,9 +30,9 @@
 - 동작 보존 근거:
   - 특성 시험 `VersionRulesApplyFromTest`(4건)를 옛 `RuleConfirmService.parseApplyFrom` 에 먼저 걸어 통과시킨 뒤(`eec17c116`) 새 위치로 돌렸다. 오류 코드(REQUIRED_VALUE·INVALID_VALUE)·문구·칸 오류(`applyFrom`)·앞뒤 공백·열린 끝 경계를 고정한다. 리뷰 뒤 전각 공백(trim 기준)·SMART 날짜 해석 경계 2건을 더했다(6건, `7a65293f3`).
   - `MdmCheckIssueMapsTest`(3건) — 두 모양의 키 순서와 값.
-  - 대상 시험: lib `common.version.*`·`common.support.*` 68건, api 확정 화면·OASIS HTTP·ERD 계약 시험 231건 모두 통과.
-- 영향 범위: `RuleConfirmService`·`CodeConfirmService`·`RuleSetConfirmService`·`LayoutConfirmService`·`ErdEditService`(631행 호출 한 줄, 조정자 허가). 응답 JSON·오류 응답은 그대로. 코드 항목·카테고리 편집의 4키 사본은 C6 에서 옮긴다.
-- 되돌리는 방법: `3b3520a17` revert(시험 `eec17c116` 은 옛 위치를 부르므로 함께 revert 하거나 그대로 둬도 된다 — 함께 revert 권장).
+  - 대상 시험: lib `common.version.*`·`common.support.*` 68건(리뷰 반영 뒤 70건), api 확정 화면·OASIS HTTP·ERD 계약 시험 231건 모두 통과.
+- 영향 범위: `RuleConfirmService`·`CodeConfirmService`·`RuleSetConfirmService`·`LayoutConfirmService`·`ErdEditService`(631행 호출 한 줄, 조정자 허가). 응답 JSON·오류 응답은 그대로. 코드 항목·카테고리 편집의 4키 사본은 C6 에서 옮긴다. FE 주석 2곳(`src/frontend/m-mdm/pages/dma/erdEdit/api.ts:197`·`panels/ConfirmDialog.tsx:37`)이 옛 위치 `RuleConfirmService.parseApplyFrom` 을 적고 있다(BE 레인 밖, UI 회차 후속).
+- 되돌리는 방법: `7a65293f3` → `3b3520a17` 순서로 revert(앞 커밋이 뒤 커밋의 파일을 고쳤다). 시험 `eec17c116` 은 옛 위치를 부르므로 그대로 둬도 되지만 함께 revert 를 권장한다.
 
 ## 보고만 한 후보 (이번에 고치지 않음)
 
