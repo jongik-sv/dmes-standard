@@ -1,12 +1,13 @@
-package com.dongkuk.dmes.mdm.common.rule;
+package com.dongkuk.dmes.mdm.dme.ruleSetEdit.service;
 
-import static com.dongkuk.dmes.mdm.common.rule.RuleSetAnalyzerTest.cond;
-import static com.dongkuk.dmes.mdm.common.rule.RuleSetAnalyzerTest.rule;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
-import com.dongkuk.dmes.mdm.common.rule.RuleSetGuide.Ambiguity;
-import com.dongkuk.dmes.mdm.common.rule.RuleSetGuide.GuideResult;
+import com.dongkuk.dmes.mdm.common.rule.RuleIo;
+import com.dongkuk.dmes.mdm.common.rule.RuleIo.IoName;
+import com.dongkuk.dmes.mdm.dme.ruleSetEdit.service.RuleSetGuide.Ambiguity;
+import com.dongkuk.dmes.mdm.dme.ruleSetEdit.service.RuleSetGuide.GuideResult;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -21,6 +22,16 @@ class RuleSetGuideTest {
     static final String DICT = RuleIo.DICT;
     static final String PROG = RuleIo.PROG;
     static final String NONE = RuleIo.NONE;
+
+    /** {@code RuleSetAnalyzerTest} 의 같은 이름 도우미와 같은 모양(그 시험은 common.rule 패키지 전용이라 여기에 둔다). */
+    static IoName cond(String name, String source) {
+        return new IoName(name, source, null, null, null, false, null);
+    }
+
+    static RuleIo rule(String id, List<IoName> conds, String... results) {
+        return new RuleIo(id, id + " 이름", "DT", "INUSE", true, "1.000", "FIRST", conds,
+                Arrays.stream(results).map(r -> new IoName(r, null, null, null, null, false, null)).toList());
+    }
 
     private final Map<String, List<String>> producers = new HashMap<>();
     private final Map<String, RuleIo> io = new HashMap<>();

@@ -3,6 +3,7 @@ package com.dongkuk.dmes.mdm.dmd.dataMng.service;
 import static com.dongkuk.dmes.mdm.common.support.MdmStrings.trimToNull;
 import static com.dongkuk.dmes.mdm.common.support.MdmErrors.invalid;
 
+import com.dongkuk.dmes.mdm.common.naming.NamingRules;
 import com.dongkuk.dmes.mdm.common.segment.DataCategorySegmentCore;
 import com.dongkuk.dmes.mdm.common.segment.DataCateValue;
 import com.dongkuk.dmes.mdm.common.segment.LockedMaruData;
@@ -12,7 +13,6 @@ import com.dongkuk.dmes.mdm.contract.category.CategoryConventions;
 import com.dongkuk.dmes.mdm.contract.category.CategoryOwner;
 import com.dongkuk.dmes.mdm.contract.common.MdmErrorCode;
 import com.dongkuk.dmes.mdm.contract.category.MaruIdRules;
-import com.dongkuk.dmes.mdm.dma.naming.NamingRules;
 import com.dongkuk.dmes.mdm.dmd.dataMng.dto.DataMngRegRequest;
 import com.dongkuk.dmes.mdm.dmd.dataMng.dto.DataMngRegResult;
 import com.dongkuk.dmes.mdm.dmd.dataMng.dto.DataMngRow;

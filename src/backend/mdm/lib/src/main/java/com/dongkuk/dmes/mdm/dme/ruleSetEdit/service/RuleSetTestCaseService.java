@@ -8,7 +8,6 @@ import com.dongkuk.dmes.cactus.common.ErrorCode;
 import com.dongkuk.dmes.mdm.common.rule.RuleCaseInputs;
 import com.dongkuk.dmes.mdm.common.rule.RuleSetRunner;
 import com.dongkuk.dmes.mdm.common.rule.RuleSetTestCaseQueries;
-import com.dongkuk.dmes.mdm.common.rule.RuleSetTestCaseWrites;
 import com.dongkuk.dmes.mdm.common.rule.RuleStewardCheck;
 import com.dongkuk.dmes.mdm.common.rule.check.RuleLimits;
 import com.dongkuk.dmes.mdm.common.support.MdmErrors;
