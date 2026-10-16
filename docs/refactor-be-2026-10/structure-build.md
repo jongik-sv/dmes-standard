@@ -20,5 +20,6 @@
   - api 실패 3건(`JobAgentWiringTest`)은 바꾸기 전부터 실패하던 시험이다. 원인은 yml 기본 Oracle 접속의 `ORA-01017`(logon denied)이고 이 변경과 무관하다. 건너뜀 2건(`MlsOracleSmokeTest`·`MlsColumnOrderOraTest`)은 시험 PDB 접속값(`dmes.ora.url`)이 없어 assume 으로 건너뛴다. 따라서 이 기준선은 Oracle 시험 없이 잰 것이다.
   - `mls.war` 의 jar 목록: 119개 → 118개. 빠진 것은 `WEB-INF/lib/jsoup-1.23.2.jar` 하나다.
   - `:api`·`:lib` 의 `runtimeClasspath` 의존성 보고서: `org.jsoup:jsoup:1.23.2` 줄만 빠졌다(나머지 차이는 트리 들여쓰기).
+  - 앱 기동은 시험으로 확인하지 못했다. mls 컨텍스트를 띄우는 시험(`JobAgentWiringTest`)이 Flyway 접속에서 먼저 실패하기 때문이다. 대신 리뷰에서 바꾼 뒤의 `mls.war` 를 바이트코드 문자열로 훑었다. `WEB-INF/lib`·`WEB-INF/lib-provided` 의 jar 118개와 `WEB-INF/classes` 에서 `org/jsoup`·`org.jsoup` 참조는 0건이다(`Class.forName`·`@ConditionalOnClass(name=…)` 문자열도 여기에 잡힌다). 같은 방법으로 `jsoup-1.23.2.jar` 를 훑으면 3212건이 잡혀, 방법이 동작함을 확인했다.
 - 영향 범위: mls.war 에서 jsoup jar 가 빠진다. mls 를 의존하는 빌드가 없어(루트 `settings.gradle` 의 include 만) 다른 모듈에는 영향이 없다. 다른 레인과 겹치는 파일은 없다.
 - 되돌리는 방법: 이 커밋을 revert 한다. 카탈로그 항목을 유지했으므로 revert 만으로 원래대로 돌아간다.
