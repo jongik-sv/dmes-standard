@@ -15,13 +15,13 @@ import org.jsoup.select.NodeVisitor;
  * 컬럼 설명·활용처 메모 HTML 소독과 글자 추출(D-150). {@link ColumnDescriptionFormat#isHtml} 이 HTML 로 본 값에만 쓴다 — 일반 글을
  * 소독하면 {@code <}·{@code &} 가 엔티티로 바뀐다.
  *
- * <p><b>허용 목록</b> — mls {@code NoticeHtmlSanitizer} 와 같은 바탕이다: jsoup {@link Safelist#relaxed()} + {@code hr}·{@code s}·
- * {@code del}·{@code ins}·{@code mark}. 허용 목록 밖의 태그({@code script}·{@code iframe}·{@code svg}·{@code style} 등)·
+ * <p><b>허용 목록</b> — mcm/lib {@code NoticeHtmlSanitizer}(공지, 2026-10-07 mls 에서 옮김)와 같은 바탕이다:
+ * jsoup {@link Safelist#relaxed()} + {@code hr}·{@code s}·{@code del}·{@code ins}·{@code mark}. 허용 목록 밖의 태그({@code script}·{@code iframe}·{@code svg}·{@code style} 등)·
  * {@code on*} 이벤트 속성·{@code style} 속성은 빠진다.
  *
- * <p><b>mls 판과 다른 점</b> — 링크({@code a[href]})도 이미지({@code img[src]})처럼 http·https 만 남긴다(mls 는 링크에 mailto 를 허용).
+ * <p><b>mcm 판과 다른 점</b> — 링크({@code a[href]})도 이미지({@code img[src]})처럼 http·https 만 남긴다(mcm 은 링크에 mailto 를 허용).
  * 프런트 렌더러 {@code sanitizeNoticeHtml}(shared {@code notice-body-view/sanitize.ts})이 http·https 만 남기므로 미리보기와 저장
- * 결과가 같게 맞췄다. mls 클래스를 의존하지 않는 까닭은 모듈 경계다(mdm 은 mls 를 모른다).
+ * 결과가 같게 맞췄다. mcm 클래스를 의존하지 않는 까닭은 모듈 경계다(mdm 은 mcm/lib 를 모른다).
  *
  * <p>{@code prettyPrint(false)} — 저장할 때마다 줄바꿈·들여쓰기가 바뀌지 않게 원문 공백을 유지한다. 소독 결과는 고정점이라 두 번 해도
  * 같다(피드·view 가 저장된 값을 한 번 더 소독한다 — 옛 데이터 방어).

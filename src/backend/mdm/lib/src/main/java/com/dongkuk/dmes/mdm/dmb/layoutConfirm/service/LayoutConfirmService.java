@@ -3,8 +3,10 @@ package com.dongkuk.dmes.mdm.dmb.layoutConfirm.service;
 import com.dongkuk.dmes.cactus.common.BusinessException;
 import com.dongkuk.dmes.cactus.common.ErrorCode;
 import com.dongkuk.dmes.mdm.common.security.MdmCurrentUser;
+import com.dongkuk.dmes.mdm.common.support.MdmCheckIssueMaps;
 import com.dongkuk.dmes.mdm.common.support.MdmErrors;
 import com.dongkuk.dmes.mdm.common.version.VersionNumbers;
+import com.dongkuk.dmes.mdm.common.version.VersionRules;
 import com.dongkuk.dmes.mdm.contract.common.MdmCheckIssue;
 import com.dongkuk.dmes.mdm.contract.common.MdmErrorCode;
 import com.dongkuk.dmes.mdm.contract.common.MdmNativeAuditSupport;
@@ -28,7 +30,6 @@ import com.dongkuk.dmes.mdm.dmb.layoutConfirm.dto.LayoutConfirmRequest;
 import com.dongkuk.dmes.mdm.dmb.layoutConfirm.dto.LayoutConfirmSearchRequest;
 import com.dongkuk.dmes.mdm.dmb.layoutConfirm.dto.LayoutConfirmValidateRequest;
 import com.dongkuk.dmes.mdm.dmb.layoutConfirm.dto.LayoutConfirmViewRequest;
-import com.dongkuk.dmes.mdm.dme.ruleConfirm.service.RuleConfirmService;
 import com.dongkuk.dmes.mdm.entity.MdmLayout;
 import com.dongkuk.dmes.mdm.entity.MdmLayoutVer;
 import com.dongkuk.dmes.mdm.repository.MdmLayoutRepository;
@@ -190,12 +191,12 @@ public class LayoutConfirmService {
             throw MdmErrors.of(MdmErrorCode.NOT_DRAFT);
         }
         // 판정 시각이 비면 지금으로 대신하지 않는다 — 합성기는 null 시각을 받지 않는다(MdmLayoutSnapshotResolver)
-        LocalDateTime applyFrom = RuleConfirmService.parseApplyFrom(request.getApplyFrom());
+        LocalDateTime applyFrom = VersionRules.parseApplyFrom(request.getApplyFrom());
         LayoutConfirmReport report = checks.report(t.ref(), applyFrom);
 
         List<Map<String, Object>> rows = new ArrayList<>();
-        report.errors().forEach(i -> rows.add(issueMap("ERROR", i)));
-        report.warnings().forEach(i -> rows.add(issueMap("WARNING", i)));
+        report.errors().forEach(i -> rows.add(MdmCheckIssueMaps.of("ERROR", i)));
+        report.warnings().forEach(i -> rows.add(MdmCheckIssueMaps.of("WARNING", i)));
 
         Map<String, Object> applyFromCheck = new LinkedHashMap<>();
         if (t.previous().isEmpty()) {
@@ -237,7 +238,7 @@ public class LayoutConfirmService {
         MdmLayout layout = load(request.getLayoutId());
         BigDecimal ver = LayoutVersions.requireVer(request.getVer());
         long expected = LayoutVersions.requireRowVersion(request.getRowVersion());
-        LocalDateTime applyFrom = RuleConfirmService.parseApplyFrom(request.getApplyFrom());
+        LocalDateTime applyFrom = VersionRules.parseApplyFrom(request.getApplyFrom());
         long id = layout.getLayoutId();
         VersionRef ref = new VersionRef(VersionTarget.LAYOUT, String.valueOf(id), VersionNumbers.scaled(ver));
 
@@ -315,16 +316,6 @@ public class LayoutConfirmService {
         if (!TransactionSynchronizationManager.isActualTransactionActive()) {
             throw new IllegalStateException("layoutConfirm.confirm 은 트랜잭션(OASIS action) 안에서만 부를 수 있습니다");
         }
-    }
-
-    private static Map<String, Object> issueMap(String severity, MdmCheckIssue i) {
-        Map<String, Object> m = new LinkedHashMap<>();
-        m.put("severity", severity);
-        m.put("code", i.code());
-        m.put("message", i.message());
-        m.put("field", i.field());
-        m.put("itemKey", i.itemKey());
-        return m;
     }
 
     private LocalDateTime now() {

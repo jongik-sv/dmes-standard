@@ -3,6 +3,7 @@ package com.dongkuk.dmes.mdm.dma.termMng;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.dongkuk.dmes.mdm.common.testdb.AbstractMdmSharedDbTest;
+import com.dongkuk.dmes.mdm.dma.support.TermRecommendationCache;
 import com.dongkuk.dmes.mdm.dma.termMng.dto.TermRow;
 import com.dongkuk.dmes.mdm.dma.termMng.dto.TermSearchRequest;
 import com.dongkuk.dmes.mdm.dma.termMng.service.TermMngService;

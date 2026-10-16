@@ -6,6 +6,7 @@ import com.dongkuk.dmes.mdm.common.embedding.DeterministicHashTermEmbeddingEncod
 import com.dongkuk.dmes.mdm.common.embedding.TermEmbeddingCodec;
 import com.dongkuk.dmes.mdm.common.embedding.TermEmbeddingEncoder;
 import com.dongkuk.dmes.mdm.common.testdb.AbstractMdmSharedDbTest;
+import com.dongkuk.dmes.mdm.dma.support.TermRecommendationCache;
 import com.dongkuk.dmes.mdm.dma.termMng.dto.RecommendRequest;
 import com.dongkuk.dmes.mdm.dma.termMng.service.TermMngService;
 import java.util.Arrays;
@@ -55,7 +56,7 @@ class TermRecommendPerformanceTest extends AbstractMdmSharedDbTest {
                     public void setValues(java.sql.PreparedStatement ps, int i) throws java.sql.SQLException {
                         String termName = "성능용어" + i;
                         String definition = "성능 시험용 정의 " + i;
-                        // I9·I18 인코딩 입력 형식("{표기}: {정의} ({영문명})")을 그대로 재현한다(TermMngService.buildEncodingInput).
+                        // I9·I18 인코딩 입력 형식("{표기}: {정의} ({영문명})")을 그대로 재현한다(TermWriter.buildEncodingInput).
                         String encodingInput = termName + ": " + definition; // 영문명이 비면 " (…)" 를 뺀다
                         byte[] embedding = TermEmbeddingCodec.encode(fixtureEncoder.encode(encodingInput));
                         ps.setString(1, termName);

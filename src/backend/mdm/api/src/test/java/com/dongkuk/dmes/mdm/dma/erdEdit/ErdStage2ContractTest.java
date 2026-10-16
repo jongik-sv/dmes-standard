@@ -271,7 +271,7 @@ class ErdStage2ContractTest extends AbstractMdmSharedDbTest {
         assertThat(handover.at("/meta/code").asText()).as(handover.toString()).isEqualTo("MDM005");
         c.assertNone(q, "version", 700);
 
-        // 확정: applyFrom 은 필수다(RuleConfirmService.parseApplyFrom, yyyy-MM-dd HH:mm:ss)
+        // 확정: applyFrom 은 필수다(VersionRules.parseApplyFrom, yyyy-MM-dd HH:mm:ss)
         JsonNode confirm = c.call("confirm", "owner", Map.of("modelId", "mcm", "ver", ver, "rowVersion", rvLocked,
                 "applyFrom", "2030-01-01 00:00:00", "warningsAcknowledged", true));
         assertThat(confirm.at("/data/result/ok").asBoolean()).as(confirm.toString()).isTrue();

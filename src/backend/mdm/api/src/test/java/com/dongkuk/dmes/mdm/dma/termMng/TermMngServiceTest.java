@@ -10,6 +10,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.dongkuk.dmes.cactus.common.BusinessException;
 import com.dongkuk.dmes.mdm.common.embedding.TermEmbeddingRepository;
 import com.dongkuk.dmes.mdm.common.testdb.AbstractMdmSharedDbTest;
+import com.dongkuk.dmes.mdm.dma.support.TermRecommendationCache;
 import com.dongkuk.dmes.mdm.dma.termMng.dto.RecommendCandidate;
 import com.dongkuk.dmes.mdm.dma.termMng.dto.RecommendRequest;
 import com.dongkuk.dmes.mdm.dma.termMng.dto.TermDeleteRequest;
@@ -184,6 +185,20 @@ class TermMngServiceTest extends AbstractMdmSharedDbTest {
     void I8_영문약어_중복은_저장을_막지_않고_경고만_낸다() {
         TermSaveRequest first = req("코일", 1, "감아 놓은 강판");
         first.setEngAbbr("COIL");
+        service.save(first);
+
+        TermSaveRequest second = req("코일", 2, "다른 의미의 코일");
+        second.setEngAbbr("COIL");
+        TermSaveResult result = service.save(second);
+
+        assertTrue(result.getWarnings().contains("ENG_ABBR_DUP"), result.getWarnings().toString());
+        assertTrue(termRepository.findByTermNameAndSenseNo("코일", 2).isPresent(), "경고여도 저장은 성공해야 한다");
+    }
+
+    @Test
+    void I8_대소문자만_다른_영문약어도_중복으로_경고한다() {
+        TermSaveRequest first = req("코일", 1, "감아 놓은 강판");
+        first.setEngAbbr("coil");
         service.save(first);
 
         TermSaveRequest second = req("코일", 2, "다른 의미의 코일");

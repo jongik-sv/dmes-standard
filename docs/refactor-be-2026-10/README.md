@@ -66,7 +66,7 @@
 | D1 | 참조 0건 mdm Repository 5개 보관 | mdm | S | L | 확인 | | 대기 | erd-term | |
 | D2 | mcm-core `Mom*` 엔티티 7개·`KeyStore` 등 약 1,360줄 보관 | mcm-core | S | L | 확인 | | 보류 | mcm | X1 설계 뒤 |
 | D3 | `McmSecurityDefaults` 의 없는 BPMN matcher 7개 정리 | mcm-core | S | L | 미확인 | | 진행 | mcm | |
-| D4 | `RuleSetRunner` OASIS 진입(약 200줄, 시험 BPMN 만 사용) | mdm | S | L | 미확인 | | 대기 | rule | 보관. OASIS 계약 검사 ERROR 0 |
+| D4 | `RuleSetRunner` OASIS 진입(약 200줄, 시험 BPMN 만 사용) | mdm | M | L | 확인 | | 제외 | rule | ADR-0005 D2 가 정한 통합 입구라 유지(2026-10-16 재확인, 「쓸 계획 없음」 전제 틀림) |
 | D5 | mls 의 쓰지 않는 jsoup 의존(재확인: mpp·mqc·mpn 에는 선언 없음) | 빌드 | S | L | 확인 | | 리뷰 | build | 6ba1bfd5d (브랜치), war jar 119 → 118 |
 | D6 | 모듈 5개의 `Sample*` 슬라이스(템플릿 예시) | 빌드, 여러 모듈 | M | M | 미확인 | | 제외 | | 유지(템플릿 저장소의 예시) |
 
@@ -142,3 +142,4 @@
 | 2026-10-16 | 기준선 mcm 계열(Oracle clone): mcm-core 1557·mcm:lib 16·mcm:api 169·analog core 192·api 184·cactus-core 974, 원래 실패 0 |
 | 2026-10-16 | 기준선 mls(Oracle 없이): lib 2/0, api 5 중 실패 3(`JobAgentWiringTest`, yml 기본 Oracle ORA-01017 환경 의존)·skip 2. D5 판정은 runtimeClasspath·war jar diff 로 |
 | 2026-10-16 | 기준선 rule: engine 1686/0, shared unit 3099 중 1 실패(grid-header timeout, 부하), m-mdm 4452 중 3 실패(timeout 2 = 부하, `ui-meta-lock.test.ts` 기존 실패), m-mcm rule-calc 125/0 |
+| 2026-10-16 | D4 결정 뒤집음: ADR-0005 D2 의 통합 입구라 보관하지 않고 제외. 머지 방식: 회차 규칙(--no-ff, 커밋 유지) |
