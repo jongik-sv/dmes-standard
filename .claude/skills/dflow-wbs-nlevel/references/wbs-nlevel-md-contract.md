@@ -187,27 +187,25 @@ levels:
   - { name: WP,        prefix: WP,  progress: rollup, report: weekly }
   - { name: Activity,  prefix: ACT, progress: rollup, optional: true }
   - { name: Task,      prefix: TSK, progress: input }
-  - { name: SubTask,   prefix: STK, progress: checklist, optional: true,
-      upload: fold }   # 노드로 안 올리고 부모 Task 의 acceptance 로 접어 올림
+  - { name: SubTask,   prefix: STK, progress: checklist, optional: true, upload: fold }
 
 # input 층의 stage → 진도 크레딧 (category 별)
+# if = I/F 는 연동돼야 절반 이상. doc = 선행 산출물용.
 credits:
   default: { 대기: 0, 설계: 20, 구현중: 50, 구현완료: 70, 테스트완료: 90, 검수완료: 100 }
-  if:      { 대기: 0, 구현중: 30, 구현완료: 50, 연동검증: 100 }   # I/F 는 연동돼야 절반 이상
-  doc:     { 미착수: 0, 작성중: 30, 제출: 50, 검수완료: 100 }      # 선행 산출물용
+  if:      { 대기: 0, 구현중: 30, 구현완료: 50, 연동검증: 100 }
+  doc:     { 미착수: 0, 작성중: 30, 제출: 50, 검수완료: 100 }
 ---
 
 # WBS — MES
 
 ## PH-01: 분석
 
-### SYS-OP: 조업
-
-#### WP-AN-OP: 조업 요건정의
+### WP-AN-OP: 조업 요건정의
 - [ ] TSK-AN-001: 조업 AS-IS 분석서            @박PL  w:5  ~2026-09-19  credit:doc
 - [ ] TSK-AN-002: 입측/출측 요건정의서          @박PL  w:5  ~2026-09-26  credit:doc
 - [ ] TSK-AN-003: L2 I/F 요건 목록             @이OO  w:3  ~2026-09-26  credit:doc
-- [M] 분석 완료 보고회                          ~2026-09-30              # progress:none — 마일스톤
+- [M] TSK-AN-OP-90: 분석 완료 보고회            ~2026-09-30
 
 ## PH-03: 구축
 
@@ -217,9 +215,9 @@ credits:
 
 ##### WP-IN-PR: 프로세스
 
-###### ACT-IN-PR-1: 실적 관리                                # Activity — 그룹핑 전용, 입력 금지
+###### ACT-IN-PR-1: 실적 관리
 - [ ] TSK-IN-001: 입측 실적 수집 프로세스       @홍길동 w:5  ~2026-10-17
-  - [ ] STK-IN-001-1: 크레인 계량 연계 확인                   # checklist — 집계 불개입
+  - [ ] STK-IN-001-1: 크레인 계량 연계 확인
   - [ ] STK-IN-001-2: 중복 수신 방어 로직
   - [x] STK-IN-001-3: 실적 테이블 설계 리뷰
 - [ ] TSK-IN-002: 입측 실적 정정               @홍길동 w:3  ~2026-10-24
@@ -229,7 +227,7 @@ credits:
 - [ ] TSK-IN-011: 입측 판정 프로세스            @홍길동 w:5  ~2026-10-31
 - [ ] TSK-IN-012: 판정 예외 처리               @홍길동 w:2  ~2026-10-31
 
-##### WP-IN-UI: 화면                                          # Activity 생략 — Task 직결 (혼재 OK)
+##### WP-IN-UI: 화면
 - [ ] TSK-IN-101: 입측 작업 현황 화면           @김철수 w:3  ~2026-10-17
 - [ ] TSK-IN-102: 입측 실적 조회 화면           @김철수 w:2  ~2026-10-24
 - [ ] TSK-IN-103: 입측 수동 보정 화면           @김철수 w:3  ~2026-10-31
@@ -265,6 +263,26 @@ credits:
 ##### WP-ERP-WO: 작업지시
 - [ ] TSK-ERP-311: 생산오더 수신 I/F           @박OO  w:3  ~2026-12-05  credit:if  if-id:IF-0032
 ```
+
+샘플 읽는 법 (샘플 안에는 `#` 주석을 쓰지 않는다 — 아래 「쓰기 규칙」 참조):
+
+- SubTask(STK)는 노드로 안 올리고 부모 Task 의 acceptance 로 접어 올린다 (`upload: fold`). 집계에는 들어가지 않는다 (checklist).
+- Activity(ACT)는 그룹핑 전용이고 진도 입력은 없다. `WP-IN-UI` 처럼 Activity 를 건너뛰고 Task 를 바로 붙여도 된다 (혼재 허용).
+- `[M]` 줄은 마일스톤 (`progress: none`)이다. 반드시 ID 를 쓴다.
+- `credits` 의 `if` 는 I/F 용이다. 연동돼야 절반 이상으로 본다. `doc` 은 선행 산출물용이다.
+
+## 쓰기 규칙 (두 파서 공통)
+
+스킬 파서(`wbs-nlevel-parse.mjs`)와 웹 파서(`src/lib/wbsmd/parse.ts`)는 둘 다 줄 단위로 읽는다. 아래를 지킨다.
+
+- **`levels` 항목은 한 줄에 하나** 쓴다. `{ … }` 를 여러 줄로 나누면 그 줄을 읽지 못해 층이 빠진다 (예: STK 층이 없어져 fold 가 안 되고, `credits` 구간도 끊긴다).
+- **필드 값은 한 줄만** 쓴다. `- acceptance:` 아래로 이어 쓴 줄은 읽지 않는다. 여러 항목은 한 줄에 ` / ` 로 잇는다.
+- **글머리표는 `-` 만** 쓴다. `*`·`+` 와 번호 목록은 항목으로 읽지 않는다.
+- **줄 끝에 `# 주석`을 붙이지 않는다.** 일반 노드에서는 제목에 섞여 DB 에 들어가고, `[M]` 줄에서는 ID·제목 판정이 깨져 오류가 난다. 설명이 필요하면 `<!-- … -->` 를 별도 줄에 쓴다. frontmatter 에서는 줄 전체가 `#` 로 시작하는 주석만 쓴다.
+- **필드 키는 `category`·`domain`·`model`·`priority`·`tags`·`depends`·`prd-ref`·`entry-point`·`requirements`·`acceptance` 열 가지뿐**이다. `spec`·`note` 는 두 파서 모두 읽지 않고 버린다.
+- **`priority` 는 `critical`·`high`·`medium`·`low` 중 하나**, `w:` 가중치는 0 보다 큰 수다.
+- **`module` 은 frontmatter 에 반드시 있고** `^[A-Za-z0-9_-]{1,32}$` 형식이다 (골격·PL 모두). 웹 적용은 module 이 없거나 형식이 틀리면 거부한다.
+- ID 는 파일 안에서 유일해야 한다. 같은 ID 를 두 번 쓰지 않는다.
 
 ## 표기 규약 (파서 계약)
 

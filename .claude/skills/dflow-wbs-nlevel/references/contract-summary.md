@@ -9,9 +9,9 @@
 ```yaml
 ---
 project: MES
-module: mes-op                  # PL 모드 필수 — external_ref 네임스페이스
-attach: PH-03/SYS-OP            # PL 모드 필수 — 골격의 부착점 노드
-levels:                         # 골격이 정본, PL 파일은 복사본(불일치 = 업로드 거부)
+module: mes-op
+attach: PH-03/SYS-OP
+levels:
   - { name: Phase,     prefix: PH,  progress: rollup }
   - { name: System,    prefix: SYS, progress: rollup }
   - { name: Subsystem, prefix: SUB, progress: rollup }
@@ -26,6 +26,10 @@ credits:
 ---
 ```
 
+- `module`: 골격·PL 모두 필수. external_ref 네임스페이스. 형식 `^[A-Za-z0-9_-]{1,32}$`.
+- `attach`: PL 모드 필수. 골격의 부착점 노드.
+- `levels`: 골격이 정본, PL 파일은 복사본 (불일치 = 업로드 거부). **항목은 한 줄에 하나** — 여러 줄로 나누면 파서가 그 층을 놓친다.
+- 줄 끝에 `# 주석`을 붙이지 않는다 (frontmatter 는 줄 전체가 `#` 인 주석만).
 - 산문 표·본문 절로 단계 선언 금지. 기계 파싱 대상 = frontmatter 뿐.
 - `progress` 4종:
   - `input`: leaf 입력·발행 대상
@@ -57,13 +61,18 @@ credits:
 ### 3. 본문 표기 (한 줄 요약 — 전체 표는 스펙)
 
 ```markdown
-## PH-03: 구축                       ← 헤딩: 상위 층
+## PH-03: 구축
 ##### WP-IN-PR: 프로세스
 ###### ACT-IN-PR-1: 실적 관리
 - [ ] TSK-IN-001: 입측 실적 수집 @홍길동 w:5 ~2026-10-17 credit:default
-  - [ ] STK-IN-001-1: 중복 수신 방어   ← checklist (fold)
-- [M] TSK-AN-IF-90: 분석 완료 보고회 ~2026-09-30   ← 마일스톤 — ID 필수(external_ref)
+  - [ ] STK-IN-001-1: 중복 수신 방어
+- [M] TSK-AN-IF-90: 분석 완료 보고회 ~2026-09-30
 ```
+
+- 헤딩(`##`~`######`) = 상위 층. 리스트 줄 = Task 이하.
+- 들여쓴 `- [ ] STK-…` = checklist 층 (fold). 부모 Task 의 acceptance 로 접힌다.
+- `[M]` = 마일스톤. **ID 필수** (external_ref). 접두어는 소속 층 아무거나.
+- 줄 끝에 `# 주석`·`←` 설명을 붙이지 않는다. 제목에 섞여 DB 에 들어간다 (`[M]` 줄은 오류).
 
 `@담당` `w:가중치(MD, 생략=1)` `~종료일` 또는 `시작~종료일` `credit:크레딧표키` `if-id:I/F대장ID`.
 - 생성기 = **`시작~종료일` 로 씀**.
@@ -74,7 +83,11 @@ credits:
 
 **Task 상세 블록** — 한 줄 밑에 들여쓴 `- key: value` 필드.
 - 체크박스 없는 리스트 = 필드, `- [ ]` = SubTask. 둘 공존.
-- import 필드를 여기에 실음: category·domain·model·priority·tags·depends·prd-ref·entry-point·requirements·acceptance·spec·note.
+- import 필드를 여기에 실음: category·domain·model·priority·tags·depends·prd-ref·entry-point·requirements·acceptance (열 가지뿐).
+  - `spec`·`note` 는 쓰지 않는다. 두 파서(스킬·웹) 모두 읽지 않고 버린다.
+  - `priority` 는 `critical`·`high`·`medium`·`low` 중 하나.
+- **필드 값은 한 줄만** 쓴다. 이어 쓴 줄은 읽지 않는다. 여러 항목은 ` / `(acceptance) 또는 `,`(tags·depends)로 한 줄에 잇는다.
+- **글머리표는 `-` 만** 쓴다. `*`·`+`·번호 목록은 항목으로 읽지 않는다.
 
 ```markdown
 - [ ] TSK-IN-001: 입측 실적 수집 프로세스 @홍길동 w:5 ~2026-11-14
