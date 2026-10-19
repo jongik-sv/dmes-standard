@@ -10,6 +10,11 @@
 //   2. depends_unknown depends에 명시된 TSK-ID가 wbs.md에 존재하지 않음
 //   3. test_unmapped   domain이 Dev Config에 매핑되지 않음 (e2e/unit 명령 부재)
 //   4. vague_action    "구현/배포/검증" 같은 동사가 정량 기준 없이 사용됨
+//   5~8 (import 사전 검사 — D'Flow `/wbs/import` 의 toRpcNode 거부 조건을 미리 잡는다. 2026-10)
+//   5. missing_title     Task·WP·ACT 헤딩에 제목이 없음 (import: id·title 필수)
+//   6. invalid_priority  priority 가 critical|high|medium|low 가 아님 ('-' 와 빈 값은 미지정)
+//   7. invalid_schedule  schedule 이 `YYYY-MM-DD ~ YYYY-MM-DD` 또는 `~ YYYY-MM-DD` 가 아니거나 없는 날짜
+//   8. invalid_status    status 가 export 가 아는 표기가 아님 (모르면 stage 가 조용히 null 이 된다)
 //
 // 서브커맨드:
 //   validate --wbs FILE [--dev-config-json STR]   WBS 정합성 검사 → JSON
@@ -40,9 +45,10 @@ import { pyJsonDumps } from '../../_shared/node/pyjson.mjs';
 import { pyMatch, splitlinesPy } from '../../_shared/node/pytext.mjs';
 import { pyReprStr } from '../../_shared/node/pyrepr.mjs';
 import { parseCli, finish, OK, VIOLATION, USAGE } from '../../_shared/node/args.mjs';
-import { FENCE_RE, _fenced_ranges, _in_ranges } from './_wbs_md.mjs';
+import { FENCE_RE, _fenced_ranges, _in_ranges, line_start_offsets } from './_wbs_md.mjs';
 import { PY_SPACE_CLASS, pyStrip } from './_pystr.mjs';
 import { pyJsonLoads, PyJSONDecodeError } from './_pyjson_loads.mjs';
+import { STAGE_CODE } from './_wbs_status.mjs';
 
 export { FENCE_RE };
 
@@ -210,6 +216,102 @@ export function _has_quant_or_vague(block) {
 }
 
 // ---------------------------------------------------------------------------
+// import 사전 검사 — wbs-web src/lib/agent/wbsImport.ts toRpcNode 의 거부 조건을 미리 잡는다.
+// 값은 export(wbs-parse.mjs)가 읽는 방식 그대로 읽는다: 블록 안에서 `- 키:` 로 시작하는 첫 줄, 앞뒤 공백 제거,
+// 빈 값과 '-' 는 미지정. 그래서 META_LINE_RE 로 읽는 위 검사들과 값이 다를 수 있다.
+// ---------------------------------------------------------------------------
+
+export const IMPORT_PRIORITIES = ['critical', 'high', 'medium', 'low'];
+// import 의 SCHEDULE_RE / SCHEDULE_END_ONLY_RE 와 같다(JS \d 는 ASCII 숫자만).
+const SCHEDULE_RANGE_RE = /^(\d{4})-(\d{2})-(\d{2})\s*~\s*(\d{4})-(\d{2})-(\d{2})$/;
+const SCHEDULE_END_RE = /^~\s*(\d{4})-(\d{2})-(\d{2})$/;
+
+/** export 의 get_field 와 같은 규칙: `- 키:` 로 시작하는 첫 줄의 값. 없으면 ''. */
+function firstField(block, name) {
+  const pattern = `- ${name}:`;
+  for (const line of splitlinesPy(block)) {
+    if (line.startsWith(pattern)) return pyStrip(line.slice(pattern.length));
+  }
+  return '';
+}
+
+/** 빈 값과 '-' 는 null (export 의 _nullify). */
+function nullable(v) {
+  const t = pyStrip(v || '');
+  return !t || t === '-' ? null : t;
+}
+
+function validDate(y, m, d) {
+  y = Number(y); m = Number(m); d = Number(d);
+  if (m < 1 || m > 12 || d < 1) return false;
+  const leap = (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0;
+  const dim = m === 2 ? (leap ? 29 : 28) : [4, 6, 9, 11].includes(m) ? 30 : 31;
+  return d <= dim;
+}
+
+/** schedule 값 검사. 문제가 없으면 null, 있으면 사유 문장. */
+export function _schedule_problem(raw) {
+  const v = nullable(raw);
+  if (v === null) return null;
+  const r = SCHEDULE_RANGE_RE.exec(v);
+  if (r) {
+    if (!validDate(r[1], r[2], r[3]) || !validDate(r[4], r[5], r[6])) return `schedule 에 없는 날짜가 있음: ${v}`;
+    return null;
+  }
+  const e = SCHEDULE_END_RE.exec(v);
+  if (e) return validDate(e[1], e[2], e[3]) ? null : `schedule 에 없는 날짜가 있음: ${v}`;
+  return `schedule 형식 오류: ${v} (YYYY-MM-DD ~ YYYY-MM-DD 또는 ~ YYYY-MM-DD)`;
+}
+
+/** Task 블록 하나의 import 사전 검사. */
+export function _import_task_issues(b) {
+  const issues = [];
+  const at = { task: b.id, line: b.line };
+  // TASK_HEADING_RE 의 제목 칸은 \s 가 개행을 삼켜 빈 제목이면 다음 줄을 제목으로 잡는다 — 헤딩 첫 줄만 다시 본다.
+  const head = splitlinesPy(b.block)[0] ?? '';
+  const hm = /^[^:]*:(.*)$/u.exec(head);
+  if (!pyStrip(hm ? hm[1] : '')) issues.push({ ...at, type: 'missing_title', detail: 'Task 헤딩에 제목이 없음 (import: id·title 필수)' });
+  const priority = nullable(firstField(b.block, 'priority'));
+  if (priority !== null && !IMPORT_PRIORITIES.includes(priority)) {
+    issues.push({ ...at, type: 'invalid_priority', detail: `priority ${pyReprStr(priority)} 는 critical|high|medium|low 가 아님` });
+  }
+  const sp = _schedule_problem(firstField(b.block, 'schedule'));
+  if (sp) issues.push({ ...at, type: 'invalid_schedule', detail: sp });
+  const status = firstField(b.block, 'status');
+  if (status && !STAGE_CODE.has(status)) {
+    issues.push({ ...at, type: 'invalid_status', detail: `status ${pyReprStr(status)} 는 알 수 없는 표기 — ${[...STAGE_CODE.keys()].join(' ')} 중 하나` });
+  }
+  return issues;
+}
+
+const WP_HEADING_RE = new RegExp(`^##${S}+(WP-${D}+):${S}*([^\\n]*)$`, 'u');
+const ACT_HEADING_RE = new RegExp(`^###${S}+(ACT-${D}+(?:-${D}+)+):${S}*([^\\n]*)$`, 'u');
+
+/** WP·ACT 헤딩의 제목 누락, WP 의 schedule 형식. 펜스 안의 줄은 건너뛴다. */
+export function _import_group_issues(content) {
+  const issues = [];
+  const lines = splitlinesPy(content);
+  const fences = _fenced_ranges(content);
+  const offsets = line_start_offsets(content);
+  for (let i = 0; i < lines.length; i++) {
+    if (_in_ranges(offsets[i], fences)) continue;
+    const wp = WP_HEADING_RE.exec(lines[i]);
+    const act = wp ? null : ACT_HEADING_RE.exec(lines[i]);
+    const m = wp || act;
+    if (!m) continue;
+    const at = { task: m[1], line: i + 1 };
+    if (!pyStrip(m[2])) issues.push({ ...at, type: 'missing_title', detail: `${wp ? 'WP' : 'ACT'} 헤딩에 제목이 없음 (import: id·title 필수)` });
+    if (wp) {
+      const meta = [];
+      for (let k = i + 1; k < lines.length && !lines[k].startsWith('#'); k++) meta.push(lines[k]);
+      const sp = _schedule_problem(firstField(meta.join('\n'), 'schedule'));
+      if (sp) issues.push({ ...at, type: 'invalid_schedule', detail: sp });
+    }
+  }
+  return issues;
+}
+
+// ---------------------------------------------------------------------------
 // Validate
 // ---------------------------------------------------------------------------
 
@@ -265,7 +367,11 @@ export function validate_wbs(content, dev_config = null) {
         context: v.context,
       });
     }
+
+    // 5~8. import 사전 검사
+    issues.push(..._import_task_issues(b));
   }
+  issues.push(..._import_group_issues(content));
 
   const summary = {};
   for (const it of issues) {

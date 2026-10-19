@@ -16,7 +16,7 @@ import { fileURLToPath } from 'node:url';
 import { findPython, makeTempDir, runNode } from '../../_shared/node/proc.mjs';
 import { readJson } from '../../_shared/node/io.mjs';
 import { walkSorted } from '../../_shared/node/paths.mjs';
-import { splitSet, assemble } from '../scripts/wbs-envelope.mjs';
+import { splitSet, assemble, importProblem, MODULE_RE, MAX_NODES } from '../scripts/wbs-envelope.mjs';
 import {
   VARIANTS, syntheticCases, nlevelInputs, pyCode, runLegacy, runEnvelope, readOut, PY_V1, PY_V2,
 } from './envelope-cases.mjs';
@@ -201,6 +201,82 @@ test('legacy 문자열이 SKILL.md 의 두 코드와 같은 모양이다(문서 
   assert.ok(PY_V1.includes('json.load(open(') && PY_V2.includes('json.load(open('));
 });
 
+// ─────────────────────────────────────────────────────────────── 1b) import 사전 검사 (python 판에는 없던 검사)
+
+/**
+ * 케이스·variant 에서 import 사전 검사가 거부하는지. python 원본은 그런 입력도 그대로 써 주므로(의도한 차이)
+ * 골든·기대값 비교는 이런 케이스를 "node 가 한 줄 ERROR 로 거부한다"로 바꿔 확인한다.
+ */
+function rejectedByImportCheck(c, variant) {
+  if (c.input === null) return false;
+  const sets = variant === 'v1' ? [['project_id', c.uuid], ['module', c.mod]] : [['project_id', c.uuid]];
+  try {
+    return importProblem(Buffer.from(c.input).toString('utf8').replace(/\r\n?/g, '\n'), sets) !== null;
+  } catch {
+    return false; // 깨진 JSON 등은 python 과 같은 경로(assemble 의 오류)로 간다
+  }
+}
+
+const envOf = (nodes) => JSON.stringify({ schema_version: '2.1', source: 'x', nodes });
+const oneNode = { id: 'TSK-01-01', title: 't' };
+const runBody = (body, sets, extra = []) => {
+  const d = newDir();
+  const inFile = path.join(d, 'in.json');
+  const outFile = path.join(d, 'out.json');
+  fs.writeFileSync(inFile, body);
+  const r = runNode(SCRIPT, ['--in', inFile, '--out', outFile, ...sets.flatMap((x) => ['--set', x]), ...extra], { cwd: d });
+  return { ...r, outFile };
+};
+
+test('importProblem: module 형식 — 영문·숫자·_·- 1~32자만', () => {
+  for (const ok of ['c10', 'MES_op-2', 'a', 'x'.repeat(32)]) {
+    assert.ok(MODULE_RE.test(ok), ok);
+    assert.equal(importProblem(envOf([oneNode]), [['module', ok]]), null, ok);
+  }
+  for (const bad of ['', 'x'.repeat(33), 'a b', 'a/b', '한글', 'a.b', ' a', 'a\n']) {
+    assert.match(importProblem(envOf([oneNode]), [['module', bad]]) ?? '', /^module 형식 오류/, JSON.stringify(bad));
+  }
+  assert.equal(importProblem(envOf([oneNode]), [['project_id', 'a b']]), null, 'module 이 아닌 키는 보지 않는다');
+});
+
+test('importProblem: nodes 건수 — 비어 있음과 상한 초과를 거부, 상한 건수는 통과', () => {
+  assert.match(importProblem(envOf([]), [['module', 'm']]), /nodes 가 비어 있음/);
+  const many = (n) => envOf(Array.from({ length: n }, (_, i) => ({ id: `T-${i}`, title: 't' })));
+  assert.equal(importProblem(many(MAX_NODES), [['module', 'm']]), null);
+  assert.match(importProblem(many(MAX_NODES + 1), [['module', 'm']]), new RegExp(`nodes ${MAX_NODES + 1}건`));
+});
+
+test('CLI: 잘못된 module 은 종료 코드 1 + 한 줄 ERROR, 출력 파일을 만들지 않는다', () => {
+  const r = runBody(envOf([oneNode]), [`project_id=${UUID}`, 'module=bad name']);
+  assertShortError(r, 'bad module');
+  assert.match(r.stderr, /module 형식 오류/);
+  assert.equal(readOut(r.outFile), null);
+});
+
+test('CLI: nodes 가 비면 종료 코드 1 + 한 줄 ERROR, 출력 파일을 만들지 않는다', () => {
+  const r = runBody(envOf([]), [`project_id=${UUID}`, 'module=m']);
+  assertShortError(r, 'empty nodes');
+  assert.match(r.stderr, /nodes 가 비어 있음/);
+  assert.equal(readOut(r.outFile), null);
+});
+
+test('CLI: nodes 1001건이면 종료 코드 1, 1000건이면 통과', () => {
+  const many = (n) => envOf(Array.from({ length: n }, (_, i) => ({ id: `T-${i}`, title: 't' })));
+  const over = runBody(many(MAX_NODES + 1), [`project_id=${UUID}`, 'module=m']);
+  assertShortError(over, 'over limit');
+  assert.match(over.stderr, /상한 1000건 초과/);
+  const edge = runBody(many(MAX_NODES), [`project_id=${UUID}`, 'module=m']);
+  assert.equal(edge.status, 0, edge.stderr);
+});
+
+test('CLI: 정상 봉투는 이전과 같은 바이트(module 이 유효하고 nodes 가 1건 이상)', () => {
+  const r = runBody(envOf([oneNode]), [`project_id=${UUID}`, 'module=c10'], ['--indent', '2']);
+  assert.equal(r.status, 0, r.stderr);
+  const out = JSON.parse(readOut(r.outFile).toString('utf8'));
+  assert.equal(out.module, 'c10');
+  assert.equal(out.project_id, UUID);
+});
+
 // ─────────────────────────────────────────────────────────────── 2) 골든(python)
 
 const CASES = syntheticCases();
@@ -208,6 +284,12 @@ const CASES = syntheticCases();
 for (const c of CASES) {
   for (const v of VARIANTS) {
     test(`golden: ${c.id} | ${v}`, { skip: NO_PY }, () => {
+      if (rejectedByImportCheck(c, v)) {
+        const n = runEnvelope(SCRIPT, v, c, newDir());
+        assertShortError(n, c.id);
+        assert.equal(readOut(n.outFile), null, '출력 파일 없음');
+        return;
+      }
       const p = runLegacy(py, v, c, newDir());
       const n = runEnvelope(SCRIPT, v, c, newDir());
       assert.equal(n.status, p.status, `종료 코드 python=${p.status} node=${n.status}\npython stderr: ${p.stderr.split('\n').slice(-3).join(' | ')}\nnode stderr: ${n.stderr}`);
@@ -288,6 +370,12 @@ test('expected: python 기대값과 node 판 출력이 같다(종료 코드·sha
       uuid: e.uuid, mod: e.mod, out: e.out,
     };
     const r = runEnvelope(SCRIPT, e.variant, c, newDir());
+    if (e.status === 0 && rejectedByImportCheck(c, e.variant)) {
+      // python 은 썼지만 import 사전 검사가 거부하는 입력(의도한 차이)
+      assertShortError(r, key);
+      n++;
+      continue;
+    }
     assert.equal(r.status, e.status, `${key}: 종료 코드`);
     if (e.status === 0) {
       const out = readOut(r.outFile);

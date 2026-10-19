@@ -26,6 +26,11 @@
 //  - 출력 폴더가 없음(python 처럼 만들지 않는다), 출력 경로가 폴더이거나 쓸 수 없음
 //  - 인자 오류는 종료 코드 2(사용 오류): `--set` 이 하나도 없음, `--set` 이 KEY=VALUE 가 아님, `--indent` 음수 등. 한 줄 stderr.
 //
+// import 사전 검사(2026-10, 오류 출력 규약은 위와 같다 — 종료 코드 1, 한 줄 `ERROR:`; python 판에는 없던 검사다)
+//  - `--set module=` 값이 `^[A-Za-z0-9_-]{1,32}$` 가 아님: 서버(POST /wbs/import)가 400 으로 거부하는 형식이다.
+//  - 봉투의 `nodes` 배열이 비어 있음, 또는 1000건 초과(서버 MAX_NODES). `nodes` 키가 없는 봉투는 검사하지 않는다.
+//  검사를 통과한 입력의 출력 바이트는 이전과 같다.
+//
 // python 판과 다른 점(영향이 작아 맞추지 않음): 짝 없는 서로게이트(`"\ud800"`)가 있으면 python 은 쓰기 도중
 //  UnicodeEncodeError 로 끝나면서 출력 파일을 만들어 두지만, node 는 아무 것도 쓰지 않고 종료 코드 1 로 끝난다.
 
@@ -51,6 +56,30 @@ const SPEC = {
     indent: { type: 'int' },
   },
 };
+
+// 서버 POST /api/v1/wbs/import 의 거부 조건 (wbs-web src/app/api/v1/wbs/import/route.ts)
+export const MODULE_RE = /^[A-Za-z0-9_-]{1,32}$/;
+export const MAX_NODES = 1000;
+
+/**
+ * import 가 거부할 입력을 미리 찾는다. 문제가 없으면 null, 있으면 한 줄 사유.
+ * @param {string} text 봉투 JSON
+ * @param {Array<[string,string]>} sets
+ */
+export function importProblem(text, sets) {
+  for (const [k, v] of sets) {
+    if (k === 'module' && !MODULE_RE.test(v)) {
+      return `module 형식 오류: ${JSON.stringify(v)} — 영문·숫자·_·- 만, 1~32자`;
+    }
+  }
+  const d = parseFaithful(text);
+  if (!(d instanceof Map)) return null; // 최상위가 객체가 아닌 오류는 assemble 이 같은 문구로 보고한다
+  const nodes = d.get('nodes');
+  if (!Array.isArray(nodes)) return null; // 키가 없는 봉투는 export 가 만들지 않는다 — 건수만 본다
+  if (nodes.length === 0) return 'nodes 가 비어 있음 — import 가 거부함';
+  if (nodes.length > MAX_NODES) return `nodes ${nodes.length}건 — import 상한 ${MAX_NODES}건 초과`;
+  return null;
+}
 
 const LONE_SURROGATE = /[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[\udc00-\udfff]/;
 
@@ -106,7 +135,13 @@ export function main(args = process.argv.slice(2)) {
 
   let body;
   try {
-    body = assemble(readPyText(inFile), sets, indent === undefined ? null : indent);
+    const text = readPyText(inFile);
+    const problem = importProblem(text, sets);
+    if (problem) {
+      process.stderr.write(`ERROR: ${inFile}: ${problem}\n`);
+      return finish(1);
+    }
+    body = assemble(text, sets, indent === undefined ? null : indent);
   } catch (e) {
     process.stderr.write(`ERROR: ${errText(e, inFile)}\n`);
     return finish(1);

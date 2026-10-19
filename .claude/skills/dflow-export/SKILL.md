@@ -51,6 +51,12 @@ PAT="$(echo "${DFLOW_PATS:-$DFLOW_PAT}" | cut -d',' -f1)"
 node .claude/skills/dflow-export/scripts/wbs-validate.mjs validate --wbs docs/{MOD}/wbs.md
 ```
 - 통과 조건: `ok: true` + `task_count` = 실제 Task 수. 0 이면 헤딩 형식 문제 — 진행 금지.
+- 이 게이트는 import 거부 조건을 미리 잡는다 (D'Flow `toRpcNode` 기준).
+  - `missing_title`: Task·WP·ACT 헤딩에 제목 없음.
+  - `invalid_priority`: `critical|high|medium|low` 가 아님. `-` 와 빈 값은 미지정.
+  - `invalid_schedule`: `YYYY-MM-DD ~ YYYY-MM-DD` 또는 `~ YYYY-MM-DD` 가 아님. 없는 날짜도 포함.
+  - `invalid_status`: export 가 모르는 `- status:` 표기. 그대로 두면 stage 가 조용히 null 이 됨.
+  - `ok: false` 면 2번으로 가지 않는다. 이슈를 고친 뒤 다시 실행한다.
 - Task 헤딩 정규식 `#{3,5}`: **3-5단계 헤딩(`###`~`#####`) 모두 TSK 로 인식** (3단계·4단계 WBS 겸용).
 - 참고 검사 (선택): Task 목록을 pipe 로 넘겨야 의미 있음. 입력 없이 `--docs-dir` 만 주면 빈 결과.
   ```bash
@@ -77,6 +83,7 @@ node .claude/skills/dflow-export/scripts/wbs-envelope.mjs \
 - 입력 없음·깨진 JSON·출력 폴더 없음 → 종료 코드 1 + 한 줄 `ERROR:`. 폴더 생성 안 함.
 - `--set` 없음 또는 `KEY=VALUE` 형식 아님 → 사용 오류, 종료 코드 2 + 한 줄 stderr.
 - `--set` 값은 `"project_id=<UUID>"` 처럼 따옴표로 감쌈 (`<`·`>` 가 셸 redirection 으로 해석되지 않게).
+- `--set module=` 값이 `^[A-Za-z0-9_-]{1,32}$` 가 아니거나 `nodes` 가 비었거나 1000건을 넘으면 종료 코드 1 + 한 줄 `ERROR:`. 서버가 400 으로 거부할 입력을 미리 막는 검사다.
 - 비 0 종료면 4번(전송)으로 넘어가지 않음.
 
 ### 4. 전송 (`--push` 일 때만)
@@ -96,6 +103,11 @@ curl -sS -X POST "$DFLOW_API_BASE/api/v1/wbs/import" \
   - `unmatched_assignees` 와 `orders_created` 는 서로 독립 (v2.1). assignee 이메일이 roster 에 매칭 안 돼도 task 노드 주문 발행.
 - **멱등**: 같은 payload 재전송 = 0건 갱신. 삭제는 절대 안 함.
 - **필드 소유권**: 기존 행은 구조·명세만 갱신. `stage`·`assignee`·`actual_pct` 는 서버가 보존. 재업로드해도 진행 상태 초기화 안 됨.
+
+## 웹 "WBS 마크다운" 탭으로 올리는 길
+
+wbs.md 를 변환 없이 웹 `/p/{id}/import` 의 "WBS 마크다운" 탭에 직접 올릴 수도 있다. 이때 module 은 화면에서 입력한다.
+웹 변경이 staging 에 반영된 뒤부터 가능하다. 그 전에는 이 스킬의 export 경로를 쓴다.
 
 ## 계약 v2.1 요지 (export 가 이미 준수 — 수동 조작 금지)
 

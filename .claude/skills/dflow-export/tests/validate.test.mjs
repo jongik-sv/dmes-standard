@@ -278,8 +278,35 @@ for (const [name, text] of Object.entries(FILES)) {
   fs.writeFileSync(p, text, 'utf8');
 }
 
+// import 사전 검사(2026-10)로 python 원본에 없던 이슈 유형이 생겼다. headings.md 는 제목이 빈 Task 헤딩을 일부러 담은
+// 입력이라 node 판만 missing_title 을 더 낸다 — 그 유형을 빼면 python 결과와 같아야 한다(의도한 차이를 이 두 케이스에 한정).
+const IMPORT_ONLY_TYPES = new Set(['missing_title', 'invalid_priority', 'invalid_schedule', 'invalid_status']);
+const withoutImportIssues = (stdout) => {
+  const j = JSON.parse(stdout);
+  j.issues = j.issues.filter((i) => !IMPORT_ONLY_TYPES.has(i.type));
+  const summary = {};
+  for (const i of j.issues) summary[i.type] = (summary[i.type] ?? 0) + 1;
+  summary.total = j.issues.length;
+  summary.task_count = j.summary.task_count;
+  j.summary = summary;
+  j.ok = j.issues.length === 0;
+  return j;
+};
+const importDiffCase = (c) => c.id.startsWith('file headings.md');
+
 const py313 = !!env.pyVersion && (env.pyVersion[0] > 3 || env.pyVersion[1] >= 13);
 for (const c of CLI_CASES) {
+  if (importDiffCase(c)) {
+    test(`golden CLI: ${c.id} (import 전용 이슈 유형을 뺀 결과가 python 과 같다)`, { skip: env.available ? false : 'python3 를 찾지 못해 골든 비교를 건너뜀' }, () => {
+      const p = env.python([env.script('wbs-validate.py'), ...c.args], { cwd: work });
+      const n = run(c.args, { cwd: work });
+      assert.ok(JSON.parse(n.stdout).issues.some((i) => i.type === 'missing_title'), '빈 제목 Task 를 잡아야 함');
+      assert.deepEqual(withoutImportIssues(n.stdout), JSON.parse(p.stdout));
+      assert.equal(n.status, p.status);
+      assert.equal(n.stderr, p.stderr);
+    });
+    continue;
+  }
   const compare = (c.compare ?? ['stdout', 'status', 'stderr']).filter((f) => !(c.pyMsg313 && py313 && f === 'stderr'));
   goldenTest(`golden CLI: ${c.id}`, {
     python: { cmd: [env.script('wbs-validate.py'), ...c.args] },
@@ -332,6 +359,11 @@ for (const c of CLI_CASES) {
     const exp = expected[c.id];
     assert.ok(exp, `expected/validate.json 에 케이스가 없음: ${c.id} (make-expected.mjs 로 다시 생성)`);
     const r = run(c.args, { cwd: work });
+    if (importDiffCase(c)) {
+      assert.deepEqual(withoutImportIssues(r.stdout), JSON.parse(exp.stdout));
+      assert.equal(r.status, exp.status);
+      return;
+    }
     for (const f of c.compare ?? ['stdout', 'status', 'stderr']) {
       assert.equal(r[f], exp[f], `${f} 불일치`);
     }
