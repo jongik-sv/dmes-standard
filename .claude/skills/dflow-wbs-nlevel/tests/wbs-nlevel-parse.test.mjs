@@ -27,6 +27,7 @@ import { legacyEnv } from './legacy-env.mjs';
 import { PL_MD, buildSynthetic, USAGE_CASES } from './nlevel-cases.mjs';
 import { randomLineDocs, treeDocs } from './fuzz-cases.mjs';
 import { SCRIPT, writeDocs, runNodeCase, runPythonCase, normResult } from './golden-run.mjs';
+import { importCompatIssues, assertRejected } from './import-judge.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SKILL = path.join(HERE, '..');
@@ -40,6 +41,11 @@ after(() => {
   fs.rmSync(base, { recursive: true, force: true });
   env.cleanup();
 });
+
+// 새 import 사전 검사(import-judge.mjs)가 거부해서 python 비교에서 빠지는 케이스 수. 입력 생성기나 검사가 바뀌어
+// 이 수가 달라지면 시험이 실패한다 — 예상 밖 케이스가 조용히 비교에서 빠지는 일을 막는다.
+const REJECTED_SYNTH = 40;
+const REJECTED_FUZZ = { '줄 섞기': 47, '검증 통과 트리': 0 };
 
 const _parse = (md) => parse_wbs(md);
 const names = (payload) => payload.levels.map((l) => l.get('name'));
@@ -382,12 +388,13 @@ test('CLI: attach 인데 attach_ref 를 못 만들면 종료 코드 1 과 안내
   assert.equal(JSON.parse(ok.stdout).attach_ref, 'mes-skel/SYS-OP');
 });
 
-test('CLI: python 이 죽는 입력은 종료 코드 1·stdout 빔·Traceback 머리', () => {
+test('CLI: python 이 죽는 입력은 종료 코드 1·stdout 빔 (w:1.2.3 은 node 판이 검증 게이트에서 먼저 거부한다)', () => {
   writeDocs(cliDir, { 'w.md': PL_MD.replace('w:5', 'w:1.2.3') });
   const r = cli(['export', '--wbs', 'w.md', '--attach-ref', 'a/b']);
   assert.equal(r.status, 1);
   assert.equal(r.stdout, '');
-  assert.match(r.stderr, /^Traceback \(most recent call last\):\n.*\nValueError: could not convert string to float: '1\.2\.3'\n$/s);
+  // python 판은 float 변환에서 Traceback(ValueError)이었다. import 사전 검사가 있는 node 판은 validate 의 JSON 오류를 낸다.
+  assert.match(r.stderr, /w:1\.2\.3 는 숫자가 아님/);
   const miss = cli(['validate', '--wbs', 'nope.md']);
   assert.equal(miss.status, 1);
   assert.match(miss.stderr, /FileNotFoundError: \[Errno 2\] No such file or directory: 'nope\.md'\n$/);
@@ -476,6 +483,7 @@ test('기대값 파일(python legacy 로 생성)과 node 판 결과가 모든 �
   const expected = readJson(EXPECTED);
   assert.equal(Object.keys(expected).length, allCases.length, `기대값 ${Object.keys(expected).length}건 ≠ 케이스 ${allCases.length}건 — make-expected.mjs 를 다시 돌린다`);
   const bad = [];
+  let rejected = 0;
   for (const c of allCases) {
     const e = expected[c.id];
     const n = nodeResults.get(c.id);
@@ -484,9 +492,16 @@ test('기대값 파일(python legacy 로 생성)과 node 판 결과가 모든 �
       if (e.status !== n.status) bad.push(`${c.id}: status ${e.status} ≠ ${n.status}`);
       continue;
     }
+    const issues = importCompatIssues(c.args, synthBase);
+    if (issues.length) { // 새 검사가 거부하는 케이스 — python 기대값과 비교하지 않는다
+      rejected += 1;
+      try { assertRejected(assert, c.id, issues, nodeRaw.get(c.id)); } catch (err) { bad.push(err.message); }
+      continue;
+    }
     if (e.status !== n.status || e.stdout !== n.stdout || e.stderr !== n.stderr) bad.push(`${c.id}: status ${e.status}/${n.status}`);
   }
   assert.deepEqual(bad, []);
+  assert.equal(rejected, REJECTED_SYNTH, `새 검사 분기 케이스 ${rejected}건 ≠ ${REJECTED_SYNTH} — 예상 밖 케이스가 비교에서 빠지지 않았는지 확인한다`);
 });
 
 // ---- 5) 골든 비교: python legacy 와 node 판 ------------------------------------
@@ -502,7 +517,14 @@ test('골든: 합성 입력 전 케이스(문서 × 명령, 골격·옵션·파�
   const diffs = [];
   const lastLine = (s) => s.trimEnd().split('\n').pop();
   let tracebacks = 0;
+  let rejected = 0;
   for (const c of allCases) {
+    const issues = c.usage ? [] : importCompatIssues(c.args, synthBase);
+    if (issues.length) { // 새 검사가 거부하는 케이스 — python 비교 대신 거부 여부와 이슈 문장만 본다
+      rejected += 1;
+      try { assertRejected(assert, c.id, issues, nodeRaw.get(c.id)); } catch (err) { diffs.push(err.message); }
+      continue;
+    }
     const raw = runPythonCase(env, c.args, { cwd: synthBase });
     const py = normResult(raw, { usageCase: c.usage });
     const nd = nodeResults.get(c.id);
@@ -524,6 +546,7 @@ test('골든: 합성 입력 전 케이스(문서 × 명령, 골격·옵션·파�
     }
   }
   assert.deepEqual(diffs, []);
+  assert.equal(rejected, REJECTED_SYNTH, `새 검사 분기 케이스 ${rejected}건 ≠ ${REJECTED_SYNTH}`);
   assert.ok(tracebacks >= 30, `traceback 케이스 ${tracebacks}건`);
 });
 
@@ -560,10 +583,17 @@ for (const [label, gen, seeds] of [
     try {
       const diffs = [];
       let exportOk = 0;
+      let rejected = 0;
       for (const seed of seeds) {
         const { files, cases } = gen(seed, 25);
         writeDocs(dir, files);
         for (const c of cases) {
+          const issues = importCompatIssues(c.args, dir);
+          if (issues.length) { // 새 검사가 거부하는 케이스 — python 비교 대신 거부 여부와 이슈 문장만 본다
+            rejected += 1;
+            try { assertRejected(assert, `seed ${seed} ${c.id}`, issues, runNodeCase(c.args, { cwd: dir })); } catch (err) { diffs.push(err.message); }
+            continue;
+          }
           const py = normResult(runPythonCase(env, c.args, { cwd: dir }));
           const nd = normResult(runNodeCase(c.args, { cwd: dir }));
           if (c.args[0] === 'export' && py.status === 0) exportOk += 1;
@@ -571,6 +601,7 @@ for (const [label, gen, seeds] of [
         }
       }
       assert.deepEqual(diffs, []);
+      assert.equal(rejected, REJECTED_FUZZ[label], `${label}: 새 검사 분기 케이스 ${rejected}건 ≠ ${REJECTED_FUZZ[label]}`);
       if (label === '검증 통과 트리') assert.ok(exportOk >= 60, `export 성공 ${exportOk}건 — 생성기가 너무 많이 막힘`);
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });

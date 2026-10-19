@@ -349,10 +349,49 @@ export function parse_wbs(md) {
 
 const _PCT_RE = new RegExp(`${D}+${S}*%`, 'u');
 
+// import 사전 검사 기준 (2026-10) — D'Flow POST /wbs/import 와 같다.
+//  module: route.ts `^[A-Za-z0-9_-]{1,32}$` / priority: wbsImport.ts toRpcNode 의 PRIORITY_LABELS / weight: 양수만
+const _MODULE_RE = /^[A-Za-z0-9_-]{1,32}$/;
+const _PRIORITIES = ['critical', 'high', 'medium', 'low'];
+const _WEIGHT_RE = /^(?:[0-9]+\.?[0-9]*|\.[0-9]+)$/;
+
 const fget = (fields, key) => (Object.prototype.hasOwnProperty.call(fields, key) ? fields[key] : undefined);
 /** python `fields.get("depends", "").split(",")` → 공백 제거·빈 칸 제외 */
 function splitList(text, sep) {
   return text.split(sep).map(pyStrip).filter((s) => s);
+}
+
+/**
+ * import 사전 검사 — D'Flow POST /wbs/import 와 웹 적용이 거부하는 값을 미리 찾는다 (2026-10).
+ * module 존재·형식(PL 의 "없음" 은 validate 의 기존 문구가 맡는다), priority 허용값, w: 양수.
+ * 올라가지 않는 층(upload false·fold)의 노드는 보지 않는다. levels 가 없으면 빈 목록(validate 가 따로 거부한다).
+ * 테스트가 "새 검사가 거부하는 입력"을 고르는 판정 함수로도 쓴다.
+ */
+export function import_compat_errors(doc, role = 'pl') {
+  const errors = [];
+  const levels = doc.levels;
+  if (!pyTruthy(levels)) return errors;
+  const mod = doc.front.get('module');
+  if (!pyTruthy(mod)) {
+    if (role !== 'pl') errors.push('골격 파일에 module 이 없습니다 — import 가 module 없이는 받지 않습니다 (frontmatter module: {영문 코드}).');
+  } else if (!_MODULE_RE.test(String(mod))) {
+    errors.push(`module 형식 오류: ${pyReprStr(String(mod))} — 영문·숫자·_·- 만, 1~32자 (import 가 거부함).`);
+  }
+  for (const n of doc.nodes) {
+    const lv = levels[n.level];
+    if (lv.get('upload') === false || lv.get('upload') === 'fold') continue;
+    const pri = fget(n.fields, 'priority');
+    if (pri !== undefined && !_PRIORITIES.includes(pri)) {
+      errors.push(`${n.id}: priority ${pyReprStr(pri)} 는 허용 밖 — critical|high|medium|low 중 하나 (import 가 거부함).`);
+    }
+    const wt = n.tokens.weight;
+    if (wt !== undefined) {
+      const w = digitsToAscii(wt);
+      if (!_WEIGHT_RE.test(w)) errors.push(`${n.id}: w:${wt} 는 숫자가 아님 — 양수 하나 (예 w:5, w:2.5).`);
+      else if (!(Number(w) > 0)) errors.push(`${n.id}: w:${wt} 는 양수가 아님 — 가중치는 0 보다 커야 함 (import 가 거부함).`);
+    }
+  }
+  return errors;
 }
 
 export function validate(doc, role = 'pl') {
@@ -446,6 +485,8 @@ export function validate(doc, role = 'pl') {
       warnings.push(`${n.id}: credit 키 미정의: ${credit}`);
     }
   }
+
+  errors.push(...import_compat_errors(doc, role));
 
   const counts = new Map();
   for (const n of nodes) {
