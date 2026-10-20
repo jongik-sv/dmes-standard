@@ -5,7 +5,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.dongkuk.dmes.cactus.security.auth.PasswordEncoder;
 import com.dongkuk.dmes.mcm.common.audit.SecurityIdentityHolder;
 import com.dongkuk.dmes.mcm.common.security.SecurityIdentity;
-import com.dongkuk.dmes.mcm.repository.RuleMasterRepository;
 import com.dongkuk.dmes.mcm.repository.SecMenuNativeRepository;
 import com.dongkuk.dmes.mcm.testdb.McmOraTestDb;
 import com.zaxxer.hikari.HikariDataSource;
@@ -16,7 +15,6 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.springframework.data.jpa.repository.support.JpaRepositoryFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.env.MockEnvironment;
 import org.springframework.orm.jpa.JpaTransactionManager;
@@ -134,8 +132,6 @@ class DataInitializerUserQueryMenuRenameTest {
         ReflectionTestUtils.setField(secMenuNativeRepository, "entityManager", sharedEm);
         ReflectionTestUtils.setField(initializer, "entityManager", sharedEm);
         ReflectionTestUtils.setField(initializer, "secMenuNativeRepository", secMenuNativeRepository);
-        ReflectionTestUtils.setField(initializer, "ruleMasterRepository",
-                new JpaRepositoryFactory(sharedEm).getRepository(RuleMasterRepository.class));
         ReflectionTestUtils.setField(initializer, "initEnabled", true);
         new TransactionTemplate(new JpaTransactionManager(emf)).executeWithoutResult(s -> initializer.run(null));
     }

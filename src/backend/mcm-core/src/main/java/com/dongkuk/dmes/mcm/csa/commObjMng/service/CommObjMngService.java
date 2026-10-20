@@ -125,7 +125,7 @@ public class CommObjMngService {
     /**
      * action {@code saveCmObj} 진입점. As-Is BPMN {@code CommonMultiSaveTask} (insertSqlKey /
      * updateSqlKey / deleteSqlKey 자동 분기) 의 row.{@code !nativeeditor_status} 분기를
-     * To-Be Service for-loop 의 명시 분기로 변환 (cma {@code MasterCodeMngService.saveDetail} 정본 패턴).
+     * To-Be Service for-loop 의 명시 분기로 변환 (옛 cma MasterCodeMngService.saveDetail 정본 패턴 — 2026-10-16 걷어냄).
      *
      * <p>입력: {@code master} = {@code List<Map>} — As-Is xfdl 의 {@code ds_main:U} (변경 행만, rowStatus 포함).
      *

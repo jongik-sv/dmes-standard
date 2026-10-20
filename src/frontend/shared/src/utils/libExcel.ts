@@ -7,7 +7,7 @@
  * 과거 `await import("file-saver")` 를 썼으나 file-saver 는 워크스페이스에 설치된 적이 없어
  * 이 유틸을 참조하는 화면이 포털에 배선되는 순간 번들이 깨졌다
  * ("Module not found: Can't resolve 'file-saver'"). 동적 import 라 정적 검색에도 잘 잡히지 않아
- * m-mls(common/excel.ts) · m-mcm(cia/interfaceList, cmb/masterRuleList) 은 각각 XLSX.writeFile
+ * m-mls(common/excel.ts) · m-mcm(cia/interfaceList) 은 각각 XLSX.writeFile
  * 직접 호출로 우회해 왔다. 본 유틸을 같은 방식으로 정리해 우회 사유 자체를 제거한다.
  */
 

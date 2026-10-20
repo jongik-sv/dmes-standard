@@ -39,7 +39,7 @@ import static org.mockito.Mockito.when;
  */
 class QueryStatementGuardTest {
 
-    private static final String QUERY_XML = "file [/app/src/main/resources/persistence/query/cma/masterCodeSelPop.xml]";
+    private static final String QUERY_XML = "file [/app/src/main/resources/persistence/query/sample/sampleQueryPop.xml]";
     private static final String LOV_XML = "class path resource [persistence/lov/cma/plantLov.xml]";
     private static final String DMOM_XML = "file [/app/src/main/resources/mapper/dmom/DmomMapper.xml]";
 
@@ -70,16 +70,16 @@ class QueryStatementGuardTest {
     @Test
     @DisplayName("persistence/query 의 SELECT — 상한+1 행까지만 읽어 돌려준다")
     void select_inQueryFolder_runsWithRowBounds() {
-        addSelect("masterCodeSelPop.search", QUERY_XML);
+        addSelect("sampleQueryPop.search", QUERY_XML);
         List<Object> rows = List.of(Map.of("A", 1));
-        when(sqlSession.selectList(eq("masterCodeSelPop.search"), any(), any(RowBounds.class))).thenReturn(rows);
+        when(sqlSession.selectList(eq("sampleQueryPop.search"), any(), any(RowBounds.class))).thenReturn(rows);
 
         QueryStatementGuard guard = new QueryStatementGuard(sqlSession, 100);
-        List<Object> actual = guard.selectList("masterCodeSelPop.search", Map.of(), Exposure.QUERY);
+        List<Object> actual = guard.selectList("sampleQueryPop.search", Map.of(), Exposure.QUERY);
 
         assertThat(actual).isSameAs(rows);
         ArgumentCaptor<RowBounds> bounds = ArgumentCaptor.forClass(RowBounds.class);
-        verify(sqlSession).selectList(eq("masterCodeSelPop.search"), any(), bounds.capture());
+        verify(sqlSession).selectList(eq("sampleQueryPop.search"), any(), bounds.capture());
         assertThat(bounds.getValue().getOffset()).isZero();
         assertThat(bounds.getValue().getLimit()).isEqualTo(101);
     }
@@ -88,11 +88,11 @@ class QueryStatementGuardTest {
     @EnumSource(value = SqlCommandType.class, names = {"INSERT", "UPDATE", "DELETE", "FLUSH", "UNKNOWN"})
     @DisplayName("SELECT 가 아닌 statement 는 404 — 실행하지 않는다")
     void nonSelect_isNotFound(SqlCommandType type) {
-        add("masterCodeSelPop.write", type, StatementType.PREPARED, QUERY_XML);
+        add("sampleQueryPop.write", type, StatementType.PREPARED, QUERY_XML);
 
         QueryStatementGuard guard = new QueryStatementGuard(sqlSession, 100);
 
-        assertThatThrownBy(() -> guard.selectList("masterCodeSelPop.write", Map.of(), Exposure.QUERY))
+        assertThatThrownBy(() -> guard.selectList("sampleQueryPop.write", Map.of(), Exposure.QUERY))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(t -> assertThat(httpStatusOf(t)).isEqualTo(404));
         verify(sqlSession, never()).selectList(anyString(), any(), any(RowBounds.class));
@@ -101,11 +101,11 @@ class QueryStatementGuardTest {
     @Test
     @DisplayName("CALLABLE select(프로시저 실행)는 404")
     void callableSelect_isNotFound() {
-        add("masterCodeSelPop.proc", SqlCommandType.SELECT, StatementType.CALLABLE, QUERY_XML);
+        add("sampleQueryPop.proc", SqlCommandType.SELECT, StatementType.CALLABLE, QUERY_XML);
 
         QueryStatementGuard guard = new QueryStatementGuard(sqlSession, 100);
 
-        assertThatThrownBy(() -> guard.selectList("masterCodeSelPop.proc", Map.of(), Exposure.QUERY))
+        assertThatThrownBy(() -> guard.selectList("sampleQueryPop.proc", Map.of(), Exposure.QUERY))
                 .satisfies(t -> assertThat(httpStatusOf(t)).isEqualTo(404));
     }
 
@@ -124,14 +124,14 @@ class QueryStatementGuardTest {
     @DisplayName("노출 범위는 경로마다 따로 — /query 는 persistence/lov 를, /lov/query 는 persistence/query 를 열지 않는다")
     void exposureIsPerRoute() {
         addSelect("plantLov.list", LOV_XML);
-        addSelect("masterCodeSelPop.search", QUERY_XML);
+        addSelect("sampleQueryPop.search", QUERY_XML);
         when(sqlSession.selectList(anyString(), any(), any(RowBounds.class))).thenReturn(Collections.emptyList());
         QueryStatementGuard guard = new QueryStatementGuard(sqlSession, 100);
 
         assertThat(guard.selectList("plantLov.list", Map.of(), Exposure.LOV)).isEmpty();
         assertThatThrownBy(() -> guard.selectList("plantLov.list", Map.of(), Exposure.QUERY))
                 .satisfies(t -> assertThat(httpStatusOf(t)).isEqualTo(404));
-        assertThatThrownBy(() -> guard.selectList("masterCodeSelPop.search", Map.of(), Exposure.LOV))
+        assertThatThrownBy(() -> guard.selectList("sampleQueryPop.search", Map.of(), Exposure.LOV))
                 .satisfies(t -> assertThat(httpStatusOf(t)).isEqualTo(404));
     }
 
@@ -172,15 +172,15 @@ class QueryStatementGuardTest {
     }
 
     @Test
-    @DisplayName("다른 namespace(x.masterCodeSelPop)의 statement 는 masterCodeSelPop.search 로 찾지 못한다 — 없는 id 404")
+    @DisplayName("다른 namespace(x.sampleQueryPop)의 statement 는 sampleQueryPop.search 로 찾지 못한다 — 없는 id 404")
     void otherNamespace_isNotFound() {
         // StrictMap 의 짧은 키는 마지막 점 뒤(search)라 점 하나 형식의 id 는 짧은 키로 해석되지 않는다.
         // QueryStatementGuard 의 ms.getId() 같음 검사는 이 형식에서 닿지 않는 방어선이다.
-        addSelect("x.masterCodeSelPop.search", QUERY_XML);
+        addSelect("x.sampleQueryPop.search", QUERY_XML);
 
         QueryStatementGuard guard = new QueryStatementGuard(sqlSession, 100);
 
-        assertThatThrownBy(() -> guard.selectList("masterCodeSelPop.search", Map.of(), Exposure.QUERY))
+        assertThatThrownBy(() -> guard.selectList("sampleQueryPop.search", Map.of(), Exposure.QUERY))
                 .satisfies(t -> assertThat(httpStatusOf(t)).isEqualTo(404));
     }
 

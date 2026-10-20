@@ -7,7 +7,7 @@
  * 2단 "새 용어 등록": 표기·의미 번호·정의·맥락·영문명·약어. 동의어·별칭·사용 시스템 입력은 용어 관리(TSK-04-02) 몫이다.
  *
  * RBAC: 팝업은 자기 serviceId(termRegPop)로 OASIS 를 호출하므로 자기 OBJ_ID × 실제 액션명으로 판정한다
- * (masterRuleListPop 선례). [등록]은 `reg`, [약어 제안]은 `search`. 열릴 때 자동 조회는 사용자 조작이 아니라
+ * (팝업 RBAC 공통 규칙). [등록]은 `reg`, [약어 제안]은 `search`. 열릴 때 자동 조회는 사용자 조작이 아니라
  * 가드를 태우지 않는다. 서버도 표준 관리자 역할을 다시 본다(MDM016, D1).
  */
 import { useCallback, useEffect, useMemo, useState } from "react";

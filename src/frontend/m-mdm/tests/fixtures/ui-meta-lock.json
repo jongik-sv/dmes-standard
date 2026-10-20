@@ -1,98 +1,24 @@
 {
- "m-mcm/page-components/cma/masterCodeMng/page.tsx": [
-  "col|CATEGORY_ID|-",
-  "col|CATEGORY_NM|-",
-  "col|CHK|false",
-  "col|CODE_DESC|-",
-  "col|CODE_ID|-",
-  "col|CODE_NM|-",
-  "col|CODE_VAL_DESC|-",
-  "col|CODE_VAL_MEAN|-",
-  "col|CODE_VAL_REF1|-",
-  "col|CODE_VAL_REF2|-",
-  "col|CODE_VAL_REF3|-",
-  "col|CODE_VAL_REF4|-",
-  "col|CODE_VAL_REF5|-",
-  "col|CODE_VAL|\"CD_V\"",
-  "col|MASTER_CODE_REF1|-",
-  "col|MASTER_CODE_REF2|-",
-  "col|MASTER_CODE_REF3|-",
-  "col|MASTER_CODE_REF4|-",
-  "col|MASTER_CODE_REF5|-",
-  "col|MASTER_CODE|-",
-  "col|SORT_SEQ|-",
-  "col|STATUS|false",
-  "col|USE_TP|-"
+ "m-mcm/page-components/cmq/userQuery/run-model.ts": [
+  "col|categoryNm|-",
+  "col|moduleCd|-",
+  "col|queryId|-",
+  "col|queryNm|-"
  ],
- "m-mcm/page-components/cmb/masterRuleData/page.tsx": [
-  "col|SEQ|false",
-  "col|rowStatus|false"
+ "m-mcm/page-components/cmq/userQueryMng/QueryListPanel.tsx": [
+  "col|assignCnt|false",
+  "col|categoryNm|false",
+  "col|maxRowCnt|false",
+  "col|moduleNm|false",
+  "col|ownerDeptNm|false",
+  "col|queryId|false",
+  "col|queryNm|false",
+  "col|uAt|false",
+  "col|useYn|false"
  ],
- "m-mcm/page-components/cmb/masterRuleDataList/page.tsx": [
-  "col|SEQ|false"
- ],
- "m-mcm/page-components/cmb/masterRuleFrame/constants.ts": [
-  "col|colId|\"COLUMN_ID\"",
-  "col|colLen|-",
-  "col|colNm|-",
-  "col|colPrecLen|-",
-  "col|colType|-",
-  "col|masterCodeDiv|-",
-  "col|no|false"
- ],
- "m-mcm/page-components/cme/masterCodeMngList/page.tsx": [
-  "col|CATEGORY_ID|-",
-  "col|CATEGORY_NM|-",
-  "col|CODE_DESC|-",
-  "col|CODE_ID|-",
-  "col|CODE_NM|-",
-  "col|CODE_VAL_DESC|-",
-  "col|CODE_VAL_MEAN|-",
-  "col|CODE_VAL_REF1_MN|\"CD_V_REF\"",
-  "col|CODE_VAL_REF2_MN|\"CD_V_REF\"",
-  "col|CODE_VAL_REF3_MN|\"CD_V_REF\"",
-  "col|CODE_VAL_REF4_MN|\"CD_V_REF\"",
-  "col|CODE_VAL_REF5_MN|\"CD_V_REF\"",
-  "col|CODE_VAL|\"CD_V\"",
-  "col|MASTER_CODE_REF1_NM|\"MST_CD_REF\"",
-  "col|MASTER_CODE_REF2_NM|\"MST_CD_REF\"",
-  "col|MASTER_CODE_REF3_NM|\"MST_CD_REF\"",
-  "col|MASTER_CODE_REF4_NM|\"MST_CD_REF\"",
-  "col|MASTER_CODE_REF5_NM|\"MST_CD_REF\"",
-  "col|MASTER_CODE|-",
-  "col|SORT_SEQ|-",
-  "col|USE_TP|-"
- ],
- "m-mcm/page-components/cmz/masterCodeSelPop/masterCodeSelPop.tsx": [
-  "col|CATEGORY_ID|-",
-  "col|CATEGORY_NM|-",
-  "col|CODE_VAL_MEAN|-",
-  "col|CODE_VAL|\"CD_V\"",
-  "col|__no|false"
- ],
- "m-mcm/page-components/cmz/masterCodeUploadFilePopup/masterCodeUploadFilePopup.tsx": [
-  "col|CATEGORY_ID|-",
-  "col|CODE_VAL_DESC|-",
-  "col|CODE_VAL_MEAN|-",
-  "col|CODE_VAL|\"CD_V\"",
-  "col|MASTER_CODE|-",
-  "col|SORT_SEQ|-"
- ],
- "m-mcm/page-components/cmz/masterRuleFrameColListPopup/constants.ts": [
-  "col|chk|false",
-  "col|colId|\"COLUMN_ID\"",
-  "col|colLen|-",
-  "col|colNm|-",
-  "col|colPrecLen|-",
-  "col|colType|-",
-  "col|ioFlag|-",
-  "col|masterCodeDiv|-",
-  "col|no|false"
- ],
- "m-mcm/page-components/cmz/masterRuleListPop/constants.ts": [
-  "col|no|false",
-  "col|ruleId|-",
-  "col|ruleNm|-"
+ "m-mcm/page-components/cmq/userQueryMng/page.tsx": [
+  "col|assign|-",
+  "col|def|-"
  ],
  "m-mcm/page-components/csa/commMenuMng/page.tsx": [
   "col|END_ACTIVE_DATE|-",
@@ -258,16 +184,6 @@
   "label|ROLE_NM|역할명|-",
   "label|START_ACTIVE_DATE|유효 개시일|-",
   "label|USE_TP|사용 여부|-"
- ],
- "m-mcm/page-components/csa/commSyncMng/page.tsx": [
-  "col|from1|false",
-  "col|from2|false",
-  "col|from3|false",
-  "col|from4|false",
-  "col|to1|false",
-  "col|to2|false",
-  "col|to3|false",
-  "col|to4|false"
  ],
  "m-mcm/page-components/csa/commUserMng/CommUserDetailForm.tsx": [
   "label|(식:labelName)|(식:label)|false",
@@ -586,6 +502,25 @@
   "label|PARENT_DOMAIN_ID|지금 부모|-",
   "label|guide|안내|false"
  ],
+ "m-mdm/pages/dma/erdEdit/canvas/PropsWindow.tsx": [
+  "col|childCard|false",
+  "col|columns|false",
+  "col|dbFk|false",
+  "col|decision|false",
+  "col|del|false",
+  "col|del|false",
+  "col|domain|false",
+  "col|identifying|false",
+  "col|kind|false",
+  "col|logical|false",
+  "col|name|false",
+  "col|null|false",
+  "col|other|false",
+  "col|parentCard|false",
+  "col|phys|false",
+  "col|pk|false",
+  "col|state|false"
+ ],
  "m-mdm/pages/dma/erdEdit/canvas/SplitDialog.tsx": [
   "col|count|false",
   "col|head|false",
@@ -594,14 +529,12 @@
   "col|state|false"
  ],
  "m-mdm/pages/dma/erdEdit/panels/ChangeLog.tsx": [
+  "col|at|false",
   "col|rev|false",
-  "col|session|false",
   "col|source|false",
   "col|summary|false",
   "col|undo|false",
-  "col|userId|false",
-  "col|who|false",
-  "col|키|-"
+  "col|who|false"
  ],
  "m-mdm/pages/dma/erdEdit/panels/ColumnGrid.tsx": [
   "col|domain|false",
@@ -609,6 +542,7 @@
   "col|logical|false",
   "col|nn|false",
   "col|phys|false",
+  "col|reconstructed|false",
   "col|status|false",
   "col|type|false"
  ],
@@ -623,6 +557,15 @@
   "col|column|false",
   "col|kind|false",
   "col|table|false"
+ ],
+ "m-mdm/pages/dma/erdEdit/panels/ModelListModal.tsx": [
+  "col|moduleId|-",
+  "col|name|-",
+  "col|ownerId|-",
+  "col|released|-",
+  "col|rev|-",
+  "col|schemaName|-",
+  "col|status|-"
  ],
  "m-mdm/pages/dma/erdEdit/panels/ReviewPanel.tsx": [
   "col|actions|false",

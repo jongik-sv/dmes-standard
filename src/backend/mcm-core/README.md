@@ -16,21 +16,18 @@ MES 공통(마스터데이터·공통 서비스) 도메인을 담는 **공유 �
 
 ## 들어 있는 것 — 공통관리 실동작 코드
 
-아래는 예시가 아니라 **그대로 쓰는 실동작 구현**이다. 새 고객사 프로젝트에서 로그인·권한·메뉴·마스터코드·
-업무기준이 첫날부터 동작한다. 화면 그룹 코드(`cma` 등)의 의미는 `docs/guide/design/01_Agent부속_가이드.md` 를 따른다.
+아래는 예시가 아니라 **그대로 쓰는 실동작 구현**이다. 새 고객사 프로젝트에서 로그인·권한·메뉴가
+첫날부터 동작한다. 마스터코드·업무기준은 mdm 모듈이 맡는다([mdm ADR-0008](../../../docs/mdm/adr/0008-retire-mcm-master-rule-programs.md)). 화면 그룹 코드(`cma` 등)의 의미는 `docs/guide/design/01_Agent부속_가이드.md` 를 따른다.
 
 | 패키지 | 메뉴 위치 | 화면 |
 | --- | --- | --- |
-| `cma` | 공통관리 › 마스터관리(원장) | 카테고리 관리 · Master Code 관리 (+ 코드선택·엑셀업로드 팝업) |
-| `cme` | 공통관리 › 마스터관리(가동) | Master Code 상세조회 |
-| `cmb` | 공통관리 › 업무기준관리(원장) | 업무기준 목록조회 · Data관리 · 상세조회 · 구조관리 (+ 팝업 3종) |
-| `csa` | 공통관리 › 시스템관리 | OBJECT · 메뉴 · 역할 · 역할그룹 · 사용자 · PERMISSION · 사용자 권한 일괄 등록 · 동기화 관리 |
+| `csa` | 공통관리 › 시스템관리 | OBJECT · 메뉴 · 역할 · 역할그룹 · 사용자 · PERMISSION · 사용자 권한 일괄 등록 |
 
 이들을 떠받치는 공통 계층:
 
 | 패키지 | 역할 |
 | --- | --- |
-| `entity` · `repository` | SEC_* (사용자·역할·역할그룹·권한·메뉴·OBJECT) 와 마스터코드 엔티티/리포지토리 |
+| `entity` · `repository` | SEC_* (사용자·역할·역할그룹·권한·메뉴·OBJECT) 엔티티/리포지토리 |
 | `security` | 권한키(PermKey) 산출, 사용자 권한 캐시, 메뉴 트리 조립 |
 | `code` | 코드그룹·코드값 서비스 |
 | `favorite` | 포털 즐겨찾기 |
@@ -45,7 +42,7 @@ MES 공통(마스터데이터·공통 서비스) 도메인을 담는 **공유 �
 ## sample 패키지는 플레이스홀더다
 
 `com.dongkuk.dmes.mcm.sample` 는 실제 업무 코드가 아니라 **계층 구조 예시**다. 위 실동작 패키지들이 이미 같은
-구조를 따르므로, 신규 도메인을 만들 때는 `sample` 보다 `cma` / `cmb` 를 참고하는 편이 낫다.
+구조를 따르므로, 신규 도메인을 만들 때는 `sample` 보다 `csa` 를 참고하는 편이 낫다.
 
 ```
 com.dongkuk.dmes.mcm.<그룹>.<화면>
@@ -63,10 +60,15 @@ Oracle 단일화(oracle-1007, 2026-10-07)부터 mcm 스키마의 정본은 `src/
 
 | 폴더 | 스키마 | 내용 |
 | --- | --- | --- |
-| `oracle/mcmapuser/` | MCMAPUSER | mcm 기본 영속성 단위의 MCMAPUSER·접두 없는 엔티티, `TB_MCM_SEC_MENU_FLD`, 마스터코드 조회 사본 3표, `VI_MCM_CODE_ACCESS` |
-| `oracle/mcm_source/` | MCM_SOURCE | 마스터코드 원장 3표(`MasterCode*` 엔티티) + mcm 앱 사용자 권한 |
-| `oracle/mcm_backup/` | MCM_BACKUP | 마스터코드 백업 2표(동기화 화면이 원장에서 `SELECT *` 로 복사 — 열 순서가 원장과 같아야 한다) + 권한 |
-| `oracle/mcaapuser/` | MCAAPUSER | 업무기준 2표(`RuleMaster`·`MasterRuleColList`) + mcm 앱 사용자 권한 |
+| `oracle/mcmapuser/` | MCMAPUSER | mcm 기본 영속성 단위의 MCMAPUSER·접두 없는 엔티티, `TB_MCM_SEC_MENU_FLD` |
+| `oracle/mcm_source/` | MCM_SOURCE | 옛 마스터코드 원장 3표(V1 이 만들고 V4 가 지운다) + mcm 앱 사용자 권한 |
+| `oracle/mcm_backup/` | MCM_BACKUP | 옛 마스터코드 백업 2표(V1 이 만들고 V4 가 지운다) + 권한 |
+| `oracle/mcaapuser/` | MCAAPUSER | 옛 업무기준 2표(V1 이 만들고 V4 가 지운다) + mcm 앱 사용자 권한 |
+
+- 마스터코드 표(`TB_MCM_CODE_MASTER`·`DETAIL`·`CATEGORY`, MCMAPUSER·MCM_SOURCE, MCM_BACKUP 은 2표), 뷰 `VI_MCM_CODE_ACCESS`,
+  업무기준 표(`TB_MCA_RULE_MASTER`·`TB_MCA_RULE_COL_LIST`)는 2026-10-16 에 화면·엔티티와 함께 폐기했다. mcmapuser `V17` 과
+  나머지 세 스키마의 `V4` 가 지운다
+  ([mdm ADR-0008](../../../docs/mdm/adr/0008-retire-mcm-master-rule-programs.md)). 마스터코드·업무기준은 mdm 모듈을 쓴다.
 
 - DDL 은 스키마 접두 없이 쓴다. 런타임 SQL 의 접두(`MCMAPUSER.` 등)는 그대로 둔다.
 - `${app_user}` 는 Flyway 자리표시자다. mcm 앱이 접속하는 사용자(로컬·운영 모두 MCMAPUSER)로 넣는다.
@@ -89,7 +91,7 @@ Oracle DDL 은 `oracle/mcmapuser/V1__baseline.sql` 에 있다. dmes-ksm 이관 �
 ## 새 도메인을 추가할 때
 
 1. 여러 MES 모듈이 함께 쓰는 것만 이 모듈에 둔다. 한 모듈 전용 로직은 해당 애플리케이션 모듈에 둔다.
-2. 화면 단위 패키지는 `{그룹}/{화면}/{dto,service}` 구조를 지킨다 (`cma`·`cmb`·`csa` 가 표준 예시).
+2. 화면 단위 패키지는 `{그룹}/{화면}/{dto,service}` 구조를 지킨다 (`csa` 가 표준 예시).
 3. 엔티티를 추가·변경하면 스키마 반영 경로(ddl-auto 로 충분한지, `DataInitializer` 멱등 DDL 이 필요한지)를
    같은 커밋에서 함께 정한다.
 4. 공유 라이브러리인 만큼 계층 의존 규칙이 무너지기 쉽다. `McmCoreArchitectureTest`(ArchUnit) 가 패키지 의존

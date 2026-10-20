@@ -63,7 +63,7 @@ const SPLIT_STORAGE_KEY = "analog.anl.dbViewer";
 const PROPS_OPEN_KEY = "analog.anl.dbViewer.propsOpen";
 /** 표 목록 사이드바 펼침 여부(이 브라우저 편의값). */
 const TREE_OPEN_KEY = "analog.anl.dbViewer.treeOpen";
-const INITIAL_SQL = "SELECT * FROM MCMAPUSER.TB_MCM_CODE_MASTER";
+const INITIAL_SQL = "SELECT * FROM MCMAPUSER.TB_MCM_SEC_MENU";
 /** 테이블 선택 뒤 조회를 내보내기까지 기다리는 시간 — 트리를 키보드로 훑을 때 테이블마다 조회가 나가지 않게 한다. */
 const SELECT_DEBOUNCE_MS = 200;
 /** 조회 결과의 출처 칩 — 편집창 SQL 을 사용자가 직접 실행한 결과. */

@@ -151,7 +151,7 @@ public class CommMenuMngService {
     /**
      * action {@code saveCmMenu} 진입점. As-Is BPMN {@code CommonMultiSaveTask}
      * (insertSqlKey / updateSqlKey / deleteSqlKey 자동 분기) 의 row.{@code !nativeeditor_status} 분기를
-     * To-Be Service for-loop 의 명시 분기로 변환 (cma {@code MasterCodeMngService.saveDetail} /
+     * To-Be Service for-loop 의 명시 분기로 변환 (옛 cma MasterCodeMngService.saveDetail — 2026-10-16 걷어냄 /
      * W1 {@code CommObjMngService.saveCmObj} 정본 패턴).
      *
      * <p>입력: {@code master} = {@code List<Map>} — As-Is xfdl 의 {@code ds_menuList:U} (변경 행만,
@@ -345,7 +345,7 @@ public class CommMenuMngService {
     }
 
     /**
-     * 메뉴 필드 일괄 저장 — rowStatus 분기 (cma masterCategoryMng / commMenuMng saveCmMenu 정본 패턴).
+     * 메뉴 필드 일괄 저장 — rowStatus 분기 (commMenuMng saveCmMenu 정본 패턴).
      *
      * <p>grids.master.rows → BPMN method param name "master" 자동 매핑 (가이드 §6-E-3).
      * <ul>

@@ -1,7 +1,7 @@
 /**
  * screenUsageStat OASIS 호출 — POST /api/mcm/oasis/screenUsageStat/{action}.
  * 응답 계약: docs/superpowers/plans/2026-10-02-screen-usage-stats.md C4.
- * envelope 해제는 csa/commSyncMng/api.ts 와 같은 규칙이다: meta.success=false 거절, data(+data.result) 펼침, grids.{key}.rows.
+ * envelope 해제는 OASIS 공통 규칙을 따른다: meta.success=false 거절, data(+data.result) 펼침, grids.{key}.rows.
  * meta.userId 는 보내지 않는다 — 서버가 인증 정보로 채운다(lsh/noticeMgmt/api.ts 와 같다).
  * @dk-oasis/shared 를 런타임 import 하지 않는다(m-mcm vitest 가 shared dist 없이 시험한다).
  */
@@ -43,7 +43,7 @@ interface CactusEnvelope {
 
 function unwrapPayload(res: unknown): Record<string, unknown> {
   const env = res as CactusEnvelope;
-  // OASIS 실행기는 업무 거절을 HTTP 200 + meta.success=false 로 돌려준다(commSyncMng/api.ts 주석 참고).
+  // OASIS 실행기는 업무 거절을 HTTP 200 + meta.success=false 로 돌려준다(OASIS 공통 규칙).
   if (env?.meta && env.meta.success === false) {
     throw new Error(env.meta.message?.trim() || "요청이 거부되었습니다.");
   }

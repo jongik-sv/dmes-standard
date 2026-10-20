@@ -301,7 +301,7 @@ describe("cactus 직접 실행 경로 거부 (2026-10-07 보안 지적, notice-f
     "/api/mdm/query/service/domainMng",
     "/api/mdm/lov/service/termMng",
     "/api/mcm/query/DmomMapper.insertTcError",
-    "/api/mcm/query/masterCodeSelPop.search",
+    "/api/mcm/query/commObjMng.search",
     "/api/mcm/lov/query/plantLov.list",
     "/api/mdm/service",
     "/api/mdm/service/codeEdit?x=1",

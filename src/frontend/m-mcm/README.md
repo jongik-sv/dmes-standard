@@ -9,7 +9,7 @@
 | --- | --- |
 | 라우팅·번들링·배포 | m-mcm (여기) |
 | BFF — 백엔드 프록시·NextAuth·API 권한 검증 | m-mcm `app/api/` + `proxy.ts` |
-| 공통관리 화면 (마스터·시스템·업무기준) | m-mcm `page-components/{cma,cme,cmb,csa,cmz}` |
+| 공통관리 화면 (시스템·맞춤 레포트) | m-mcm `page-components/{csa,cmq}` |
 | 포털 셸·인증 UI·공용 컴포넌트 | `@dk-oasis/shared` |
 | 업무 화면 구현 | `@dk-oasis/m-mpn` / `m-mls` / `m-mqc` / `m-mpp` / `m-analog` |
 
@@ -38,11 +38,7 @@ scripts/generate-page-registry.mjs 화면 레지스트리 코드젠
 
 | 그룹 | 메뉴 | 화면 |
 | --- | --- | --- |
-| `cma` | 공통관리 › 마스터관리(원장) | `masterCategoryMng` · `masterCodeMng` |
-| `cme` | 공통관리 › 마스터관리(가동) | `masterCodeMngList` |
-| `cmb` | 공통관리 › 업무기준관리(원장) | `masterRuleList` · `masterRuleData` · `masterRuleDataList` · `masterRuleFrame` |
-| `csa` | 공통관리 › 시스템관리 | `commObjMng` · `commMenuMng` · `commRoleMng` · `commRoleGrpMng` · `commUserMng` · `commPermMng` · `commUserRoleCopy` · `commSyncMng` |
-| `cmz` | (팝업 전용 — 사이드바 숨김) | `masterCodeSelPop` · `masterCodeUploadFilePopup` · `masterRuleListPop` · `masterRuleFrameColListPopup` · `masterRuleDataUploadFilePopup` |
+| `csa` | 공통관리 › 시스템관리 | `commObjMng` · `commMenuMng` · `commRoleMng` · `commRoleGrpMng` · `commUserMng` · `commPermMng` · `commUserRoleCopy` |
 | `anl` | 로그 분석 › 로그 조회 | `logViewer` (`@dk-oasis/m-analog` re-export shim) |
 
 그 밖에 포털 기본 화면 `home` · `dashboard-overview` · `operations-queue` 가 있다.
@@ -55,7 +51,7 @@ scripts/generate-page-registry.mjs 화면 레지스트리 코드젠
 3. 백엔드 `DataInitializer` 에 메뉴 leaf + OBJECT + RBAC 를 시드한다.
    `componentPath` = `PARENT_MENU_ID + "/" + OBJECT_ID` = 위 `{group}/{screenId}` 와 반드시 일치해야 한다.
 
-**팝업은 `page.tsx` 로 만들지 않는다.** 팝업 그룹(`cmz` 등) 아래에는 `{screenId}.tsx` + 배럴 `index.ts` 를 두고
+**팝업은 `page.tsx` 로 만들지 않는다.** 팝업 그룹 아래에는 `{screenId}.tsx` + 배럴 `index.ts` 를 두고
 부모 화면이 직접 import 한다. 코드젠이 이 규칙을 검사해 위반 시 빌드를 막는다.
 
 ## 포털 셸

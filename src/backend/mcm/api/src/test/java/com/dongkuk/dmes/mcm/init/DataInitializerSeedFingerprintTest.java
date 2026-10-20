@@ -6,7 +6,6 @@ import com.dongkuk.dmes.cactus.security.auth.PasswordEncoder;
 import com.dongkuk.dmes.mcm.common.event.MenuChangedEvent;
 import com.dongkuk.dmes.mcm.common.security.SecurityIdentity;
 import com.dongkuk.dmes.mcm.common.audit.SecurityIdentityHolder;
-import com.dongkuk.dmes.mcm.repository.RuleMasterRepository;
 import com.dongkuk.dmes.mcm.repository.SecMenuNativeRepository;
 import com.dongkuk.dmes.mcm.db.McmSchemaMigrator;
 import com.dongkuk.dmes.mcm.testdb.McmOraTestDb;
@@ -35,7 +34,6 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.data.jpa.repository.support.JpaRepositoryFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.env.MockEnvironment;
 import org.springframework.orm.jpa.JpaTransactionManager;
@@ -57,7 +55,6 @@ import org.springframework.transaction.support.TransactionTemplate;
  * (스키마 접두가 생긴 키·Oracle 에만 있는 표 제외 — docs/oracle-1007/memo-ora-mcm-app.md).
  * <ul>
  *   <li>PasswordEncoder — BCrypt 는 솔트가 랜덤이라 고정값을 돌려주는 스텁. USER_ENC_PWD 는 그래서 해시에 포함한다.</li>
- *   <li>RuleMasterRepository — {@link JpaRepositoryFactory} 로 같은 공유 EntityManager 위에 실제 저장소를 만든다(규칙 샘플 6행 포함).</li>
  *   <li>caravan 저장소 2개(AppHost·CaravanHubConfig) — secondary EMF 라 null(skip). 지문 범위 밖이다.</li>
  *   <li>initEnabled — 필드 기본값이 false 라 true 로 넣는다(@Value 기본 true 와 같게).</li>
  * </ul>
@@ -132,12 +129,9 @@ class DataInitializerSeedFingerprintTest {
 
         SecMenuNativeRepository secMenuNativeRepository = new SecMenuNativeRepository();
         ReflectionTestUtils.setField(secMenuNativeRepository, "entityManager", sharedEm);
-        RuleMasterRepository ruleMasterRepository =
-                new JpaRepositoryFactory(sharedEm).getRepository(RuleMasterRepository.class);
 
         ReflectionTestUtils.setField(initializer, "entityManager", sharedEm);
         ReflectionTestUtils.setField(initializer, "secMenuNativeRepository", secMenuNativeRepository);
-        ReflectionTestUtils.setField(initializer, "ruleMasterRepository", ruleMasterRepository);
         ReflectionTestUtils.setField(initializer, "initEnabled", true);
         ReflectionTestUtils.setField(initializer, "eventPublisher", (ApplicationEventPublisher) event -> {
             publishedEvents.add(event);

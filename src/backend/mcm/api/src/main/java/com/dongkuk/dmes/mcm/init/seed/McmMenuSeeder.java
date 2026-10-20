@@ -10,34 +10,26 @@ public final class McmMenuSeeder extends SeedSupport {
     }
 
     /**
-     * TB_MCM_SEC_MENU 시드 — 메뉴 트리 17 row (화면 leaf 만). 멱등 (복합 PK MENU_ID + MENU_SEQ).
+     * TB_MCM_SEC_MENU 시드 — 메뉴 트리 csa 화면 leaf (화면 leaf 만). 멱등 (복합 PK MENU_ID + MENU_SEQ).
      *
      * <p>SecUserService.getMyMenus / getMyMenusTree 가 본 시드를 읽어 myMenus / myMenusTree 응답을 만든다.
      * 본 시드가 없으면 myMenus 가 빈 배열을 반환하여 FE 사이드바 메뉴가 표시되지 않는다.
      *
      * <p>구조 (2026-06-02 R3 P1 round 3 — 데이터 구조 분리 / 사용자 결정):
      * <ul>
-     *   <li><b>TB_MCM_SEC_MENU 에는 화면 (leaf) 만 보관.</b> 모듈/그룹 폴더 (mcm / cma / csa / cme / cmb / cmz)
-     *       6 row 는 {@code TB_MCM_SEC_MENU_FLD} 가 owner — 본 테이블에 INSERT ✗.</li>
-     *   <li>cma group leaf 2 (PARENT_MENU_ID="cma"): masterCategoryMng=1010100 / masterCodeMng=1010110</li>
-     *   <li>csa group leaf 8 (PARENT_MENU_ID="csa"): commObjMng=1020100 / commMenuMng=1020110 /
+     *   <li><b>TB_MCM_SEC_MENU 에는 화면 (leaf) 만 보관.</b> 모듈/그룹 폴더 (mcm / csa)
+     *       2 row 는 {@code TB_MCM_SEC_MENU_FLD} 가 owner — 본 테이블에 INSERT ✗.</li>
+     *   <li>csa group leaf 7 (PARENT_MENU_ID="csa"): commObjMng=1020100 / commMenuMng=1020110 /
      *       commRoleMng=1020120 / commRoleGrpMng=1020130 / commUserMng=1020140 / commPermMng=1020150 /
-     *       commUserRoleCopy=1020160 / commSyncMng=1020170</li>
-     *   <li>cme group leaf 1 (PARENT_MENU_ID="cme"): masterCodeMngList=1030100</li>
-     *   <li>cmb group leaf 4 (PARENT_MENU_ID="cmb"): masterRuleList=1040100 / masterRuleData=1040110 /
-     *       masterRuleDataList=1040120 / masterRuleFrame=1040130.
-     *       2026-08-14 — 뒤 3 건은 OBJECT·RBAC·FE 라우팅이 모두 있는데 메뉴 leaf 만 없어 사이드바 진입이
-     *       불가했다(팝업 3 건과 달리 일반 업무화면이므로 {@code MENU_VIEW_YN='Y'}).</li>
-     *   <li><b>cmz 팝업 leaf 5</b> (PARENT_MENU_ID="cmz", 전부 {@code MENU_VIEW_YN='N'}):
-     *       masterCodeSelPop=1050100 / masterCodeUploadFilePopup=1050110 / masterRuleListPop=1050120 /
-     *       masterRuleFrameColListPopup=1050130 / masterRuleDataUploadFilePopup=1050140.
-     *       2026-08-13 에 cma·cmb 에서 팝업 전용 그룹으로 이관 (mpp {@code ppz} 와 동일 규약).</li>
+     *       commUserRoleCopy=1020160</li>
+     *   <li>2026-10-16 — 옛 마스터코드·업무기준 프로그램(cma 2·cme 1·cmb 4 화면, cmz 팝업 5, csa commSyncMng)과
+     *       그 폴더(cma·cme·cmb·cmz)는 걷어냈다(후속은 mdm). 이미 적재된 DB 의 행은 Flyway mcmapuser V17 이 지운다.</li>
      * </ul>
      *
      * <p>FULL_SEQ 인코딩 (사용자 결정 2026-06-02):
      * <ul>
      *   <li>백만 자리 (+1,000,000) = 모듈 (mcm=1)</li>
-     *   <li>만 자리 (+10,000)      = 그룹 폴더 (cma=01 / csa=02 / cme=03 / cmb=04 / cmz=05)</li>
+     *   <li>만 자리 (+10,000)      = 그룹 폴더 (csa=02. 01·03·04·05 는 걷어낸 cma·cme·cmb·cmz 자리)</li>
      *   <li>백/십 자리 (+100 시작, +10 증가) = 화면 (100 → 110 → 120 ...)</li>
      * </ul>
      * 시드 리터럴은 체계 표현용이고, 부팅 말미 {@code recomputeMenuFullSeq()} 가 트리 위치 기준으로
@@ -62,13 +54,7 @@ public final class McmMenuSeeder extends SeedSupport {
         swapLegacyGrpMenuIds();
         cleanupLegacyFolderRowsInSecMenu();
 
-        // cma group leaf 2 — PARENT_MENU_ID = cma (round 3 매핑 / 백/십 자리 +100~+110)
-        //   팝업 2종(masterCodeSelPop · masterCodeUploadFilePopup)은 2026-08-13 팝업 전용 그룹 cmz 로 이관했다
-        //   (아래 "cmz 팝업 leaf 5" 블록). 본 그룹에는 사이드바에 뜨는 업무 화면만 남는다.
-        insertMcmSecMenuIfAbsent("masterCategoryMng",         "001", "1010100", "카테고리 관리",                       "cma", "masterCategoryMng");
-        insertMcmSecMenuIfAbsent("masterCodeMng",             "001", "1010110", "Master Code 관리",                    "cma", "masterCodeMng");
-
-        // csa group leaf 8 — PARENT_MENU_ID = csa (round 3 매핑 / 백/십 자리 +100~+170)
+        // csa group leaf 7 — PARENT_MENU_ID = csa (round 3 매핑 / 백/십 자리 +100~+160)
         insertMcmSecMenuIfAbsent("commObjMng",        "001", "1020100", "OBJECT 관리",            "csa", "commObjMng");
         insertMcmSecMenuIfAbsent("commMenuMng",       "001", "1020110", "메뉴 관리",              "csa", "commMenuMng");
         insertMcmSecMenuIfAbsent("commRoleMng",       "001", "1020120", "역할 관리",              "csa", "commRoleMng");
@@ -76,51 +62,6 @@ public final class McmMenuSeeder extends SeedSupport {
         insertMcmSecMenuIfAbsent("commUserMng",       "001", "1020140", "사용자 관리",            "csa", "commUserMng");
         insertMcmSecMenuIfAbsent("commPermMng",       "001", "1020150", "PERMISSION 관리",        "csa", "commPermMng");
         insertMcmSecMenuIfAbsent("commUserRoleCopy",  "001", "1020160", "사용자 권한 일괄 등록",  "csa", "commUserRoleCopy");
-        insertMcmSecMenuIfAbsent("commSyncMng",       "001", "1020170", "동기화 관리",            "csa", "commSyncMng");
-
-        // cme group leaf 1 — PARENT_MENU_ID = cme (round 3 매핑 / 백/십 자리 +100)
-        insertMcmSecMenuIfAbsent("masterCodeMngList", "001", "1030100", "Master Code 상세조회",   "cme", "masterCodeMngList");
-
-        // cmb group leaf 4 — PARENT_MENU_ID = cmb (그룹 04 / 백/십 자리 +100~+130) — 2026-06-05 masterRuleList 등재
-        //   팝업 3종은 아래 cmz 블록으로 이관(2026-08-13). 본 그룹에는 업무 화면만 남는다.
-        //   2026-08-14 — 일반 화면 3종(masterRuleData/masterRuleDataList/masterRuleFrame) 추가 등재.
-        //     OBJECT(TB_MCM_SEC_OBJ) · RBAC(SYSADMIN×PERM_ALL) · BPMN(services/cmb/*.bpmn) ·
-        //     FE PAGE_REGISTRY 키("cmb/masterRuleData" 외 2)는 이미 있는데 메뉴 leaf 만 없어
-        //     사이드바 진입점이 생기지 않았다(직접 URL 로만 도달 가능).
-        //   MENU_VIEW_YN 은 6-인자 오버로드의 기본값 'Y'(표시) — cmz 팝업과 달리 일반 업무화면이므로
-        //     사이드바에 떠야 하고, PAGE_REGISTRY 키가 실재하므로 클릭 시 오류탭이 열리지 않는다.
-        //   MENU_NM 은 위 TB_MCM_SEC_OBJ 시드의 OBJECT_NM 을 그대로 사용(단일 식별자·단일 명칭 규약).
-        insertMcmSecMenuIfAbsent("masterRuleList",     "001", "1040100", "업무기준 목록조회",      "cmb", "masterRuleList");
-        insertMcmSecMenuIfAbsent("masterRuleData",     "001", "1040110", "업무기준 Data관리",      "cmb", "masterRuleData");
-        insertMcmSecMenuIfAbsent("masterRuleDataList", "001", "1040120", "업무기준 상세조회",      "cmb", "masterRuleDataList");
-        insertMcmSecMenuIfAbsent("masterRuleFrame",    "001", "1040130", "업무기준 구조관리",      "cmb", "masterRuleFrame");
-
-        // ── cmz 팝업 leaf 5 — PARENT_MENU_ID = cmz, MENU_VIEW_YN='N'(사이드바 숨김). 2026-08-13 ──
-        //   사용자 결정: "팝업과 팝업그룹은 전부 등재하고 트리 표시여부는 전부 숨김". 종전에는 팝업이
-        //   업무 그룹(cma 2 · cmb 3)에 섞여 있었고, 이번에 mpp ppz 와 동일한 팝업 전용 그룹으로 모았다.
-        //   (OBJECT/RBAC 는 seedMcmSecRbac 에 기시드 — 여기서는 메뉴 트리 위치만 다룬다.)
-        //
-        //   leaf 를 두는 이유 = ① 팝업도 자기 serviceId 로 OASIS 를 직접 호출하므로 팝업 단위 RBAC 를
-        //   역할/메뉴 화면에서 화면과 똑같이 다루고 ② commMenuMng 에서 명칭·순서를 관리하기 위함이다
-        //   (insertMcmSecMenuIfAbsent 7-인자 오버로드 javadoc "팝업 leaf 정책").
-        //   숨김인 이유 = 팝업은 부모 화면에서 모달로 열리는 컴포넌트라 FE PAGE_REGISTRY 에 라우팅 키가 없다.
-        //   사이드바에 진입점이 뜨면 클릭 시 빈 오류탭이 열린다(cma 팝업 2 건에서 실제로 발생했던 결함).
-        //   MENU_NM 은 위 TB_MCM_SEC_OBJ 시드의 OBJECT_NM 을 그대로 사용(단일 식별자·단일 명칭 규약).
-        //   FULL_SEQ = 모듈 백만(mcm=1) + 그룹 만(cmz=05) + 화면 백·십(+100 부터 +10 씩).
-        //   나열 순서는 이관 전 소속(cma 2 → cmb 3)을 유지해 대조가 쉽도록 했다.
-        insertMcmSecMenuIfAbsent("masterCodeSelPop",              "001", "1050100", "마스터코드 선택 팝업",             "cmz", "masterCodeSelPop",              "N");
-        insertMcmSecMenuIfAbsent("masterCodeUploadFilePopup",     "001", "1050110", "마스터코드 등록(Excel Upload)",    "cmz", "masterCodeUploadFilePopup",     "N");
-        insertMcmSecMenuIfAbsent("masterRuleListPop",             "001", "1050120", "업무기준 List조회 팝업",           "cmz", "masterRuleListPop",             "N");
-        insertMcmSecMenuIfAbsent("masterRuleFrameColListPopup",   "001", "1050130", "업무기준 컬럼 리스트 등록 팝업",   "cmz", "masterRuleFrameColListPopup",   "N");
-        insertMcmSecMenuIfAbsent("masterRuleDataUploadFilePopup", "001", "1050140", "일반 업무기준 등록(Excel Upload)", "cmz", "masterRuleDataUploadFilePopup", "N");
-        // 이미 적재된 DB(개발계·다른 개발자 로컬 DB) 백필 — INSERT 헬퍼는 기존 행을 갱신하지 않으므로,
-        //   시드 리터럴만 cmz 로 바꿔서는 기존 DB 의 부모가 영원히 cma/cmb 로 남는다.
-        for (String popupId : new String[]{
-                "masterCodeSelPop", "masterCodeUploadFilePopup",
-                "masterRuleListPop", "masterRuleFrameColListPopup", "masterRuleDataUploadFilePopup"}) {
-            ensureMenuParent(popupId, "cmz");
-            ensureMenuViewYn(popupId, "N");
-        }
 
         // FULL_SEQ 7자리 인코딩 일괄 재적용 (잔존 DB 의 legacy FULL_SEQ "1"/"100"/"110"/... 정정 — leaf 17 row 만).
         int updatedFullSeq = applyR3FullSeqEncoding();
@@ -174,8 +115,9 @@ public final class McmMenuSeeder extends SeedSupport {
      * <p>FK 순서: 자식 PARENT_MENU_ID 먼저 swap → 부모 PK swap (FLD 만). PK 충돌 시 legacy DELETE.
      */
     private void swapLegacyGrpMenuIds() {
-        String[] legacy = {"grp-cma", "grp-csa", "grp-cme"};
-        String[] target = {"cma",     "csa",     "cme"};
+        // 2026-10-16 — grp-cma·grp-cme 는 뺐다. 옛 그룹 cma·cme 를 걷어냈으므로 되살리지 않는다(cleanupLegacyFolderRowsInSecMenu 가 지운다).
+        String[] legacy = {"grp-csa"};
+        String[] target = {"csa"};
         for (int i = 0; i < legacy.length; i++) {
             String oldId = legacy[i];
             String newId = target[i];
@@ -226,8 +168,6 @@ public final class McmMenuSeeder extends SeedSupport {
         // {menuId, fullSeq, parentMenuId} — Round 3 정합 PARENT_MENU_ID 도 함께 멱등 정정.
         // 잔존 row 의 PARENT_MENU_ID 가 자기 자신 또는 다른 값으로 잘못 시드된 경우 본 UPDATE 가 정정.
         String[][] rows = {
-            {"masterCategoryMng",         "1010100", "cma"},
-            {"masterCodeMng",             "1010110", "cma"},
             {"commObjMng",                "1020100", "csa"},
             {"commMenuMng",               "1020110", "csa"},
             {"commRoleMng",               "1020120", "csa"},
@@ -235,27 +175,9 @@ public final class McmMenuSeeder extends SeedSupport {
             {"commUserMng",               "1020140", "csa"},
             {"commPermMng",               "1020150", "csa"},
             {"commUserRoleCopy",          "1020160", "csa"},
-            {"commSyncMng",               "1020170", "csa"},
             {"mdmCacheMng",               "1020190", "csa"},   // 2026-10-02 MDM 캐시 관리(화면 사용 통계 1020180 다음) — 빠지면 잔존 DB 의 FULL_SEQ 가 매 부팅 어긋난다
             {"searchDefaultsSample",      "1020210", "csa"},   // 2026-10-07 조회 기본값 샘플(local 전용 시드) — 행이 있는 DB 에서만 적용된다
             {"jobSchedMng",               "1020220", "csa"},   // 2026-10-09 예약 작업 관리 — 빠지면 잔존 DB 의 FULL_SEQ 가 매 부팅 어긋난다
-            {"masterCodeMngList",         "1030100", "cme"},
-            {"masterRuleList",            "1040100", "cmb"},
-            // 2026-08-14 등재 — 본 배열에 빠지면 잔존 DB 의 FULL_SEQ/PARENT_MENU_ID 가 매 부팅 어긋난 채 남는다
-            //   (insertMcmSecMenuIfAbsent 는 기존 행을 갱신하지 않으므로 신규 leaf 도 반드시 여기 함께 등재).
-            {"masterRuleData",            "1040110", "cmb"},
-            {"masterRuleDataList",        "1040120", "cmb"},
-            {"masterRuleFrame",           "1040130", "cmb"},
-            // ── cmz 팝업 5 (2026-08-13 이관) — 업무 그룹(cma/cmb)이 아닌 팝업 전용 그룹이 정본이다.
-            //   ⚠ 본 배열은 PARENT_MENU_ID 를 무조건 덮어쓴다. 여기에 옛 부모(cma/cmb)가 남아 있으면
-            //   seedMcmSecMenu 말미의 ensureMenuParent(…, "cmz") 백필을 매 부팅마다 되돌려 버린다.
-            //   팝업의 소속 그룹을 바꿀 때는 반드시 두 곳을 함께 고칠 것.
-            //   MENU_VIEW_YN 은 본 UPDATE 대상 ✗ (사용자 편집 값 — ensureMenuViewYn 이 명시 대상만 정정).
-            {"masterCodeSelPop",              "1050100", "cmz"},
-            {"masterCodeUploadFilePopup",     "1050110", "cmz"},
-            {"masterRuleListPop",             "1050120", "cmz"},
-            {"masterRuleFrameColListPopup",   "1050130", "cmz"},
-            {"masterRuleDataUploadFilePopup", "1050140", "cmz"},
         };
         int total = 0;
         for (String[] r : rows) {
@@ -273,20 +195,19 @@ public final class McmMenuSeeder extends SeedSupport {
     }
 
     /**
-     * TB_MCM_SEC_MENU_FLD 시드 — 메뉴 폴더 트리 6 row (mcm root + 업무 group 4 + 팝업 group 1).
+     * TB_MCM_SEC_MENU_FLD 시드 — 메뉴 폴더 트리 2 row (mcm root + 업무 group csa).
      *
      * <p>commMenuMng 분석리포트 §9.3 정합 — 본 4 컬럼 (MENU_ID PK / MENU_SEQ 정렬 / MENU_NM / PARENT_MENU_ID).
      * As-Is 의도는 폴더 (디렉토리) 트리만 보유 → leaf 화면 행은 별도 매핑 (TB_MCM_SEC_MENU). 본 시드는
-     * mcm root 1 + 업무 group 4 (cma/csa/cme/cmb) + 팝업 group 1 (cmz, 숨김) = 6 row 적재.
+     * mcm root 1 + 업무 group 1 (csa) = 2 row 적재. 2026-10-16 — 옛 그룹 cma·cme·cmb·cmz 는 걷어냈다(Flyway mcmapuser V17).
      *
      * <p>SecMenuNativeRepository.searchMenuFld 의 CTE WITH RECURSIVE 가:
      * <ul>
      *   <li>anchor = PARENT_MENU_ID IS NULL → mcm 1 row (LEV=0)</li>
-     *   <li>recursive = child.PARENT_MENU_ID = parent.MENU_ID → group 5 row (LEV=1)</li>
+     *   <li>recursive = child.PARENT_MENU_ID = parent.MENU_ID → group 1 row (LEV=1)</li>
      * </ul>
      *
-     * <p>{@code cmz} 만 {@code MENU_VIEW_YN='N'} (팝업 전용 그룹 — 사이드바 비노출). 나머지는 값을 두지
-     * 않으며 NULL 은 표시로 취급된다.
+     * <p>MENU_VIEW_YN 은 값을 두지 않으며 NULL 은 표시로 취급된다.
      *
      * <p>insertIfAbsent 가드로 멱등 (이미 시드된 row 가 있으면 skip).
      */
@@ -303,48 +224,13 @@ public final class McmMenuSeeder extends SeedSupport {
                 "(MENU_ID, MENU_SEQ, MENU_NM, PARENT_MENU_ID) " +
                 "VALUES ('mcm', '00000002', N'공통관리', NULL)");
 
-        // Group 3 — cma / csa / cme (PARENT_MENU_ID = 'mcm') — 2026-06-02 R3 P1 grp- 접두 제거.
+        // Group — csa (PARENT_MENU_ID = 'mcm') — 2026-06-02 R3 P1 grp- 접두 제거.
         // 잔존 grp-* row 는 swapLegacyGrpMenuIds() 가 신규 토큰으로 swap (FK 동시).
-        insertIfAbsent(
-                "TB_MCM_SEC_MENU_FLD", "MENU_ID", "cma",
-                "INSERT INTO MCMAPUSER.TB_MCM_SEC_MENU_FLD " +
-                "(MENU_ID, MENU_SEQ, MENU_NM, PARENT_MENU_ID) " +
-                "VALUES ('cma', '00000100', N'마스터관리(원장)', 'mcm')");
-
         insertIfAbsent(
                 "TB_MCM_SEC_MENU_FLD", "MENU_ID", "csa",
                 "INSERT INTO MCMAPUSER.TB_MCM_SEC_MENU_FLD " +
                 "(MENU_ID, MENU_SEQ, MENU_NM, PARENT_MENU_ID) " +
                 "VALUES ('csa', '00000200', N'시스템관리', 'mcm')");
-
-        insertIfAbsent(
-                "TB_MCM_SEC_MENU_FLD", "MENU_ID", "cme",
-                "INSERT INTO MCMAPUSER.TB_MCM_SEC_MENU_FLD " +
-                "(MENU_ID, MENU_SEQ, MENU_NM, PARENT_MENU_ID) " +
-                "VALUES ('cme', '00000300', N'마스터관리(가동)', 'mcm')");
-
-        // cmb group (PARENT_MENU_ID = 'mcm') — 2026-06-05 masterRuleList 등재 (업무기준 관리(원장))
-        insertIfAbsent(
-                "TB_MCM_SEC_MENU_FLD", "MENU_ID", "cmb",
-                "INSERT INTO MCMAPUSER.TB_MCM_SEC_MENU_FLD " +
-                "(MENU_ID, MENU_SEQ, MENU_NM, PARENT_MENU_ID) " +
-                "VALUES ('cmb', '00000400', N'업무기준관리(원장)', 'mcm')");
-
-        // cmz — 팝업 전용 그룹 (PARENT_MENU_ID = 'mcm', MENU_VIEW_YN='N' 숨김). 2026-08-13 신설.
-        //   사용자 결정: "팝업과 팝업그룹은 전부 등재하되 트리 표시는 전부 숨김". mpp 가 먼저 채택한
-        //   ppz 규약(팝업 20종을 업무 그룹이 아닌 전용 숨김 그룹에 모음)을 mcm 에도 동일 적용한다.
-        //   종전에는 팝업 5종이 업무 그룹(cma 2 · cmb 3) 안에 섞여 있어, 그룹을 펼쳤을 때 commMenuMng
-        //   메뉴 트리에서 업무 화면과 팝업이 구분되지 않았다.
-        //   위 4개 그룹과 달리 insertMpnFld 를 쓰는 이유 = 이 헬퍼만 MENU_VIEW_YN 을 명시 INSERT 한다
-        //   (모듈 무관 범용 FLD 헬퍼 — mpn/mls/mqc/analog/mpp 가 이미 공용한다).
-        //   폴더까지 숨겨야 하는 이유 = 자식 leaf 를 전부 'N' 으로 숨겨도 폴더가 표시면 사이드바에
-        //   빈 그룹이 남는다(seedMppMenus javadoc "팝업 leaf 정책").
-        //   FULL_SEQ = 모듈 백만(mcm=1) + 그룹 만(cmz=05) — cma01/csa02/cme03/cmb04 다음 자리.
-        //   시드 리터럴은 체계만 맞으면 되고, 부팅 말미 recomputeMenuFullSeq() 가 트리 위치 기준으로
-        //   실제 값을 재부여한다(현 DB 실값은 모듈 순번이 2 라 20xxxxx 대다).
-        insertMpnFld("cmz", "00000500", "팝업", "mcm", 1050000L, "N");
-        // 이미 적재된 DB(개발계·다른 개발자 로컬 DB) 백필 — insertMpnFld 는 기존 행을 갱신하지 않는다.
-        ensureMenuFldViewYn("cmz", "N");
     }
 
     /**

@@ -69,7 +69,7 @@ class EndpointPermissionFilterDirectRouteTest {
             "/service/codeEdit",
             "/query/service/codeEdit",
             "/lov/service/codeEdit",
-            "/query/masterCodeSelPop.search",
+            "/query/sampleQueryPop.search",
             "/lov/query/plantLov.list",
             "/mcm/service/codeEdit",            // 운영 게이트웨이 접두
             "/mdm/query/service/codeEdit",

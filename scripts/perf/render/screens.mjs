@@ -211,17 +211,6 @@ export const SCREENS = [
     autoSearchAtEntry: true,
   },
   {
-    id: "masterCodeMng",
-    label: "Master Code 관리",
-    // 메뉴 트리 글자는 「마스터관리(원장)」, 화면 하단 breadcrumb 은 「Master 관리(원장)」 으로 다르다.
-    trail: [/^공통관리$/, /^마스터관리\(원장\)$/, /^Master Code 관리$/],
-    breadcrumb: "공통관리 > Master 관리(원장) > Master Code 관리",
-    listPanelTitle: "Master Code",
-    searchUrlPattern: /\/api\/mcm\/oasis\/masterCodeMng\/search$/,
-    searchUrlExclude: /optionsOnly/,
-    needsSearch: true,
-  },
-  {
     // 목록 패널 제목이 「항목 — {마루 데이터명}」 으로 바뀌어 listPanelTitle 을 두지 않는다(보이는 첫 그리드).
     id: "dataItemMng",
     label: "항목 편집(데이터 항목 관리)",

@@ -15,13 +15,6 @@
  */
 export const PAGE_REGISTRY: Record<string, () => Promise<{ default: unknown }>> = {
   "anl/logViewer": () => import("@/page-components/anl/logViewer/page"),
-  "cma/masterCategoryMng": () => import("@/page-components/cma/masterCategoryMng/page"),
-  "cma/masterCodeMng": () => import("@/page-components/cma/masterCodeMng/page"),
-  "cmb/masterRuleData": () => import("@/page-components/cmb/masterRuleData/page"),
-  "cmb/masterRuleDataList": () => import("@/page-components/cmb/masterRuleDataList/page"),
-  "cmb/masterRuleFrame": () => import("@/page-components/cmb/masterRuleFrame/page"),
-  "cmb/masterRuleList": () => import("@/page-components/cmb/masterRuleList/page"),
-  "cme/masterCodeMngList": () => import("@/page-components/cme/masterCodeMngList/page"),
   "cmq/userQuery": () => import("@/page-components/cmq/userQuery/page"),
   "cmq/userQueryMng": () => import("@/page-components/cmq/userQueryMng/page"),
   "csa/commMenuMng": () => import("@/page-components/csa/commMenuMng/page"),
@@ -29,7 +22,6 @@ export const PAGE_REGISTRY: Record<string, () => Promise<{ default: unknown }>> 
   "csa/commPermMng": () => import("@/page-components/csa/commPermMng/page"),
   "csa/commRoleGrpMng": () => import("@/page-components/csa/commRoleGrpMng/page"),
   "csa/commRoleMng": () => import("@/page-components/csa/commRoleMng/page"),
-  "csa/commSyncMng": () => import("@/page-components/csa/commSyncMng/page"),
   "csa/commUserMng": () => import("@/page-components/csa/commUserMng/page"),
   "csa/commUserRoleCopy": () => import("@/page-components/csa/commUserRoleCopy/page"),
   "csa/commWidgetMng": () => import("@/page-components/csa/commWidgetMng/page"),

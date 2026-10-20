@@ -1,8 +1,6 @@
 package com.dongkuk.dmes.mcm.oasis;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.dongkuk.dmes.cactus.oasis.CactusRequestConverter;
 import com.dongkuk.dmes.cactus.oasis.CactusResponseConverter;
@@ -17,11 +15,9 @@ import com.dongkuk.dmes.cactus.web.request.GridData;
 import com.dongkuk.dmes.cactus.web.request.RequestMeta;
 import com.dongkuk.dmes.cactus.web.response.CactusResponse;
 import com.dongkuk.dmes.mcm.adapter.McmBusinessErrorTranslator;
-import com.dongkuk.dmes.mcm.cma.masterCategoryMng.service.MasterCategoryMngService;
 import com.dongkuk.dmes.mcm.common.exception.BusinessException;
 import com.dongkuk.dmes.mcm.common.exception.ErrorCode;
 import com.dongkuk.dmes.mcm.common.exception.ErrorDetail;
-import com.dongkuk.dmes.mcm.repository.MasterCodeCategoryRepository;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -51,8 +47,8 @@ import org.springframework.transaction.support.DefaultTransactionStatus;
  *
  * <p>운영과 같은 조립({@link OasisAutoConfiguration#serviceStarter} 의 transactional + multi-tx 분기, 기본 매니저 {@code txBiz})으로
  * {@link OasisServiceExecutor} 를 직접 부른다. Oracle 은 쓰지 않는다. 트랜잭션 매니저는 begin·commit·rollback 만 기록하는 가짜다.
- * 시험 BPMN 은 {@code services/test/mcmBusinessErrorProbe.bpmn} 이고, 사례 5 는 운영 BPMN
- * {@code services/cma/masterCategoryMng.bpmn} 과 실제 {@link MasterCategoryMngService}(저장소는 Mockito 대역)를 쓴다.
+ * 시험 BPMN 은 {@code services/test/mcmBusinessErrorProbe.bpmn} 이다.
+ * 2026-10-16 — 운영 BPMN masterCategoryMng 를 쓰던 사례 5 는 그 화면(옛 마스터코드 프로그램)을 걷어내며 뺐다.
  *
  * <p>사례 2 는 USER_ERROR 의 기본값 E001 과 겹치지 않는 E003 이라 ErrorCode 를 실제로 읽는지 보여 준다. 사례 4 는 대조군이다.
  * cactus 형은 변환기 없이도 E001 과 errors[] 로 나간다 — mcm-core 형도 이제 같은 봉투다.
@@ -61,25 +57,21 @@ class McmBusinessErrorOasisResponseTest {
 
     private static final String PROBE = "mcmBusinessErrorProbe";
 
-    /** 사례 1·3·4·5 응답의 {@code errors} JSON. 사례 1·3·5 가 던지는 mcm-core 행 상세와 사례 4 의 cactus 행 상세는 내용이 같다. */
+    /** 사례 1·3·4 응답의 {@code errors} JSON. 사례 1·3 이 던지는 mcm-core 행 상세와 사례 4 의 cactus 행 상세는 내용이 같다. */
     private static final String ROW_ERRORS_JSON = "[{\"grid\":\"master\",\"rowKey\":\"r1\",\"rowIndex\":0,"
             + "\"field\":\"masterCode\",\"code\":\"E001\",\"message\":\"코드ID를 입력해 주십시오.\"}]";
 
     private final ObjectMapper json = new ObjectMapper().findAndRegisterModules();
     private GenericApplicationContext ctx;
     private RecordingTxManager txBiz;
-    private MasterCodeCategoryRepository categoryRepository;
     private OasisServiceExecutor executor;
 
     @BeforeEach
     void setUp() {
         txBiz = new RecordingTxManager();
-        categoryRepository = mock(MasterCodeCategoryRepository.class);
         ctx = new GenericApplicationContext();
         ctx.registerBean("txBiz", PlatformTransactionManager.class, () -> txBiz);
         ctx.registerBean(PROBE, Probe.class, Probe::new);
-        ctx.registerBean("masterCategoryMngService", MasterCategoryMngService.class,
-                () -> new MasterCategoryMngService(categoryRepository));
         ctx.refresh();
 
         OasisProperties props = new OasisProperties();
@@ -139,26 +131,6 @@ class McmBusinessErrorOasisResponseTest {
                 "{\"meta\":{\"success\":false,\"code\":\"E001\",\"message\":\"입력값을 확인해주세요.\"},"
                         + "\"errors\":" + ROW_ERRORS_JSON + "}");
         assertThat(txBiz.events).containsExactly("begin", "rollback");
-    }
-
-    /**
-     * 사례 5 — 운영 BPMN masterCategoryMng/save 에 masterCode 가 빠진 신규 행을 보낸다. 서비스는 DB 를 부르기 전에
-     * mcm-core {@code BusinessException(REQUIRED_VALUE, "입력값을 확인해주세요.", [ofGrid(master, r1, 0, masterCode, E001, ...)])}
-     * 을 던진다.
-     */
-    @Test
-    void masterCategoryMng_save_필수값_오류는_E001_과_행_상세_errors_로_나간다() {
-        ObjectNode body = envelope("masterCategoryMng");
-        body.putObject("grids").putObject("master").putArray("rows")
-                .addObject().put("rowKey", "r1").put("rowStatus", "C").put("categoryId", "CAT01");
-
-        JsonNode res = post("masterCategoryMng", "save", body);
-
-        assertThat(withoutTxId(res)).isEqualTo(
-                "{\"meta\":{\"success\":false,\"code\":\"E001\",\"message\":\"입력값을 확인해주세요.\"},"
-                        + "\"errors\":" + ROW_ERRORS_JSON + "}");
-        assertThat(txBiz.events).containsExactly("begin", "rollback");
-        verifyNoInteractions(categoryRepository);
     }
 
     /** 응답 JSON 에서 매번 바뀌는 {@code meta.txId} 를 뺀 문자열. txId 가 실제로 실렸는지도 확인한다. */

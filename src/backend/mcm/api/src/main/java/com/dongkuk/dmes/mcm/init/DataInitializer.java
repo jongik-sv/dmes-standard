@@ -4,7 +4,6 @@ import com.dongkuk.dmes.cactus.security.auth.PasswordEncoder;
 import com.dongkuk.caravan.console.host.AppHostJpaRepository;
 import com.dongkuk.caravan.console.caravanhubconfig.ConsoleCaravanHubConfigJpaRepository;
 import com.dongkuk.dmes.mcm.common.event.MenuChangedEvent;
-import com.dongkuk.dmes.mcm.repository.RuleMasterRepository;
 import com.dongkuk.dmes.mcm.repository.SecMenuNativeRepository;
 import com.dongkuk.dmes.mcm.init.seed.CaravanMetaSeeder;
 import com.dongkuk.dmes.mcm.init.seed.CoreRbacSeeder;
@@ -12,7 +11,6 @@ import com.dongkuk.dmes.mcm.init.seed.McmMenuSeeder;
 import com.dongkuk.dmes.mcm.init.seed.MdmMenuSeeder;
 import com.dongkuk.dmes.mcm.init.seed.MenuFinalizer;
 import com.dongkuk.dmes.mcm.init.seed.ModuleMenuSeeder;
-import com.dongkuk.dmes.mcm.init.seed.RuleMasterSampleSeeder;
 import com.dongkuk.dmes.mcm.init.seed.SeedSupport;
 import com.dongkuk.dmes.mcm.security.endpoint.UserPermCache;
 import jakarta.persistence.EntityManager;
@@ -35,7 +33,7 @@ import org.springframework.transaction.annotation.Transactional;
  * 애플리케이션 시작 시 초기 데이터(시드)를 넣는다.
  *
  * <p>2026-10-04 분할 — 이 클래스는 단계의 순서만 정하고, 시드 본문은 단계 클래스가 갖는다.
- * {@code com.dongkuk.dmes.mcm.init.seed} 의 CaravanMetaSeeder·RuleMasterSampleSeeder·CoreRbacSeeder·McmMenuSeeder·
+ * {@code com.dongkuk.dmes.mcm.init.seed} 의 CaravanMetaSeeder·CoreRbacSeeder·McmMenuSeeder·
  * MdmMenuSeeder·ModuleMenuSeeder·MenuFinalizer·WidgetCategoryCodeSeeder 다. 단계 클래스는 빈이 아니다. {@link #run} 이 만든
  * {@link SeedSupport} 를 받아 쓰고, 트랜잭션은 {@link #run} 의 {@code @Transactional} 하나다.
  *
@@ -69,10 +67,6 @@ public class DataInitializer implements ApplicationRunner {
     // 2026-06-04 사용자 지시 — 메뉴 FULL_SEQ 7자리 인코딩 기동 시 강제 재계산용 (mcm-core read-only 어댑터).
     @Autowired
     private SecMenuNativeRepository secMenuNativeRepository;
-
-    // 업무기준(cmb/masterRuleList) 샘플 시드용 — primary EMF (MCAAPUSER). local/local-ph/local-kp tier 한정.
-    @Autowired(required = false)
-    private RuleMasterRepository ruleMasterRepository;
 
     // 2026-10-04 — 시드 끝에 MenuChangedEvent(SEED) 를 내 메뉴 카탈로그(MenuCatalog)를 비운다. ApplicationRunner 는 웹 서버가
     //   뜬 뒤에 돌므로 시드 커밋 전에 들어온 내 메뉴 요청이 시드 전 목록을 TTL 동안 남길 수 있기 때문이다. 필드 주입·required=false
@@ -114,11 +108,8 @@ public class DataInitializer implements ApplicationRunner {
         caravanMeta.initAppHostData();
         caravanMeta.initCaravanHubConfigData();
 
-        // MCM cma 동기화 표(MCMAPUSER 사본 3표·MCM_BACKUP 2표)·VI_MCM_CODE_ACCESS 뷰·csa SEC 표·화면 사용 통계 표는
-        // 2026-10-07 부터 Flyway V1(mcm-core db/migration/oracle/<스키마>)이 만든다 — 옛 Java DDL 단계는 archive.
-
-        // 업무기준(cmb/masterRuleList) 조회 필터 검증용 샘플 — local/local-ph/local-kp tier·idempotent (BR-002/003).
-        new RuleMasterSampleSeeder(environment, ruleMasterRepository).initRuleMasterSampleData();
+        // csa SEC 표·화면 사용 통계 표는 2026-10-07 부터 Flyway V1(mcm-core db/migration/oracle/<스키마>)이 만든다 — 옛 Java DDL 단계는 archive.
+        // 2026-10-16 — 옛 마스터코드·업무기준 프로그램(cma·cme·cmb·cmz·commSyncMng)과 그 표를 걷어냈다(후속은 mdm). 업무기준 샘플 시드도 함께 뺐다.
 
         // Phase R6 (2026-06-01) — 신규 RBAC 시드 (TB_MCM_SEC_*) 멱등 적재.
         // legacy TB_SEC_* 시드 (TB_SEC_USER / TB_SEC_ROLE / TB_SEC_USER_ROLE / TB_SEC_PERM /

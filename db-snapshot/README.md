@@ -14,10 +14,10 @@ db-snapshot/<Oracle 스키마>/
 |---|---|
 | `MDMAPUSER` | mdm 39표(약 4만 3천 행) |
 | `MCMAPUSER` | mcm 표(`TB_MCM_*`·`TB_SEC_*` 등 54표) |
-| `MCM_SOURCE` | 코드 원장 3표(`TB_MCM_CODE_MASTER`·`CATEGORY`·`DETAIL`). `MCMAPUSER` 에도 같은 3표가 들어간다 |
+| `MCM_SOURCE` | 옛 코드 원장 3표(`TB_MCM_CODE_MASTER`·`CATEGORY`·`DETAIL`). `MCMAPUSER` 에도 같은 3표가 있었다. 2026-10-16 폐기 — mcm-core `V4`·`V17` 이 지운다 |
 | `MCAAPUSER` | 동적 표 `TB_MCA_*`(적재기가 만든다) |
 
-`MCM_BACKUP` 은 비워 둔다(동기화 관리 화면이 채운다). `flyway_schema_history`·SQLite 시퀀스 흉내 표는 CSV 에 넣지 않는다. 표는 Flyway(또는 `pdb.mjs template-schema`)가 만든 것이어야 하고, 적재기는 **데이터만** 넣는다.
+`MCM_BACKUP` 은 비워 둔다. 옛 코드 원장 표와 업무기준 표(`TB_MCA_RULE_*`)는 2026-10-16 에 폐기했다([mdm ADR-0008](../docs/mdm/adr/0008-retire-mcm-master-rule-programs.md)). 그 CSV 는 정리 전까지 남아 있을 수 있다. `flyway_schema_history`·SQLite 시퀀스 흉내 표는 CSV 에 넣지 않는다. 표는 Flyway(또는 `pdb.mjs template-schema`)가 만든 것이어야 하고, 적재기는 **데이터만** 넣는다.
 
 ### CSV 형식
 

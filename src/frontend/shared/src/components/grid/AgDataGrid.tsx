@@ -829,7 +829,7 @@ function AgDataGridInner({
          * ★셀 텍스트 드래그 선택·복사는 항상 허용(2026-08-07 사용자 요구).
          *   구: enableCellTextSelection={!hasEditableColumns} → 편집 컬럼이 하나라도 있으면 ag 가
          *   셀에 user-select:none 을 걸어 "어떤 화면은 복사가 되고 어떤 화면은 안 되는" 편차가 생겼다
-         *   (실측: masterRuleList 셀 computed user-select=none, 드래그 선택 결과 빈 문자열).
+         *   (실측: 편집 컬럼이 있는 그리드 셀 computed user-select=none, 드래그 선택 결과 빈 문자열).
          *   편집 기능과 병존 가능하며(편집 중 셀은 input 자체 선택 동작), ensureDomOrder 는 화면 순서대로
          *   복사되도록 DOM 순서를 보장한다.
          */

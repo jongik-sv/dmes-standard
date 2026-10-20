@@ -89,7 +89,7 @@ button {
 /* ========================================
    버튼 스타일
    PageLayout 자체 버튼은 Mantine Button(page-button)이 담당한다.
-   .btn-primary 만 예외로 남긴다 — GridPanel buttons[].className (예: masterCodeMng
+   .btn-primary 만 예외로 남긴다 — GridPanel buttons[].className (예: 화면
    저장 버튼)이 "grid-btn btn-primary" 조합으로 여전히 참조한다(그리드는 1단계 변경 없음).
    ======================================== */
 .page-layout .btn-primary {

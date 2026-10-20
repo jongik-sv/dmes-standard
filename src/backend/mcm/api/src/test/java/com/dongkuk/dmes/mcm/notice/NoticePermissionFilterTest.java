@@ -9,7 +9,6 @@ import com.dongkuk.dmes.mcm.common.audit.SecurityIdentityHolder;
 import com.dongkuk.dmes.mcm.common.event.RoleChangedEvent;
 import com.dongkuk.dmes.mcm.common.security.SecurityIdentity;
 import com.dongkuk.dmes.mcm.init.DataInitializer;
-import com.dongkuk.dmes.mcm.repository.RuleMasterRepository;
 import com.dongkuk.dmes.mcm.repository.SecMenuNativeRepository;
 import com.dongkuk.dmes.mcm.repository.SecObjRepository;
 import com.dongkuk.dmes.mcm.repository.SecPermRepository;
@@ -120,7 +119,6 @@ class NoticePermissionFilterTest {
         ReflectionTestUtils.setField(secMenuNativeRepository, "entityManager", sharedEm);
         ReflectionTestUtils.setField(initializer, "entityManager", sharedEm);
         ReflectionTestUtils.setField(initializer, "secMenuNativeRepository", secMenuNativeRepository);
-        ReflectionTestUtils.setField(initializer, "ruleMasterRepository", repos.getRepository(RuleMasterRepository.class));
         ReflectionTestUtils.setField(initializer, "initEnabled", true);
         ReflectionTestUtils.setField(initializer, "userPermCache", permCache);
         runSeed();

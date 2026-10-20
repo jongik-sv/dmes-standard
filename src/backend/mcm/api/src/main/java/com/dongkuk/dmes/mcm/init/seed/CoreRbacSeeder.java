@@ -186,7 +186,9 @@ public final class CoreRbacSeeder extends SeedSupport {
         nq("UPDATE MCMAPUSER.TB_MCM_SEC_PERM SET PERMISSION_DESC = N'맞춤 레포트 조회 화면 실행' "
          + " WHERE PERMISSION_ID = 'PERM_USRQ_USE' AND PERMISSION_DESC = N'공용 쿼리 조회 화면 실행'").executeUpdate();
 
-        // TB_MCM_SEC_OBJ — 13 화면 OBJECT 시드 (W1~W9 9 화면 + cma 4 화면).
+        // TB_MCM_SEC_OBJ — csa 7 화면 OBJECT 시드 (W1~W9).
+        //   2026-10-16 — 옛 마스터코드·업무기준 프로그램(cma 4·cme 1·cmb 7·csa commSyncMng)은 걷어냈다(후속은 mdm).
+        //   이미 적재된 DB 의 행은 Flyway mcmapuser V17 이 지운다.
         insertMcmSecObjIfAbsent("commObjMng",          "OBJECT 관리",                  "mcm");
         insertMcmSecObjIfAbsent("commMenuMng",         "MENU 관리",                    "mcm");
         insertMcmSecObjIfAbsent("commRoleMng",         "역할 관리",            "mcm");
@@ -194,34 +196,11 @@ public final class CoreRbacSeeder extends SeedSupport {
         insertMcmSecObjIfAbsent("commUserMng",         "사용자 관리",      "mcm");
         insertMcmSecObjIfAbsent("commPermMng",         "PERMISSION 관리",              "mcm");
         insertMcmSecObjIfAbsent("commUserRoleCopy",    "사용자 권한 일괄 등록", "mcm");
-        insertMcmSecObjIfAbsent("commSyncMng",         "동기화 관리",      "mcm");
-        insertMcmSecObjIfAbsent("masterCodeMngList",   "Master Code 상세조회", "mcm");
-        // cma 4 화면 — 동일 RBAC 적용
-        insertMcmSecObjIfAbsent("masterCodeMng",                  "Master Code 관리",                 "mcm");
-        insertMcmSecObjIfAbsent("masterCategoryMng",              "카테고리 관리",     "mcm");
-        insertMcmSecObjIfAbsent("masterCodeSelPop",               "마스터코드 선택 팝업", "mcm");
-        insertMcmSecObjIfAbsent("masterCodeUploadFilePopup",      "마스터코드 등록(Excel Upload)", "mcm");
-        // cmb 7 화면 — 업무기준 관리(원장). 일반 4 + 팝업 3.
-        //   2026-06-05 masterRuleList 만 등재했다가, 나머지 6 화면(2026-08-12 점검)이 통째로 누락돼 있었다.
-        //   FE 는 /api/mcm/oasis/{serviceId}/{action} 를 호출하고 UserPermCache 는 TB_MCM_SEC_OBJ.OBJECT_ID
-        //   로만 PermKey 를 만든다 → OBJECT 행이 없으면 admin(SYSADMIN)도 EndpointPermissionFilter 에서
-        //   전부 403 이다(증상은 "조용한 빈 데이터"). BPMN(services/cmb/*.bpmn) 은 7개 모두 존재한다.
-        insertMcmSecObjIfAbsent("masterRuleList",                 "업무기준 목록조회",            "mcm");
-        insertMcmSecObjIfAbsent("masterRuleData",                 "업무기준 Data관리",            "mcm");
-        insertMcmSecObjIfAbsent("masterRuleDataList",             "업무기준 상세조회",            "mcm");
-        insertMcmSecObjIfAbsent("masterRuleFrame",                "업무기준 구조관리",            "mcm");
-        // 팝업 3 — 모달이지만 자기 serviceId 로 OASIS 를 직접 호출하므로 OBJECT+RBAC 를 갖는다(mpp ppz 와 동일 규약).
-        insertMcmSecObjIfAbsent("masterRuleListPop",              "업무기준 List조회 팝업",       "mcm");
-        insertMcmSecObjIfAbsent("masterRuleFrameColListPopup",    "업무기준 컬럼 리스트 등록 팝업", "mcm");
-        insertMcmSecObjIfAbsent("masterRuleDataUploadFilePopup",  "일반 업무기준 등록(Excel Upload)", "mcm");
 
-        // TB_MCM_SEC_ROLE_MAPPING — SYSADMIN x 20 OBJECT x PERM_ALL = 20 rows
+        // TB_MCM_SEC_ROLE_MAPPING — SYSADMIN x 7 OBJECT x PERM_ALL = 7 rows
         for (String objId : new String[]{
                 "commObjMng", "commMenuMng", "commRoleMng", "commRoleGrpMng", "commUserMng",
-                "commPermMng", "commUserRoleCopy", "commSyncMng", "masterCodeMngList",
-                "masterCodeMng", "masterCategoryMng", "masterCodeSelPop", "masterCodeUploadFilePopup",
-                "masterRuleList", "masterRuleData", "masterRuleDataList", "masterRuleFrame",
-                "masterRuleListPop", "masterRuleFrameColListPopup", "masterRuleDataUploadFilePopup"}) {
+                "commPermMng", "commUserRoleCopy"}) {
             insertIfAbsentComposite(
                     "TB_MCM_SEC_ROLE_MAPPING",
                     new String[]{"ROLE_ID",  "OBJECT_ID", "PERMISSION_ID"},

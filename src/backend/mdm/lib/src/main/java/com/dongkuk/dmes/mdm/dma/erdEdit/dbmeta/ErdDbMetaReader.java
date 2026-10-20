@@ -17,7 +17,7 @@ import org.springframework.stereotype.Component;
 /**
  * ERD 가져오기용 딕셔너리 메타 조회(스펙 2.1-4). ALL_* 뷰만 읽고 행 데이터는 읽지 않는다. 다른 스키마는 로컬의 SELECT ANY TABLE 로 보인다.
  *
- * <p>같은 이름의 표·제약·인덱스가 여러 스키마에 있으므로(TB_MCM_CODE_* 는 MCM_SOURCE·MCMAPUSER 모두에 있다) 모든 조인을 OWNER 로 묶는다
+ * <p>같은 이름의 표·제약·인덱스가 여러 스키마에 있을 수 있으므로 모든 조인을 OWNER 로 묶는다
  * (Review Focus 2). analog DB 뷰어 템플릿(maxRows·허용 스키마·10초 제한)은 쓰지 않는다. 쿼리는 네 번이다(표·컬럼·제약·인덱스).
  */
 @Component

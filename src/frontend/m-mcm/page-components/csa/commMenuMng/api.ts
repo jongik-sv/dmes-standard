@@ -57,7 +57,7 @@ interface CommonListPayload {
  *
  * BPMN output="result" + Service Map 반환 패턴: cactus 가 data.result = Map 으로 적재.
  * Map 내부의 List 는 cactus 가 자동 분리 안 함 → FE 가 result 안의 key 들을 그대로 flat 전개
- * (W1 commObjMng / cma masterCodeMng 정본 패턴 그대로).
+ * (W1 commObjMng 정본 패턴 그대로).
  */
 interface CactusEnvelope {
   meta?: { success?: boolean; message?: string };

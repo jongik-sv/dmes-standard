@@ -56,10 +56,10 @@ SOURCES = {
     "caravan-console": {"schema": "CARAVANUSER", "route": [], "copy_to": {}},
     "mcm": {
         "schema": "MCMAPUSER",
-        # 업무기준(룰) 표와 동적 표는 MCAAPUSER 에 있다.
-        "route": [("TB_MCA_", "MCAAPUSER")],
-        # 원장 3표는 운영 MSSQL 처럼 MCM_SOURCE 와 MCMAPUSER 양쪽에 같은 이름으로 있다(SQLite 는 한 벌이었다).
-        "copy_to": {"MCM_SOURCE": ["TB_MCM_CODE_MASTER", "TB_MCM_CODE_CATEGORY", "TB_MCM_CODE_DETAIL"]},
+        # 2026-10-16 — 업무기준 표(MCAAPUSER TB_MCA_*)와 원장 3표(MCM_SOURCE·MCMAPUSER TB_MCM_CODE_*)는 옛 프로그램과 함께
+        #   지웠다(mcm-core Flyway mcmapuser V17·각 스키마 V4). 그래서 다른 스키마로 보내거나 복사할 표가 없다.
+        "route": [],
+        "copy_to": {},
     },
 }
 # 스키마만 있고 데이터는 넣지 않는 표(보안·불필요 데이터). 파일은 헤더만 둔다.
@@ -74,7 +74,7 @@ ROW_FILTER = {t: "USER_ID='admin'" for t in (
     "TB_MCM_SEC_USER", "TB_MCM_SEC_USER_MAPPING", "TB_MCM_SEC_USER_FAVORITE", "TB_MCM_SEC_USER_FAVORITE_FOLD",
     "TB_MCM_SEC_USER_START_PGM", "TB_MCM_SEC_USER_WIDGET", "TB_MCM_SEC_USER_WIDGET_TAB", "TB_MCM_SEC_USER_WIDGET_CHAT",
     "TB_MCM_SEC_USER_WIDGET_MEMO", "TB_SEC_SCREEN_USAGE_DAY", "TB_SEC_SCREEN_USAGE_LOG")}
-# 적재 대상이 아닌 스키마(백업 대상이라 비워 둔다: 동기화 관리 화면이 채운다).
+# 적재 대상이 아닌 스키마. 2026-10-16 표를 모두 지워 빈 스키마다(동기화 관리 화면도 걷어냈다).
 EMPTY_SCHEMAS = {"MCM_BACKUP"}
 # 적재 뒤 MAX(키)+1 로 다시 맞출 시퀀스: 시퀀스 -> (표, 키 칸), 스키마
 SEQUENCES = {"MCMAPUSER": {"SEQ_MCM_MOM_TC_SEND": ("TB_MCM_MOM_TC_SEND", "SEND_SQ_VAL"),
@@ -268,7 +268,7 @@ def apply_mcm_corrections(con):
     if "TB_MCM_SEC_MENU_FLD" in have:
         con.execute(
             "update TB_MCM_SEC_MENU_FLD set USE_TP = coalesce(USE_TP, 'Y'), MENU_VIEW_YN = coalesce(MENU_VIEW_YN, 'Y') "
-            "where MENU_ID in ('mcm', 'cma', 'csa', 'cme')")
+            "where MENU_ID in ('mcm', 'csa')")
     con.commit()
 
 
@@ -398,7 +398,7 @@ def list_tables(cur):
 def cmd_export(args):
     schemas = [s.upper() for s in args.schemas]
     if not schemas:
-        schemas = sorted({c["schema"] for c in SOURCES.values()} | {"MCAAPUSER", "MCM_SOURCE"})
+        schemas = sorted({c["schema"] for c in SOURCES.values()})
     for schema in schemas:
         if schema in EMPTY_SCHEMAS:
             out("export %-12s 건너뜀(백업 대상: 비워 둔다)" % schema)

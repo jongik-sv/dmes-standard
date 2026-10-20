@@ -50,9 +50,6 @@
     {"kind":"SQL_JOIN","child":{"table":"TB_MCM_USRQ_ASSIGN","columns":["QUERY_ID"]},"parent":{"table":"TB_MCM_USRQ_DEF","columns":["QUERY_ID"]},"ref":"src/backend/mcm-core/src/main/java/com/dongkuk/dmes/mcm/userq/repository/UserQueryStore.java:58"},
     {"kind":"SQL_JOIN","child":{"table":"TB_MCM_USRQ_DEF","columns":["OWNER_DEPT_CD"]},"parent":{"table":"TB_MCM_DEPT_INFO","columns":["DEPT_CD"]},"ref":"src/backend/mcm-core/src/main/java/com/dongkuk/dmes/mcm/userq/repository/UserQueryStore.java:64"},
     {"kind":"SQL_JOIN","child":{"table":"TB_MCM_USRQ_ASSIGN","columns":["USER_ID"]},"parent":{"table":"TB_MCM_SEC_USER","columns":["USER_ID"]},"ref":"src/backend/mcm-core/src/main/java/com/dongkuk/dmes/mcm/userq/repository/UserQueryStore.java:79"},
-    {"kind":"SQL_JOIN","child":{"table":"TB_MCM_CODE_MASTER","columns":["MASTER_CODE"]},"parent":{"table":"TB_MCM_CODE_CATEGORY","columns":["MASTER_CODE"]},"ref":"src/backend/mcm-core/src/main/resources/db/migration/oracle/mcmapuser/V1__baseline.sql:1106"},
-    {"kind":"SQL_JOIN","child":{"table":"TB_MCM_CODE_MASTER","columns":["MASTER_CODE"]},"parent":{"table":"TB_MCM_CODE_DETAIL","columns":["MASTER_CODE"]},"ref":"src/backend/mcm-core/src/main/resources/db/migration/oracle/mcmapuser/V1__baseline.sql:1107"},
-    {"kind":"SQL_JOIN","child":{"table":"TB_MCM_CODE_DETAIL","columns":["CATEGORY_ID"]},"parent":{"table":"TB_MCM_CODE_CATEGORY","columns":["CATEGORY_ID"]},"ref":"src/backend/mcm-core/src/main/resources/db/migration/oracle/mcmapuser/V1__baseline.sql:1108"},
     {"kind":"SQL_JOIN","child":{"table":"TB_MCM_NOTICE_TARGET","columns":["NOTICE_ID"]},"parent":{"table":"TB_MCM_NOTICE","columns":["NOTICE_ID"]},"ref":"src/backend/mcm/lib/src/main/java/com/dongkuk/dmes/mcm/notice/repository/NoticeRepository.java:121"}
   ]
 }

@@ -32,9 +32,9 @@ OASIS BPMN 서비스로 노출한다. Spring Boot **`lib` + `api` 2 서브프로
 local 은 `McmFlywayConfig` 가, WildFly(dev/prod)는 DBA 가 적용한다. Flyway 로 표가 선 빈 DB 에서도 관리자 계정과 메뉴가 선다.
 
 - RBAC 시드: `admin` 사용자 / `ROLE_GROUP_SYSADMIN` / `SYSADMIN` 역할 / `PERM_ALL`
-- 메뉴 트리: 공통관리(mcm) 루트 + `cma`(마스터관리 원장) · `csa`(시스템관리) · `cme`(마스터관리 가동) ·
-  `cmb`(업무기준관리 원장) · `cmz`(팝업 전용, 사이드바 숨김) · `lsh`(공지관리, 2026-10-07 mls 에서 이전), 그리고 로그 분석(analog) 루트 + `anl` 그룹
-- 부서(`TB_MCM_DEPT_INFO`) 예시 7행, 업무기준 조회 검증용 샘플 데이터
+- 메뉴 트리: 공통관리(mcm) 루트 + `csa`(시스템관리) · `cmq`(맞춤 레포트) · `lsh`(공지관리, 2026-10-07 mls 에서 이전), 그리고 로그 분석(analog) 루트 + `anl` 그룹.
+  마스터관리·업무기준관리 그룹(`cma`·`cme`·`cmb`·`cmz`)은 2026-10-16 에 폐기했다([mdm ADR-0008](../../../docs/mdm/adr/0008-retire-mcm-master-rule-programs.md))
+- 부서(`TB_MCM_DEPT_INFO`) 예시 7행
 
 업무 모듈(mpn/mpp/mls/mqc)을 붙일 때는 `seed/ModuleMenuSeeder` 에 `seed{모듈}Menus()` 를 만들고,
 `DataInitializer.seedMcmSecRbac()` 안의 표시된 확장 지점에서 부른다. PERM_ALL action 목록은 `seed/CoreRbacSeeder` 에 있다.
@@ -44,7 +44,7 @@ local 은 `McmFlywayConfig` 가, WildFly(dev/prod)는 DBA 가 적용한다. Flyw
 화면 진입점은 `api/src/main/resources/services/{그룹}/{화면}.bpmn` 이다. `camunda:class` 가 `mcm-core` 의
 서비스 빈을 호출한다. 이관돼 있는 것:
 
-`cma` 4 · `cmb` 7 · `cme` 1 · `csa` 8 · `code` 2 · `security`(secUser — 내 메뉴/권한) · `roleManagement`(secFavorite — 즐겨찾기 · secStartPgm — 포털 기본 화면) · `audit`(감사 로그) · `lsh`(noticeMgmt 공지사항 관리 · noticeBoard 포털 홈 공지 목록)
+`csa` 10 · `cmq` 2 · `code` 2 · `job` 1 · `security`(secUser — 내 메뉴/권한) · `roleManagement`(secFavorite — 즐겨찾기 · secStartPgm — 포털 기본 화면) · `audit`(감사 로그) · `lsh`(noticeMgmt 공지사항 관리 · noticeBoard 포털 홈 공지 목록)
 
 공지사항(`noticeMgmt`·`noticeBoard`)은 2026-10-07 에 mls 에서 이 모듈로 옮겼다. Java 는 `lib` 의 `com.dongkuk.dmes.mcm.notice.*`, 테이블은 `TB_MCM_NOTICE`·`TB_MCM_NOTICE_TARGET`(로컬은 `McmFlywayConfig` 가 mcm-core V 파일로 생성, 운영은 DBA 가 같은 V 파일을 적용. 표 설명은 [notice-tables.md](../../../docs/mcm/erd/notice-tables.md))이다. 근거는 [DEC-001](../../../docs/ai-build-log/DEC-001_noticeMgmt-on-mls.md) 이다.
 

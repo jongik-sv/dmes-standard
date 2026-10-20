@@ -13,7 +13,7 @@
  * 호출: POST /api/mcm/oasis/commObjMng/{action} (OASIS only — mcm 모듈 SqlSession 미등록).
  * To-Be 정책 #1: BIZ_SYSTEM_CODE/APP_HOST 폐기 → S-001 / D-003 / G-006 / LV-001 모두 제거.
  *
- * 패턴: cma masterCategoryMng (단일 그리드 + GridPanel 표준 메뉴) + Detail 우측 폼.
+ * 패턴: 단일 그리드 + GridPanel 표준 메뉴 + Detail 우측 폼.
  *
  * 2026-06-01 fix — As-Is 정합 + 스크린샷 정합:
  *   - 검색 영역 사용여부를 Combo (Y/N + 전체) 로 — S-003 (xfdl:160~161).
@@ -320,7 +320,7 @@ export default function CommObjMngPage() {
   };
 
   /**
-   * B-006 행취소 — 선택된 단일 row 만 취소 (cma masterCategoryMng 패턴).
+   * B-006 행취소 — 선택된 단일 row 만 취소 (GridPanel 표준 행취소 패턴).
    * inserted → row 제거 / updated/deleted → status reset.
    */
   const handleRowCancel = useCallback(() => {
@@ -360,7 +360,7 @@ export default function CommObjMngPage() {
         setRows((prev) => {
           const base = sourceRow ?? {};
           // 행복사 시 sourceRow 가 OBJECT_ID 들고 있을 수 있으나 PK 충돌 방지 위해 항상 빈 값
-          // (cma masterCategoryMng 패턴 — 필수 PK 는 사용자 입력 강제).
+          // (필수 PK 는 사용자 입력 강제).
           const newRow: CommObjMngRow & GridRow = {
             ...emptyRow(systemOptions[0]?.value ?? "mcm"),
             ...base,

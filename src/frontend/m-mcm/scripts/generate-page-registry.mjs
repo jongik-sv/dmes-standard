@@ -4,7 +4,7 @@
  *
  * 출력: m-mcm/lib/generated/page-registry.ts (auto-generated, do not edit)
  *   export const PAGE_REGISTRY: Record<string, () => Promise<{ default: unknown }>> = {
- *     "cma/masterCodeMng": () => import("@/page-components/cma/masterCodeMng/page"),
+ *     "csa/commObjMng":    () => import("@/page-components/csa/commObjMng/page"),
  *     "csa/commMenuMng":   () => import("@/page-components/csa/commMenuMng/page"),
  *     "dashboard-overview": () => import("@/page-components/dashboard-overview/page"),
  *     ...
@@ -58,7 +58,7 @@ const POPUP_GROUPS = new Set(["ppz", "lsz", "cmz"]);
 /**
  * 팝업 폴더 판별용 이름 접미사 (소문자 비교).
  *
- * `Popup` 이 명명 표준이며, 표준 이전 명명인 `Pop`(예: cmb/masterRuleListPop) 도 함께 잡는다.
+ * `Popup` 이 명명 표준이며, 표준 이전 명명인 `Pop`(예: xxxPop) 도 함께 잡는다.
  * 이 접미사 검사(V2)는 warn 이므로 오탐이 나도 빌드를 막지 않는다.
  */
 const POPUP_NAME_SUFFIXES = ["popup", "pop"];
