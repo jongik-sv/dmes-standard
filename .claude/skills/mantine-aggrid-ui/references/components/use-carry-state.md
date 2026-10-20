@@ -20,7 +20,7 @@
 
 ## 표준 사용
 
-견본: m-mcm `page-components/cme/masterCodeMngList/page.tsx`(`MasterCodeMngListPage`).
+아래 코드는 여러 화면의 공통 모양을 줄인 견본이다. 실제 화면은 「실제 사용 예」 를 본다.
 
 ```tsx
 const [filters, setFilters] = useCarryState<Filters>("filters", DEFAULT_FILTERS);                 // light
@@ -109,6 +109,6 @@ useEffect(() => {
 
 ## 실제 사용 예
 
-- `src/frontend/m-mcm/page-components/cme/masterCodeMngList/page.tsx`: 조회 조건·마스터 행·상세 행·선택 키·선택 카테고리를 이어받고, 행 없이 복원되면 `useCarryRefetch(() => loadMaster(filters))` 로 재조회한다. 카테고리 LOV 는 마운트 때 다시 받으므로 `useState` 다. 진입 때 자동 조회가 없는 화면이라 `useCarryRestored` 는 쓰지 않는다.
+- `src/frontend/m-mcm/page-components/csa/screenUsageStat/page.tsx:47-51`, `:86`: 조회 조건·조회한 조건(`submitted`)·활성 탭은 light, 탭별 목록 묶음은 bulky 로 이어받는다. 결과가 객체 하나라 `useCarryRefetch(() => (submitted ? loadTab(tab, submitted) : undefined))` 로 조회한 적이 없으면 재조회하지 않는다(치환 규칙 12).
 - 선택 복원 예: `src/frontend/m-mdm/pages/dme/ruleMng/page.tsx` — `selectedId` 를 light 로 이어받고, 마운트 effect 에서 `useCarryRestored() && selectedId` 일 때 `choose(selectedId)` 를 한 번 불러 상세를 서버에서 다시 읽는다. `choose` 가 `selectedIdRef` 를 동기로 채우므로(재조회 effect 뒤에 돌아도 재조회 응답보다 먼저다) 행 없이 복원돼 재조회가 돌아도 첫 줄 자동 선택이 이어받은 선택을 덮지 않는다. `selectedIdRef` 를 이어받은 값으로 시작하는 것은 순서에 기대지 않으려는 방어다. 폼을 목록 행으로 채우는 화면은 `dma/termMng`·`dma/unitMng`(`loadForm` 직접 호출), handoff 가 우선인 화면은 `dme/ruleConfirm`(`handedOff` ref).
 - 시험: `src/frontend/shared/tests/unit/carry-state.unit.test.ts`(shared vitest). 화면 복원 시험은 `createCarryRegistry(restore)` + `CarryStateProvider` 로 감싸 렌더한다 — `src/frontend/m-mdm/tests/dme/ruleMng/rule-mng-carry-restore.test.ts`.

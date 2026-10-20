@@ -121,7 +121,8 @@
     - 쓰는 곳: DB 뷰어 `/api/analog/rest/dbViewer/query/…`, 로그 뷰어 `/api/analog/rest/logViewer/search/…`, 미디어 위젯 올리기 `/api/mcm/rest/commWidgetMng/upload/…`, mpn 계획 오더 등([이행 대조표](framework/BFF-RBAC-mpn-REST-이행-대조표.md)).
     - `/query` 보다 맞는 이유: 권한 연결이 이미 있고, 백엔드가 평범한 컨트롤러라 MyBatis·JPA 직접 호출·읽기 전용 트랜잭션을 걸기 쉽고, 「등록된 쿼리 아무거나 실행」 경로가 아니라 위험이 작다 → `/query` 를 새로 열지 않고 조회를 이 경로로 옮기는 안을 먼저 검토한다.
     - 빈틈: BFF 는 화면 권한(`dbViewer/query` 등)만 보고 뒤의 백엔드 경로가 그 화면 것인지는 확인하지 않는다 — 한 화면 권한으로 같은 모듈의 다른 백엔드 경로를 부를 수 있다(「BFF permKey↔BE 묶기」, 개발 기간 보류). 옮길 때 추가로 챙길 것: 백엔드 조회 경로에 서비스 태그(MDC)·필요하면 감사 로그.
-  - 현황: 시범(mcm masterCodeSelPop) 코드는 dev(d9e119e4)에 있고 라우터 스위치(`cactus.inbound.query-routes`)는 꺼져 있다. 보안 수정(9e55954a)으로 /query·/service 직접 경로는 BFF 403·BE 404.
+  - 2026-10-16: 시범 대상 mcm masterCodeSelPop 화면을 폐기하면서 시범 매퍼 `masterCodeSelPop.xml` 과 그 테스트(`QueryMapperLintTest`·`McmMybatisConfigWiringTest`·동등성·성능)도 지웠다([mdm ADR-0008](mdm/adr/0008-retire-mcm-master-rule-programs.md)). 다시 시범하려면 새 대상 화면을 정한다.
+  - 현황(2026-10-16 이전): 시범(mcm masterCodeSelPop) 코드는 dev(d9e119e4)에 있고 라우터 스위치(`cactus.inbound.query-routes`)는 꺼져 있다. 보안 수정(9e55954a)으로 /query·/service 직접 경로는 BFF 403·BE 404.
   - 남은 것: 문서의 문제점 7개·Q2~Q8 답변, 켜는 조건 4가지, BFF 허용 방식, 업무 모듈로 시범 이전, 가이드·ADR. 레인 메모: ~/.coord/notice-fill2/lanes/query-route/memo.md
   - 선행(10-07 결정): 로컬 DB 를 OrbStack 의 Oracle 23ai Free 로 먼저 바꾼다(컨테이너 하나를 전 레인이 스키마로 나눠 공유). 그 뒤 방언 항목(§2·Q4~Q6)을 실제 Oracle 로 시험하며 진행한다.
 - analog 로그에서 조회 호출 빼기 — BPMN 호출의 약 95% 가 조회이고 호출당 약 16줄이라(10-07 mcm 로그 2,108회·33,729줄, Hibernate SQL DEBUG 9,064줄 별도) 업무 처리 로그가 묻힌다.

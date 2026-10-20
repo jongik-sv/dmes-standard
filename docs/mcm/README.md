@@ -4,7 +4,7 @@
 권한(RBAC)·메뉴 초기 데이터를 적재하는 시드 SQL, 타 시스템과의 인터페이스 규격서,
 화면 설계 문서를 모으는 `design/`, 화면 캡처 참고 이미지를 두는 `screen_image/` 로 구성된다.
 
-## design/ — 공통관리 19 화면 설계 산출물
+## design/ — 공통관리 화면 설계 산출물
 
 `src/backend/mcm-core` 와 `src/frontend/m-mcm` 에 실동작 코드로 들어 있는 공통관리 화면들의 5종 산출물이다.
 **형식 예시가 아니라 실제로 구현까지 간 산출물**이므로, 신규 화면 설계 시 "이 정도 깊이로 쓰면 된다" 는
@@ -12,10 +12,12 @@
 
 | 그룹 | 화면 |
 | --- | --- |
-| 마스터관리(원장) `cma` | `masterCategoryMng` · `masterCodeSelPop` · `masterCodeUploadFilePopup` |
-| 마스터관리(가동) `cme` | `masterCodeMngList` |
-| 업무기준관리(원장) `cmb` | `masterRuleList` · `masterRuleData` · `masterRuleDataList` · `masterRuleFrame` · `masterRuleListPop` · `masterRuleFrameColListPopup` · `masterRuleDataUploadFilePopup` |
-| 시스템관리 `csa` | `commObjMng` · `commMenuMng` · `commRoleMng` · `commRoleGrpMng` · `commUserMng` · `commPermMng` · `commUserRoleCopy` · `commSyncMng` |
+| 시스템관리 `csa` | `commObjMng` · `commMenuMng` · `commRoleMng` · `commRoleGrpMng` · `commUserMng` · `commPermMng` · `commUserRoleCopy` |
+| 맞춤 레포트 `cmq` | `userQuery` · `userQueryMng` |
+| 공지관리 `lsh` | `noticeMgmt` |
+
+마스터관리(`cma`·`cme`)·업무기준관리(`cmb`)·팝업(`cmz`) 화면과 동기화 관리(`commSyncMng`)는 2026-10-16 에 폐기했고
+설계 문서도 지웠다. 마스터코드·업무기준은 mdm 모듈이 맡는다([mdm ADR-0008](../mdm/adr/0008-retire-mcm-master-rule-programs.md)).
 
 각 폴더는 `{화면}_분석리포트.md` · `_기능설계서.md` · `_디자인설계서.md` · `_BPMN설계서.md` · `_정합체크.md`
 (일부는 `_개발체크리스트.md` 추가) 로 구성된다.

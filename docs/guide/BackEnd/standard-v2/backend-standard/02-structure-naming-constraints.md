@@ -33,7 +33,7 @@ src/main/resources/
 - **MUST**: **Entity / Repository 는 모듈 단위 공유** — `{base-package}/entity/`, `{base-package}/repository/` 한 곳에 둔다. **그룹 sub-package (`{moduleGroup}/`) 나 화면 sub-package (`{screenId}/`) 아래에 entity / repository 를 두지 않는다.**
   - **이유**: 한 테이블을 둘 이상의 화면이 (그룹이 다르더라도) 참조할 때 화면·그룹별 부분 entity 를 따로 만들면 중복 / 분기 / cross-screen import 어색함이 발생. entity 의 "owner" 가 자의적이 됨.
   - **사례 (2026-05-28 이전 cma 4 화면 위반)**: `MasterCode` 가 `cma/masterCodeMng/entity/` 에 위치 → `masterCategoryMng/service/` 가 cross-screen import. 본 룰 도입 이후 (2026-05-29) `mcm/entity/MasterCode.java` 단일 위치 — 4 화면이 동일 entity 재사용.
-  - **JPA repository 는 entity 1:1 종속** (`JpaRepository<MasterCode, String>`) 이라 entity 가 모듈 공유면 repository 도 자연히 모듈 공유.
+  - **JPA repository 는 entity 1:1 종속** (`JpaRepository<SecObj, String>`) 이라 entity 가 모듈 공유면 repository 도 자연히 모듈 공유.
 - **MUST**: **Entity 는 매핑 테이블의 모든 컬럼을 1:1 보유** — 현 화면에서 쓰지 않는 컬럼이라도 동일 테이블이라면 누락 금지.
   - **이유**: 향후 다른 화면이 같은 테이블을 참조할 때 entity 수정 없이 재사용. "이번 화면 사용분만" 으로 빈약하게 만들면 다음 화면에서 컬럼 추가 작업 / 마이그레이션이 매번 발생.
   - **단, 본 테이블 외부 컬럼 (JOIN / STUFF / 동적 변환) 추가는 §6-A-1 그대로 금지** — entity = "본 테이블 전체 컬럼" 이지 "다른 테이블 캐싱" 이 아님.
@@ -41,12 +41,12 @@ src/main/resources/
 - **MUST**: 화면 sub-package = **화면 식별자 그대로** (`moldMaster` camelCase — 모듈명·그룹명 prefix 없는 단일 토큰). lowercase compounded (`moldmaster`) 금지.
 - **MUST**: 그룹 sub-package = `moduleGroup` lowercase 3글자 (예: `ppa`, `cma`, `lva`). 모듈 구분은 base-package (`com.dongkuk.dmes.{moduleId}`) 가 담당하므로 screenId 에 모듈명을 중복하지 않는다.
 - **예시**:
-  - mcm: `com.dongkuk.dmes.mcm.entity.MasterCode` / `com.dongkuk.dmes.mcm.cma.masterCodeMng.service.MasterCodeMngService`
+  - mcm: `com.dongkuk.dmes.mcm.entity.SecObj` / `com.dongkuk.dmes.mcm.csa.commObjMng.service.CommObjMngService`
   - mpp: `com.dongkuk.dmes.mpp.entity.MoldMaster` / `com.dongkuk.dmes.mpp.ppa.moldMaster.service.MoldMasterService`
 - **이유 (식별자 매핑)**: 폴더/패키지 ↔ 화면 식별자 ↔ FE 파일(`moldMaster.tsx`) ↔ 클래스명(`MoldMaster*`) 4 영역 정합 — 시각 매핑 + 추적성.
 - **legacy**:
   - 기 생성된 entity 가 그룹·화면 폴더 아래 분산되어 있는 기존 mcm-core 자산 (`code/entity/`, `security/entity/`, `role/entity/` 등 15+ entity) = As-Is 유지. 다음 사이클에 본 룰로 마이그레이션 또는 폐기 결정.
-  - cma 4 화면 (`masterCodeMng` / `masterCategoryMng` / `masterCodeSelPop` / `masterCodeUploadFilePopup`) = 2026-05-29 본 룰 적용 첫 사이클로 mcm-core 이동.
+  - cma 4 화면 (`masterCodeMng` / `masterCategoryMng` / `masterCodeSelPop` / `masterCodeUploadFilePopup`) = 2026-05-29 본 룰 적용 첫 사이클로 mcm-core 이동. 2026-10-16 에 화면과 entity 를 모두 지웠다([mdm ADR-0008](../../../../mdm/adr/0008-retire-mcm-master-rule-programs.md)).
   - 신규 화면은 본 룰 무조건 적용.
 
 **[MES screenId = serviceId = pageId 단일 식별자 룰 — MUST]**
@@ -369,7 +369,7 @@ import ...
 - **정합 명시**: 단일 List 반환 → `output="{listKey}"` (예: `output="objects"`) → 응답 `grids.objects.rows`. 단일 값 반환 → `output="{valueKey}"` → 응답 `data.{valueKey}`.
 
 **6-C-3.** **`<conditionExpression>` 미사용** (sequenceFlow `name` 만으로 분기).
-- 정본 reference: `mcm-core/secObj.bpmn`, `mcm-core/masterCodeMng.bpmn` 등은 `<bpmn:sequenceFlow id="flow_search" name="search" sourceRef="actionGateway" targetRef="searchTask" />` 형태로 `name` 만 명시. OASIS executor 가 `actionGateway` 의 `input="action"` 으로 받은 값을 sequenceFlow `name` 과 매칭.
+- 정본 reference: `mcm-core/secObj.bpmn`, `mcm/api` `services/csa/commObjMng/commObjMng.bpmn` 등은 `<bpmn:sequenceFlow id="flow_search" name="search" sourceRef="actionGateway" targetRef="searchTask" />` 형태로 `name` 만 명시. OASIS executor 가 `actionGateway` 의 `input="action"` 으로 받은 값을 sequenceFlow `name` 과 매칭.
 - `<bpmn:conditionExpression>` 명시는 OASIS executor 의 정합 동작 안에서 불필요.
 
 **6-C-4.** 검증.
@@ -389,7 +389,7 @@ import ...
 - `CactusResponseConverter.convertSuccess()` 가 `ServiceResult.results()` 의 각 value 를 type 별 자동 분리:
   - `List` → `grids.{key}.rows` 영역
   - 그 외 (Number / String / 단일 객체) → `data.{key}` 영역
-- 정본 reference: `mcm-core/SecObjService.searchObjects()` 가 `List<SecObj>` 직접 반환. `mcm-core/MasterCodeMngService.searchCodes()` 도 List 직접 반환 패턴.
+- 정본 reference: `mcm-core/SecObjService.searchObjects()` 가 `List<SecObj>` 직접 반환.
 
 **6-D-2.** **Map 반환은 비표준** — cactus 가 Map 내부 List 를 자동 분리하지 않는다.
 - `Map<String, Object>` 반환 + BPMN `output="result"` 명시 시 응답이 `data.result = {key1:..., key2:[...]}` 형태로 Map 통째 저장됨 → FE 가 result key 안의 Map 을 별도 추출 처리해야 함.

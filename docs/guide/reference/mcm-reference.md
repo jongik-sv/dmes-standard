@@ -7,11 +7,13 @@
 > harvest 원천: 각 화면의 `분석리포트 §12 결정 누적(사용자 결정 완료)` 표 + `정합체크 §G 확인필요 항목 집계`(대부분 "활성 0건 — §12 참조"로 위임). **resolved 항목만** 등재.
 >
 > harvest 원천 화면(2026-06-10, 실제 폴더명 — `docs/mcm/design/` 하위 20개):
-> **csa**: commMenuMng · commObjMng · commPermMng · commRoleGrpMng · commRoleMng · commSyncMng · commUserMng · commUserRoleCopy
-> **cma**: masterCategoryMng · masterCodeUploadFilePopup · masterCodeSelPop
-> **cme**: masterCodeMngList / **cmb**: masterRuleList
+> **csa**: commMenuMng · commObjMng · commPermMng · commRoleGrpMng · commRoleMng · ~~commSyncMng~~ · commUserMng · commUserRoleCopy
+> ~~**cma**: masterCategoryMng · masterCodeUploadFilePopup · masterCodeSelPop~~
+> ~~**cme**: masterCodeMngList~~ / ~~**cmb**: masterRuleList~~
 > **cia**: interfaceList · messageSender / **cib**: interfaceFormatLayout · interfaceFormatList
 > **cic**: tcAbnormalData · tcErrorList · tcErrorResendPop
+>
+> **폐기 안내 (2026-10-16)**: 사용자 결정으로 mcm 마스터관리(`cma`·`cme`)·업무기준관리(`cmb`)·팝업(`cmz`) 화면과 `csa` `commSyncMng`, 그리고 마스터코드·업무기준 표(`TB_MCM_CODE_*`·`VI_MCM_CODE_ACCESS`·`TB_MCA_RULE_*`)를 지웠다([mdm ADR-0008](../../mdm/adr/0008-retire-mcm-master-rule-programs.md)). 마스터코드·업무기준은 mdm 이 단일 원장이다. 위 목록의 취소선 화면은 설계 문서도 지웠으므로, 아래 표의 근거 칸에 남은 그 화면 이름은 git 이력에서 찾는다. A 절 결정은 모듈 공통이라 그대로 유효하다. B·C 절에서 폐기 화면에만 걸린 행은 `(폐기 2026-10-16)` 로 표시했다. 새 작업에 그대로 적용하지 않는다.
 >
 > 분류 기준: **A** = mcm 전 화면 적용(cross-cutting 정책 #1·#2·#4·#6 + 인프라/오딧/권한/패키지 표준), **B** = 동일 moduleGroup(csa/cma/cmb/cme/cia/cib/cic) 내 공통, **C** = 타 화면 재사용 가능성 있는 화면 고유 결정, **D** = 미결(open) cross-cutting.
 
@@ -40,8 +42,8 @@
 
 | 결정 영역 | 결정 내용 | 근거 화면/Q | 확정일 |
 |---|---|---|---|
-| **(cma/cme) 3-schema 구조** | `MCM_SOURCE`(원장 — 편집/DML) / `MCMAPUSER`(운영 read 동기화본 — 뷰·SELECT 대상) / `MCM_BACKUP`(백업본). As-Is `MCM_SOURCE.` 는 synonym 이 아니라 **원장 schema 명시**. 원장 편집 화면=MCM_SOURCE DML / 운영 read 화면=MCMAPUSER. audit 9컬럼은 3 schema 모두 동일 적용(row copy 정합) | masterCodeSelPop §12 / masterCategoryMng §12 / masterCodeUploadFilePopup §12 / commSyncMng §12(Q-002~003) | 2026-05-29 |
-| **(cma/cme) VI_MCM_CODE_ACCESS 뷰 재사용** | cma 정본 `MCMAPUSER.VI_MCM_CODE_ACCESS`(owner=MCMAPUSER, 자기 schema JOIN, `MASTER.USE_TP='Y'` 필터) 재사용. PUBLIC SYNONYM MSSQL 미지원 → Service FROM 절에 schema 명시(a안). `DataInitializer.initMcmCmaSyncSchemaArtifacts()` 멱등 적재 | masterCodeSelPop §12(C-005) / commSyncMng §12(Q-003) | 2026-05-29 |
+| **(cma/cme) 3-schema 구조** (폐기 2026-10-16) | `MCM_SOURCE`(원장 — 편집/DML) / `MCMAPUSER`(운영 read 동기화본 — 뷰·SELECT 대상) / `MCM_BACKUP`(백업본). As-Is `MCM_SOURCE.` 는 synonym 이 아니라 **원장 schema 명시**. 원장 편집 화면=MCM_SOURCE DML / 운영 read 화면=MCMAPUSER. audit 9컬럼은 3 schema 모두 동일 적용(row copy 정합) | masterCodeSelPop §12 / masterCategoryMng §12 / masterCodeUploadFilePopup §12 / commSyncMng §12(Q-002~003) | 2026-05-29 |
+| **(cma/cme) VI_MCM_CODE_ACCESS 뷰 재사용** (폐기 2026-10-16) | cma 정본 `MCMAPUSER.VI_MCM_CODE_ACCESS`(owner=MCMAPUSER, 자기 schema JOIN, `MASTER.USE_TP='Y'` 필터) 재사용. PUBLIC SYNONYM MSSQL 미지원 → Service FROM 절에 schema 명시(a안). `DataInitializer.initMcmCmaSyncSchemaArtifacts()` 멱등 적재 | masterCodeSelPop §12(C-005) / commSyncMng §12(Q-003) | 2026-05-29 |
 | **(csa) Sec* Entity 명명 + 복합 PK 패턴** | csa 보안 테이블 = `Sec*` 직역(SecMenu/SecObj/SecMenuFld/SecPerm/SecRole/SecRoleMapping/SecRoleGroup/SecUser 등). mcm-core 의 legacy `Sec*` entity 와 공존. 매핑 테이블은 `@IdClass` 복합 PK(예 SecRoleMappingId) | commRoleMng §12 / commRoleGrpMng §12 / commObjMng §12 / commUserMng §12 | 2026-05-31 |
 | **(csa) 셔틀 cssclass 정정** | As-Is btn_right `btn_WF_ShuttleAddH`(실동작=삭제) / btn_left `btn_WF_ShuttleDeleteH`(실동작=추가) 의미 반대 결함 → To-Be swap 정정(의미 정합) | commRoleMng §12(Q-008) / commRoleGrpMng §12 | 2026-06-04 |
 | **(csa) "역활"→"역할" / 오타 라벨 정정** | As-Is xfdl 오타("역활", "PERMISSON", div_buttom, "외부  접속 주소" 더블스페이스) → To-Be 정정 | commUserMng §12 / commRoleMng §12(Q-013) / commPermMng §12 | 2026-05-31 |
@@ -55,13 +57,13 @@
 |---|---|---|---|
 | commMenuMng | FULL_SEQ 자동부여 | 저장·기동 시 `recomputeMenuFullSeq()` 가 트리 전체를 7자리 인코딩으로 멱등 재계산(사용자 입력 ✗, read-only). PK=MENU_ID 단독화(복합 PK 폐기) + MENU_SEQ 8자리 '0' LPAD | C1~C6(iter#6) |
 | commMenuMng | 오류 팝업 z-index 전역 | shared `.error-modal-overlay` z-index 50→10001(모든 팝업 위 표시) — FE shared CSS 전역 | C7 |
-| commSyncMng | Oracle DB Link 폐기 | DB Link 3종(`@MEPP_MCM`/`@DPMESA1_MCM`/`@TSTMPH_MCM`) 폐기 → 단일 MSSQL. schema 간(MCM_SOURCE↔MCMAPUSER↔MCM_BACKUP) 메타 동기화로 화면 존속, LOC 분기만 잔존 | Q-002/004/005/010 |
-| commSyncMng | 동기화 audit 정책 | SOURCE→TARGET `INSERT...SELECT *` 직후 별도 UPDATE 로 `U_*`=동기화주체 덮어쓰기, `C_*`=원작자 보존(Bulk INSERT 가 @PreUpdate 우회 → 명시 SQL `updateSyncAudit`) | Q-008 |
+| commSyncMng (폐기 2026-10-16) | Oracle DB Link 폐기 | DB Link 3종(`@MEPP_MCM`/`@DPMESA1_MCM`/`@TSTMPH_MCM`) 폐기 → 단일 MSSQL. schema 간(MCM_SOURCE↔MCMAPUSER↔MCM_BACKUP) 메타 동기화로 화면 존속, LOC 분기만 잔존 | Q-002/004/005/010 |
+| commSyncMng (폐기 2026-10-16) | 동기화 audit 정책 | SOURCE→TARGET `INSERT...SELECT *` 직후 별도 UPDATE 로 `U_*`=동기화주체 덮어쓰기, `C_*`=원작자 보존(Bulk INSERT 가 @PreUpdate 우회 → 명시 SQL `updateSyncAudit`) | Q-008 |
 | commUserRoleCopy | 외부 namespace SQL JPA 흡수 | As-Is cross-namespace Mapper 호출 → 본 Repository JPA `saveAll()`/`findRoleMergeObject` 흡수(외부 namespace 의존 폐기) | (§6.1/§6.2) |
 | commRoleMng | no-op UPDATE 폐기 | As-Is `SELECT 'X' FROM DUAL` no-op UPDATE → SQL 폐기 + BPMN updateSqlKey property 삭제, JPA saveAll 이 INSERT/DELETE-only 자연 처리 | Q-011 |
-| masterCategoryMng | dead BPMN/SQL 제거 | 미호출 delete flow(Task/Flow) + orphan SQL(`MergeTbCodeCategory`) To-Be 제거. 키(MASTER_CODE/CATEGORY_ID) 편집 불가 정책 보존 | (§6/§8) |
-| masterCodeUploadFilePopup | Excel import 패턴 | SheetJS(FE) 파싱 + JSON row 배열 전송 + atomic 트랜잭션(전체 rollback). PK 중복 preview 단계 사전 검증. CODE_VAL_REF1~5 미공급 → NULL 허용 | F-003/F-005 |
-| masterRuleList | RULE_VER vs @Version 분리 | As-Is RULE_VER(업무 버전) 보존 + cactus VER(@Version) 별도 컬럼. 이력행 제외 룰(RULE_ID!=OLD_RULE_ID) 보존, delete API 미생성(USE_TP 논리삭제만) | Q-009/Q-011 |
+| masterCategoryMng (폐기 2026-10-16) | dead BPMN/SQL 제거 | 미호출 delete flow(Task/Flow) + orphan SQL(`MergeTbCodeCategory`) To-Be 제거. 키(MASTER_CODE/CATEGORY_ID) 편집 불가 정책 보존 | (§6/§8) |
+| masterCodeUploadFilePopup (폐기 2026-10-16) | Excel import 패턴 | SheetJS(FE) 파싱 + JSON row 배열 전송 + atomic 트랜잭션(전체 rollback). PK 중복 preview 단계 사전 검증. CODE_VAL_REF1~5 미공급 → NULL 허용 | F-003/F-005 |
+| masterRuleList (폐기 2026-10-16) | RULE_VER vs @Version 분리 | As-Is RULE_VER(업무 버전) 보존 + cactus VER(@Version) 별도 컬럼. 이력행 제외 룰(RULE_ID!=OLD_RULE_ID) 보존, delete API 미생성(USE_TP 논리삭제만) | Q-009/Q-011 |
 | messageSender | INTERFACE 데이터 모델 변경 | 사용자 입력 = (INTERFACE_ID + TC_CODE) 2박스. As-Is `1 I/F:1 FORMAT:N TC` → To-Be `1 I/F:N(1 FORMAT:1 TC)`. LoV 팝업 2개(INTERFACE / 종속 TC). 입력사항 길이검증 FE/BE 이중. INTERFACE 0건 → "해당 인터페이스 없음" BusinessException | M-6/M-7/M-10(Q-601 등) |
 | tcErrorResendPop | 재전송 이력/범위 | `TB_MCM_MOM_TC_SEND` 신설(재전송 이력형). 'S'(송신실패)만 재전송, 'R'(수신실패) 제외. PROTOCOL 표시 제거(EAI 프로토콜 폐기). 재전송 화면=TCErrorList components(`TcErrorResendModal.tsx`) | Q-100/Q-302/Q-304 |
 | tcErrorList | 행 클릭 진입 + 발생일 기본값 | 그리드 TRANSACTION_CODE 셀 클릭 → TCErrorResendPop 모달. 발생일 From=today-7+현재시각 / To=현재시각 | (E-001/P-001) |

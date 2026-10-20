@@ -49,36 +49,34 @@
 
 트리에서 **접었다 폈다 하는 마디**만 담는다. 클릭해도 화면이 안 뜨는 것들이다.
 
-실측 8행 전부:
+실측 8행(2026-09-04) 중 지금 남은 4행:
 
 | MENU_ID | MENU_NM | PARENT | FULL_SEQ | VIEW_YN |
 |---|---|---|---:|---|
 | `mcm` | 공통관리 | — | 1,000,000 | NULL |
-| `cma` | 마스터관리(원장) | `mcm` | 1,010,000 | NULL |
 | `csa` | 시스템관리 | `mcm` | 1,020,000 | NULL |
-| `cme` | 마스터관리(가동) | `mcm` | 1,030,000 | NULL |
-| `cmb` | 업무기준관리(원장) | `mcm` | 1,040,000 | NULL |
-| `cmz` | 팝업 | `mcm` | 1,050,000 | **N** |
 | `analog` | 로그 분석 | — | 2,000,000 | Y |
 | `anl` | 로그 조회 | `analog` | 2,010,000 | Y |
 
 - `PARENT_MENU_ID` 가 **자기 자신을 가리킨다** — 모듈 루트(`mcm`, `analog`)는 NULL, 그룹은 모듈을 가리킨다.
-- `cmz` 만 `MENU_VIEW_YN='N'` 이다. 팝업 화면들을 모아 두되 **사이드바에는 안 보이게** 하려는 용도다.
-  메뉴 관리 화면에서는 보이고 사이드바에서만 숨는다.
+- 2026-10-16 에 마스터관리·업무기준관리 폴더 `cma`·`cme`·`cmb` 와 팝업 폴더 `cmz` 를 지웠다
+  ([mdm ADR-0008](../../mdm/adr/0008-retire-mcm-master-rule-programs.md)). 이 그룹 코드는 다시 쓰지 않는다.
+- 폴더를 사이드바에서만 숨기려면 `MENU_VIEW_YN='N'` 으로 둔다. 메뉴 관리 화면에서는 보이고 사이드바에서만 숨는다.
+  (지운 `cmz` 팝업 폴더가 이 값을 썼다.)
 - **`NULL` 은 숨김이 아니라 표시다.** `'N'` 일 때만 숨긴다.
 
 ### `TB_MCM_SEC_MENU` — 화면(leaf)
 
 트리에서 **클릭하면 화면이 뜨는 마디**만 담는다. 폴더 행은 하나도 없다.
 
-실측 21행 중 4행:
+실측 21행(2026-09-04) 중 4행:
 
 | MENU_ID | MENU_NM | PARENT | OBJECT_ID | FULL_SEQ |
 |---|---|---|---|---:|
-| `masterCategoryMng` | 카테고리 관리 | `cma` | `masterCategoryMng` | 1,010,100 |
-| `masterCodeMng` | Master Code 관리 | `cma` | `masterCodeMng` | 1,010,110 |
 | `commObjMng` | OBJECT 관리 | `csa` | `commObjMng` | 1,020,100 |
 | `commMenuMng` | 메뉴 관리 | `csa` | `commMenuMng` | 1,020,110 |
+| `commRoleMng` | 역할 관리 | `csa` | `commRoleMng` | 1,020,120 |
+| `commRoleGrpMng` | 역할 그룹 관리 | `csa` | `commRoleGrpMng` | 1,020,130 |
 
 - **`PARENT_MENU_ID` 는 같은 테이블이 아니라 `SEC_MENU_FLD` 를 가리킨다.** 이게 제일 헷갈리는 지점이다.
 - `MENU_ID` 와 `OBJECT_ID` 가 **관행상 같은 값**이다. 강제는 아니지만 21행 전부 그렇다.

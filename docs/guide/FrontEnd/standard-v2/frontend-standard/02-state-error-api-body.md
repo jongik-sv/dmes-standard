@@ -89,7 +89,7 @@ function unwrapPayload<T>(res: unknown): T {
 
 **7-A-3.** **MUST**: 응답 매핑은 `*-api.ts` 또는 `*-repository.ts` 안에서 처리. 페이지 컴포넌트는 unwrap 된 flat payload 만 받는다.
 
-**7-A-4.** **사례 (2026-05-28)**: mcm cma `masterCodeMng/api.ts` 가 `payload.ds_GetCodeMasterList` 직접 접근 → 화면 0건. fix: `envelope.data.result.ds_GetCodeMasterList` 매핑 (§7-A-2 패턴).
+**7-A-4.** **사례 (2026-05-28)**: mcm cma `masterCodeMng/api.ts` 가 `payload.ds_GetCodeMasterList` 직접 접근 → 화면 0건. fix: `envelope.data.result.ds_GetCodeMasterList` 매핑 (§7-A-2 패턴). (이 화면은 2026-10-16 폐기)
 
 ---
 

@@ -145,7 +145,7 @@ Claude는 산출물 작성 후 반드시 정합체크서를 작성한다.
 | 결정 내용을 §12 본문에만 적고 4 설계서 동기화 누락 | ✗ — 5 산출물 동시 갱신 |
 | 정합체크서 §G Q-NNN 활성 카운트 미갱신 | ✗ — §G 도 동일하게 결정 누적 패턴 변환 |
 
-근거: cma 4 화면 (masterCodeMng / masterCategoryMng / masterCodeSelPop / masterCodeUploadFilePopup) 정본 패턴 — `§12. 결정 누적 (사용자 결정 완료)` + 3 컬럼 표 + 활성 0 명시.
+근거: cma 4 화면 (masterCodeMng / masterCategoryMng / masterCodeSelPop / masterCodeUploadFilePopup) 정본 패턴 — `§12. 결정 누적 (사용자 결정 완료)` + 3 컬럼 표 + 활성 0 명시. 이 4 화면과 설계 문서는 2026-10-16 폐기됐다([mdm ADR-0008](../../../../mdm/adr/0008-retire-mcm-master-rule-programs.md)). 패턴은 위 표 그대로 유효하고, 견본 문서는 git 이력에서 본다.
 
 ---
 

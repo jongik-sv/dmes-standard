@@ -98,5 +98,4 @@ export function ItemList({ rows, totalCount, isBusy, onLoad }: {
 ## 실제 사용 예
 
 - `src/frontend/m-mdm/pages/dme/ruleMng/page.tsx:254-260`: `GridPanel` 바깥, 바로 아래에 둔다. `totalPages` 는 `:186`.
-- `src/frontend/m-mcm/page-components/cmb/masterRuleData/page.tsx:434-442`: `GridPanel` 안쪽 맨 끝에 둔다. 단, 위 예와 위치가 다르다.
 - `src/frontend/m-design-dummy/src/screens/DataDisplayCatalogScreen.tsx:286-297`: `pageSizeOptions` 를 쓰는 샘플(하드코딩 데이터). 업무 화면 중에는 쓰는 곳이 없다.

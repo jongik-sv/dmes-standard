@@ -226,6 +226,5 @@ SearchFieldProps
 - `src/frontend/m-mcm/page-components/csa/screenUsageStat/page.tsx` `label="~"` 짝. 첫 칸에 `defaultKey="fromDt"` 와 `type="date"`, children 은 `DatePicker` 그대로.
 - `src/frontend/m-mdm/pages/dmd/dataItemMng/page.tsx` `dependsOn="maruDataId"`. 키·이름·카테고리·닫힌 항목이 마루 데이터 칸을 따라 비워지고 다시 채워진다. 카테고리 선택지를 `flushSync` 로 커밋한 뒤 조회한다.
 - `src/frontend/m-mcm/page-components/csa/searchDefaultsSample/page.tsx` 칸 형식 전부(텍스트·select·radio·날짜·기간·children 묶기·`defaultKey`·`defaultable={false}`·대상 아님), `autoSearch`, `defaultsScope`, `defaults={false}` 를 한 화면에 모은 확인용 샘플(로컬 메뉴 「조회 기본값 샘플」).
-- `src/frontend/m-mcm/page-components/cme/masterCodeMngList/page.tsx:287` `onSearch` 만 지정한 조회조건(자동 조회 없음).
 - `src/frontend/m-mdm/pages/dmc/codeItemEdit/page.tsx` 복합 입력에 `span-2`. 마루 코드·버전·닫힌 코드 모두 `defaultKey` 대상이고, handoff 로 열면 `defaults={!handedOff}` 로 기본값이 넘겨 받은 코드를 덮지 않게 한다.
 - `src/frontend/m-mdm/pages/dmc/codeConfirm/page.tsx` 상단 `SearchArea`(`autoSearch`) + 상단 버튼 줄 [조회]. 분리 창 복원 때는 행이 비었을 때만 이어받은 검색어로 조회하는 마운트 effect 를 둔다.

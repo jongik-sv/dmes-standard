@@ -28,7 +28,7 @@
 | 물류관리 | `mls` | 자재 입출고·재고·이송 |
 | 품질관리 | `mqc` | 검사·시험·성적서 |
 | 공통관리 | `mcm` | 콘솔·메시지·연동 인프라 (KMC) |
-| 기준정보관리(MDM) | `mdm` | 표준 원장. mcm `cma`/`cmb` As-Is 와 병존([mdm ADR-0003](../../../mdm/adr/0003-module-boundary-screens-roles.md)) |
+| 기준정보관리(MDM) | `mdm` | 표준 원장. 마스터코드·업무기준의 단일 원장이다. mcm `cma`/`cmb` As-Is 는 2026-10-16 폐기([mdm ADR-0008](../../../mdm/adr/0008-retire-mcm-master-rule-programs.md), 그 전에는 [mdm ADR-0003](../../../mdm/adr/0003-module-boundary-screens-roles.md) 병존) |
 
 **(MUST NOT)**: 한글 영역명 ("조업관리" / "보전관리" / "설비관리" 등) 으로 신규 moduleId 를 도출하지 않는다. 위 표의 값으로 흡수 매핑하거나, 매핑 불가 시 [확인필요: Q-NNN] + 본 부속서 PR.
 
@@ -73,7 +73,7 @@ A.1.1 모듈 외 기 구축·공유 모듈은 본 표로 분리 등재. 신규 �
 | `mpn` | `pn` | `pna` / `pnb` / ... |
 | `mqc` | `qc` | `qca` / `qcb` / ... |
 | `mas` | `as` | `asa` / `asb` / ... |
-| `mcm` | `cm` | `cma` / `cmb` / ... |
+| `mcm` | `cm` | `csa` / ... (`cma`·`cmb`·`cme`·`cmz` 는 폐기 2026-10-16 — 재사용 금지) |
 | `mdm` | `dm` | `dma` / `dmb` / `dmc` / `dmd` / `dme` / ... |
 
 **(MUST NOT)**:
@@ -126,8 +126,10 @@ A.1.1 모듈 외 기 구축·공유 모듈은 본 표로 분리 등재. 신규 �
 | `mpp` | `operation` | legacy 의미명 | 일상 운영 (작업실적·공정보고) | 2026-04-28 | (workReport 등재 동시) | `workReport` |
 | `mpp` | `master` | legacy 의미명 (예정) | mpp 모듈 마스터 (작업장·자원 등) | (예정) | — | — |
 | `mpp` | `setup` | legacy 의미명 (예정) | mpp 셋업 (BOP·라우팅 등) | (예정) | — | — |
-| `mcm` | `cma` | **영역 코드** (`cm`+`a`) | Master 관리(원장) — 카테고리·마스터코드 | 2026-05-27 | (masterCategoryMng 등재 동시) | `masterCategoryMng` / `masterCodeMng` / `masterCodeSelPop` / `masterCodeUploadFilePopup` |
-| `mcm` | `cmb` | **영역 코드** (`cm`+`b`) | 업무기준 관리(원장) — 업무기준(Rule) 구조·데이터 | 2026-06-04 | (masterRule* 5종 설계확정 등재) | `masterRuleListPop` / `masterRuleList` / `masterRuleFrame` / `masterRuleData` / `masterRuleFrameColListPopup` |
+| `mcm` | `cma` | **영역 코드** (`cm`+`a`) — **폐기 2026-10-16 ([mdm ADR-0008](../../../mdm/adr/0008-retire-mcm-master-rule-programs.md))**, 재사용 금지 | Master 관리(원장) — 카테고리·마스터코드 | 2026-05-27 | (masterCategoryMng 등재 동시) | (폐기) ~~`masterCategoryMng` / `masterCodeMng` / `masterCodeSelPop` / `masterCodeUploadFilePopup`~~ |
+| `mcm` | `cmb` | **영역 코드** (`cm`+`b`) — **폐기 2026-10-16 ([mdm ADR-0008](../../../mdm/adr/0008-retire-mcm-master-rule-programs.md))**, 재사용 금지 | 업무기준 관리(원장) — 업무기준(Rule) 구조·데이터 | 2026-06-04 | (masterRule* 5종 설계확정 등재) | (폐기) ~~`masterRuleListPop` / `masterRuleList` / `masterRuleFrame` / `masterRuleData` / `masterRuleFrameColListPopup`~~ |
+| `mcm` | `cme` | **영역 코드** (`cm`+`e`) — **폐기 2026-10-16 ([mdm ADR-0008](../../../mdm/adr/0008-retire-mcm-master-rule-programs.md))**, 재사용 금지 | Master 관리(가동) | — | (폐기 때 등재) | (폐기) ~~`masterCodeMngList`~~ |
+| `mcm` | `cmz` | **영역 코드** (`cm`+`z`, 팝업 전용 메뉴 폴더) — **폐기 2026-10-16 ([mdm ADR-0008](../../../mdm/adr/0008-retire-mcm-master-rule-programs.md))**, 재사용 금지 | 팝업 모음(사이드바 숨김) | — | (폐기 때 등재) | (폐기) ~~`masterCodeSelPop` / `masterCodeUploadFilePopup` / `masterRuleListPop` / `masterRuleFrameColListPopup` / `masterRuleDataUploadFilePopup`~~ |
 | `mcm` | `lsh` | **cm? 접두 규칙 예외** (mls 에서 이전, 2026-10-07) | **공지관리** — 전사 공지사항 등록·게시 | 2026-10-07 | (공지 mls→mcm 이전, DEC-001 「재검토 → 이전」) | `noticeMgmt`, `noticeBoard`(서비스 전용) |
 | `mdm` | `dma` | **영역 코드** (`dm`+`a`) | 용어·도메인·컬럼·단위(02) — 표준 원장 사전(마루 MDM) | 2026-09-24 | (TSK-02-01 전사 아키텍처 설계) | `unitMng` / `termMng` / `domainMng` / `columnMng` / `termRegPop` / `erdEdit` (+ TSK-01-01 샘플 `mdmSample` 은 옛 경로에 있으며 TSK-01-03 에서 옮긴다) |
 | `mdm` | `dmb` | **영역 코드** (`dm`+`b`) | 인터페이스 레이아웃(03) | 2026-09-24 | (TSK-02-01 전사 아키텍처 설계) | `headerMng` / `layoutMng` |
@@ -163,15 +165,15 @@ A.1.1 모듈 외 기 구축·공유 모듈은 본 표로 분리 등재. 신규 �
 | 화면명 (도메인 의미) | screenId |
 |---|---|
 | 후판 슬리팅 관리 | **`plateSlittingMgmt`** |
-| 마스터 코드 관리 | **`masterCodeMng`** |
-| 마스터 카테고리 관리 | **`masterCategoryMng`** |
+| 메뉴 관리 | **`commMenuMng`** |
+| OBJECT 관리 | **`commObjMng`** |
 | 검사 요청 | **`inspectionRequest`** |
 | 재고 이동 | **`stockMove`** |
 | 토픽 콘솔 | **`topicConsole`** |
 
 **(MUST NOT)** (MES 룰):
 - 모듈명 토큰 prefix (`mlsPlateSlittingMgmt` ✗ — 모듈 토큰 폐기, 사용자 결정. 모듈 구분은 경로/URL/패키지가 담당)
-- 그룹명 토큰 삽입 (`cmaMasterCodeMng` / `mcmCmaMasterCodeMng` ✗ — 그룹 토큰 사용 폐기 — 사용자 결정)
+- 그룹명 토큰 삽입 (`csaCommMenuMng` / `mcmCsaCommMenuMng` ✗ — 그룹 토큰 사용 폐기 — 사용자 결정)
 - 숫자 prefix (`MPP_WRK010` 같은 코드명) / 하이픈 / 언더스코어 / 복수형
 - 한글 자체 음역 (`molMaster` ✗)
 
@@ -183,7 +185,7 @@ A.1.1 모듈 외 기 구축·공유 모듈은 본 표로 분리 등재. 신규 �
 #### legacy 보존
 
 본 가이드 개정 이전에 등재된 식별자 및 **기 생성된 화면·산출물 (폴더·파일명 포함)** 은 §A.3.2 표 및 각 산출물 위치에서 As-Is 1:1 보존한다. **이미 만들어진 산출물은 개명하지 않는다.**
-- **단일 토큰 legacy** (`workReport` / `masterCodeMng` / `inspectionResult` 등): 신규 단일 토큰 룰과 형식이 동일하므로 그대로 사용.
+- **단일 토큰 legacy** (`workReport` / `commMenuMng` / `inspectionResult` 등): 신규 단일 토큰 룰과 형식이 동일하므로 그대로 사용.
 - **모듈/그룹 prefix legacy** (예: 기 산출물 폴더 `mlsPlateSlittingMgmt`): As-Is 유지. 신규 화면만 본 §A.3.1 단일 토큰 룰 (`plateSlittingMgmt`) 로 등재한다.
 
 #### DB 메뉴 시드 연계 — PARENT_MENU_ID + OBJECT_ID = componentPath (★ 2026-06-05 신설)
@@ -192,7 +194,7 @@ A.1.1 모듈 외 기 구축·공유 모듈은 본 표로 분리 등재. 신규 �
 
 | 축 | 값 | 정본 |
 |---|---|---|
-| `PARENT_MENU_ID` (메뉴 row) | group 토큰 3 글자 lowercase (`cma` / `csa` / `cme` 등) | §A.2 영역 코드 |
+| `PARENT_MENU_ID` (메뉴 row) | group 토큰 3 글자 lowercase (`csa` / `lsh` / `dma` 등) | §A.2 영역 코드 |
 | `OBJECT_ID` (메뉴 row) | **`screenId` 본체** (camelCase 단일 토큰) | 본 §A.3.1 |
 | BE derived `componentPath` | **`PARENT_MENU_ID + "/" + OBJECT_ID`** (예: `csa/commMenuMng`) | BE 가이드 §13-1 |
 | FE 디스크 폴더 | **`page-components/{PARENT_MENU_ID}/{OBJECT_ID}/page.tsx`** | FE 가이드 §11-2 |

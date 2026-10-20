@@ -73,10 +73,10 @@
 
 | C-ID | 컴포넌트 종류 | 컴포넌트명 | Designer.cs 위치 | Designer.cs quote | 부모 컨테이너 | 비고 (자동 연동 / 데이터 소스) |
 |---|---|---|---|---|---|---|
-| (예) C-001 | ManagedGrid | grid1 | `masterCodeMng.designer.cs:LXXX` | `this.grid1 = new ManagedGrid();` | grpSpread1 (메인 영역) | sMoldInfo SP case 결과 표시 |
-| (예) C-002 | ManagedGrid | grid2 | `masterCodeMng.designer.cs:LYYY` | `this.grid2 = new ManagedGrid();` | grpSpread2 (우측 영역) | **AttachmentManager(grid2) 가 wwAttachmentFile 표시** — grid1 행 선택 변경 시 자동 갱신 |
-| (예) C-003 | ToolStripButton | btnInsp | `masterCodeMng.cs:39` | `ToolStripButton btnInsp;` (`ToolbarManager.AddButton("검사정보조회",...)` L106) | ToolbarManager | QMA001K 외부 화면 전환 |
-| (예) C-004 | C1TextBox | txtAttachments | `masterCodeMng.designer.cs:60` | `this.txtAttachments = new C1.Win.C1Input.C1TextBox();` | grpSearchMaster | 첨부번호 입력 — btnAttachments 와 연동 |
+| (예) C-001 | ManagedGrid | grid1 | `{screenId}.designer.cs:LXXX` | `this.grid1 = new ManagedGrid();` | grpSpread1 (메인 영역) | sMoldInfo SP case 결과 표시 |
+| (예) C-002 | ManagedGrid | grid2 | `{screenId}.designer.cs:LYYY` | `this.grid2 = new ManagedGrid();` | grpSpread2 (우측 영역) | **AttachmentManager(grid2) 가 wwAttachmentFile 표시** — grid1 행 선택 변경 시 자동 갱신 |
+| (예) C-003 | ToolStripButton | btnInsp | `{screenId}.cs:39` | `ToolStripButton btnInsp;` (`ToolbarManager.AddButton("검사정보조회",...)` L106) | ToolbarManager | QMA001K 외부 화면 전환 |
+| (예) C-004 | C1TextBox | txtAttachments | `{screenId}.designer.cs:60` | `this.txtAttachments = new C1.Win.C1Input.C1TextBox();` | grpSearchMaster | 첨부번호 입력 — btnAttachments 와 연동 |
 | ... | ... | ... | ... | ... | ... | ... |
 
 ### 17.2-T2 As-Is 이벤트 핸들러 추출 매트릭스 (C# 1:1 — 강제 형식)
@@ -85,9 +85,9 @@
 
 | EV-ID | 이벤트명 | C# 핸들러 함수 | 위치 | 핸들러 quote (첫 1-2 줄) | 트리거 → 부수 효과 (자동 호출 표준 라이브러리 / 자동 SP case / 자동 그리드 갱신 등) |
 |---|---|---|---|---|---|
-| (예) EV-001 | 그리드 행 선택 변경 (grid1) | `OnGridRowSelectionChanged` | `masterCodeMng.cs:373-395` | `public override void OnGridRowSelectionChanged(ManagedGrid grid, int row, int prevRow) { if (grid == grid1) { txtAttachments.Value = ""; ... grid2.Clear(); LoadGeneral(selectedAttachNo); }}` | **자동 grid2 클리어 + LoadGeneral(AttachNo) → LoadAttachGrid(grid2, AttachNo) → AttachmentManager.Load** (첨부파일 자동 표시) |
-| (예) EV-002 | 그리드 셀 더블클릭 (grid1) | `OnGridCellDoubleClick` | `masterCodeMng.cs:402-407` | `public override void OnGridCellDoubleClick(...) { ... OpenFormWithParameter("PMA009K", initialValues, true); }` | PMA009K 외부 화면 전환 |
-| (예) EV-003 | btnInsp 클릭 | `btnInsp_Click` | `masterCodeMng.cs:685-691` | `private void btnInsp_Click(object sender, EventArgs e) { string strInspItemCd = grid1.ActiveRow["금형코드"].Text; ... }` | QMA001K 검사정보 화면 전환 (또는 메시지) |
+| (예) EV-001 | 그리드 행 선택 변경 (grid1) | `OnGridRowSelectionChanged` | `{screenId}.cs:373-395` | `public override void OnGridRowSelectionChanged(ManagedGrid grid, int row, int prevRow) { if (grid == grid1) { txtAttachments.Value = ""; ... grid2.Clear(); LoadGeneral(selectedAttachNo); }}` | **자동 grid2 클리어 + LoadGeneral(AttachNo) → LoadAttachGrid(grid2, AttachNo) → AttachmentManager.Load** (첨부파일 자동 표시) |
+| (예) EV-002 | 그리드 셀 더블클릭 (grid1) | `OnGridCellDoubleClick` | `{screenId}.cs:402-407` | `public override void OnGridCellDoubleClick(...) { ... OpenFormWithParameter("PMA009K", initialValues, true); }` | PMA009K 외부 화면 전환 |
+| (예) EV-003 | btnInsp 클릭 | `btnInsp_Click` | `{screenId}.cs:685-691` | `private void btnInsp_Click(object sender, EventArgs e) { string strInspItemCd = grid1.ActiveRow["금형코드"].Text; ... }` | QMA001K 검사정보 화면 전환 (또는 메시지) |
 | ... | ... | ... | ... | ... | ... |
 
 ### 17.2-T3 As-Is 표준 라이브러리 호출 매트릭스 (Root.dll / LocalSupport.dll 등 — 강제 형식)
@@ -98,11 +98,11 @@
 
 | L-ID | 라이브러리/클래스 | 호출 위치 | 호출 quote | 호출 의도 / To-Be 매핑 후보 |
 |---|---|---|---|---|
-| (예) L-001 | AttachmentManager | `masterCodeMng.cs:118-120` | `attachment = new AttachmentManager(grid2); attachment.DisplayColumns = new AttachmentColumn[] { FileName, FileDescription, Modifier, ModifiedDate }; attachment.Initialize();` | **메인 화면 grid2 에 wwAttachmentFile 표준 첨부 파일 자동 표시** (sAttach SP case 와 다른 데이터 소스) |
-| (예) L-002 | AutoFillup | `masterCodeMng.cs:130` | `AutoFillup.Add(WorkPreset.CustomerCode, txtCustCd, txtCustNm);` | txtCustCd 입력 → txtCustNm 자동 채움 (B_CUST_INFO lookup) |
-| (예) L-003 | RfdCustomerDialog | `masterCodeMng.cs:133` | `RfdCustomerDialog.CreateDialog(txtCustCd, txtCustNm, btnCust);` | btnCust 클릭 → 고객사 popup → 선택 결과를 txtCustCd/txtCustNm 에 채움 |
-| (예) L-004 | NewCodeQuery | `masterCodeMng.cs:81-86` | `NewCodeQuery("B053").Load(grid1.Columns["금형분류"], ListingOption.AddEmptyItem);` | 그리드 컬럼에 B_COMM_CODE B053 LoV 자동 로드 |
-| (예) L-005 | OpenFormWithParameter | `masterCodeMng.cs:406` | `OpenFormWithParameter("PMA009K", initialValues, true);` | 외부 화면 전환 (셀 더블클릭 트리거) |
+| (예) L-001 | AttachmentManager | `{screenId}.cs:118-120` | `attachment = new AttachmentManager(grid2); attachment.DisplayColumns = new AttachmentColumn[] { FileName, FileDescription, Modifier, ModifiedDate }; attachment.Initialize();` | **메인 화면 grid2 에 wwAttachmentFile 표준 첨부 파일 자동 표시** (sAttach SP case 와 다른 데이터 소스) |
+| (예) L-002 | AutoFillup | `{screenId}.cs:130` | `AutoFillup.Add(WorkPreset.CustomerCode, txtCustCd, txtCustNm);` | txtCustCd 입력 → txtCustNm 자동 채움 (B_CUST_INFO lookup) |
+| (예) L-003 | RfdCustomerDialog | `{screenId}.cs:133` | `RfdCustomerDialog.CreateDialog(txtCustCd, txtCustNm, btnCust);` | btnCust 클릭 → 고객사 popup → 선택 결과를 txtCustCd/txtCustNm 에 채움 |
+| (예) L-004 | NewCodeQuery | `{screenId}.cs:81-86` | `NewCodeQuery("B053").Load(grid1.Columns["금형분류"], ListingOption.AddEmptyItem);` | 그리드 컬럼에 B_COMM_CODE B053 LoV 자동 로드 |
+| (예) L-005 | OpenFormWithParameter | `{screenId}.cs:406` | `OpenFormWithParameter("PMA009K", initialValues, true);` | 외부 화면 전환 (셀 더블클릭 트리거) |
 | ... | ... | ... | ... | ... |
 
 ### 17.2-T4 SP case × 부수효과 매트릭스 (= §17.2 본 표 — 위 컬럼 단위 1:1 표 인용)
@@ -115,7 +115,7 @@
 
 | 부속 dialog | 호출 case | 대상 테이블 | 부수효과 요약 |
 |---|---|---|---|
-| (예: masterCodeMng_detail) | iMoldPolish, uMoldPolish | P_MOLD_INFO + P_MOLD_POLISH | MOLD_STATUS 전이 + 검사의뢰 자동 (조건부) |
+| (예: {screenId}_detail) | iMoldPolish, uMoldPolish | P_MOLD_INFO + P_MOLD_POLISH | MOLD_STATUS 전이 + 검사의뢰 자동 (조건부) |
 | ... | ... | ... | ... |
 
 ### 17.3 부속 dialog 별 case 매핑
@@ -124,7 +124,7 @@
 
 | 부속 dialog | 호출 case | 대상 테이블 | 부수효과 요약 |
 |---|---|---|---|
-| (예: masterCodeMng_detail) | iMoldPolish, uMoldPolish | P_MOLD_INFO + P_MOLD_POLISH | MOLD_STATUS 전이 + 검사의뢰 자동 (조건부) |
+| (예: {screenId}_detail) | iMoldPolish, uMoldPolish | P_MOLD_INFO + P_MOLD_POLISH | MOLD_STATUS 전이 + 검사의뢰 자동 (조건부) |
 | ... | ... | ... | ... |
 
 ### 17.4 자동 룰 카운트 (1:1 대조용)

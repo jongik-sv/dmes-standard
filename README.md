@@ -11,13 +11,11 @@
 
 ## 바로 동작하는 기반
 
-복제 직후 로그인·권한·메뉴·마스터코드·업무기준·로그 분석이 실제로 동작한다. 화면을 새로 만들지 않아도 관리자가 사용자와 권한을 등록하고 메뉴를 붙일 수 있다.
+복제 직후 로그인·권한·메뉴·로그 분석이 실제로 동작한다. 화면을 새로 만들지 않아도 관리자가 사용자와 권한을 등록하고 메뉴를 붙일 수 있다.
 
 | 영역 | 화면 | 위치 |
 |---|---|---|
-| 공통관리 › **마스터관리** | 카테고리 관리 · Master Code 관리 · Master Code 상세조회 (+ 코드선택·엑셀업로드 팝업) | `mcm-core/cma`·`cme` · `m-mcm/page-components/cma`·`cme`·`cmz` |
-| 공통관리 › **시스템관리** | OBJECT · 메뉴 · 역할 · 역할그룹 · 사용자 · PERMISSION · 사용자 권한 일괄 등록 · 동기화 관리 | `mcm-core/csa` · `m-mcm/page-components/csa` |
-| 공통관리 › **업무기준관리** | 업무기준 목록조회 · Data관리 · 상세조회 · 구조관리 (+ 팝업 3종) | `mcm-core/cmb` · `m-mcm/page-components/cmb`·`cmz` |
+| 공통관리 › **시스템관리** | OBJECT · 메뉴 · 역할 · 역할그룹 · 사용자 · PERMISSION · 사용자 권한 일괄 등록 | `mcm-core/csa` · `m-mcm/page-components/csa` |
 | **로그 분석** | 로그 뷰어 (모듈별 로그 검색·SQL 바인딩·워크스페이스) | `analog` · `m-analog` |
 | 포털 기반 | 로그인 · 탭·즐겨찾기·메뉴 트리 셸 · BFF 프록시 · API 권한(RBAC) 검증 | `mcm` 런처 · `m-mcm` · `shared/portal-shell` |
 
@@ -51,7 +49,7 @@
 ### Backend (`src/backend/`, Spring Boot · JDK 21)
 
 - **APS** — `aps-core`(제품 라이브러리 `com.dongkuk.dmes:aps-core`), `mpn`(APS 런처, `api`+`lib`)
-- **MES** — `mls`(물류), `mqc`(품질), `mpp`(조업), `mcm`·`mcm-core`(앱 호스트·메뉴·권한·마스터코드·업무기준 — **실동작**)
+- **MES** — `mls`(물류), `mqc`(품질), `mpp`(조업), `mcm`·`mcm-core`(앱 호스트·메뉴·권한 — **실동작**)
 - **공통/인프라** — `cactus-core`(인증·OASIS 플랫폼), `oasis`(BPMN 런타임), `caravan-core`/`caravan-hub`/`caravan-console`(EAI/메시지 허브), `analog`(로그 검색 엔진), `data-migration`(고객사 데이터 이관 — `sample-migration` 이 패턴 예시)
 
 `mcm`·`mcm-core` 를 뺀 업무 모듈(`aps-core`, `mls`, `mqc`, `mpp`, `mpn`)에는 `sample`/`Sample*` 패키지 한 벌만 들어 있다. 실제 업무 도메인 코드는 여기에 채워 넣는다.

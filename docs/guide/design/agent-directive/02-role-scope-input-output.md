@@ -115,16 +115,16 @@ APS와 MES가 한 요청에 함께 포함된 경우, 섹션을 분리하여 각 
 [사용자 요구사항 — 위반 금지] ... (14 항 그대로) ...
 
 [작업 단위]
-masterCodeMng 메인 화면 1개 — 분석리포트 §17.2 컬럼 단위 1:1 전수 행 분해 보완.
+{screenId} 메인 화면 1개 — 분석리포트 §17.2 컬럼 단위 1:1 전수 행 분해 보완.
 
 [입력 자산]
-- 본문: docs/mcm/design/masterCodeMng/masterCodeMng_분석리포트.md
+- 본문: docs/{moduleId}/design/{screenId}/{screenId}_분석리포트.md
 - As-Is 원장 자산 (XFDL / Java / MyBatis 매퍼) 경로 ls 로 확인
 
 [Phase 종료 자동 고해성사] ... 4 질문 ...
 
 [메인 Claude 반환 (250자 이내)]
-"§17.2 +120 행 추가 / Edit 3회 / 4질문 통과. 노트: _redesign/masterCodeMng/wave1.md"
+"§17.2 +120 행 추가 / Edit 3회 / 4질문 통과. 노트: _redesign/{screenId}/wave1.md"
 ```
 
 14 항 중 하나라도 prepend 누락 시 워커 산출물 품질 보장 ✗. 메인 에이전트는 매 호출마다 14 항 모두 포함 여부를 자체 검증한다.

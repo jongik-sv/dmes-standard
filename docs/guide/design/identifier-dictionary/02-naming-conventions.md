@@ -13,8 +13,8 @@
 #### MES 룰 (`mls` / `mqc` / `mpp` / `mas` / `mcm` / `mdm` — 정본)
 
 - **단일 토큰 camelCase `{화면명}`** — 화면명 그 자체 (첫 글자 소문자, 모듈명/그룹명 결합 없음)
-- 예: `plateSlittingMgmt`, `masterCodeMng`, `inspectionRequest`, `stockMove`
-- 금지: 모듈명 prefix (`mlsPlateSlittingMgmt` ✗ — 사용자 결정으로 폐기), 그룹 토큰 삽입 (`cmaMasterCodeMng` / `mcmCmaMasterCodeMng` ✗), 숫자 prefix (`MPP_WRK010` 같은 코드명), 하이픈, 언더스코어, 복수형
+- 예: `plateSlittingMgmt`, `commMenuMng`, `inspectionRequest`, `stockMove`
+- 금지: 모듈명 prefix (`mlsPlateSlittingMgmt` ✗ — 사용자 결정으로 폐기), 그룹 토큰 삽입 (`csaCommMenuMng` / `mcmCsaCommMenuMng` ✗), 숫자 prefix (`MPP_WRK010` 같은 코드명), 하이픈, 언더스코어, 복수형
 
 #### APS 예외 (`mpn` — 별표)
 
@@ -32,7 +32,7 @@
 #### MES 룰 (`mls` / `mqc` / `mpp` / `mas` / `mcm` / `mdm` — 정본)
 
 - **`screenId` 와 동일 camelCase 값** (변환 ✗)
-- 예: `plateSlittingMgmt` → `plateSlittingMgmt` (동일값) / `masterCodeMng` → `masterCodeMng` (동일값)
+- 예: `plateSlittingMgmt` → `plateSlittingMgmt` (동일값) / `commMenuMng` → `commMenuMng` (동일값)
 - 금지: kebab-case 변환 (`mls-plate-slitting-mgmt` ✗) / 별도 토큰 (`plate-slitting-mgmt` ✗)
 
 #### APS 예외 (`mpn` — 별표)
@@ -48,7 +48,7 @@
 #### MES 룰 (`mls` / `mqc` / `mpp` / `mas` / `mcm` / `mdm` — 정본)
 
 - **`screenId` 와 동일 camelCase 단일값** (= `pageName` = `serviceId` 와도 동일)
-- 예: `plateSlittingMgmt` / `masterCodeMng` / `inspectionRequest`
+- 예: `plateSlittingMgmt` / `commMenuMng` / `inspectionRequest`
 - 금지: `portal:{moduleGroup}/{pageName}` path 구조 (`portal:operation/work-report` ✗) / kebab-case (`mls-plate-slitting-mgmt` ✗)
 
 #### APS 예외 (`mpn` — 별표)
@@ -59,7 +59,7 @@
 
 ### A.4.4 serviceId
 
-- **화면식별자와 동일** 값 사용 (§A.3.1 단일 토큰 형식 — 예: `plateSlittingMgmt` / `masterCodeMng`)
+- **화면식별자와 동일** 값 사용 (§A.3.1 단일 토큰 형식 — 예: `plateSlittingMgmt` / `commMenuMng`)
 - **MES / APS 공통 적용**: `screenId` == `serviceId` 강제 (MES 는 `pageId` / `pageName` 모두 동일 단일값)
 - Phase 7 / OASIS 패턴 모두 동일 명칭. 액션은 별도 (`{serviceId}.{action}`)
 - 금지: 액션이 결합된 명칭 (`workReportSearch` 같은 합성 serviceId 금지)
@@ -88,10 +88,10 @@
 | screenId | 기능명 | BPMN 기능 식별자 |
 |---|---|---|
 | `plateSlittingMgmt` | `save` | **`plateSlittingMgmt_save`** |
-| `masterCodeMng` | `save` | **`masterCodeMng_save`** |
-| `masterCodeMng` | `delete` | **`masterCodeMng_delete`** |
-| `masterCodeMng` | `searchByDate` | **`masterCodeMng_searchByDate`** |
-| `masterCategoryMng` | `saveCategory` | **`masterCategoryMng_saveCategory`** |
+| `commMenuMng` | `save` | **`commMenuMng_save`** |
+| `commMenuMng` | `searchMenuGrp` | **`commMenuMng_searchMenuGrp`** |
+| `commMenuMng` | `saveCmMenuFld` | **`commMenuMng_saveCmMenuFld`** |
+| `commObjMng` | `searchSystemLov` | **`commObjMng_searchSystemLov`** |
 | `inspectionRequest` | `confirm` | **`inspectionRequest_confirm`** |
 
 **합성 예시 (APS 예외 `mpn`)**:
@@ -101,7 +101,7 @@
 | `demand` | `search` | **`demand_search`** |
 | `planningRun` | `execute` | **`planningRun_execute`** |
 
-**(MUST NOT)**: screenId 없이 `save` / `delete` 단독 사용 ✗ (화면 토큰 누락). 기능명에 `_` 추가 결합 ✗ (`save_attach` ✗ — `saveAttach` ○). 모듈·그룹 토큰 삽입 ✗ (`mlsPlateSlittingMgmt_save` / `mcmCmaMasterCodeMng_save` ✗ — 사용자 결정으로 폐기).
+**(MUST NOT)**: screenId 없이 `save` / `delete` 단독 사용 ✗ (화면 토큰 누락). 기능명에 `_` 추가 결합 ✗ (`save_attach` ✗ — `saveAttach` ○). 모듈·그룹 토큰 삽입 ✗ (`mlsPlateSlittingMgmt_save` / `mcmCsaCommMenuMng_save` ✗ — 사용자 결정으로 폐기).
 
 **legacy 호환**: 기 등재·기 생성된 모듈/그룹 prefix 합성 기능 식별자는 §A.3.2 등재 행 및 기 산출물과 함께 As-Is 1:1 보존 (개명 ✗).
 
@@ -123,7 +123,7 @@
 2. 분석리포트 §13 (설계) 또는 작업 보고 (개발) 에 `[확인필요: Q-NNN]` 으로 충돌 사실을 등재한다.
 3. **사용자에게 질문**하여 결정(기존 화면 재사용 / 신규 화면명 부여 / 기존 개명)을 받은 후에만 재개한다.
 
-**(MUST NOT)**: 임의 변형 식별자로 우회 (`masterCodeMng2` / `masterCodeMngNew` / suffix 부착) ✗. 기존 Object 무단 덮어쓰기·삭제 ✗. 충돌을 숨기고 다른 폴더에 생성 ✗ (파일명 매칭이라 런타임 충돌 그대로 발생).
+**(MUST NOT)**: 임의 변형 식별자로 우회 (`commMenuMng2` / `commMenuMngNew` / suffix 부착) ✗. 기존 Object 무단 덮어쓰기·삭제 ✗. 충돌을 숨기고 다른 폴더에 생성 ✗ (파일명 매칭이라 런타임 충돌 그대로 발생).
 
 ### A.4.5 mesModule
 
@@ -137,7 +137,7 @@
 #### MES 룰 (`mls` / `mqc` / `mpp` / `mas` / `mcm` / `mdm` — 정본)
 
 - Frontend 파일명: **`{screenId}.tsx`** (camelCase 단일값, suffix `-page` 없음)
-- 예: `plateSlittingMgmt.tsx` / `masterCodeMng.tsx` / `inspectionRequest.tsx`
+- 예: `plateSlittingMgmt.tsx` / `commMenuMng.tsx` / `inspectionRequest.tsx`
 - tsup entry key: `pages/{screenId}` (예: `pages/plateSlittingMgmt`)
 - 금지: kebab-case 파일명 (`mls-plate-slitting-mgmt.tsx` ✗) / `-page` suffix (`plateSlittingMgmt-page.tsx` ✗) / moduleGroup 디렉토리 분기 강제 ✗
 

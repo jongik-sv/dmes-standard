@@ -126,4 +126,4 @@ MaxHandleProps: `panelId: string`(필수), `style?: React.CSSProperties`, `class
 - `src/frontend/m-mcm/page-components/lsh/noticeMgmt/page.tsx` `root resizable storageKey="mls.lsh.noticeMgmt"` + `ContentPanel minSize={320}`(목록) + `ContentPanel minSize={420}`(상세). 사용자 요청으로 상세 폭을 고정하지 않고 목록·상세를 50:50 으로 나눈다(표준 460 의 예외). 상세 패널 안은 세로 flex 스크롤 영역 하나이고, 본문 편집기가 남은 높이를 채운다(Local-Rules §23). 홈 표시 미리보기는 팝업이다.
 - `src/frontend/m-mdm/pages/dme/ruleMng/page.tsx:225` `root resizable storageKey="mdm.dme.ruleMng"`.
 - `src/frontend/m-mdm/pages/dme/ruleSetEdit/page.tsx:664` column 분할 + 중첩 ContentBody(`flex`, `minSize`).
-- `src/frontend/m-mcm/page-components/cmb/masterRuleFrame/page.tsx:344` `panelId`. `MaxHandle` 연결 예는 `src/frontend/m-design-dummy/src/screens/ResizableLayoutCatalogScreen.tsx:194`(디자인 더미 화면).
+- `src/frontend/m-mcm/page-components/csa/jobSchedMng/page.tsx:473` `panelId="job-list"`. 같은 id 의 `MaxHandle` 은 `csa/jobSchedMng/JobListPanel.tsx:36` 에 있다. 디자인 더미 화면의 연결 예는 `src/frontend/m-design-dummy/src/screens/ResizableLayoutCatalogScreen.tsx:194`.

@@ -229,7 +229,7 @@ python3 scripts/db-snapshot/snapshot.py export --pdb L_ORA_MDM
 ```
 
 * 값 변환: epoch(초·밀리초) 시각은 KST 로, 빈 문자열은 NULL 로 바꾼다. 용어 임베딩(`TB_MDM_TERM.EMBEDDING`)과 비밀번호·키·로그 표는 비어 있거나 제외된다.
-* 코드 원장 3표는 `MCM_SOURCE` 와 `MCMAPUSER` 양쪽에 들어가고, `MCM_BACKUP` 은 비워 둔다. `TB_MCA_*` 동적 표는 적재기가 만든다.
+* `MCM_BACKUP` 은 비워 둔다. 옛 코드 원장 3표(`TB_MCM_CODE_*`, `MCM_SOURCE`·`MCMAPUSER`)와 업무기준 표(`TB_MCA_RULE_*`)는 2026-10-16 에 폐기했다([mdm ADR-0008](../../mdm/adr/0008-retire-mcm-master-rule-programs.md)). `TB_MCA_*` 동적 표는 적재기가 만든다.
 * 마이그레이션 `V1` 은 dev 에 머지된 뒤 고치지 않는다(체크섬이 달라진다). 바꿀 일은 `V2` 이상으로 추가한다. 옛 `V1` 이 적용된 레인 PDB 는 `template-schema --rebuild` 로 템플릿을 다시 만들고 레인 PDB 를 다시 복제한다.
 * 데이터 보정(`FORM_URL`·폴더 `USE_TP`)은 SQLite 에서 CSV 로 바꾸는 `convert` 단계에서 한 번 한다.
 

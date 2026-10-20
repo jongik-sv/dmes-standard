@@ -433,5 +433,5 @@ GridPanel 밖의 AgDataGrid 도 GridPanel 과 같은 머리줄을 스스로 그�
 - `src/frontend/m-mdm/pages/dme/ruleEdit/sections/columns/column-grid.tsx:366-374`: 편집 열(select, `cellEditorValuesGetter`)과 `cellClassRules`.
 - `src/frontend/m-mdm/pages/dme/ruleEdit/sections/columns/ColumnSettingsSection.tsx:336-344`: `onCellValueChanged` 와 `rowClassRefreshToken`. 단, `getRowClassExtra` 로 `ag-row-inserted`·`ag-row-deleted` 를 직접 준다(위 함정 참고).
 - `src/frontend/m-mdm/pages/dmc/codeItemEdit/page.tsx:498-505`: `rowDragField` + `isRowDraggable` + `onRowOrderChange`. `rowNumber` 는 `src/frontend/m-mdm/pages/dmd/dataItemMng/page.tsx:698`.
-- `src/frontend/m-mcm/page-components/cmb/masterRuleData/page.tsx:419-428`: `selectable` + `multiSelect` + `selectedRows` + `onRowSelect`.
+- `src/frontend/m-mcm/page-components/csa/commUserMng/page.tsx:1029-1031`: `selectable` + `multiSelect` + `onRowSelect`(선택 키를 `Set` 으로 보관).
 - `excelExport`: `src/frontend/m-mcm/widget-types/query-table/renderer.tsx`(쿼리 표, 잘리면 `note` 를 「상위 N행만 표시합니다」로), `src/frontend/m-mcm/widgets/home/workOrders/widget.tsx`·`shipments/widget.tsx`(홈 기본 표, `note` 「N건」·기본 이름 「작업지시」「출하」·`testId: "wq-excel"`).

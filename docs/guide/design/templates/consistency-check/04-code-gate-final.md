@@ -85,8 +85,8 @@
 | (예: iMoldInfo) | E-02 | P_MOLD_INFO INSERT — CoCd | `procedures/soPMA005.sql:613+625` | `(CoCd, ...) VALUES (@CoCd, ...)` | `MoldMasterService.java:239` | `m.setCoCd(coCd);` | ✓ |
 | (예: iMoldInfo) | E-04 | P_MOLD_INFO INSERT — MOLD_STATUS = 'A' (hardcode) | `procedures/soPMA005.sql:615+627` | `(... MOLD_STATUS ...) VALUES (..., 'A', ...)` | `MoldMasterService.java:242` | `m.setMoldStatus(blankOr((String) row.get("moldStatus"), STATUS_WAIT));` (STATUS_WAIT='3') | **✗** (Master-NN — 신규 등록 MOLD_STATUS 값 다름) |
 | (예: iMoldInfo) | E-05 | B_ITEM_INFO 조건부 INSERT 검증 (NOT EXISTS) | `procedures/soPMA005.sql:650` | `if not exists (select 1 from B_ITEM_INFO ...)` | (BE 미구현) | (B_ITEM_INFO master 부재) | △ (Q-MasterDomain-deferred) |
-| (예: UI 이벤트) | EV-001 | grid1 행 선택 변경 → grid2 자동 갱신 | `masterCodeMng.cs:373-395` | `public override void OnGridRowSelectionChanged(...) { ... grid2.Clear(); LoadGeneral(selectedAttachNo); }` | (To-Be FE 미구현 — masterCodeMng/masterCategoryMng 분리 결정 없음) | (분리 결정 사유 없음) | **✗** (임의 분리 — §K.5.6 위반) |
-| (예: 표준 라이브러리) | L-001 | AttachmentManager(grid2) — wwAttachmentFile 자동 표시 | `masterCodeMng.cs:118-120` | `attachment = new AttachmentManager(grid2); attachment.DisplayColumns = new AttachmentColumn[] { ... }; attachment.Initialize();` | (To-Be 미구현) | (메인 화면 grid2 자체 부재) | **✗** (분리 결정 사유 없음) |
+| (예: UI 이벤트) | EV-001 | grid1 행 선택 변경 → grid2 자동 갱신 | `{screenId}.cs:373-395` | `public override void OnGridRowSelectionChanged(...) { ... grid2.Clear(); LoadGeneral(selectedAttachNo); }` | (To-Be FE 미구현 — {screenId}/{screenId}Pop 분리 결정 없음) | (분리 결정 사유 없음) | **✗** (임의 분리 — §K.5.6 위반) |
+| (예: 표준 라이브러리) | L-001 | AttachmentManager(grid2) — wwAttachmentFile 자동 표시 | `{screenId}.cs:118-120` | `attachment = new AttachmentManager(grid2); attachment.DisplayColumns = new AttachmentColumn[] { ... }; attachment.Initialize();` | (To-Be 미구현) | (메인 화면 grid2 자체 부재) | **✗** (분리 결정 사유 없음) |
 
 #### K.5.2 As-Is 외 BE 동작 (X-NNN — 사용자 결정 필요)
 
@@ -153,7 +153,7 @@
 - [ ] **As-Is 외 BE 동작** (§K.5.2 X-NNN) 모든 행에 §12 결정 후보 ID 또는 §G Q-NNN ID 인용 보유
 
 **위반 사례 (참조용 — 동일 실수 차단)**:
-- ✗ As-Is masterCodeMng = 통합 화면 (grid1+grid2) → To-Be masterCodeMng + masterCategoryMng popup 임의 분리 (사유 없음)
+- ✗ As-Is {screenId} = 통합 화면 (grid1+grid2) → To-Be {screenId} + {screenId}Pop popup 임의 분리 (사유 없음)
 - ✗ As-Is uScrap MOLD_STATUS='8' → To-Be STATUS_SCRAPPED='9' 임의 변경
 - ✗ As-Is uMoldChange 신규 행 MOLD_STATUS='8' → To-Be '3' 임의 변경
 - ✗ As-Is uJigReturn P_JIG_HISTORY UPDATE → To-Be P_MOLD_INFO.CUR_SL_CD 임의 테이블 변경

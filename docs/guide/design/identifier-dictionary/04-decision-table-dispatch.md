@@ -84,8 +84,8 @@ design/  BackEnd_표준_    FrontEnd_표준_
 | 테이블명 | 모듈 | 역할 | 도메인 의미 |
 |---|---|---|---|
 | `TB_mpn_routing_master` | `mpn` | `routing_master` | 공정 라우팅 마스터 |
-| `TB_mcm_code_master` | `mcm` | `code_master` | 마스터 코드 (masterCodeMng 도메인) |
-| `TB_mcm_code_category` | `mcm` | `code_category` | 마스터 코드 카테고리 (masterCategoryMng 영속) |
+| `TB_mcm_sec_menu` | `mcm` | `sec_menu` | 메뉴 화면 leaf (commMenuMng 영속) |
+| `TB_mcm_sec_obj` | `mcm` | `sec_obj` | 화면 OBJECT 등록부 (commObjMng 영속) |
 | `TB_mls_stock_move` | `mls` | `stock_move` | 재고 이송 |
 | `TB_mls_warehouse_inout` | `mls` | `warehouse_inout` | 창고 입출고 거래 |
 | `TB_mqc_inspection_request` | `mqc` | `inspection_request` | 품질 검사 의뢰 |

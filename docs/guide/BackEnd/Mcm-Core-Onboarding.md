@@ -69,7 +69,7 @@ public class SiteApplication { ... }
 
 권한관리·메뉴·역할·즐겨찾기·코드·감사로그 BPMN 은 mcm-core 가 아니라 **사이트**가 보유한다. {CLIENT} 의 `mcm/api/src/main/resources/services/` 아래 다음을 자기 사이트로 복사한다.
 
-- `csa/{name}/{name}.bpmn` — `commObjMng`, `commMenuMng`, `commRoleMng`, `commRoleGrpMng`, `commUserMng`, `commPermMng`, `commSyncMng`, `commUserRoleCopy`
+- `csa/{name}/{name}.bpmn` — `commObjMng`, `commMenuMng`, `commRoleMng`, `commRoleGrpMng`, `commUserMng`, `commPermMng`, `commUserRoleCopy`
 - `security/secUser.bpmn`
 - `roleManagement/secFavorite.bpmn`
 - `code/secCodeGroup.bpmn`, `code/secCodeItem.bpmn`
