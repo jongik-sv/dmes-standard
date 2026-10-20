@@ -1,6 +1,6 @@
 # 엑셀 export (dflow-wbs 에서 옮김)
 
-> SKILL.md `## 엑셀 export (--export-xlsx)` 절에서 분리. 원문 그대로.
+> SKILL.md `## 엑셀 export (--export-xlsx)` 절에서 분리. 2026-10-19 levels 표기 전환에 맞춰 데이터 출처를 바꿈.
 
 ## 엑셀 export (`--export-xlsx`) — 보고본
 
@@ -11,46 +11,44 @@
 - 운영·대외 보고본 = D'Flow export (DB 기준).
 - 검수 결과 수정 = **입력 프로그램 리스트나 wbs.md 를 고쳐 재생성.** 엑셀 수정 금지.
 
-### 데이터 출처 — wbs.md 를 직접 파싱하지 않는다
+### 데이터 출처 — export JSON 한 번
 
-실행 중 Task 는 `docs/tasks/<ID>/state.json` 이 진실 원천, wbs.md 는 파생 사본 (부록 §7.1-F2). 따라서:
+wbs.md 를 직접 파싱하지 않는다. 검증기 겸 export 를 한 번 돌려 노드 배열을 얻는다:
 
-1. `node .claude/skills/dflow-export/scripts/wbs-parse.mjs {wbs} --tasks-all` 로 **Task ID 목록** 획득 (이 모드 출력 6필드: `tsk_id`·`title`·`status`·`depends`·`domain`·`category`).
-2. 각 ID 에 `node .claude/skills/dflow-export/scripts/wbs-parse.mjs {wbs} {TSK_ID} --json` 호출로 **나머지 필드** 획득: `model`·`priority`·`assignee`·`schedule`·`tags`·`blocked-by`·`note`·`entry-point`·`prd-ref`. N회 호출 = 부록 §2.6 이 DEV-02 전 과도기로 명시한 방식 그대로.
-3. **WP/ACT 행 제목만** wbs.md 헤딩 정규식(`^##\s+(WP-\d+):\s*(.*)` · `^###\s+(ACT-\d+-\d+):\s*(.*)`)으로 읽음.
-   - 파서가 계층 노드를 안 냄 (부록 §7.1-F5). **헤딩 = 구조라 진실 원천 문제 없음.** 그 블록 필드는 안 읽음.
-4. **부모 귀속 = ID 세그먼트로 유도** — 파서가 계층을 안 내므로 유일한 연결 고리 (`## D'Flow 연동 표기` ID 불변 규칙이 기대는 것과 같은 규칙).
-   - 4단계: `TSK-03-02-01` → `ACT-03-02` → `WP-03`
-   - 3단계: `TSK-03-03` → `WP-03` (ACT 행 없음)
-   - 유도한 부모 ID 가 3단계에서 읽은 헤딩 목록에 없으면 **그 Task 를 버리지 않음.** 부모 없이 쓰고 리포트에 나열.
+```bash
+node .claude/skills/dflow-wbs-nlevel/scripts/wbs-nlevel-parse.mjs export --wbs {wbs} > {scratchpad}/wbs-export.json
+```
 
-⚠️ `status` 는 어떤 경우에도 wbs.md 텍스트에서 읽지 않음 — 1·2단계 파서 출력만 사용.
-- DEV-02(`--export`)는 `/dflow-export` 스킬에 구현돼 있고 이 스킬도 같은 `wbs-parse.mjs` 를 쓰지만, **위 N회 호출 절차는 유지.**
-- 이유: `--export` 노드는 D'Flow `stage` 코드(`as|fp|ip|im|xx`·`null`)만 싣고 로컬 상태 코드(`[dd]`·`[ts]` 등)·`note`·`blocked-by` 가 없음. 7·8·17·18번 컬럼(상태 코드·라벨·진척 환산·note)을 못 채움.
-- (WP/ACT 제목·부모만 `--export` 로 얻는 변형은 가능하나, 이 절차 의미를 바꾸지 않으려고 적용 안 함.)
+- `nodes` = WP·(ACT)·Task 노드, **파일 등장 순**. 각 노드에 `id`·`parent_id`·`level`·`title`·`category`·`domain`·`model`·`priority`·
+  `assignee`·`schedule`(`시작 ~ 종료`)·`depends[]`·`tags[]`·`prd_ref`·`entry_point`·`acceptance[]`·`weight` 가 있다.
+- 레벨 열 = `levels[node.level].prefix`(`WP`/`ACT`/`TSK`). 부모 귀속 = `parent_id` (ID 세그먼트로 유도하지 않는다).
+- SubTask(STK)는 노드로 안 나오고 부모 Task 의 `acceptance` 에 `[ ] …` 항목으로 접혀 있다.
+- export 가 실패하면(검증 오류) 엑셀을 만들지 않고 그 오류를 리포트에 남긴다.
+- 옛 표기 wbs.md(VIEW_MODE)는 levels 선언이 없어 export 가 실패한다 → "옛 표기 — 새 표기로 다시 만든 뒤 export" 를 리포트하고 끝낸다.
+- ⚠️ 상태는 파일에서 읽지 않는다. 생성물은 전 Task `- [ ]` 이고 진행 상태의 정본은 D'Flow 다.
 
 ### 컬럼
 
 | # | 컬럼 | 출처 |
 |---|---|---|
-| 1 | 레벨 (`WP`/`ACT`/`TSK`) | 행 종류 |
-| 2 | ID | 헤딩 ID (= D'Flow `external_ref`) |
-| 3 | 제목 | 헤딩 |
-| 4 | category | `--json` |
-| 5 | domain | `--json` |
-| 6 | model | `--json` |
-| 7 | 상태 코드 | `--tasks-all` 의 `status` (예: `[ ]`) |
-| 8 | 상태 | `docs/state-machine.json` 의 `states[코드].label` — **하드코딩 금지, 그 파일에서 읽는다** |
-| 9 | 담당 | `--json` 의 `assignee` |
+| 1 | 레벨 (`WP`/`ACT`/`TSK`) | `levels[level].prefix` |
+| 2 | ID | `id` (= D'Flow `external_ref` 의 `{module}/` 뒤) |
+| 3 | 제목 | `title` |
+| 4 | category | `category` |
+| 5 | domain | `domain` |
+| 6 | model | `model` |
+| 7 | 상태 코드 | Task 행 `[ ]` (생성물 전부) |
+| 8 | 상태 | `docs/state-machine.json` 의 `states["[ ]"].label` — **하드코딩 금지, 그 파일에서 읽는다** |
+| 9 | 담당 | `assignee` |
 | 10 | 시작일 | `schedule` 의 ` ~ ` 앞 |
 | 11 | 종료일 | `schedule` 의 ` ~ ` 뒤 |
 | 12 | 영업일 | 시작~종료 영업일 수 (주말 제외) — 숫자 |
-| 13 | depends | `--json` |
-| 14 | entry-point | `--json` |
-| 15 | prd-ref | `--json` |
-| 16 | tags | `--json` |
+| 13 | depends | `depends` 를 `, ` 로 이음 |
+| 14 | entry-point | `entry_point` |
+| 15 | prd-ref | `prd_ref` |
+| 16 | tags | `tags` 를 `, ` 로 이음 |
 | 17 | 진척(파생) | `docs/state-machine.json` 의 `progress` 블록으로 환산 — 숫자 |
-| 18 | note | `--json` |
+| 18 | acceptance | `acceptance` 를 ` / ` 로 이음 |
 
 - **17번 = 파생값.**
   - `category` 가 `progress.agile.applies_to` 에 있으면 `progress.agile.state_weights[상태코드]`.
@@ -60,8 +58,8 @@
   - 8번 = 상태 코드 그대로, 17번 = `[ ]` = 0.
   - 리포트에 그 사실을 남김 (import 전 검수용 snapshot 은 전 Task `[ ]` 라 실질 손실 없음).
 - WP/ACT 행:
-  - 4-6·9·13-16·18 = 비움.
-  - 10·11 = **위 4단계로 귀속된 하위 Task** 의 최소 시작일·최대 종료일.
+  - 4-9·13-16·18 = 비움.
+  - 10·11 = `parent_id` 로 귀속된 하위 Task 의 최소 시작일·최대 종료일.
   - 12·17 = 그 하위 집합에 `progress.rollup` 규칙(영업일 가중 평균) 적용.
   - 하위 없는 WP/ACT = 10-12·17 비우고 리포트에 나열.
 - **실적%·진행률 사람 입력 컬럼 만들지 않음.**
@@ -89,8 +87,6 @@ XML 이스케이프(`&`·`<`·`>`·`"`·`'`)는 스크립트가 처리 — Task 
 
 ### 순서와 실패 처리
 
-- 행 순서 = wbs.md 등장 순서 그대로 — WP → (ACT) → 그 하위 Task.
-- `--json` 호출 실패 Task: **건너뛰지 않음.**
-  - 그 행을 쓰되 실패한 컬럼 비움.
-  - 생성 리포트에 ID 와 함께 나열 (에러 3원칙: 조회 실패를 "데이터 없음"으로 위장 안 함).
+- 행 순서 = export `nodes` 순서(= wbs.md 등장 순서) — WP → (ACT) → 그 하위 Task.
+- export 실패: 엑셀을 만들지 않는다. 검증 오류를 리포트에 전량 나열 (에러 3원칙: 실패를 "데이터 없음"으로 위장 안 함).
 - 출력 경로에 파일 있으면 덮어씀. 정본 아니므로 백업 안 함.

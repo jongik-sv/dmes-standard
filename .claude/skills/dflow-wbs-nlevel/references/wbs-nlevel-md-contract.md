@@ -153,7 +153,8 @@ WSF 는 두 층위에서 반복. 기존 dflow-wbs 의 WP 번호 샌드위치 (WP
 
 ### 스킬 전략 (2026-08-21 사용자 결정 — 신규 스킬)
 
-- **기존 `dflow-wbs` 동결** — 운영 중인 3~4단 흐름(mes-base 등) 건드리지 않음.
+- ~~기존 `dflow-wbs` 동결~~ → **2026-10-19 해제**: `dflow-wbs`(3~4단)도 이 계약의 표기(frontmatter levels·체크박스 Task·한 줄 상세 필드)로 출력.
+  attach 없는 단일 파일이라 웹 업로드에서 골격과 같은 경로(levels 시드)로 올라감. 이미 올린 옛 표기(mes-base 등) 파일은 `dflow-export`(API)로 계속 올림.
 - **신규 스킬 `dflow-wbs-nlevel`** = 이 계약(N단·levels frontmatter·progress·upload) 구현.
   - 역할 분리 = 스킬 분리 아님, **모드**.
   - `--skeleton`: PMO 골격 + PL 배포 킷.

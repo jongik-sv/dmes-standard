@@ -5,7 +5,7 @@ description: 로컬 wbs.md 를 검증하고 D'Flow /wbs/import 계약 v2.1 JSON 
 
 # dflow-export — WBS 부트스트랩 export
 
-로컬 `wbs.md` → D'Flow `POST /api/v1/wbs/import` 요청 본문 생성 (+선택 전송).
+로컬 `wbs.md`(옛 표기 — `### TSK-` 헤딩) → D'Flow `POST /api/v1/wbs/import` 요청 본문 생성 (+선택 전송). 새 표기(levels 계약)는 아래 「웹 탭과의 관계」 절.
 **스크립트 정본**: 이 스킬 폴더 `.claude/skills/dflow-export/scripts/`. 다른 리포 사본과 무관. 수정은 여기서.
 **계약 정본**: `.claude/skills/dflow-work/references/api-contract.md` §"POST /wbs/import" — **v2.1**. 계약과 다르면 계약 우선.
 
@@ -104,10 +104,15 @@ curl -sS -X POST "$DFLOW_API_BASE/api/v1/wbs/import" \
 - **멱등**: 같은 payload 재전송 = 0건 갱신. 삭제는 절대 안 함.
 - **필드 소유권**: 기존 행은 구조·명세만 갱신. `stage`·`assignee`·`actual_pct` 는 서버가 보존. 재업로드해도 진행 상태 초기화 안 됨.
 
-## 웹 "WBS 마크다운" 탭으로 올리는 길
+## 웹 "WBS 마크다운" 탭과의 관계 — 표기가 갈린다
 
-wbs.md 를 변환 없이 웹 `/p/{id}/import` 의 "WBS 마크다운" 탭에 직접 올릴 수도 있다. 이때 module 은 화면에서 입력한다.
-웹 변경이 staging 에 반영된 뒤부터 가능하다. 그 전에는 이 스킬의 export 경로를 쓴다.
+- **이 스킬이 다루는 것 = 옛 표기 wbs.md**(`## WP-` 아래 `### TSK-` 헤딩 + 열 0 `- field:` 줄).
+  - 웹 `/p/{id}/import` 의 "WBS 마크다운" 탭에도 직접 올릴 수 있다. 이때 module 은 화면에서 입력한다.
+  - 웹 변경이 staging 에 반영된 뒤부터 가능하다. 그 전에는 이 스킬의 export 경로를 쓴다.
+- **`/dflow-wbs`(2026-10-19 이후)·`/dflow-wbs-nlevel` 이 만드는 새 표기(levels 계약)** 는 웹 탭에 그대로 올리거나
+  `dflow-wbs-nlevel/scripts/wbs-nlevel-parse.mjs export` 로 payload 를 만든다. module 은 파일 frontmatter 가 정한다.
+  이 스킬의 `wbs-parse.mjs` 는 새 표기를 읽지 못한다(`task_count` 0).
+- 옛 표기 파일을 새 표기로 다시 만들 때는 같은 module(`DOCS_DIR` 마지막 세그먼트)과 ID 를 쓴다 — 이미 올라간 항목이 갱신된다.
 
 ## 계약 v2.1 요지 (export 가 이미 준수 — 수동 조작 금지)
 

@@ -1,6 +1,6 @@
 ---
 name: dflow-wbs-nlevel
-description: N단(5~8단) 대형 프로젝트의 wbs.md 를 levels 계약(frontmatter 단계 선언·접두어 판정·진도 역할·업로드 범위)으로 생성·검증할 때 사용. PMO 골격(--skeleton)과 PL 모듈 파일 두 모드. 트리거 - "/dflow-wbs-nlevel", "N단 WBS", "8단 WBS", "골격 WBS", "PL WBS", "levels frontmatter". 3~4단 기존 흐름은 dflow-wbs(동결)를 쓴다. 사용법 - /dflow-wbs-nlevel [--skeleton 시스템목록 | 모듈경로] [--programs 경로]
+description: N단(5~8단) 대형 프로젝트의 wbs.md 를 levels 계약(frontmatter 단계 선언·접두어 판정·진도 역할·업로드 범위)으로 생성·검증할 때 사용. PMO 골격(--skeleton)과 PL 모듈 파일 두 모드. 트리거 - "/dflow-wbs-nlevel", "N단 WBS", "8단 WBS", "골격 WBS", "PL WBS", "levels frontmatter". 3~4단 단일 파일은 dflow-wbs 를 쓴다(같은 levels 계약 — 둘 다 D'Flow 웹 업로드로 바로 올라간다). 사용법 - /dflow-wbs-nlevel [--skeleton 시스템목록 | 모듈경로] [--programs 경로]
 ---
 
 # /dflow-wbs-nlevel — N단 WBS 생성 (levels 계약)
@@ -9,7 +9,8 @@ description: N단(5~8단) 대형 프로젝트의 wbs.md 를 levels 계약(frontm
 
 > **계약 정본 = `.claude/skills/dflow-wbs-nlevel/references/wbs-nlevel-md-contract.md`** (wbs-web docs/superpowers/specs 사본 — 갱신 시 둘 다).
 > - 생성 전 Read 필수. 이 파일과 다르면 계약 문서 우선.
-> - 기존 `dflow-wbs`(3~4단 WSF) = **동결**. 규약 다름 → 섞지 않음.
+> - `dflow-wbs`(3~4단 WSF)도 같은 levels 계약으로 출력한다(2026-10-19 동결 해제·표기 통일). 차이 = 범위:
+>   그쪽은 attach 없는 단일 파일(WP 최상위), 이쪽은 PMO 골격 + PL 분리 업로드(N단). 한 프로젝트에서 두 스킬의 파일을 섞지 않음.
 >
 > **업로드 게이트 (2026-08-22 갱신)**: import v2.2(levels·attach·fold) 서버 랜딩 완료.
 > - 스테이징(dflow-staging): 코드·DB(0089) 적용 → 업로드 가능.

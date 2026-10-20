@@ -1,24 +1,30 @@
-# 툴체인 제약 (dflow-wbs 에서 옮김)
+# 툴체인 제약 (dflow-wbs)
 
-> SKILL.md `### 출력 검증` 절의 제약 표와 `## 상태` 절의 dep-analysis 주의(끝)를 분리. 4단계 생성 시 절차는 SKILL.md 에 남김.
+> 2026-10-19 levels 표기 전환 뒤의 도구 지도. 검증 결과를 곧이곧대로 믿지 말고 아래 범위를 확인한다.
 
-> ⚠️ **툴체인 제약 — 실측 기준. 검증 결과를 곧이곧대로 믿지 말 것.**
->
-> - `wbs-parse`·`wbs-validate`·`dep-analysis` = `/dflow-export` 스킬 node 판 (`.claude/skills/dflow-export/scripts/*.mjs`).
-> - 옛 동봉 snapshot(3단계만 인식·`[xx]` 단독 판정·stdin 불가) 제거됨.
-> - 3단계 한정·stdin 불가 = 「해소됨」. `[xx]` 단독 판정 = 「부분 해소」(대상 리포가 6상태 정의를 둘 때만 해소).
-> - `merge-wbs-status.py`·`wbs-transition.py` = 이 리포 밖(dev-workflow) 스크립트라 제약 그대로.
->
-> | 제약 | 근거 | 생성 시 영향 | 해소 |
-> |---|---|---|---|
-> | ~~`wbs-validate` 는 3단계만 인식~~ | export 판은 `#{3,5}` + `TSK-숫자(-숫자)+` 로 3·4단계 모두 읽음 | 4단계 WBS 도 `task_count` 에 잡힘 — 0 이면 헤딩을 못 읽은 것, 실패로 봄 | **해소됨 (dflow-export 판 사용)** |
-> | `merge-wbs-status.py` 도 3단계만 인식 | `merge-wbs-status.py:37` 정규식 `^###\s+(TSK-\d+-\d+):` | 4단계에서 상태 merge 가 조용히 무동작 | DEV-03 |
-> | merge 상태 어휘가 5개 | `merge-wbs-status.py:28-33` + `:172` `.get(v, -1)` | 어휘 밖 상태는 랭크 −1 로 `[ ]`(0)보다도 낮게 취급 → **조용히 덮임** | DEV-01 |
-> | 전이 스크립트 상태 어휘가 5개 | `wbs-transition.py:353` `{"[ ]","[dd]","[im]","[ts]","[xx]"}` | 파일에 `[as]` 같은 진행 상태를 쓰면 `unknown status in wbs.md` 로 **거부** | DEV-01 |
-> | 의존 완료 판정 기본값이 `[xx]` 단독 | `dep-analysis.mjs` — `--docs-dir` 없으면 `[xx]` 만 충족, 있으면 상태머신이 정함(6상태 정의면 `[im]` 이상, 5상태면 `[xx]` 만) | 진행 중 WBS 를 `--docs-dir` 없이 재분석하면 완료 판정이 문서 기준(`[im]` 이상)보다 좁음 | **부분 해소 (`--docs-dir {DOCS_DIR}` 사용 — 임계는 프로젝트 상태머신 정의가 정함)** |
-> | Task ID 정규식은 숫자만 | export 판 `_TSK_HEADING_RE` = `TSK-숫자(-숫자)+:` | `TSK-02-01a` 같은 letter suffix 는 **조용히 무시** — 쓰지 않음 | — |
-> | ~~`dep-analysis` 는 stdin 불가~~ | export 판은 파일 경로 인자·표준입력(파이프) 모두 받음 | `wbs-parse.mjs … --tasks-all` 출력을 바로 파이프해도 됨 | **해소됨 (dflow-export 판 사용)** |
->
-- ⚠️ `dep-analysis.mjs` 는 `--docs-dir` 없으면 `[xx]` 만 완료로 셈.
-  - 진행 중 WBS 재분석 시 `--docs-dir {DOCS_DIR}` 를 붙여 상태머신이 충족 임계를 정하게 함 (6상태 정의면 `[im]` 이상, 5상태면 `[xx]` 만).
-  - 생성 시점엔 전 Task `[ ]` 라 영향 없음.
+## 새 표기(levels 계약) wbs.md — 이 스킬의 출력
+
+| 일 | 도구 | 비고 |
+|---|---|---|
+| 구조·표기 검증 | `node .claude/skills/dflow-wbs-nlevel/scripts/wbs-nlevel-parse.mjs validate --wbs {wbs} --role skeleton` | D'Flow 웹 파서(`src/lib/wbsmd/parse.ts`)와 같은 규칙. 서버 상태(기존 트리 깊이·같은 module 의 기존 항목)는 못 본다 — 웹 미리보기가 마지막 관문 |
+| import payload | `… wbs-nlevel-parse.mjs export --wbs {wbs}` | 검증 게이트 내장(에러면 JSON 안 나옴). 봉투 `{schema_version: "2.2", module, levels, nodes}` |
+| 의존 분석 | export JSON → 어댑터(SKILL.md 10번) → `node .claude/skills/dflow-export/scripts/dep-analysis.mjs {tasks.json} --graph-stats` | 어댑터가 Task 노드를 `{tsk_id, depends, status: "[ ]"}` 로 바꾼다 |
+| 엑셀 보고본 | export JSON → 행 배열 → `xlsx-write.mjs` | references/xlsx-export.md |
+
+- `dflow-export` 의 `wbs-parse.mjs`·`wbs-validate.mjs` 는 **옛 표기 전용**이다. 새 표기 파일에 돌리면 Task 를 못 찾는다(`task_count` 0) — 쓰지 않는다.
+- export 는 SubTask(STK)를 부모 acceptance 로 접는다. 의존 분석·엑셀에는 Task 까지만 나온다.
+
+## 옛 표기(`### TSK-` 헤딩) wbs.md — 이미 만들어 둔 파일
+
+- 올리는 길 = `/dflow-export`(API). 웹 "WBS 마크다운" 탭의 옛 표기 수용(module 화면 입력)은 서버 판에 따른다 —
+  wbs-web staging 반영분부터. 새로 만들 때는 이 스킬로 새 표기로 다시 만든다(같은 `module`·ID — references/dflow-integration.md ID 복원).
+- 그 파일의 검증·export 는 `dflow-export` 스킬 node 판(`wbs-parse.mjs`·`wbs-validate.mjs`)이 맡는다.
+
+## 그 밖의 제약
+
+| 제약 | 영향 |
+|---|---|
+| Task ID 는 숫자 세그먼트만(`TSK-03-01`) | 웹 파서는 `TSK-02-01a` 도 받지만 ID 안정성 규칙상 쓰지 않는다 — 분할은 새 숫자 ID + `tags: split-from-XX` |
+| 파서는 코드 펜스를 따로 보지 않는다 | 펜스 안이어도 `- [ ] …`·들여쓴 `- key:` 줄은 읽힌다 — 보고 장은 표·문단·mermaid 만 |
+| ID 없는 헤딩은 파서 상태를 끊지 않는다 | 보고 장 첫 헤딩 뒤 두 칸 들여쓴 `- key: value` 는 마지막 Task 필드로 붙을 수 있다 |
+| `dep-analysis.mjs` 완료 판정 기본값이 `[xx]` 단독 | 생성 시점엔 전 Task `[ ]` 라 영향 없음. 진행 중 상태는 D'Flow 가 정본 — 파일로 재분석하지 않는다 |

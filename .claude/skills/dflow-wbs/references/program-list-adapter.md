@@ -16,8 +16,8 @@
 | `group` | — | 업무·프로세스 그룹 (ACT 단위) | 4단계면 유형별로 묶는다 |
 | `type` | — | 화면 / 배치 / 리포트 / 인터페이스 | `화면` 으로 간주 + 리포트 |
 | `difficulty` | — | 상 / 중 / 하 | `중` 으로 간주 + 리포트 |
-| `owner` | — | 담당 (email 이어야 시드됨) | `assignee: -` |
-| `module_owner` | — | 모듈 담당 (WP/ACT `assignee`) | 기록 안 함 |
+| `owner` | — | 담당 (email 이어야 시드됨) | `@` 토큰 생략 |
+| `module_owner` | — | 모듈 담당 — wbs.md 에 쓰지 않고 생성 리포트에만 남김(웹에서 지정) | 기록 안 함 |
 | `route` | — | 화면 경로 | `/{module}/{program_id 소문자}` 로 파생 |
 | `depends` | — | 선행 프로그램 ID, `;` 또는 `,` 구분 | 모듈 계약 Task 만 depends |
 | `priority` | — | critical / high / medium / low | `high` |
@@ -87,7 +87,7 @@ node .claude/skills/dflow-wbs/scripts/xlsx-read.mjs {경로}
 **진행하되 리포트하는 것** (생성물 마지막에 `## 입력 매핑 리포트` 챕터):
 - `type` 미기재·미매핑 → `화면` 으로 처리한 목록
 - `difficulty` 미기재·미매핑 → `중` 으로 처리한 목록
-- `owner` **기재됐는데** email 아님 → 원문과 함께 나열 (`assignee: -` 로 생성됨). 빈 값(미기재)은 나열 안 함
+- `owner` **기재됐는데** email 아님 → 원문과 함께 나열 (`@` 토큰 없이 생성됨). 빈 값(미기재)은 나열 안 함
 - `depends` 가 없는 `program_id` 를 가리킴 → 나열 후 그 의존만 버림
 - `route` 미기재로 파생값을 쓴 목록
 
@@ -102,7 +102,9 @@ node .claude/skills/dflow-wbs/scripts/xlsx-read.mjs {경로}
 |---|---|---|
 | WP | `## WP-XX: {module}` | `## WP-XX: {module}` |
 | ACT | `### ACT-XX-YY: {group}` (`group` 없으면 유형 묶음 — 화면·리포트·배치·인터페이스 순) | — |
-| Task | `#### TSK-XX-YY-ZZ: {program_name}` | `### TSK-XX-ZZ: {program_name}` |
+| Task | `- [ ] TSK-XX-YY-ZZ: {program_name} …` (ACT 아래 리스트 줄) | `- [ ] TSK-XX-ZZ: {program_name} …` (WP 아래 리스트 줄) |
+
+frontmatter `levels` 는 4단계/3단계 두 벌 중 하나 — references/output-format.md.
 
 - 모듈 순서 = **입력 등장 순서**. 기능 WP = `WP-03` 부터 (`WP-01` 초기화 · `WP-02` 기본설계 예약).
 - 4단계에서 각 기능 WP 의 **`ACT-XX-01` = 모듈 계약 ACT 예약** (MES 관례: `docs/MES/wbs.md:452-456`). 기능 ACT = `ACT-XX-02` 부터.
@@ -118,8 +120,8 @@ node .claude/skills/dflow-wbs/scripts/xlsx-read.mjs {경로}
 |---|---|---|---|
 | 화면 | `dev` | `fullstack` | 필수 — `{route} (메뉴: {module} > {program_name})` |
 | 리포트 | `dev` | `fullstack` | 필수 — 동일 |
-| 배치 | `dev` | `backend` | `-` |
-| 인터페이스 | `dev` | `backend` | `-` |
+| 배치 | `dev` | `backend` | 줄 생략 |
+| 인터페이스 | `dev` | `backend` | 줄 생략 |
 
 `route` 없으면 `/{module}/{program_id 소문자}` 로 파생 + 리포트에 남김.
 
@@ -132,7 +134,7 @@ node .claude/skills/dflow-wbs/scripts/xlsx-read.mjs {경로}
 `model` 값 = **시드.** `## Task 분해 원칙` 의 의미 규칙("다중 시스템·아키텍처·보안 핵심 → `opus`")이 여전히 우선.
 - 난이도 `중` 이어도 인증·정산·상태기계처럼 판단 비용 큰 프로그램 → `opus` 로 올림.
 - 난이도 `상` 이어도 단순 대량 CRUD → `sonnet` 으로 내림.
-- 올리거나 내리면 그 Task `note:` 에 한 줄 근거.
+- 올리거나 내리면 생성 리포트에 Task ID 와 한 줄 근거를 남김 (wbs.md 에 `note` 필드 없음).
 
 ⚠️ **이 기간표가 `## 일정 계산` 의 category 표(dev 기본 10일, 5-15)를 대신함.**
 - 그 표 = PRD 유래 기능 Task(여러 프로그램을 아우르는 단위) 기준.
@@ -143,11 +145,12 @@ node .claude/skills/dflow-wbs/scripts/xlsx-read.mjs {경로}
 
 Task 필드 생성값:
 
-- `status: [ ]` · `priority: {priority 또는 high}` · `assignee: {owner 가 email 이면 그 값, 아니면 -}`
+- Task 줄: `- [ ] TSK-…: {program_name}` + `@{owner}`(owner 가 email 일 때만) + `w:{기간 영업일}` + `{시작}~{종료}`
+- `priority: {priority 또는 high}`
 - `tags: {module}, {type 영문 슬러그}` — 화면 `ui` · 리포트 `report` · 배치 `batch` · 인터페이스 `interface`
 - `prd-ref: program:{program_id}` (필수)
-- `note:` = 입력 `note` 있을 때만
 - `requirements` / `acceptance` — 프로그램명·유형에서 유도. PRD/TRD 함께 주어졌으면 해당 절을 인용해 보강.
+  requirements 는 `; `, acceptance 는 ` / ` 로 이은 한 줄. 입력 `note`(비고)는 requirements 끝에 `비고: …` 로 붙임.
 
 ### 생성 규칙 — WSF 샌드위치 골격 (PRD/TRD 없이도 동일 생성)
 
