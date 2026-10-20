@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>전문 재전송</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#5A6372}a{color:#1D4F91}a:hover{color:#123A6E}
+.pg{font-family:'IBM Plex Sans KR',sans-serif;color:#1B2430;background:#5A6372;min-height:1000px;box-sizing:border-box;padding:40px 24px;display:flex;justify-content:center;align-items:flex-start}
+.mono{font-family:'IBM Plex Mono',monospace}
+.modal{width:1000px;max-width:100%;background:#FFFFFF;border-radius:10px;box-shadow:0 12px 32px rgba(0,0,0,0.25);display:flex;flex-direction:column}
+.mh{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:14px 20px;border-bottom:1px solid #E3E7EC}
+.mh h1{margin:0;font-size:18px;font-weight:700}
+.body{padding:16px 20px;display:flex;flex-direction:column;gap:16px}
+.btn{font:inherit;font-size:13px;font-weight:500;height:34px;padding:0 14px;border-radius:6px;border:1px solid #C3CAD4;background:#FFFFFF;color:#1B2430;cursor:pointer;display:inline-flex;align-items:center;gap:6px;text-decoration:none}
+.btn-primary{background:#1D4F91;border-color:#1D4F91;color:#FFFFFF}
+.sec{font-size:13px;font-weight:600;padding-bottom:6px;border-bottom:1px solid #E3E7EC;display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.info{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px 16px;font-size:13px}
+.info dt{font-size:12px;color:#5B6675}
+.info dd{margin:2px 0 0}
+.cell{font:inherit;font-size:12.5px;height:28px;box-sizing:border-box;padding:0 8px;border:1px solid #D5DAE1;border-radius:5px;background:#FFFFFF;color:#1B2430;width:100%;min-width:160px}
+.scroll{overflow-x:auto;max-height:360px;overflow-y:auto}
+.tbl{width:100%;border-collapse:collapse;font-size:13px}
+.tbl th{position:sticky;top:0;background:#F6F8FA;color:#4A5563;font-weight:600;font-size:12px;text-align:left;padding:8px 10px;border-bottom:1px solid #D5DAE1;white-space:nowrap}
+.tbl td{padding:5px 10px;border-bottom:1px solid #EBEEF2;white-space:nowrap}
+.empty td{padding:18px 10px;text-align:center;color:#5B6675}
+.chip{display:inline-block;font-size:11.5px;font-weight:500;padding:2px 8px;border-radius:10px;background:#EEF1F5;color:#384252}
+.c-s{background:#FDF0E1;color:#8A4B0F}
+.c-hd{background:#E6EEF8;color:#1D4F91}
+.raw{font-size:12.5px;background:#F6F8FA;border:1px solid #E3E7EC;border-radius:6px;padding:10px 12px;word-break:break-all}
+.foot{display:flex;justify-content:flex-end;gap:8px;padding:14px 20px;border-top:1px solid #E3E7EC}
+</style>
+</helmet>
+<div class="pg">
+  <div class="modal" role="dialog" aria-label="전문 재전송">
+    <div class="mh"><h1>전문 재전송</h1><a class="btn" href="TcErrorList.dc.html">닫기</a></div>
+    <div class="body">
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div class="sec">오류 정보</div>
+        <dl class="info" style="margin:0">
+          <div><dt>일련 번호</dt><dd class="mono">107</dd></div>
+          <div><dt>발생 일시</dt><dd>2026-10-16 11:42:08</dd></div>
+          <div><dt>인터페이스 ID</dt><dd class="mono">MMPPMERPTT01</dd></div>
+          <div><dt>거래 코드</dt><dd class="mono">PQR02012 · 생산실적</dd></div>
+          <div><dt>오류 구분</dt><dd><span class="chip c-s">S 송신</span></dd></div>
+          <div><dt>오류 코드</dt><dd class="mono">DmomException</dd></div>
+          <div style="grid-column:1 / -1"><dt>오류 메시지</dt><dd>CaravanHub 전송 실패: resultCode=FAIL</dd></div>
+        </dl>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <div class="sec"><span>원본 전문</span><span style="font-weight:400;color:#5B6675;font-size:12px">INTERFACE_MSG</span></div>
+        <div class="raw mono">PQR02012|P|S|5A|20260130111245|JCM_TEST|MMPPMERPTT01|||||20250808|00011|C|</div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <div class="sec"><span>전문 항목 (F_PQR02012 · 버전 1)</span><span style="font-weight:400;color:#5B6675;font-size:12px">헤더 7항목은 필수 검증</span></div>
+        <div class="scroll">
+          <table class="tbl">
+            <thead><tr><th>순번</th><th>구분</th><th>항목 ID</th><th>항목명</th><th>데이터 구분</th><th>전체 길이</th><th>값</th></tr></thead>
+            <tbody>
+              <sc-for list="{{items}}" as="it" hint-placeholder-count="14">
+                <tr><td>{{it.seq}}</td><td><span class="{{it.partCls}}">{{it.part}}</span></td><td class="mono">{{it.id}}</td><td>{{it.nm}}</td><td>{{it.dtNm}}</td><td>{{it.len}}</td><td><input class="cell mono" value="{{it.val}}" aria-label="{{it.nm}}"></td></tr>
+              </sc-for>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <div class="sec"><span>재전송 이력</span><span style="font-weight:400;color:#5B6675;font-size:12px">TB_MCM_MOM_TC_SEND</span></div>
+        <table class="tbl">
+          <thead><tr><th>송신 일련 번호</th><th>재전송 일시</th><th>재전송자</th><th>재전송 결과</th></tr></thead>
+          <tbody><tr class="empty"><td colspan="4">재전송 이력이 없습니다</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="foot">
+      <a class="btn" href="TcErrorList.dc.html">취소</a>
+      <button class="btn btn-primary" type="button">재전송</button>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1000}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const dt = { '1': '1 String', '2': '2 Number', '3': '3 Date' };
+    const items = [
+      ['TRANSACTION_CODE','거래 코드','1','8','PQR02012'],['WORKS_CD','작업장 코드','1','1','P'],['SEND_RECV_TP','송수신 구분','1','1','S'],['IF_STAT_CD','처리 상태','1','2','5A'],
+      ['SNDR_INFORM_EDIT_DT','송신 편집 일시','3','14','20260130111245'],['SNDR_INFORM_EDIT_PGM_ID','송신 편집 프로그램','1','14','JCM_TEST'],['INTERFACE_ID','인터페이스 ID','1','12','MMPPMERPTT01'],
+      ['LOT_NO','LOT 번호','1','20',''],['ITEM_CD','품목 코드','1','20',''],['PROC_CD','공정 코드','1','10',''],['EQUIP_CD','설비 코드','1','10',''],
+      ['WORK_DT','작업 일자','3','8','20250808'],['PROD_QTY','생산 수량','2','5','00011'],['PROC_STAT_CD','처리 구분','1','1','C']
+    ].map((a, i) => ({ seq: i + 1, id: a[0], nm: a[1], dtNm: dt[a[2]], len: a[3], val: a[4], part: i < 7 ? '헤더' : '본문', partCls: i < 7 ? 'chip c-hd' : 'chip' }));
+    return { items: items };
+  }
+}
+</script>
+</body>
+</html>

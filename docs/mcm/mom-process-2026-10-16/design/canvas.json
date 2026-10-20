@@ -1,0 +1,155 @@
+{
+  "v": 3,
+  "attachments": {},
+  "boards": {
+    "FormatLayout.dc.html": {
+      "expand": "fill",
+      "h": 1000,
+      "is_interactive": true,
+      "title": "포맷 레이아웃 정의 (interfaceFormatLayout)",
+      "w": 1440,
+      "x": 1520,
+      "y": 0
+    },
+    "FormatList.dc.html": {
+      "expand": "fill",
+      "h": 1000,
+      "title": "포맷 조회·버전 비교 (interfaceFormatList)",
+      "w": 1440,
+      "x": 3040,
+      "y": 0
+    },
+    "HostMgmt.dc.html": {
+      "expand": "fill",
+      "h": 1000,
+      "title": "호스트 관리",
+      "w": 1440,
+      "x": 6080,
+      "y": 2840
+    },
+    "HubConfig.dc.html": {
+      "expand": "fill",
+      "h": 1000,
+      "is_interactive": true,
+      "title": "연동 설정 (TB_CARAVAN_HUB_CONFIG)",
+      "w": 1440,
+      "x": 4560,
+      "y": 2840
+    },
+    "KafkaDashboard.dc.html": {
+      "expand": "fill",
+      "h": 1000,
+      "title": "카프카 대시보드",
+      "w": 1440,
+      "x": 0,
+      "y": 2840
+    },
+    "Main.dc.html": {
+      "expand": "fill",
+      "h": 1000,
+      "title": "인터페이스 정의 (interfaceList)",
+      "w": 1440,
+      "x": 0,
+      "y": 0
+    },
+    "MessageBrowse.dc.html": {
+      "expand": "fill",
+      "h": 1000,
+      "title": "메시지 조회",
+      "w": 1440,
+      "x": 3040,
+      "y": 2840
+    },
+    "MessageSender.dc.html": {
+      "expand": "fill",
+      "h": 1000,
+      "title": "메시지 전송 (messageSender)",
+      "w": 1440,
+      "x": 4560,
+      "y": 0
+    },
+    "TcAbnormalData.dc.html": {
+      "expand": "fill",
+      "h": 1000,
+      "title": "비정상 TC 등록 (tcAbnormalData)",
+      "w": 1440,
+      "x": 3040,
+      "y": 1420
+    },
+    "TcErrorList.dc.html": {
+      "expand": "fill",
+      "h": 1000,
+      "is_interactive": true,
+      "title": "전문 오류 조회 (tcErrorList)",
+      "w": 1440,
+      "x": 0,
+      "y": 1420
+    },
+    "TcErrorResend.dc.html": {
+      "expand": "fill",
+      "h": 1000,
+      "title": "재전송 팝업 (tcErrorResendPop)",
+      "w": 1440,
+      "x": 1520,
+      "y": 1420
+    },
+    "TopicMgmt.dc.html": {
+      "expand": "fill",
+      "h": 1000,
+      "title": "토픽 관리",
+      "w": 1440,
+      "x": 1520,
+      "y": 2840
+    }
+  },
+  "createdOnFiles": {
+    "at": "2026-10-16T09:30:00Z",
+    "v": 1
+  },
+  "designSystems": [],
+  "launch": {
+    "view": "canvas"
+  },
+  "notes": {
+    "row1": {
+      "kind": "title1",
+      "maxW": 6000,
+      "text": "인터페이스·포맷 정의 (MCMAPUSER.TB_MCM_MOM_*)",
+      "w": 240,
+      "x": 0,
+      "y": -300
+    },
+    "row2": {
+      "kind": "title1",
+      "maxW": 4480,
+      "text": "전문 오류·재전송·건너뛰기 (TC_ERROR · TC_SEND · TC_SKIP)",
+      "w": 240,
+      "x": 0,
+      "y": 1120
+    },
+    "row3": {
+      "kind": "title1",
+      "maxW": 7520,
+      "text": "카프카 운영 콘솔 (caravan-console · CARAVANUSER)",
+      "w": 240,
+      "x": 0,
+      "y": 2540
+    }
+  },
+  "order": [
+    "Main.dc.html",
+    "FormatLayout.dc.html",
+    "FormatList.dc.html",
+    "MessageSender.dc.html",
+    "TcErrorList.dc.html",
+    "TcErrorResend.dc.html",
+    "TcAbnormalData.dc.html",
+    "KafkaDashboard.dc.html",
+    "TopicMgmt.dc.html",
+    "MessageBrowse.dc.html",
+    "HubConfig.dc.html",
+    "HostMgmt.dc.html"
+  ],
+  "pages": [],
+  "title": "인터페이스 정의 화면 시안"
+}

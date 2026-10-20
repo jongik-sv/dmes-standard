@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>비정상 TC 등록</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#EEF1F5}a{color:#1D4F91}a:hover{color:#123A6E}
+.pg{font-family:'IBM Plex Sans KR',sans-serif;color:#1B2430;background:#EEF1F5;min-height:1000px;box-sizing:border-box;padding:20px 24px 32px;display:flex;flex-direction:column;gap:14px}
+.mono{font-family:'IBM Plex Mono',monospace}
+.top{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-end;gap:12px}
+.crumb{font-size:12px;color:#5B6675}
+.ttl{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:4px}
+.ttl h1{margin:0;font-size:22px;font-weight:700}
+.btns{display:flex;flex-wrap:wrap;gap:8px}
+.btn{font:inherit;font-size:13px;font-weight:500;height:34px;padding:0 14px;border-radius:6px;border:1px solid #C3CAD4;background:#FFFFFF;color:#1B2430;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+.btn-primary{background:#1D4F91;border-color:#1D4F91;color:#FFFFFF}
+.srch{background:#FFFFFF;border:1px solid #D5DAE1;border-radius:8px;padding:14px 16px;display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px 14px;align-items:end}
+.fld{display:flex;flex-direction:column;gap:4px;min-width:0}
+.lbl{font-size:12px;font-weight:500;color:#4A5563}
+.inp{font:inherit;font-size:13px;height:32px;box-sizing:border-box;padding:0 10px;border:1px solid #C3CAD4;border-radius:6px;background:#FFFFFF;color:#1B2430;width:100%;min-width:0}
+.cell{font:inherit;font-size:12.5px;height:28px;box-sizing:border-box;padding:0 8px;border:1px solid #D5DAE1;border-radius:5px;background:#FFFFFF;color:#1B2430;min-width:90px}
+.card{background:#FFFFFF;border:1px solid #D5DAE1;border-radius:8px;min-width:0;display:flex;flex-direction:column}
+.card-h{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;padding:12px 16px;border-bottom:1px solid #E3E7EC;font-size:14px;font-weight:600}
+.cnt{font-weight:400;color:#5B6675;font-size:12.5px;margin-left:6px}
+.scroll{overflow-x:auto}
+.tbl{width:100%;border-collapse:collapse;font-size:13px}
+.tbl th{background:#F6F8FA;color:#4A5563;font-weight:600;font-size:12px;text-align:left;padding:9px 10px;border-bottom:1px solid #D5DAE1;white-space:nowrap}
+.tbl td{padding:6px 10px;border-bottom:1px solid #EBEEF2;white-space:nowrap}
+.ro{color:#4A5563}
+.chip{display:inline-block;font-size:11.5px;font-weight:500;padding:2px 8px;border-radius:10px;background:#EEF1F5;color:#384252}
+.toast{align-self:flex-start;background:#1B2430;color:#FFFFFF;font-size:13px;padding:8px 14px;border-radius:6px}
+</style>
+</helmet>
+<div class="pg">
+  <div class="top">
+    <div>
+      <div class="crumb">공통관리 › TC Error › 비정상 TC 등록</div>
+      <div class="ttl"><h1>비정상 TC 등록</h1><span class="chip mono">tcAbnormalData</span></div>
+    </div>
+    <div class="btns">
+      <button class="btn" type="button">조회</button>
+      <button class="btn btn-primary" type="button">저장</button>
+    </div>
+  </div>
+
+  <form class="srch">
+    <label class="fld"><span class="lbl">전문ID</span><input class="inp mono" value="P" placeholder="앞부분 일치"></label>
+    <label class="fld"><span class="lbl">Skip LEVEL</span><input class="inp mono" placeholder="일치"></label>
+    <label class="fld"><span class="lbl">사용</span><select class="inp"><option>전체</option><option>Y</option><option>N</option></select></label>
+  </form>
+
+  <div class="toast" role="status">{{count}}건 조회 되었습니다.</div>
+
+  <section class="card">
+    <div class="card-h"><span>전문 목록<span class="cnt">{{count}}건</span></span><span class="cnt">전문ID·전문명은 전문 목록 정본이라 수정하지 않습니다</span></div>
+    <div class="scroll">
+      <table class="tbl">
+        <thead><tr><th>전문ID</th><th>전문명</th><th>Skip LEVEL</th><th>사용</th><th>수정 일시</th><th>수정 프로그램</th><th>수정자</th></tr></thead>
+        <tbody>
+          <sc-for list="{{rows}}" as="r" hint-placeholder-count="3">
+            <tr>
+              <td class="mono ro">{{r.tc}}</td><td class="ro">{{r.nm}}</td>
+              <td><input class="cell mono" value="{{r.lvl}}" aria-label="Skip LEVEL"></td>
+              <td><select class="cell" style="min-width:64px" value="{{r.use}}" aria-label="사용"><option value=""></option><option value="Y">Y</option><option value="N">N</option></select></td>
+              <td class="ro">{{r.at}}</td><td class="ro mono">{{r.pgm}}</td><td class="ro mono">{{r.by}}</td>
+            </tr>
+          </sc-for>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1000}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const rows = [
+      { tc: 'PPC01001', nm: '작업지시', lvl: '', use: '', at: '', pgm: '', by: '' },
+      { tc: 'PQR02012', nm: '생산실적', lvl: 'N', use: 'Y', at: '2026-10-14 10:21:05', pgm: 'tcAbnormalData', by: 'admin' },
+      { tc: 'PQR02013', nm: '생산실적 취소', lvl: '', use: '', at: '', pgm: '', by: '' }
+    ];
+    return { rows: rows, count: rows.length };
+  }
+}
+</script>
+</body>
+</html>

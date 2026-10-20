@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>TC Error 조회</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#EEF1F5}a{color:#1D4F91}a:hover{color:#123A6E}
+.pg{font-family:'IBM Plex Sans KR',sans-serif;color:#1B2430;background:#EEF1F5;min-height:1000px;box-sizing:border-box;padding:20px 24px 32px;display:flex;flex-direction:column;gap:14px}
+.mono{font-family:'IBM Plex Mono',monospace}
+.top{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-end;gap:12px}
+.crumb{font-size:12px;color:#5B6675}
+.ttl{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:4px}
+.ttl h1{margin:0;font-size:22px;font-weight:700}
+.btns{display:flex;flex-wrap:wrap;gap:8px}
+.btn{font:inherit;font-size:13px;font-weight:500;height:34px;padding:0 14px;border-radius:6px;border:1px solid #C3CAD4;background:#FFFFFF;color:#1B2430;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+.srch{background:#FFFFFF;border:1px solid #D5DAE1;border-radius:8px;padding:14px 16px;display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px 14px;align-items:end}
+.fld{display:flex;flex-direction:column;gap:4px;min-width:0}
+.lbl{font-size:12px;font-weight:500;color:#4A5563}
+.inp{font:inherit;font-size:13px;height:32px;box-sizing:border-box;padding:0 10px;border:1px solid #C3CAD4;border-radius:6px;background:#FFFFFF;color:#1B2430;width:100%;min-width:0}
+.card{background:#FFFFFF;border:1px solid #D5DAE1;border-radius:8px;min-width:0;display:flex;flex-direction:column}
+.card-h{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;padding:12px 16px;border-bottom:1px solid #E3E7EC;font-size:14px;font-weight:600}
+.cnt{font-weight:400;color:#5B6675;font-size:12.5px;margin-left:6px}
+.scroll{overflow-x:auto}
+.tbl{width:100%;border-collapse:collapse;font-size:13px}
+.tbl th{background:#F6F8FA;color:#4A5563;font-weight:600;font-size:12px;text-align:left;padding:9px 10px;border-bottom:1px solid #D5DAE1;white-space:nowrap}
+.tbl td{padding:8px 10px;border-bottom:1px solid #EBEEF2;white-space:nowrap}
+.chip{display:inline-block;font-size:11.5px;font-weight:500;padding:2px 8px;border-radius:10px;background:#EEF1F5;color:#384252}
+.c-s{background:#FDF0E1;color:#8A4B0F}
+.c-r{background:#EFE9F8;color:#5B3A8C}
+.msg{max-width:380px;overflow:hidden;text-overflow:ellipsis}
+</style>
+</helmet>
+<div class="pg">
+  <div class="top">
+    <div>
+      <div class="crumb">공통관리 › TC Error › TC Error 조회</div>
+      <div class="ttl"><h1>TC Error 조회</h1><span class="chip mono">tcErrorList</span></div>
+    </div>
+    <div class="btns"><button class="btn" type="button">조회</button></div>
+  </div>
+
+  <form class="srch">
+    <label class="fld"><span class="lbl">발생일 From</span><input class="inp" type="datetime-local" value="2026-10-09T14:00"></label>
+    <label class="fld"><span class="lbl">발생일 To</span><input class="inp" type="datetime-local" value="2026-10-16T14:00"></label>
+    <label class="fld"><span class="lbl">부문구분</span><select class="inp"><option>전체</option><option>MMPP</option><option>MMLS</option><option>MMQC</option></select></label>
+    <label class="fld"><span class="lbl">오류 코드</span><input class="inp mono" placeholder="부분 일치"></label>
+    <label class="fld"><span class="lbl">거래 코드</span><input class="inp mono" placeholder="부분 일치"></label>
+  </form>
+
+  <section class="card">
+    <div class="card-h"><span>오류 목록<span class="cnt">{{count}}건</span></span><span class="cnt">거래 코드를 누르면 재전송 창이 열립니다</span></div>
+    <div class="scroll">
+      <table class="tbl">
+        <thead><tr><th>일련 번호</th><th>발생 일시</th><th>인터페이스 ID</th><th>거래 코드</th><th>거래명</th><th>오류 구분</th><th>오류 코드</th><th>오류 메시지</th><th>재전송 횟수</th></tr></thead>
+        <tbody>
+          <sc-for list="{{rows}}" as="r" hint-placeholder-count="7">
+            <tr>
+              <td class="mono">{{r.sq}}</td><td>{{r.at}}</td><td class="mono">{{r.ifId}}</td>
+              <td><a class="mono" href="TcErrorResend.dc.html">{{r.tc}}</a></td>
+              <td>{{r.tcNm}}</td><td><span class="{{r.typeCls}}">{{r.type}}</span></td>
+              <td class="mono">{{r.code}}</td><td class="msg">{{r.msg}}</td><td>{{r.resend}}</td>
+            </tr>
+          </sc-for>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1000}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const rows = [
+      [107,'2026-10-16 11:42:08','MMPPMERPTT01','PQR02012','생산실적','S','DmomException','CaravanHub 전송 실패: resultCode=FAIL',0],
+      [106,'2026-10-15 17:20:51','MMQCMMPNTT01','QCR03001','품질판정','R','DmomException','FORMAT_LAYOUT 없음',0],
+      [105,'2026-10-15 09:03:12','MMCMMERPTT02','CMR01001','공통코드','S','ResourceAccessException','I/O error on POST request for "http://localhost:8200/caravanHubApi/v1/send"',2],
+      [104,'2026-10-14 16:47:33','MMPPMERPTT01','PQR02013','생산실적 취소','S','DmomException','CaravanHub 전송 실패: resultCode=FAIL',1],
+      [103,'2026-10-13 10:15:40','MMQCMMPNTT01','QCR03002','품질판정 취소','R','DmomException','숫자 칸에 숫자가 아닌 값: PROD_QTY',0],
+      [102,'2026-10-11 08:30:02','MMPPMMCMTT01','PPC01001','작업지시','R','BusinessException','Cannot find the service file: PPC01001',0]
+    ].map((a) => ({ sq: a[0], at: a[1], ifId: a[2], tc: a[3], tcNm: a[4], type: a[5], typeCls: a[5] === 'S' ? 'chip c-s' : 'chip c-r', code: a[6], msg: a[7], resend: a[8] }));
+    return { rows: rows, count: rows.length };
+  }
+}
+</script>
+</body>
+</html>

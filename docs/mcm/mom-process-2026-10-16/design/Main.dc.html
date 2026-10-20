@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>인터페이스 정의</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#EEF1F5}a{color:#1D4F91}a:hover{color:#123A6E}
+.pg{font-family:'IBM Plex Sans KR',sans-serif;color:#1B2430;background:#EEF1F5;min-height:1000px;box-sizing:border-box;padding:20px 24px 32px;display:flex;flex-direction:column;gap:14px}
+.mono{font-family:'IBM Plex Mono',monospace}
+.top{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-end;gap:12px}
+.crumb{font-size:12px;color:#5B6675}
+.ttl{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:4px}
+.ttl h1{margin:0;font-size:22px;font-weight:700}
+.btns{display:flex;flex-wrap:wrap;gap:8px}
+.btn{font:inherit;font-size:13px;font-weight:500;height:34px;padding:0 14px;border-radius:6px;border:1px solid #C3CAD4;background:#FFFFFF;color:#1B2430;cursor:pointer;display:inline-flex;align-items:center;gap:6px;text-decoration:none}
+.btn-sm{height:30px;font-size:12.5px;padding:0 10px}
+.btn-primary{background:#1D4F91;border-color:#1D4F91;color:#FFFFFF}
+.btn-danger{color:#A4262C;border-color:#E2B4B6}
+.srch{background:#FFFFFF;border:1px solid #D5DAE1;border-radius:8px;padding:14px 16px;display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px 14px;align-items:end}
+.fld{display:flex;flex-direction:column;gap:4px;min-width:0}
+.lbl{font-size:12px;font-weight:500;color:#4A5563}
+.req{color:#B45309;margin-left:2px}
+.inp{font:inherit;font-size:13px;height:32px;box-sizing:border-box;padding:0 10px;border:1px solid #C3CAD4;border-radius:6px;background:#FFFFFF;color:#1B2430;width:100%;min-width:0}
+.cell{font:inherit;font-size:12.5px;height:28px;box-sizing:border-box;padding:0 8px;border:1px solid #D5DAE1;border-radius:5px;background:#FFFFFF;color:#1B2430;width:100%;min-width:90px}
+.card{background:#FFFFFF;border:1px solid #D5DAE1;border-radius:8px;min-width:0;display:flex;flex-direction:column}
+.card-h{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;padding:12px 16px;border-bottom:1px solid #E3E7EC;font-size:14px;font-weight:600}
+.cnt{font-weight:400;color:#5B6675;font-size:12.5px;margin-left:6px}
+.scroll{overflow-x:auto}
+.tbl{width:100%;border-collapse:collapse;font-size:13px}
+.tbl th{background:#F6F8FA;color:#4A5563;font-weight:600;font-size:12px;text-align:left;padding:9px 10px;border-bottom:1px solid #D5DAE1;white-space:nowrap}
+.tbl td{padding:7px 10px;border-bottom:1px solid #EBEEF2;white-space:nowrap}
+.chip{display:inline-block;font-size:11.5px;font-weight:500;padding:2px 8px;border-radius:10px;background:#EEF1F5;color:#384252}
+.c-new{background:#E7F4EA;color:#1E6B34}
+</style>
+</helmet>
+<div class="pg">
+  <div class="top">
+    <div>
+      <div class="crumb">공통관리 › Interface 관리 › 인터페이스 정의</div>
+      <div class="ttl"><h1>인터페이스 정의</h1><span class="chip mono">interfaceList</span></div>
+    </div>
+    <div class="btns">
+      <button class="btn" type="button">조회</button>
+      <button class="btn btn-primary" type="button">저장</button>
+    </div>
+  </div>
+
+  <form class="srch">
+    <label class="fld"><span class="lbl">송신 모듈</span><input class="inp mono" placeholder="일치"></label>
+    <label class="fld"><span class="lbl">수신 모듈</span><input class="inp mono" placeholder="일치"></label>
+    <label class="fld"><span class="lbl">인터페이스 ID</span><input class="inp mono" placeholder="부분 일치"></label>
+    <label class="fld"><span class="lbl">거래 코드</span><input class="inp mono" placeholder="부분 일치"></label>
+    <label class="fld"><span class="lbl">포맷 ID</span><input class="inp mono" placeholder="부분 일치"></label>
+  </form>
+
+  <section class="card">
+    <div class="card-h">
+      <span>인터페이스 목록<span class="cnt">{{count}}건</span></span>
+      <span class="btns"><button class="btn btn-sm" type="button">행추가</button><button class="btn btn-sm btn-danger" type="button">행삭제</button></span>
+    </div>
+    <div class="scroll">
+      <table class="tbl">
+        <thead><tr>
+          <th>상태</th><th>인터페이스 ID<span class="req">*</span></th><th>거래 코드<span class="req">*</span></th><th>거래 코드명</th><th>인터페이스 설명</th>
+          <th>포맷 ID</th><th>포맷명</th><th>송신 작업장</th><th>송신 모듈</th><th>송신 IF 구분</th><th>송신 테이블 ID</th><th>수신 모듈</th>
+          <th>사용<span class="req">*</span></th><th>유효 시작일</th><th>유효 종료일</th>
+        </tr></thead>
+        <tbody>
+          <sc-for list="{{rows}}" as="r" hint-placeholder-count="6">
+            <tr>
+              <td></td>
+              <td class="mono">{{r.id}}</td><td class="mono">{{r.tc}}</td><td>{{r.tcNm}}</td><td>{{r.desc}}</td>
+              <td class="mono">{{r.fmt}}</td><td>{{r.fmtNm}}</td><td class="mono">{{r.works}}</td><td class="mono">{{r.sendMod}}</td>
+              <td class="mono">{{r.ifTp}}</td><td class="mono">{{r.table}}</td><td class="mono">{{r.recvMod}}</td>
+              <td>{{r.use}}</td><td>{{r.start}}</td><td>{{r.end}}</td>
+            </tr>
+          </sc-for>
+          <tr>
+            <td><span class="chip c-new">추가</span></td>
+            <td><input class="cell mono" value="MMPPMERPTT01" aria-label="인터페이스 ID"></td>
+            <td><input class="cell mono" placeholder="거래 코드" aria-label="거래 코드"></td>
+            <td><input class="cell" placeholder="거래 코드명" aria-label="거래 코드명"></td>
+            <td><input class="cell" placeholder="설명" aria-label="인터페이스 설명"></td>
+            <td><input class="cell mono" placeholder="포맷 ID" aria-label="포맷 ID"></td>
+            <td><input class="cell" placeholder="포맷명" aria-label="포맷명"></td>
+            <td><input class="cell mono" value="P" aria-label="송신 작업장"></td>
+            <td><input class="cell mono" value="MPP" aria-label="송신 모듈"></td>
+            <td><input class="cell mono" value="DB" aria-label="송신 IF 구분"></td>
+            <td><input class="cell mono" value="IF_MMPPMERPTT01" aria-label="송신 테이블 ID"></td>
+            <td><input class="cell mono" value="ERP" aria-label="수신 모듈"></td>
+            <td><select class="cell" style="min-width:64px" aria-label="사용"><option>Y</option><option>N</option></select></td>
+            <td><input class="cell" type="date" value="2026-10-16" aria-label="유효 시작일"></td>
+            <td><input class="cell" type="date" aria-label="유효 종료일"></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1000}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const rows = [
+      { id: 'MMCMMERPTT02', tc: 'CMR01001', tcNm: '공통코드', desc: '공통코드 ERP 송신', fmt: 'F_CMR01001', fmtNm: '공통코드 포맷', works: 'P', sendMod: 'MCM', ifTp: 'HTTP', table: '', recvMod: 'ERP', use: 'Y', start: '2026-10-01', end: '' },
+      { id: 'MMPPMMCMTT01', tc: 'PPC01001', tcNm: '작업지시', desc: '작업지시 MCM 전달', fmt: 'F_PPC01001', fmtNm: '작업지시 포맷', works: 'P', sendMod: 'MPP', ifTp: 'DB', table: 'IF_MMPPMMCMTT01', recvMod: 'MCM', use: 'Y', start: '2026-10-01', end: '' },
+      { id: 'MMPPMERPTT01', tc: 'PQR02012', tcNm: '생산실적', desc: '생산실적 ERP 송신', fmt: 'F_PQR02012', fmtNm: '생산실적 포맷', works: 'P', sendMod: 'MPP', ifTp: 'DB', table: 'IF_MMPPMERPTT01', recvMod: 'ERP', use: 'Y', start: '2026-10-01', end: '' },
+      { id: 'MMPPMERPTT01', tc: 'PQR02013', tcNm: '생산실적 취소', desc: '생산실적 취소 ERP 송신', fmt: 'F_PQR02013', fmtNm: '생산실적 취소 포맷', works: 'P', sendMod: 'MPP', ifTp: 'DB', table: 'IF_MMPPMERPTT01', recvMod: 'ERP', use: 'Y', start: '2026-10-01', end: '' },
+      { id: 'MMQCMMPNTT01', tc: 'QCR03001', tcNm: '품질판정', desc: '품질판정 MPN 전달', fmt: 'F_QCR03001', fmtNm: '품질판정 포맷', works: 'P', sendMod: 'MQC', ifTp: 'DB', table: 'IF_MMQCMMPNTT01', recvMod: 'MPN', use: 'Y', start: '2026-10-01', end: '' },
+      { id: 'MMQCMMPNTT01', tc: 'QCR03002', tcNm: '품질판정 취소', desc: '품질판정 취소 MPN 전달', fmt: 'F_QCR03002', fmtNm: '품질판정 취소 포맷', works: 'P', sendMod: 'MQC', ifTp: 'DB', table: 'IF_MMQCMMPNTT01', recvMod: 'MPN', use: 'N', start: '2026-10-01', end: '2026-12-31' }
+    ];
+    return { rows: rows, count: rows.length };
+  }
+}
+</script>
+</body>
+</html>

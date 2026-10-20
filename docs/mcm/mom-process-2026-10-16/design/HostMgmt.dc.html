@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>호스트 관리</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#EEF1F5}a{color:#1D4F91}a:hover{color:#123A6E}
+.pg{font-family:'IBM Plex Sans KR',sans-serif;color:#1B2430;background:#EEF1F5;min-height:1000px;box-sizing:border-box;padding:20px 24px 32px;display:flex;flex-direction:column;gap:14px}
+.mono{font-family:'IBM Plex Mono',monospace}
+.top{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-end;gap:12px}
+.crumb{font-size:12px;color:#5B6675}
+.ttl{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:4px}
+.ttl h1{margin:0;font-size:22px;font-weight:700}
+.btns{display:flex;flex-wrap:wrap;gap:8px}
+.btn{font:inherit;font-size:13px;font-weight:500;height:34px;padding:0 14px;border-radius:6px;border:1px solid #C3CAD4;background:#FFFFFF;color:#1B2430;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+.btn-sm{height:30px;font-size:12.5px;padding:0 10px}
+.btn-primary{background:#1D4F91;border-color:#1D4F91;color:#FFFFFF}
+.btn-danger{color:#A4262C;border-color:#E2B4B6}
+.srch{background:#FFFFFF;border:1px solid #D5DAE1;border-radius:8px;padding:14px 16px;display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px 14px;align-items:end}
+.fld{display:flex;flex-direction:column;gap:4px;min-width:0}
+.lbl{font-size:12px;font-weight:500;color:#4A5563}
+.req{color:#B45309;margin-left:2px}
+.inp{font:inherit;font-size:13px;height:32px;box-sizing:border-box;padding:0 10px;border:1px solid #C3CAD4;border-radius:6px;background:#FFFFFF;color:#1B2430;width:100%;min-width:0}
+.cell{font:inherit;font-size:12.5px;height:28px;box-sizing:border-box;padding:0 8px;border:1px solid #D5DAE1;border-radius:5px;background:#FFFFFF;color:#1B2430;width:100%;min-width:90px}
+.card{background:#FFFFFF;border:1px solid #D5DAE1;border-radius:8px;min-width:0;display:flex;flex-direction:column}
+.card-h{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;padding:12px 16px;border-bottom:1px solid #E3E7EC;font-size:14px;font-weight:600}
+.cnt{font-weight:400;color:#5B6675;font-size:12.5px;margin-left:6px}
+.scroll{overflow-x:auto}
+.tbl{width:100%;border-collapse:collapse;font-size:13px}
+.tbl th{background:#F6F8FA;color:#4A5563;font-weight:600;font-size:12px;text-align:left;padding:9px 10px;border-bottom:1px solid #D5DAE1;white-space:nowrap}
+.tbl td{padding:6px 10px;border-bottom:1px solid #EBEEF2;white-space:nowrap}
+</style>
+</helmet>
+<div class="pg">
+  <div class="top">
+    <div>
+      <div class="crumb">공통관리 › 카프카관리 › 호스트 관리</div>
+      <div class="ttl"><h1>호스트 관리</h1></div>
+    </div>
+    <div class="btns"><button class="btn" type="button">조회</button><button class="btn btn-primary" type="button">저장</button></div>
+  </div>
+
+  <form class="srch">
+    <label class="fld"><span class="lbl">호스트 ID</span><input class="inp mono" placeholder="부분 일치"></label>
+    <label class="fld"><span class="lbl">작업장 코드</span><input class="inp mono" placeholder="일치"></label>
+    <label class="fld"><span class="lbl">호스트명</span><input class="inp" placeholder="부분 일치"></label>
+  </form>
+
+  <section class="card">
+    <div class="card-h">
+      <span>호스트 목록<span class="cnt">1건</span></span>
+      <span class="btns"><button class="btn btn-sm" type="button">행추가</button><button class="btn btn-sm btn-danger" type="button">행삭제</button></span>
+    </div>
+    <div class="scroll">
+      <table class="tbl">
+        <thead><tr><th>호스트 ID<span class="req">*</span></th><th>작업장 코드<span class="req">*</span></th><th>호스트명</th><th>호스트 설명</th><th>호스트 URL<span class="req">*</span></th></tr></thead>
+        <tbody>
+          <tr>
+            <td><input class="cell mono" value="HUB1" aria-label="호스트 ID"></td>
+            <td><input class="cell mono" value="p" aria-label="작업장 코드"></td>
+            <td><input class="cell" style="min-width:200px" value="caravan-hub EAI 게이트웨이" aria-label="호스트명"></td>
+            <td><input class="cell" style="min-width:420px" value="caravan-hub EAI hub — caravan 라이브러리 유일 호스트 (v4 §3)" aria-label="호스트 설명"></td>
+            <td><input class="cell mono" style="min-width:220px" value="http://localhost:8200" aria-label="호스트 URL"></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1000}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

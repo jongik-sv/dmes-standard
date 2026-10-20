@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>메시지 조회</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#EEF1F5}a{color:#1D4F91}a:hover{color:#123A6E}
+.pg{font-family:'IBM Plex Sans KR',sans-serif;color:#1B2430;background:#EEF1F5;min-height:1000px;box-sizing:border-box;padding:20px 24px 32px;display:flex;flex-direction:column;gap:14px}
+.mono{font-family:'IBM Plex Mono',monospace}
+.top{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-end;gap:12px}
+.crumb{font-size:12px;color:#5B6675}
+.ttl{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:4px}
+.ttl h1{margin:0;font-size:22px;font-weight:700}
+.btns{display:flex;flex-wrap:wrap;gap:8px}
+.btn{font:inherit;font-size:13px;font-weight:500;height:34px;padding:0 14px;border-radius:6px;border:1px solid #C3CAD4;background:#FFFFFF;color:#1B2430;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+.srch{background:#FFFFFF;border:1px solid #D5DAE1;border-radius:8px;padding:14px 16px;display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px 14px;align-items:end}
+.fld{display:flex;flex-direction:column;gap:4px;min-width:0}
+.lbl{font-size:12px;font-weight:500;color:#4A5563}
+.inp{font:inherit;font-size:13px;height:32px;box-sizing:border-box;padding:0 10px;border:1px solid #C3CAD4;border-radius:6px;background:#FFFFFF;color:#1B2430;width:100%;min-width:0}
+.checks{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12.5px;align-items:center;min-height:32px}
+.checks label{display:flex;align-items:center;gap:4px}
+.row{display:flex;flex-wrap:wrap;gap:14px;align-items:flex-start}
+.card{background:#FFFFFF;border:1px solid #D5DAE1;border-radius:8px;min-width:0;display:flex;flex-direction:column}
+.card-h{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;padding:12px 16px;border-bottom:1px solid #E3E7EC;font-size:14px;font-weight:600}
+.cnt{font-weight:400;color:#5B6675;font-size:12.5px;margin-left:6px}
+.scroll{overflow-x:auto}
+.tbl{width:100%;border-collapse:collapse;font-size:13px}
+.tbl th{background:#F6F8FA;color:#4A5563;font-weight:600;font-size:12px;text-align:left;padding:9px 10px;border-bottom:1px solid #D5DAE1;white-space:nowrap}
+.tbl td{padding:8px 10px;border-bottom:1px solid #EBEEF2;white-space:nowrap}
+.on td{background:#E6EEF8}
+.chip{display:inline-block;font-size:11.5px;font-weight:600;padding:2px 8px;border-radius:10px;background:#EEF1F5;color:#384252}
+.m-DONE{background:#E7F4EA;color:#1E6B34}
+.m-PROCESSING{background:#E6EEF8;color:#1D4F91}
+.m-WAIT{background:#FDF0E1;color:#8A4B0F}
+.m-ERROR{background:#FBE9EA;color:#A4262C}
+.val{max-width:300px;overflow:hidden;text-overflow:ellipsis}
+.raw{font-size:12.5px;background:#F6F8FA;border:1px solid #E3E7EC;border-radius:6px;padding:10px 12px;word-break:break-all;white-space:pre-wrap;margin:0}
+dl{margin:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 14px;font-size:13px}
+dt{font-size:12px;color:#5B6675}dd{margin:2px 0 0}
+</style>
+</helmet>
+<div class="pg">
+  <div class="top">
+    <div>
+      <div class="crumb">공통관리 › 카프카관리 › 메시지 조회</div>
+      <div class="ttl"><h1>메시지 조회</h1></div>
+    </div>
+    <div class="btns"><button class="btn" type="button">조회</button></div>
+  </div>
+
+  <form class="srch">
+    <label class="fld"><span class="lbl">토픽</span><input class="inp mono" value="MMQCMMPNTT01" placeholder="여러 개는 쉼표"></label>
+    <label class="fld"><span class="lbl">송신 모듈</span><input class="inp mono"></label>
+    <label class="fld"><span class="lbl">수신 모듈</span><input class="inp mono"></label>
+    <label class="fld"><span class="lbl">기간 From</span><input class="inp" type="date" value="2026-10-16"></label>
+    <label class="fld"><span class="lbl">기간 To</span><input class="inp" type="date" value="2026-10-16"></label>
+    <div class="fld" style="grid-column:span 2"><span class="lbl">메시지 상태</span>
+      <div class="checks"><label><input type="checkbox" checked> DONE</label><label><input type="checkbox" checked> PROCESSING</label><label><input type="checkbox" checked> WAIT</label><label><input type="checkbox" checked> ERROR</label><label><input type="checkbox"> UNKNOWN</label></div>
+    </div>
+    <div class="fld"><span class="lbl">offset 부터 읽기</span><div style="display:flex;gap:6px"><input class="inp" placeholder="offset" value="40"><button class="btn" type="button">읽기</button></div></div>
+  </form>
+
+  <div class="row">
+    <section class="card" style="flex:999 1 760px">
+      <div class="card-h"><span>메시지 목록<span class="cnt">{{count}}건</span></span><span class="cnt">MMQCMMPNTT01 · 컨테이너 ERROR · 현재 offset 42 / 최대 57</span></div>
+      <div class="scroll">
+        <table class="tbl">
+          <thead><tr><th>offset</th><th>파티션</th><th>시각</th><th>거래 코드</th><th>상태</th><th>KAFKA_KEYDATA</th><th>송신 → 수신</th><th>메시지</th></tr></thead>
+          <tbody>
+            <sc-for list="{{rows}}" as="r" hint-placeholder-count="6">
+              <tr class="{{r.cls}}">
+                <td>{{r.off}}</td><td>0</td><td>{{r.ts}}</td><td class="mono">{{r.tc}}</td><td><span class="{{r.stCls}}">{{r.st}}</span></td>
+                <td class="mono">{{r.key}}</td><td class="mono">MQC → MPN</td><td class="mono val">{{r.msg}}</td>
+              </tr>
+            </sc-for>
+          </tbody>
+        </table>
+      </div>
+    </section>
+    <section class="card" style="flex:1 1 400px">
+      <div class="card-h"><span>메시지 상세<span class="cnt">offset 42</span></span></div>
+      <div style="padding:14px 16px;display:flex;flex-direction:column;gap:12px">
+        <dl>
+          <div><dt>토픽</dt><dd class="mono">MMQCMMPNTT01</dd></div>
+          <div><dt>토픽 설명</dt><dd>품질판정 MPN 전달</dd></div>
+          <div><dt>거래 코드</dt><dd class="mono">QCR03001</dd></div>
+          <div><dt>메시지 상태</dt><dd><span class="chip m-ERROR">ERROR</span></dd></div>
+          <div><dt>컨테이너 상태</dt><dd class="mono">ERROR</dd></div>
+          <div><dt>현재 / 최대 offset</dt><dd>42 / 57</dd></div>
+        </dl>
+        <pre class="raw mono">{"INTERFACE_ID":"MMQCMMPNTT01",
+ "TRANSACTION_CODE":"QCR03001",
+ "INTERFACE_MSG":"QCR03001|P|S|5A|20261016100512|QC_JUDGE|MMQCMMPNTT01|…",
+ "KAFKA_KEYDATA":"20261016100512123-a41"}</pre>
+        <a class="btn" href="TopicMgmt.dc.html" style="align-self:flex-start;text-decoration:none">토픽 관리에서 건너뛰기·재개</a>
+      </div>
+    </section>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1000}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const rows = [
+      [40,'2026-10-16 09:58:31','QCR03001','DONE','20261016095831044-7c2'],
+      [41,'2026-10-16 10:01:47','QCR03002','DONE','20261016100147310-19e'],
+      [42,'2026-10-16 10:05:12','QCR03001','ERROR','20261016100512123-a41'],
+      [43,'2026-10-16 10:09:03','QCR03001','WAIT','20261016100903880-5bd'],
+      [44,'2026-10-16 10:12:26','QCR03001','WAIT','20261016101226417-e03'],
+      [45,'2026-10-16 10:20:55','QCR03002','WAIT','20261016102055062-2f8']
+    ].map((a) => ({ off: a[0], ts: a[1], tc: a[2], st: a[3], stCls: 'chip m-' + a[3], key: a[4], msg: a[2] + '|P|S|5A|' + a[4].slice(0, 14) + '|QC_JUDGE|MMQCMMPNTT01|…', cls: a[0] === 42 ? 'on' : '' }));
+    return { rows: rows, count: rows.length };
+  }
+}
+</script>
+</body>
+</html>

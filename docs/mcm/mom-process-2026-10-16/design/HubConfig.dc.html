@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>연동 설정</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#EEF1F5}a{color:#1D4F91}a:hover{color:#123A6E}
+.pg{font-family:'IBM Plex Sans KR',sans-serif;color:#1B2430;background:#EEF1F5;min-height:1000px;box-sizing:border-box;padding:20px 24px 32px;display:flex;flex-direction:column;gap:14px}
+.mono{font-family:'IBM Plex Mono',monospace}
+.top{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-end;gap:12px}
+.crumb{font-size:12px;color:#5B6675}
+.ttl{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:4px}
+.ttl h1{margin:0;font-size:22px;font-weight:700}
+.btns{display:flex;flex-wrap:wrap;gap:8px}
+.btn{font:inherit;font-size:13px;font-weight:500;height:34px;padding:0 14px;border-radius:6px;border:1px solid #C3CAD4;background:#FFFFFF;color:#1B2430;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+.btn-sm{height:30px;font-size:12.5px;padding:0 10px}
+.btn-primary{background:#1D4F91;border-color:#1D4F91;color:#FFFFFF}
+.btn-danger{color:#A4262C;border-color:#E2B4B6}
+.srch{background:#FFFFFF;border:1px solid #D5DAE1;border-radius:8px;padding:14px 16px;display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px 14px;align-items:end}
+.fld{display:flex;flex-direction:column;gap:4px;min-width:0}
+.lbl{font-size:12px;font-weight:500;color:#4A5563}
+.req{color:#B45309;margin-left:2px}
+.inp{font:inherit;font-size:13px;height:32px;box-sizing:border-box;padding:0 10px;border:1px solid #C3CAD4;border-radius:6px;background:#FFFFFF;color:#1B2430;width:100%;min-width:0}
+.inp:disabled{background:#F1F3F6;color:#5B6675}
+.ta{font:inherit;font-family:'IBM Plex Mono',monospace;font-size:12.5px;box-sizing:border-box;padding:8px 10px;border:1px solid #C3CAD4;border-radius:6px;width:100%;min-height:64px;resize:vertical}
+.row{display:flex;flex-wrap:wrap;gap:14px;align-items:flex-start}
+.card{background:#FFFFFF;border:1px solid #D5DAE1;border-radius:8px;min-width:0;display:flex;flex-direction:column}
+.card-h{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;padding:12px 16px;border-bottom:1px solid #E3E7EC;font-size:14px;font-weight:600}
+.cnt{font-weight:400;color:#5B6675;font-size:12.5px;margin-left:6px}
+.scroll{overflow-x:auto}
+.tbl{width:100%;border-collapse:collapse;font-size:13px}
+.tbl th{background:#F6F8FA;color:#4A5563;font-weight:600;font-size:12px;text-align:left;padding:9px 10px;border-bottom:1px solid #D5DAE1;white-space:nowrap}
+.tbl td{padding:8px 10px;border-bottom:1px solid #EBEEF2;white-space:nowrap}
+.on td{background:#E6EEF8}
+.rowbtn{font:inherit;font-family:'IBM Plex Mono',monospace;font-size:12.5px;background:none;border:0;padding:0;color:#1D4F91;cursor:pointer}
+.chip{display:inline-block;font-size:11.5px;font-weight:600;padding:2px 8px;border-radius:10px;background:#EEF1F5;color:#384252}
+.c-in{background:#E6EEF8;color:#1D4F91}
+.c-out{background:#EFE9F8;color:#5B3A8C}
+.seg{display:inline-flex;border:1px solid #C3CAD4;border-radius:6px;overflow:hidden}
+.seg button{font:inherit;font-size:12.5px;height:32px;padding:0 14px;border:0;background:#FFFFFF;color:#384252;cursor:pointer}
+.seg .on{background:#1D4F91;color:#FFFFFF}
+.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 14px}
+.sec{font-size:13px;font-weight:600;padding-bottom:6px;border-bottom:1px solid #E3E7EC}
+</style>
+</helmet>
+<div class="pg">
+  <div class="top">
+    <div>
+      <div class="crumb">공통관리 › 카프카관리 › 연동 설정</div>
+      <div class="ttl"><h1>연동 설정</h1></div>
+    </div>
+    <div class="btns"><button class="btn" type="button">조회</button><button class="btn btn-primary" type="button">저장</button></div>
+  </div>
+
+  <form class="srch">
+    <label class="fld"><span class="lbl">방향</span><select class="inp"><option>전체</option><option>INBOUND</option><option>OUTBOUND</option></select></label>
+    <label class="fld"><span class="lbl">토픽 ID</span><input class="inp mono" placeholder="부분 일치"></label>
+    <label class="fld"><span class="lbl">사용</span><select class="inp"><option>전체</option><option>Y</option><option>N</option></select></label>
+  </form>
+
+  <div class="row">
+    <section class="card" style="flex:999 1 640px">
+      <div class="card-h">
+        <span>연동 설정 목록<span class="cnt">{{count}}건</span></span>
+        <span class="btns"><button class="btn btn-sm" type="button">행추가</button><button class="btn btn-sm btn-danger" type="button">행삭제</button></span>
+      </div>
+      <div class="scroll">
+        <table class="tbl">
+          <thead><tr><th>토픽 ID</th><th>방향</th><th>연동 방식</th><th>대상</th><th>폴링 주기(ms)</th><th>사용</th></tr></thead>
+          <tbody>
+            <sc-for list="{{rows}}" as="r" hint-placeholder-count="3">
+              <tr class="{{r.cls}}">
+                <td><button class="rowbtn" type="button" onClick="{{r.pick}}">{{r.topic}}</button></td>
+                <td><span class="{{r.dirCls}}">{{r.dir}}</span></td><td class="mono">{{r.type}}</td><td class="mono">{{r.target}}</td><td>{{r.poll}}</td><td>{{r.use}}</td>
+              </tr>
+            </sc-for>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="card" style="flex:1 1 460px">
+      <div class="card-h"><span>상세<span class="cnt mono">{{sel.topic}}</span></span></div>
+      <div style="padding:16px;display:flex;flex-direction:column;gap:14px">
+        <div class="grid2">
+          <label class="fld"><span class="lbl">토픽 ID<span class="req">*</span></span><input class="inp mono" value="{{sel.topic}}" disabled></label>
+          <div class="fld"><span class="lbl">방향<span class="req">*</span></span>
+            <div class="seg" role="group" aria-label="방향"><button type="button" class="{{inCls}}">INBOUND</button><button type="button" class="{{outCls}}">OUTBOUND</button></div>
+          </div>
+        </div>
+        <div class="grid2">
+          <div class="fld"><span class="lbl">연동 방식<span class="req">*</span></span>
+            <div class="seg" role="group" aria-label="연동 방식"><button type="button" class="{{dbCls}}">DB</button><button type="button" class="{{httpCls}}">HTTP</button><button type="button" class="{{fileCls}}">FILE</button></div>
+          </div>
+          <label class="fld"><span class="lbl">사용<span class="req">*</span></span><select class="inp" value="{{sel.use}}"><option value="Y">Y</option><option value="N">N</option></select></label>
+        </div>
+
+        <sc-if value="{{isDb}}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;flex-direction:column;gap:12px">
+            <div class="sec">DB</div>
+            <div class="grid2">
+              <label class="fld"><span class="lbl">DB 스키마</span><input class="inp mono" value="{{sel.schema}}" placeholder="DB_SCHEMA"></label>
+              <label class="fld"><span class="lbl">DB 테이블</span><input class="inp mono" value="{{sel.table}}"></label>
+            </div>
+            <label class="fld"><span class="lbl">폴링 주기(ms)</span><input class="inp" value="{{sel.poll}}"></label>
+          </div>
+        </sc-if>
+        <sc-if value="{{isHttp}}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;flex-direction:column;gap:12px">
+            <div class="sec">HTTP</div>
+            <label class="fld"><span class="lbl">HTTP URL</span><input class="inp mono" value="{{sel.url}}"></label>
+            <label class="fld"><span class="lbl">HTTP 메서드</span><select class="inp" value="{{sel.method}}"><option>POST</option><option>PUT</option><option>GET</option></select></label>
+            <label class="fld"><span class="lbl">HTTP 헤더(JSON)</span><textarea class="ta" placeholder="{&quot;X-Client-Key&quot;:&quot;${ENV}&quot;}"></textarea></label>
+          </div>
+        </sc-if>
+        <sc-if value="{{isFile}}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;flex-direction:column;gap:12px">
+            <div class="sec">FILE (SFTP)</div>
+            <div class="grid2">
+              <label class="fld"><span class="lbl">FTP 호스트</span><input class="inp mono"></label>
+              <label class="fld"><span class="lbl">FTP 포트</span><input class="inp"></label>
+              <label class="fld"><span class="lbl">FTP 사용자</span><input class="inp mono"></label>
+              <label class="fld"><span class="lbl">FTP 비밀번호</span><input class="inp" type="password"></label>
+            </div>
+            <label class="fld"><span class="lbl">파일 경로</span><input class="inp mono"></label>
+            <label class="fld"><span class="lbl">백업 경로</span><input class="inp mono"></label>
+            <label class="fld"><span class="lbl">폴링 주기(ms)</span><input class="inp"></label>
+          </div>
+        </sc-if>
+      </div>
+    </section>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1000}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { picked: 0 }; }
+  renderVals() {
+    const data = [
+      { topic: 'MMCMMERPTT02', dir: 'INBOUND', type: 'HTTP', target: 'POST http://localhost:8200/caravanHubApi/v1/send', poll: '', use: 'Y', schema: '', table: '', url: 'http://localhost:8200/caravanHubApi/v1/send', method: 'POST' },
+      { topic: 'MMPPMERPTT01', dir: 'INBOUND', type: 'DB', target: 'IF_MMPPMERPTT01', poll: '60000', use: 'Y', schema: '', table: 'IF_MMPPMERPTT01', url: '', method: '' },
+      { topic: 'MMQCMMPNTT01', dir: 'OUTBOUND', type: 'DB', target: 'IF_MMQCMMPNTT01', poll: '60000', use: 'Y', schema: '', table: 'IF_MMQCMMPNTT01', url: '', method: '' }
+    ];
+    const p = this.state.picked;
+    const sel = data[p];
+    return {
+      count: data.length,
+      rows: data.map((r, i) => Object.assign({}, r, { cls: i === p ? 'on' : '', dirCls: r.dir === 'INBOUND' ? 'chip c-in' : 'chip c-out', pick: () => this.setState({ picked: i }) })),
+      sel: sel,
+      inCls: sel.dir === 'INBOUND' ? 'on' : '', outCls: sel.dir === 'OUTBOUND' ? 'on' : '',
+      dbCls: sel.type === 'DB' ? 'on' : '', httpCls: sel.type === 'HTTP' ? 'on' : '', fileCls: sel.type === 'FILE' ? 'on' : '',
+      isDb: sel.type === 'DB', isHttp: sel.type === 'HTTP', isFile: sel.type === 'FILE'
+    };
+  }
+}
+</script>
+</body>
+</html>

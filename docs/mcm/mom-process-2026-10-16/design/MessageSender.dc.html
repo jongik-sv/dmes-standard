@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>메시지 전송</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#EEF1F5}a{color:#1D4F91}a:hover{color:#123A6E}
+.pg{font-family:'IBM Plex Sans KR',sans-serif;color:#1B2430;background:#EEF1F5;min-height:1000px;box-sizing:border-box;padding:20px 24px 32px;display:flex;flex-direction:column;gap:14px}
+.mono{font-family:'IBM Plex Mono',monospace}
+.top{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-end;gap:12px}
+.crumb{font-size:12px;color:#5B6675}
+.ttl{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:4px}
+.ttl h1{margin:0;font-size:22px;font-weight:700}
+.btns{display:flex;flex-wrap:wrap;gap:8px}
+.btn{font:inherit;font-size:13px;font-weight:500;height:34px;padding:0 14px;border-radius:6px;border:1px solid #C3CAD4;background:#FFFFFF;color:#1B2430;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+.btn-primary{background:#1D4F91;border-color:#1D4F91;color:#FFFFFF}
+.srch{background:#FFFFFF;border:1px solid #D5DAE1;border-radius:8px;padding:14px 16px;display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px 14px;align-items:end}
+.fld{display:flex;flex-direction:column;gap:4px;min-width:0}
+.lbl{font-size:12px;font-weight:500;color:#4A5563}
+.req{color:#B45309;margin-left:2px}
+.inp{font:inherit;font-size:13px;height:32px;box-sizing:border-box;padding:0 10px;border:1px solid #C3CAD4;border-radius:6px;background:#FFFFFF;color:#1B2430;width:100%;min-width:0}
+.cell{font:inherit;font-size:12.5px;height:28px;box-sizing:border-box;padding:0 8px;border:1px solid #D5DAE1;border-radius:5px;background:#FFFFFF;color:#1B2430;width:100%;min-width:180px}
+.card{background:#FFFFFF;border:1px solid #D5DAE1;border-radius:8px;min-width:0;display:flex;flex-direction:column}
+.card-h{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;padding:12px 16px;border-bottom:1px solid #E3E7EC;font-size:14px;font-weight:600}
+.cnt{font-weight:400;color:#5B6675;font-size:12.5px;margin-left:6px}
+.scroll{overflow-x:auto}
+.tbl{width:100%;border-collapse:collapse;font-size:13px}
+.tbl th{background:#F6F8FA;color:#4A5563;font-weight:600;font-size:12px;text-align:left;padding:9px 10px;border-bottom:1px solid #D5DAE1;white-space:nowrap}
+.tbl td{padding:6px 10px;border-bottom:1px solid #EBEEF2;white-space:nowrap}
+.chip{display:inline-block;font-size:11.5px;font-weight:500;padding:2px 8px;border-radius:10px;background:#EEF1F5;color:#384252}
+.c-hd{background:#E6EEF8;color:#1D4F91}
+.lov{display:flex;gap:6px}
+</style>
+</helmet>
+<div class="pg">
+  <div class="top">
+    <div>
+      <div class="crumb">공통관리 › Interface 관리 › 메시지 전송</div>
+      <div class="ttl"><h1>메시지 전송</h1><span class="chip mono">messageSender</span></div>
+    </div>
+    <div class="btns">
+      <button class="btn" type="button">조회</button>
+      <button class="btn btn-primary" type="button">전송</button>
+    </div>
+  </div>
+
+  <form class="srch">
+    <div class="fld"><span class="lbl">전문ID(I/F)<span class="req">*</span></span>
+      <div class="lov"><input class="inp mono" value="MMPPMERPTT01" aria-label="전문ID(I/F)"><button class="btn" type="button">찾기</button></div>
+    </div>
+    <div class="fld"><span class="lbl">거래 코드(TC)<span class="req">*</span></span>
+      <div class="lov"><input class="inp mono" value="PQR02012" aria-label="거래 코드"><button class="btn" type="button">찾기</button></div>
+    </div>
+    <label class="fld"><span class="lbl">인터페이스 설명</span><input class="inp" value="생산실적 ERP 송신" disabled></label>
+    <label class="fld"><span class="lbl">포맷 ID</span><input class="inp mono" value="F_PQR02012 (버전 1)" disabled></label>
+  </form>
+
+  <section class="card">
+    <div class="card-h"><span>전문 항목<span class="cnt">{{count}}건</span></span></div>
+    <div class="scroll">
+      <table class="tbl">
+        <thead><tr><th>항목 순번</th><th>구분</th><th>항목 ID</th><th>항목명</th><th>데이터 구분</th><th>전체 길이</th><th>소수 길이</th><th>값</th><th>입력 길이</th></tr></thead>
+        <tbody>
+          <sc-for list="{{items}}" as="it" hint-placeholder-count="14">
+            <tr>
+              <td>{{it.seq}}</td>
+              <td><span class="{{it.partCls}}">{{it.part}}</span></td>
+              <td class="mono">{{it.id}}</td><td>{{it.nm}}</td><td>{{it.dtNm}}</td><td>{{it.len}}</td><td>0</td>
+              <td><input class="cell mono" value="{{it.val}}" aria-label="{{it.nm}}"></td>
+              <td>{{it.used}} / {{it.len}}</td>
+            </tr>
+          </sc-for>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1000}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const dt = { '1': '1 String', '2': '2 Number', '3': '3 Date' };
+    const items = [
+      ['TRANSACTION_CODE','거래 코드','1','8','PQR02012'],['WORKS_CD','작업장 코드','1','1','P'],['SEND_RECV_TP','송수신 구분','1','1','S'],['IF_STAT_CD','처리 상태','1','2','5A'],
+      ['SNDR_INFORM_EDIT_DT','송신 편집 일시','3','14','20260130111245'],['SNDR_INFORM_EDIT_PGM_ID','송신 편집 프로그램','1','14','JCM_TEST'],['INTERFACE_ID','인터페이스 ID','1','12','MMPPMERPTT01'],
+      ['LOT_NO','LOT 번호','1','20',''],['ITEM_CD','품목 코드','1','20',''],['PROC_CD','공정 코드','1','10',''],['EQUIP_CD','설비 코드','1','10',''],
+      ['WORK_DT','작업 일자','3','8','20250808'],['PROD_QTY','생산 수량','2','5','11'],['PROC_STAT_CD','처리 구분','1','1','C']
+    ].map((a, i) => ({ seq: i + 1, id: a[0], nm: a[1], dtNm: dt[a[2]], len: a[3], val: a[4], used: a[4].length, part: i < 7 ? '헤더' : '본문', partCls: i < 7 ? 'chip c-hd' : 'chip' }));
+    return { items: items, count: items.length };
+  }
+}
+</script>
+</body>
+</html>

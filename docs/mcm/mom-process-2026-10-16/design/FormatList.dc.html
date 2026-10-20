@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>I/F Format 조회</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#EEF1F5}a{color:#1D4F91}a:hover{color:#123A6E}
+.pg{font-family:'IBM Plex Sans KR',sans-serif;color:#1B2430;background:#EEF1F5;min-height:1000px;box-sizing:border-box;padding:20px 24px 32px;display:flex;flex-direction:column;gap:14px}
+.mono{font-family:'IBM Plex Mono',monospace}
+.top{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-end;gap:12px}
+.crumb{font-size:12px;color:#5B6675}
+.ttl{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:4px}
+.ttl h1{margin:0;font-size:22px;font-weight:700}
+.btns{display:flex;flex-wrap:wrap;gap:8px}
+.btn{font:inherit;font-size:13px;font-weight:500;height:34px;padding:0 14px;border-radius:6px;border:1px solid #C3CAD4;background:#FFFFFF;color:#1B2430;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+.srch{background:#FFFFFF;border:1px solid #D5DAE1;border-radius:8px;padding:14px 16px;display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px 14px;align-items:end}
+.fld{display:flex;flex-direction:column;gap:4px;min-width:0}
+.lbl{font-size:12px;font-weight:500;color:#4A5563}
+.inp{font:inherit;font-size:13px;height:32px;box-sizing:border-box;padding:0 10px;border:1px solid #C3CAD4;border-radius:6px;background:#FFFFFF;color:#1B2430;width:100%;min-width:0}
+.row{display:flex;flex-wrap:wrap;gap:14px;align-items:stretch}
+.card{background:#FFFFFF;border:1px solid #D5DAE1;border-radius:8px;min-width:0;display:flex;flex-direction:column}
+.card-h{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;padding:12px 16px;border-bottom:1px solid #E3E7EC;font-size:14px;font-weight:600}
+.cnt{font-weight:400;color:#5B6675;font-size:12.5px;margin-left:6px}
+.scroll{overflow-x:auto}
+.tbl{width:100%;border-collapse:collapse;font-size:13px}
+.tbl th{background:#F6F8FA;color:#4A5563;font-weight:600;font-size:12px;text-align:left;padding:9px 10px;border-bottom:1px solid #D5DAE1;white-space:nowrap}
+.tbl td{padding:6px 10px;border-bottom:1px solid #EBEEF2;white-space:nowrap}
+.empty td{padding:36px 10px;text-align:center;color:#5B6675;font-size:13px}
+.chip{display:inline-block;font-size:11.5px;font-weight:500;padding:2px 8px;border-radius:10px;background:#EEF1F5;color:#384252}
+.c-warn{background:#FDF0E1;color:#8A4B0F}
+</style>
+</helmet>
+<div class="pg">
+  <div class="top">
+    <div>
+      <div class="crumb">공통관리 › Format 관리 › I/F Format 조회</div>
+      <div class="ttl"><h1>I/F Format 조회</h1><span class="chip mono">interfaceFormatList</span></div>
+    </div>
+    <div class="btns"><button class="btn" type="button">조회</button></div>
+  </div>
+
+  <form class="srch">
+    <label class="fld"><span class="lbl">FORMAT ID</span><input class="inp mono" placeholder="부분 일치"></label>
+    <label class="fld"><span class="lbl">송신 모듈</span><input class="inp mono" placeholder="SEND_MODULE_ID 일치"></label>
+    <label class="fld"><span class="lbl">수신 모듈</span><input class="inp mono" placeholder="RECV_MODULE_ID 일치"></label>
+  </form>
+
+  <div class="row">
+    <section class="card" style="flex:1 1 560px">
+      <div class="card-h"><span>포맷 리스트<span class="cnt">{{count}}건</span></span></div>
+      <div class="scroll">
+        <table class="tbl">
+          <thead><tr><th>FORMAT ID</th><th>FORMAT 명</th><th>TC 수</th><th>등록일시</th><th>등록자</th></tr></thead>
+          <tbody><sc-for list="{{formats}}" as="f" hint-placeholder-count="6"><tr style="{{f.style}}"><td class="mono">{{f.id}}</td><td>{{f.nm}}</td><td>{{f.tc}}</td><td>{{f.at}}</td><td class="mono">{{f.by}}</td></tr></sc-for></tbody>
+        </table>
+      </div>
+    </section>
+    <section class="card" style="flex:1 1 560px">
+      <div class="card-h"><span>변경이력<span class="cnt">F_PQR02012</span></span><span class="chip c-warn">조회 SQL 미구현 · Q-400 미결</span></div>
+      <div class="scroll">
+        <table class="tbl">
+          <thead><tr><th>FORMAT 버전</th><th>FORMAT 명</th><th>등록일시</th><th>등록자</th></tr></thead>
+          <tbody><sc-for list="{{vers}}" as="v" hint-placeholder-count="1"><tr><td>{{v.ver}}</td><td>{{v.nm}}</td><td>{{v.at}}</td><td class="mono">{{v.by}}</td></tr></sc-for></tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1000}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const formats = [['F_CMR01001','공통코드 포맷',1],['F_PPC01001','작업지시 포맷',1],['F_PQR02012','생산실적 포맷',1],['F_PQR02013','생산실적 취소 포맷',1],['F_QCR03001','품질판정 포맷',1],['F_QCR03002','품질판정 취소 포맷',1]]
+      .map((a) => ({ id: a[0], nm: a[1], tc: a[2], at: '2026-10-01 09:00:00', by: 'admin', style: a[0] === 'F_PQR02012' ? 'background:#E6EEF8' : '' }));
+    const vers = [{ ver: '1', nm: '생산실적 포맷', at: '2026-10-01 09:00:00', by: 'admin' }];
+    return { formats: formats, count: formats.length, vers: vers };
+  }
+}
+</script>
+</body>
+</html>

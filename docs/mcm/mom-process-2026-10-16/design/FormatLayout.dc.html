@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>I/F Format Layout 관리</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#EEF1F5}a{color:#1D4F91}a:hover{color:#123A6E}
+.pg{position:relative;font-family:'IBM Plex Sans KR',sans-serif;color:#1B2430;background:#EEF1F5;min-height:1000px;box-sizing:border-box;padding:20px 24px 32px;display:flex;flex-direction:column;gap:14px}
+.mono{font-family:'IBM Plex Mono',monospace}
+.top{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-end;gap:12px}
+.crumb{font-size:12px;color:#5B6675}
+.ttl{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:4px}
+.ttl h1{margin:0;font-size:22px;font-weight:700}
+.btns{display:flex;flex-wrap:wrap;gap:8px}
+.btn{font:inherit;font-size:13px;font-weight:500;height:34px;padding:0 14px;border-radius:6px;border:1px solid #C3CAD4;background:#FFFFFF;color:#1B2430;cursor:pointer;display:inline-flex;align-items:center;gap:6px;text-decoration:none}
+.btn-sm{height:30px;font-size:12.5px;padding:0 10px}
+.btn-primary{background:#1D4F91;border-color:#1D4F91;color:#FFFFFF}
+.btn-danger{color:#A4262C;border-color:#E2B4B6}
+.srch{background:#FFFFFF;border:1px solid #D5DAE1;border-radius:8px;padding:14px 16px;display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px 14px;align-items:end}
+.fld{display:flex;flex-direction:column;gap:4px;min-width:0}
+.lbl{font-size:12px;font-weight:500;color:#4A5563}
+.req{color:#B45309;margin-left:2px}
+.inp{font:inherit;font-size:13px;height:32px;box-sizing:border-box;padding:0 10px;border:1px solid #C3CAD4;border-radius:6px;background:#FFFFFF;color:#1B2430;width:100%;min-width:0}
+.inp:disabled{background:#F1F3F6;color:#5B6675}
+.cell{font:inherit;font-size:12.5px;height:28px;box-sizing:border-box;padding:0 8px;border:1px solid #D5DAE1;border-radius:5px;background:#FFFFFF;color:#1B2430;width:100%;min-width:80px}
+.hint{font-size:12px;color:#5B6675}
+.card{background:#FFFFFF;border:1px solid #D5DAE1;border-radius:8px;min-width:0;display:flex;flex-direction:column}
+.card-h{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;padding:12px 16px;border-bottom:1px solid #E3E7EC;font-size:14px;font-weight:600}
+.cnt{font-weight:400;color:#5B6675;font-size:12.5px;margin-left:6px}
+.scroll{overflow-x:auto}
+.tbl{width:100%;border-collapse:collapse;font-size:13px}
+.tbl th{background:#F6F8FA;color:#4A5563;font-weight:600;font-size:12px;text-align:left;padding:9px 10px;border-bottom:1px solid #D5DAE1;white-space:nowrap}
+.tbl td{padding:6px 10px;border-bottom:1px solid #EBEEF2;white-space:nowrap}
+.empty td{padding:36px 10px;text-align:center;color:#5B6675;font-size:13px}
+.chip{display:inline-block;font-size:11.5px;font-weight:500;padding:2px 8px;border-radius:10px;background:#EEF1F5;color:#384252}
+.dim{position:absolute;inset:0;background:rgba(20,28,40,0.45);display:flex;align-items:flex-start;justify-content:center;padding-top:120px}
+.modal{width:640px;max-width:calc(100% - 32px);background:#FFFFFF;border-radius:10px;box-shadow:0 12px 32px rgba(0,0,0,0.18);display:flex;flex-direction:column}
+.legend{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:6px 18px;font-size:12px;color:#4A5563;padding:12px 16px;border-top:1px solid #E3E7EC}
+</style>
+</helmet>
+<div class="pg">
+  <div class="top">
+    <div>
+      <div class="crumb">공통관리 › Format 관리 › I/F Format Layout 관리</div>
+      <div class="ttl"><h1>I/F Format Layout 관리</h1><span class="chip mono">interfaceFormatLayout</span></div>
+    </div>
+    <div class="btns">
+      <button class="btn" type="button">조회</button>
+      <button class="btn btn-primary" type="button">저장</button>
+    </div>
+  </div>
+
+  <form class="srch">
+    <label class="fld"><span class="lbl">FORMAT ID<span class="req">*</span></span><input class="inp mono" value="F_PQR02012" disabled=""></label>
+    <label class="fld"><span class="lbl">FORMAT 버전</span><input class="inp" value="1" disabled=""></label>
+    <label class="fld"><span class="lbl">FORMAT 명</span><input class="inp" value="생산실적 포맷" disabled=""></label>
+    <div class="fld"><button class="btn" type="button" onClick="{{openPop}}">FORMAT 선택</button></div>
+  </form>
+
+  <section class="card">
+    <div class="card-h">
+      <span>항목 레이아웃<span class="cnt">{{itemCount}}건</span></span>
+      <span class="btns"><button class="btn btn-sm" type="button">행추가</button><button class="btn btn-sm btn-danger" type="button">행삭제</button></span>
+    </div>
+    <div class="scroll">
+      <table class="tbl">
+        <thead><tr>
+          <th>항목 순번<span class="req">*</span></th><th>항목 구분<span class="req">*</span></th><th>항목 ID<span class="req">*</span></th><th>항목명</th>
+          <th>데이터 구분</th><th>데이터 전체 길이</th><th>소수점 이하 길이</th>
+        </tr></thead>
+        <tbody>
+          <sc-for list="{{items}}" as="it" hint-placeholder-count="14">
+            <tr>
+              <td><input class="cell" style="min-width:56px" value="{{it.seq}}" aria-label="항목 순번"></td>
+              <td><select class="cell" style="min-width:70px" value="{{it.tp}}" aria-label="항목 구분"><option value="E">E</option><option value="G">G</option><option value="GE">GE</option></select></td>
+              <td><input class="cell mono" style="min-width:200px" value="{{it.id}}" aria-label="항목 ID"></td>
+              <td><input class="cell" style="min-width:140px" value="{{it.nm}}" aria-label="항목명"></td>
+              <td><select class="cell" value="{{it.dt}}" aria-label="데이터 구분"><option value="1">1 String</option><option value="2">2 Number</option><option value="3">3 Date</option><option value="4">4 String2</option><option value="5">5 Number2</option></select></td>
+              <td><input class="cell" style="min-width:64px" value="{{it.len}}" aria-label="데이터 전체 길이"></td>
+              <td><input class="cell" style="min-width:64px" value="{{it.prec}}" aria-label="소수점 이하 길이"></td>
+            </tr>
+          </sc-for>
+        </tbody>
+      </table>
+    </div>
+    <div class="legend">
+      <div><b>항목 구분</b> · E 단일 항목 · G 반복 그룹(데이터 전체 길이 = 반복 횟수) · GE 그룹 안 항목</div>
+      <div><b>데이터 구분</b> · 1 String · 2 Number · 3 Date · 4 String2 · 5 Number2</div>
+    </div>
+  </section>
+
+  <sc-if value="{{popOpen}}" hint-placeholder-val="{{ false }}">
+    <div class="dim">
+      <div class="modal" role="dialog" aria-label="FORMAT 선택">
+        <div class="card-h"><span>FORMAT 선택</span><button class="btn btn-sm" type="button" onClick="{{closePop}}">닫기</button></div>
+        <div class="scroll">
+          <table class="tbl">
+            <thead><tr><th>FORMAT ID</th><th>FORMAT 버전</th><th>FORMAT 명</th></tr></thead>
+            <tbody><sc-for list="{{formats}}" as="f" hint-placeholder-count="6"><tr><td class="mono">{{f.id}}</td><td>1</td><td>{{f.nm}}</td></tr></sc-for></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1000}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { popOpen: false }; }
+  renderVals() {
+    const items = [
+      ['TRANSACTION_CODE','거래 코드','1','8'],['WORKS_CD','작업장 코드','1','1'],['SEND_RECV_TP','송수신 구분','1','1'],['IF_STAT_CD','처리 상태','1','2'],
+      ['SNDR_INFORM_EDIT_DT','송신 편집 일시','3','14'],['SNDR_INFORM_EDIT_PGM_ID','송신 편집 프로그램','1','14'],['INTERFACE_ID','인터페이스 ID','1','12'],
+      ['LOT_NO','LOT 번호','1','20'],['ITEM_CD','품목 코드','1','20'],['PROC_CD','공정 코드','1','10'],['EQUIP_CD','설비 코드','1','10'],
+      ['WORK_DT','작업 일자','3','8'],['PROD_QTY','생산 수량','2','5'],['PROC_STAT_CD','처리 구분','1','1']
+    ].map((a, i) => ({ seq: String(i + 1), tp: 'E', id: a[0], nm: a[1], dt: a[2], len: a[3], prec: '0' }));
+    const formats = [['F_CMR01001','공통코드 포맷'],['F_PPC01001','작업지시 포맷'],['F_PQR02012','생산실적 포맷'],['F_PQR02013','생산실적 취소 포맷'],['F_QCR03001','품질판정 포맷'],['F_QCR03002','품질판정 취소 포맷']].map((a) => ({ id: a[0], nm: a[1] }));
+    return {
+      items: items, itemCount: items.length, formats: formats,
+      popOpen: this.state.popOpen,
+      openPop: () => this.setState({ popOpen: true }),
+      closePop: () => this.setState({ popOpen: false })
+    };
+  }
+}
+</script>
+</body>
+</html>
