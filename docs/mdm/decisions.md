@@ -1447,3 +1447,11 @@
 - **Rationale**: 룰 DRAFT 를 확정하지 않고도 세트에서 먼저 시험할 수 있어야 룰·세트를 함께 고치는 작업이 한 번에 끝난다. 모드를 요청 단위로 두고 조회기 인스턴스에 고정하면 운영 경로와 확정 검사의 결과가 한 글자도 바뀌지 않는다. 확정 안내는 새 이슈 없이 기존 실패 문구를 늘리는 데 그쳐 확정 절차를 건드리지 않는다
 - **Reversible**: yes(요청 칸·화면 선택 칸 제거, 모드 인자 없는 경로는 처음부터 RELEASED 라 영향 없음)
 - **Source**: 스펙 [`2026-10-06-rule-set-draft-rule-test-design.md`](../superpowers/specs/2026-10-06-rule-set-draft-rule-test-design.md), 계획 `docs/superpowers/plans/2026-10-06-rule-set-draft-rule-test.md`, 기능설계서 `docs/mdm/screens/ruleSetEdit/ruleSetEdit_기능설계서.md` §4.1 D-021·§11 N-36, 구현 커밋 feade035·fc87657a·9a8d35c4·c4618edb·e1e09da3. 후속(스펙 §11): F1 검사·하위 흐름 노드 제목의 DRAFT 기준, F2 확정 안내를 하위 세트까지, F3 REQUESTED·APPROVED 선택 검토, F4 캔버스 노드 위 DRAFT 표시
+
+## D-157 (2026-10-16T00:00:00Z)
+- **Phase**: 운영 결정(mcm As-Is 마스터·업무기준 폐기)
+- **Decision needed**: D-016(병존 6원칙)은 mcm As-Is 마스터코드·업무기준 화면을 MDM 과 함께 두고, 하위 모듈은 당분간 mcm 코드를 쓰며, 이관은 별도 과제로 두었다. MDM 마루 코드(`dmc/*`)·업무기준(`dme/*`)이 동작하는 지금 As-Is 프로그램과 표를 어떻게 할지
+- **Decision made**: D-016 을 고친다(D-016 본문은 그대로 둔다). (1) mcm `cma` `masterCategoryMng`·`masterCodeMng`, `cme` `masterCodeMngList`, `cmb` `masterRuleList`·`masterRuleData`·`masterRuleDataList`·`masterRuleFrame`, `cmz` `masterCodeSelPop`·`masterCodeUploadFilePopup`·`masterRuleListPop`·`masterRuleFrameColListPopup`·`masterRuleDataUploadFilePopup`, `csa` `commSyncMng` 을 화면·BPMN·Java·메뉴·설계 문서까지 지운다 (2) DB 객체 `MCMAPUSER`·`MCM_SOURCE` 의 `TB_MCM_CODE_MASTER/DETAIL/CATEGORY`, `MCM_BACKUP` 의 `TB_MCM_CODE_MASTER/CATEGORY`, `MCMAPUSER.VI_MCM_CODE_ACCESS`, `MCAAPUSER.TB_MCA_RULE_MASTER`·`TB_MCA_RULE_COL_LIST` 를 지운다 (3) query-route 시범 매퍼 `masterCodeSelPop.xml` 과 그 테스트(`QueryMapperLintTest`·`McmMybatisConfigWiringTest`·동등성·성능)를 지운다 (4) 마스터코드·업무기준의 원장은 MDM 하나다. 데이터 이관은 하지 않는다. 하위 모듈은 MDM 을 쓴다 (5) 비게 된 그룹 코드 `cma`·`cme`·`cmb`·`cmz` 는 다시 쓰지 않는다. 병존 6원칙 중 3·4·5항이 바뀌고 1·2·6항은 상대가 없어져 저절로 지켜진다
+- **Rationale**: 두 원장을 함께 두면 값이 어긋날 수 있고, 쓰지 않는 화면·표를 계속 유지해야 한다. 사용자 결정(2026-10-16)
+- **Reversible**: no(데이터를 버린다. 표는 PURGE 없이 지우므로 실수면 Oracle 휴지통·DB 백업과 git 이력으로 되살린다)
+- **Source**: [ADR-0008](adr/0008-retire-mcm-master-rule-programs.md)(ACCEPTED), [ADR-0003](adr/0003-module-boundary-screens-roles.md) D4 대체 주석, D-016, mcm-core 마이그레이션 `mcmapuser/V17__retire_legacy_master_programs.sql`·`mcm_source/V4`·`mcm_backup/V4`·`mcaapuser/V4`
