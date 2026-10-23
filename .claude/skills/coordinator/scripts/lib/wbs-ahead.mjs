@@ -153,7 +153,7 @@ export function laneView(lane, files = {}, merged = false) {
 
 /** 마감 단계 정의(closing.md 0~6). cond = 해당할 때만 하는 단계(끝나지 않아도 남은 일로 세지 않음) */
 export const CLOSING_STEPS = [
-  { step: '0', title: '화면 프로파일링', cond: '화면 레인이 머지된 회차만' },
+  { step: '0', title: '성능 측정(화면 프로파일링·성능 시험)', cond: '화면 레인이 머지됐거나 성능 시험 항목이 있는 회차만' },
   { step: '1', title: '마감 조건 확인' },
   { step: '2', title: '통합 확인' },
   { step: '3', title: 'SUMMARY(run-report.md)' },
@@ -182,8 +182,7 @@ export function closingSteps(st, ctx = {}) {
   return CLOSING_STEPS.map((s) => {
     let done = marked.has(s.step), why = done ? 'close-step 이벤트' : '';
     if (!done) {
-      if (s.step === '0') { done = events.some((e) => e?.kind === 'window-close' && e?.data?.kind === 'measure'); if (done) why = '측정 창 닫힘'; }
-      else if (s.step === '1') {
+      if (s.step === '1') {
         const left = [];
         if (remaining > 0) left.push(`남은 항목 ${remaining}개`);
         if (Number(ctx.unknown) > 0) left.push(`항목 모르는 레인 ${ctx.unknown}개`);

@@ -288,7 +288,7 @@ test('renderWbs: 항목 미등록 레인은 brief 추정·전체 줄에 등록 �
     now: '2026-01-01 00:00', commits: () => null, branchState: () => ({ gone: false, merged: false }), metrics: null,
     ahead: {
       files: { a: { brief: BRIEF_A, reports: '- 2026-10-11T16:00:00+09:00 t1 완료\n', memo: '## 다음\n- t2 착수\n' }, b: { reports: '- 2026-10-11T16:00:00+09:00 1 완료\n' }, c: { brief: BRIEF_A } },
-      events: [{ kind: 'close-step', data: { step: '2' } }, { kind: 'window-close', data: { kind: 'measure' } }],
+      events: [{ kind: 'close-step', data: { step: '2' } }, { kind: 'window-close', data: { kind: 'measure' } }],  // 측정 창 닫힘만으로는 0 단계를 끝났다고 보지 않음(0.1·0.2 창이 따로 열림)
       runFiles: { runReport: false, metrics: true },
     },
   };
@@ -307,7 +307,7 @@ test('renderWbs: 항목 미등록 레인은 brief 추정·전체 줄에 등록 �
   assert.match(a, /- \*\*c\*\* \(closed\) — 끝\n/);
   assert.match(a, /- \*\*z\*\* \(active\) — 남은 항목 알 수 없음 \(항목 미등록 · brief 없음\)\n/);
   assert.match(a, /### 머지\n\n- 진행 중: b · br-b · tree1 · g1\n- 대기: a · br-a\n/);
-  assert.match(a, /- ☑ 0\. 화면 프로파일링 — 측정 창 닫힘\n- ☐ 1\. 마감 조건 확인 — 남은 항목 4개 · 항목 모르는 레인 1개 · 머지 안 된 레인 3개 · 머지 진행 중 · 머지 대기 1건\n- ☑ 2\. 통합 확인 — close-step 이벤트\n- ☐ 3\. SUMMARY/);
+  assert.match(a, /- ☐ 0\. 성능 측정\(화면 프로파일링·성능 시험\) — 해당 시\(화면 레인이 머지됐거나 성능 시험 항목이 있는 회차만\)\n- ☐ 1\. 마감 조건 확인 — 남은 항목 4개 · 항목 모르는 레인 1개 · 머지 안 된 레인 3개 · 머지 진행 중 · 머지 대기 1건\n- ☑ 2\. 통합 확인 — close-step 이벤트\n- ☐ 3\. SUMMARY/);
   assert.match(a, /- ☐ 4\. 정리 확인\(워크트리·세션·감시\) — 안 닫힌 레인 3개 · cron 남음\n- ☑ 4\.5\. 측정\(run-metrics\.mjs\) — metrics\.md 있음\n- ☐ 5\. 마감 보고\n- ☐ 6\. 닫기\(close-run\)\n/);
   assert.match(a, /### 사용자 결정 대기\n\n- 2026-10-11T10:00:00\+09:00 브랜치 x 지울까\n- 레인 질문\(조정자 답 대기\): a\n$/);
   assert.ok(r.text.indexOf('## 앞으로') > 0 && r.text.endsWith(a), '앞으로 절은 이슈 뒤·지표 앞(지표 없으면 끝)');

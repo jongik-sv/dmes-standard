@@ -313,7 +313,7 @@
 - `### 머지` = `merge.in_flight`·`merge.queue`
 - `### 조정자 마감 단계` = `closing.md` 0~6. 끝남 판정
   - 공통: 이벤트 `close-step`(data `{"step":"<번호>"}`). 쓰기 = `node scripts/coord-state.mjs event close-step - '{"step":"2"}'`
-  - 0 = `window-close` 이벤트(kind measure), 해당 없으면 「해당 시」 · 1 = 계산(남은 항목 0·항목 모르는 열린 레인 0·머지도 닫힘도 아닌 레인 0·`in_flight` 없음·`queue` 빔·창 없음) · 3 = `<회차>/run-report.md` 있음 · 4 = 레인 모두 closed 그리고 `run.cron_id` 없음 · 4.5 = `<회차>/metrics.md` 있음 · 6 = `run.closed_at`. 2·5 = `close-step` 만
+  - 0 = `close-step` 만(0.1 화면 프로파일링·0.2 성능 시험 둘 다 끝난 뒤), 해당 없으면 「해당 시」 · 1 = 계산(남은 항목 0·항목 모르는 열린 레인 0·머지도 닫힘도 아닌 레인 0·`in_flight` 없음·`queue` 빔·창 없음) · 3 = `<회차>/run-report.md` 있음 · 4 = 레인 모두 closed 그리고 `run.cron_id` 없음 · 4.5 = `<회차>/metrics.md` 있음 · 6 = `run.closed_at`. 2·5 = `close-step` 만
 - `### 사용자 결정 대기` = `pending_user` + 질문이 있는 레인
 
 ### 3.4 상태 쓰기

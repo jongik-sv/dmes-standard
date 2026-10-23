@@ -28,7 +28,7 @@
   - `<분>` 뒤 닫음
 - `/coordinator close <레인>`: 끝난 레인 세션 정리·종료(`close-lane.mjs`)
   - 백그라운드가 돌거나 마지막 보고가 없으면 거절
-- `/coordinator finish`: 마감. 통합 확인, SUMMARY, 정리 확인, 마감 보고, 감시 정리(Monitor 중지·cron 삭제)
+- `/coordinator finish`: 마감. 성능 측정(해당 시), 통합 확인, SUMMARY, 정리 확인, 마감 보고, 감시 정리(Monitor 중지·cron 삭제)
 - `/coordinator metrics`: 이 회차 지표(Claude 비용·1천 줄당 비용·조정 세션 비중·풀·결정)
   - `run-metrics.mjs --stdout --no-csv`. 마감 때는 자동(`metrics.md`·누적 CSV)
 - `/coordinator mode <token|time>`: 회차 모드 바꾸기. 기본 token, 「빠르게」 요청 = time

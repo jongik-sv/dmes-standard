@@ -45,6 +45,7 @@ description: 큰 업무 하나를 여러 Claude Code 세션(레인)과 임시 �
 5. **단순 시험은 바로.**
    - 단일 시험 파일·클래스·`tsc`·lint = Workflow·heavy 슬롯 없이 실행
    - 미룸 = 측정 창·금지 통지 중뿐. 범위·예산 = `brief.md` 「시험」
+   - 성능 수치 측정(Perf 시험)은 기능 레인에서 빼고 회차 끝 성능 시험 항목 하나로 모음(`decompose.md` §2, `closing.md` §0.2)
 6. **시험 실패 = 사다리.** `workflow.escalation.ladder` 를 한 칸씩(`workflow.md` §7)
 7. **조정자는 적게 읽고 적게 말함.** 레인에 다시 묻기 전에 state·보고 확인
    - 상태 판단 = state.json 요약(`coord-state.mjs get`·`summary`)
