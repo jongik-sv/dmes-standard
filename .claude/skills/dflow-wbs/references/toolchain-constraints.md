@@ -16,8 +16,12 @@
 
 ## 옛 표기(`### TSK-` 헤딩) wbs.md — 이미 만들어 둔 파일
 
-- 올리는 길 = `/dflow-export`(API). 웹 "WBS 마크다운" 탭의 옛 표기 수용(module 화면 입력)은 서버 판에 따른다 —
-  wbs-web staging 반영분부터. 새로 만들 때는 이 스킬로 새 표기로 다시 만든다(같은 `module`·ID — references/dflow-integration.md ID 복원).
+- 웹 "WBS 마크다운" 탭은 옛 표기를 받지 않는다(frontmatter levels 없음 → Task 마다 "미선언 접두어").
+- 올리는 길 두 가지:
+  - 새 표기로 바꾼 뒤 웹 탭: `node .claude/skills/dflow-export/scripts/wbs-to-levels.mjs --wbs {wbs} --in-place`.
+    module 기본값 = 파일이 든 폴더 이름이라 같은 ID 가 같은 항목을 갱신한다. 검증을 통과해야 쓴다.
+  - 그대로 API: `/dflow-export`.
+- 새로 만들 때는 이 스킬로 새 표기로 다시 만든다(같은 `module`·ID — references/dflow-integration.md ID 복원).
 - 그 파일의 검증·export 는 `dflow-export` 스킬 node 판(`wbs-parse.mjs`·`wbs-validate.mjs`)이 맡는다.
 
 ## 그 밖의 제약

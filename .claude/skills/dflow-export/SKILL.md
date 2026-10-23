@@ -107,8 +107,13 @@ curl -sS -X POST "$DFLOW_API_BASE/api/v1/wbs/import" \
 ## 웹 "WBS 마크다운" 탭과의 관계 — 표기가 갈린다
 
 - **이 스킬이 다루는 것 = 옛 표기 wbs.md**(`## WP-` 아래 `### TSK-` 헤딩 + 열 0 `- field:` 줄).
-  - 웹 `/p/{id}/import` 의 "WBS 마크다운" 탭에도 직접 올릴 수 있다. 이때 module 은 화면에서 입력한다.
-  - 웹 변경이 staging 에 반영된 뒤부터 가능하다. 그 전에는 이 스킬의 export 경로를 쓴다.
+  - 웹 "WBS 마크다운" 탭은 옛 표기를 **읽지 못한다**. frontmatter levels 가 없어 Task 마다 "미선언 접두어: TSK-…" 로 거부한다
+    (2026-10-23 oranda1 wbs.md 에서 확인).
+  - 웹 탭에 올리려면 먼저 levels 표기로 바꾼다. 바꾼 결과가 levels 검증(role skeleton)을 통과해야 파일을 쓴다:
+    `node .claude/skills/dflow-export/scripts/wbs-to-levels.mjs --wbs {wbs.md} [--module NAME] --in-place`
+    - module 기본값 = wbs.md 가 든 폴더 이름. 바꾼 것·버린 것(상태·비이메일 담당·Dev Config 등)은 stderr 리포트에 나온다.
+    - 명세 필드(tech-spec·api-spec·data-model·ui-spec)는 웹이 받는 prd-ref·requirements 로 옮긴다(버리지 않는다).
+  - 바꾸지 않고 올리는 길은 이 스킬의 export(`--push`)뿐이다.
 - **`/dflow-wbs`(2026-10-19 이후)·`/dflow-wbs-nlevel` 이 만드는 새 표기(levels 계약)** 는 웹 탭에 그대로 올리거나
   `dflow-wbs-nlevel/scripts/wbs-nlevel-parse.mjs export` 로 payload 를 만든다. module 은 파일 frontmatter 가 정한다.
   이 스킬의 `wbs-parse.mjs` 는 새 표기를 읽지 못한다(`task_count` 0).

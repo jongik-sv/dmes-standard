@@ -5,6 +5,8 @@
 > D'Flow 웹 파서(`src/lib/wbsmd/parse.ts`)와 스킬 검증기(`wbs-nlevel-parse.mjs`)가 같은 규칙으로 읽는다 —
 > 이 형식이면 가져오기 화면의 "WBS 마크다운" 탭에 변환 없이 올라간다.
 > 옛 표기(`### TSK-` 헤딩 + 열 0 `- field:` 줄)는 웹 탭이 읽지 못한다. 쓰지 않는다.
+> 이미 있는 옛 표기 파일은 `dflow-export/scripts/wbs-to-levels.mjs` 가 아래 「옛 명세 필드의 자리」 규칙대로 바꾼다.
+> 단 변환에서는 tech-spec·api-spec·data-model·ui-spec 을 버리지 않는다. 절 번호뿐이면 prd-ref 에, 글이 있으면 requirements 에 옮긴다.
 
 ## 파일 골격
 

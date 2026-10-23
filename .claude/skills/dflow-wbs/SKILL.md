@@ -14,7 +14,8 @@ description: PRD/TRD 또는 프로그램 리스트(json/yaml/csv/md/xlsx)로 WBS
 > - **출력 표기 = levels 계약 (2026-10-19 전환).** 정본 = `.claude/skills/dflow-wbs-nlevel/references/wbs-nlevel-md-contract.md` 「쓰기 규칙」.
 >   - 이 스킬은 그 계약의 **3~4단 단일 파일**(attach 없음, WP 가 최상위)을 만든다. 검증·export = `dflow-wbs-nlevel/scripts/wbs-nlevel-parse.mjs`.
 >   - D'Flow 웹 파서(`src/lib/wbsmd/parse.ts`)와 같은 규칙 → 가져오기 화면 "WBS 마크다운" 탭에 변환 없이 올라감.
->   - 옛 표기(`### TSK-` 헤딩 + 열 0 `- field:` 줄)는 새로 쓰지 않음. 옛 파일은 `/dflow-export`(API)로 올림.
+>   - 옛 표기(`### TSK-` 헤딩 + 열 0 `- field:` 줄)는 새로 쓰지 않음. 웹 탭은 옛 표기를 거부함("미선언 접두어").
+>     옛 파일은 `dflow-export/scripts/wbs-to-levels.mjs --wbs {파일} --in-place` 로 바꿔 올리거나 `/dflow-export`(API)로 올림.
 
 ## 참조 — references/ Read 시점
 
