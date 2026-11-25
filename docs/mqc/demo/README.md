@@ -40,9 +40,9 @@
 | qdb | colorSubmaterial | 칼라부재료관리 | (자리표시) |
 | qdb | colorBom | 칼라BOM관리 | (자리표시) |
 | qjd 품질판정 | qualityJudgment | 품질판정 | quality-judgment.html |
-| qpr 출력물관리 | qualityCertificate | 품질보증서관리 | quality-certificate.html |
+| qpr 출력물관리 | qualityCertificate | 품질보증서관리 | `~/Downloads/보증서 편집 시뮬레이터.html`(2026-11-25 교체, 계약 [wty-contract.md](wty-contract.md)) |
 | qpr | inspectionCertificate | 검사증명서관리 | `~/Downloads/mockup` 검사증명서 발행 시뮬레이터(2026-11-25 교체, 계약 [mtc-contract.md](mtc-contract.md)) |
-| qpr | tagManagement | Tag관리 | tag-management.html |
+| qpr | tagManagement | Tag관리 | `~/Downloads/TAG_발행_시뮬레이터.html`(2026-11-25 교체, 계약 [tag-contract.md](tag-contract.md)) |
 
 OASIS 권한키는 `mqc/{serviceId}/{action}` 이다. 화면 전용 서비스는 serviceId 를 화면 objectId 와 같게 둔다. 여러 화면이 함께 쓰는 서비스는 `qcdRule`(Maru 룰·코드, 구현 완료), `qcdOrder`(주문), `qcdMaster`(기준정보) 세 개이며 권한이 등록돼 있다. 쓸 수 있는 action 이름은 `CoreRbacSeeder` 의 `allActions` 에 있는 것만이다(search, save, delete, confirm, cancel, history, view, execute, calculate, apply, run, judge, codes, send, issue, reissue 등). 새 action 이름이 필요하면 조정자에게 알린다.
 
