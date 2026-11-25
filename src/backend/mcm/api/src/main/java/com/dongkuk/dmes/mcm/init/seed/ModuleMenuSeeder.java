@@ -305,8 +305,10 @@ public final class ModuleMenuSeeder extends SeedSupport {
      * mqc 품질관리 시연 메뉴 시드 (2026-11-25, mes-to-be 프로토타입 이관).
      *
      * <p>폴더 mqc(품질관리) > qcd(품질설계) > qdm(모듈관리)·qdf(생산가부관리)·qdr(설계결과관리)·qdb(기준정보관리),
-     * mqc > qjd(품질판정), mqc > qpr(출력물관리). componentPath = {PARENT_MENU_ID}/{OBJECT_ID} 이므로 m-mqc 화면은
+     * mqc > qjd(품질판정). qpr(출력물관리)는 품질관리와 같은 최상위 폴더다(MENU_SEQ 00000008, 2026-11-25 사용자 요청).
+     * componentPath = {PARENT_MENU_ID}/{OBJECT_ID} 이므로 m-mqc 화면은
      * {@code pages/{폴더}/{objectId}/page.tsx} 에 둔다. OBJECT SYSTEM_CODE=mqc → 권한키 {@code mqc/{objectId}/*}.
+     * 포털은 화면 모듈을 OBJECT SYSTEM_CODE 로 고르므로 최상위 폴더 qpr 아래 화면도 m-mqc 에서 열린다.
      * 메뉴 없는 OBJECT 3개(qcdRule·qcdOrder·qcdMaster)는 여러 화면이 함께 부르는 공용 OASIS 서비스의 권한 대상이다.
      * 모두 멱등이다. FULL_SEQ 는 부팅 끝 recomputeMenuFullSeq() 가 트리 위치 기준으로 다시 매긴다.
      */
@@ -319,7 +321,8 @@ public final class ModuleMenuSeeder extends SeedSupport {
         insertMpnFld("qdr", "00000130", "설계결과관리", "qcd", 7130000L);
         insertMpnFld("qdb", "00000150", "기준정보관리", "qcd", 7150000L);
         insertMpnFld("qjd", "00000200", "품질판정",     "mqc", 7200000L);
-        insertMpnFld("qpr", "00000300", "출력물관리",   "mqc", 7300000L);
+        insertMpnFld("qpr", "00000008", "출력물관리",   null,  8000000L);
+        relocateQprFolderToRoot();
 
         // ── 메뉴 leaf: {objectId, 이름, 부모 폴더, 순번, FULL_SEQ} ──
         String[][] leaves = {
@@ -339,9 +342,9 @@ public final class ModuleMenuSeeder extends SeedSupport {
                 {"colorSubmaterial",      "칼라부재료관리",       "qdb", "002", "7150200"},
                 {"colorBom",              "칼라BOM관리",          "qdb", "003", "7150300"},
                 {"qualityJudgment",       "품질판정",             "qjd", "001", "7200100"},
-                {"qualityCertificate",    "품질보증서관리",       "qpr", "001", "7300100"},
-                {"inspectionCertificate", "검사증명서관리",       "qpr", "002", "7300200"},
-                {"tagManagement",         "Tag관리",              "qpr", "003", "7300300"},
+                {"qualityCertificate",    "품질보증서관리",       "qpr", "001", "8000100"},
+                {"inspectionCertificate", "검사증명서관리",       "qpr", "002", "8000200"},
+                {"tagManagement",         "Tag관리",              "qpr", "003", "8000300"},
         };
         for (String[] l : leaves) {
             insertMcmSecObjIfAbsent(l[0], l[1], "mqc");
@@ -359,6 +362,20 @@ public final class ModuleMenuSeeder extends SeedSupport {
             grantSysadmin(o[0]);
         }
         log.info("[DataInitializer] mqc 메뉴 시드 — 폴더 8 + 메뉴 leaf {} + 공용 OBJECT {} (SYSTEM_CODE=mqc, SYSADMIN PERM_ALL)", leaves.length, shared.length);
+    }
+
+    /**
+     * 출력물관리 폴더(qpr) 위치 보정 — 품질관리(mqc) 아래에 시드된 DB 를 최상위로 올린다 (2026-11-25, 멱등).
+     *
+     * <p>부모가 {@code mqc} 일 때만 옮기므로 메뉴 관리 화면에서 사용자가 바꾼 위치는 보존된다. MENU_SEQ 도 최상위 순번
+     * '00000008'(품질관리 다음)로 바꾼다. FULL_SEQ 는 부팅 끝 recomputeMenuFullSeq() 가 다시 매긴다.
+     */
+    private void relocateQprFolderToRoot() {
+        int n = nq("UPDATE MCMAPUSER.TB_MCM_SEC_MENU_FLD SET PARENT_MENU_ID = NULL, MENU_SEQ = '00000008' "
+                 + " WHERE MENU_ID = 'qpr' AND PARENT_MENU_ID = 'mqc'").executeUpdate();
+        if (n > 0) {
+            log.info("[DataInitializer] 출력물관리 폴더(qpr)를 품질관리(mqc) 아래에서 최상위로 옮김 — rows={}", n);
+        }
     }
 
     private void grantSysadmin(String objectId) {

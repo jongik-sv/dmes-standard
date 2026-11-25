@@ -25,7 +25,7 @@ const FOLDER_PATH: Record<ScreenFolder, string> = {
   qcd: "품질관리 > 품질설계",
   qdb: "품질관리 > 품질설계 > 기준정보관리",
   qjd: "품질관리 > 품질판정",
-  qpr: "품질관리 > 출력물관리",
+  qpr: "출력물관리",
 };
 
 const LIST: [objectId: string, folder: ScreenFolder, title: string][] = [
