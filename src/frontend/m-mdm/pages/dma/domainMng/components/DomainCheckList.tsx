@@ -3,23 +3,28 @@
 /** 검사 목록(L-041)과 하위 도메인 재실행 결과 — 도메인검증 응답. 첫 오류에서 멈추지 않고 모두 보인다. */
 import { useMemo } from "react";
 import { AgDataGrid, type GridColumn } from "@dk-oasis/shared/grid";
-import { issueLevelLabel, resultLabel } from "../change-view";
+import { isFailedResult, issueLevelBadgeCss, issueLevelLabel, resultBadgeCss, resultLabel } from "../change-view";
 import type { IssueRow, TestResultRow } from "../types";
 import { hint } from "./styles";
 import { uiCols } from "@/ui-meta";
 
 const ISSUE_COLUMNS: GridColumn[] = uiCols([
   { key: "CODE", header: "규칙", width: 70, align: "center" },
-  { key: "LEVEL", header: "수준", width: 60, align: "center", render: (v) => issueLevelLabel(String(v ?? "")) },
+  { key: "LEVEL", header: "수준", width: 60, align: "center",
+    render: (v) => <span style={issueLevelBadgeCss(String(v ?? ""))}>{issueLevelLabel(String(v ?? ""))}</span> },
   { key: "FIELD", header: "필드", width: 110 },
-  { key: "MESSAGE", header: "메시지", width: 420 },
+  { key: "MESSAGE", header: "메시지", width: 420,
+    render: (v, r) => <span style={{ color: r.LEVEL === "ERROR" ? "var(--color-danger)" : undefined }}>{String(v ?? "")}</span> },
 ]);
 
 const DESC_COLUMNS: GridColumn[] = uiCols([
   { key: "DOMAIN_NAME", header: "하위 도메인", width: 150 },
   { key: "VALUE", header: "입력", width: 100 },
   { key: "EXPECT", header: "기대", width: 60, render: (v) => String(v) },
-  { key: "RESULT", header: "결과", width: 90, render: (v) => resultLabel(String(v ?? "")) },
+  { key: "RESULT", header: "결과", width: 90,
+    render: (v) => <span style={resultBadgeCss(String(v ?? ""))}>{resultLabel(String(v ?? ""))}</span> },
+  { key: "MESSAGE", header: "메시지", width: 220,
+    render: (v, r) => <span style={{ color: isFailedResult(String(r.RESULT ?? "")) ? "var(--color-danger)" : "var(--color-text-muted)" }}>{String(v ?? "")}</span> },
 ], ["DOMAIN_NAME"]);
 
 export interface DomainCheckListProps {

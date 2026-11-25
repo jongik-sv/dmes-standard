@@ -7,6 +7,7 @@
  * 표준식 미리보기는 서버가 준 유효 표준 AST 를 화면 JS 로 즉시 평가하고, 비즈니스식과 편집 중인 식은
  * 400 ms 디바운스한 서버 `execute` 로 평가한다(편집 권한자만). 저장은 현재 초안으로 도메인검증을 통과한 뒤에만 열린다.
  * 부모 연결·교체·제거는 [부모 연결]·[연결 제거] 대화상자에서 저장된 행 기준으로 따로 검사·저장한다(D-132).
+ * [도메인 삭제](B-009)는 확인 뒤 서버 `delete` 를 부른다. 하위 도메인은 상위로 올라가고, 참조 컬럼·룰 변수는 상위 도메인으로 옮겨진다(상위가 없으면 비움).
  * OBJECT_ID = screenId = BPMN process id = 'domainMng'(불변 I17).
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -17,7 +18,8 @@ import {
 import { useMessage } from "@dk-oasis/shared/message-provider";
 import { useCarryRefetch, useCarryRestored, useCarryState } from "@dk-oasis/shared/portal-shell";
 import { MdmPageLayout } from "@/shell";
-import { executePreview, saveDomain, searchDomains, validateDomain, viewDomain } from "./api";
+import { deleteDomain, executePreview, saveDomain, searchDomains, validateDomain, viewDomain } from "./api";
+import { deleteConfirmMessage } from "./delete-confirm";
 import { parentCandidates } from "./domain-tree";
 import { makeParentSearch } from "./parent-search";
 import { storedForm, type ParentLinkMode } from "./parent-link";
@@ -238,6 +240,51 @@ export default function DomainMngPage() {
   };
 
   const canSave = canEdit && mode !== "none" && !!validation?.ok && validatedKey === currentKey && !busy;
+  // 저장이 꺼진 이유 — 케이스 삭제·추가도 초안 변경이라 다시 검증해야 한다(2026-11-25 사용자 보고)
+  const saveHint = mode === "none" || busy ? null
+    : validation === null || validatedKey === null ? "저장하려면 먼저 [도메인검증] 을 누르세요."
+      : validatedKey !== currentKey ? "검증한 뒤 내용이 바뀌었습니다. [도메인검증] 을 다시 누르세요."
+        : !validation.ok ? "검사 오류를 고친 뒤 [도메인검증] 을 다시 누르세요." : null;
+
+  // ── B-009 삭제 ──
+  const doDelete = async (row: DomainDetail) => {
+    setBusy(true);
+    try {
+      const out = await deleteDomain(row.DOMAIN_ID, row.VER);
+      const moved = out.movedDomainIds?.length ?? 0;
+      const columns = out.movedColumnCount ?? 0;
+      const detail = [moved > 0 ? `하위 도메인 ${moved}개` : null, columns > 0 ? `참조 컬럼 ${columns}개` : null]
+        .filter(Boolean).join("·");
+      const existing = out.preexistingIssues?.length ?? 0;
+      const note = existing > 0 ? ` 하위 도메인에 삭제 전부터 있던 오류 ${existing}건은 그대로 남았습니다.` : "";
+      showMessage({ message: (detail ? `삭제했습니다. ${detail}를 옮겼습니다.` : "삭제했습니다.") + note, alertType: "info", toast: true });
+      setSelectedId(null);
+      setSelectedRow(null);
+      setDraft({ ...EMPTY_DRAFT });
+      setStoredKey(null);
+      setImpact(null);
+      setMode("none");
+      resetResults();
+      await runSearch(filters);
+    } catch (e) {
+      setErrorMessage(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleDelete = () => {
+    if (!selectedRow) return;
+    const row = selectedRow;
+    const parent = row.PARENT_DOMAIN_ID == null ? null
+      : (rows.find((r) => r.DOMAIN_ID === row.PARENT_DOMAIN_ID) ?? { DOMAIN_NAME: `도메인 ${row.PARENT_DOMAIN_ID}`, STD_NAME: "-" });
+    showMessage({
+      title: "도메인 삭제",
+      message: deleteConfirmMessage({ domain: row, parent, impact, dirty: storedKey !== null && storedKey !== currentKey }),
+      alertType: "confirm",
+      onConfirm: () => void doDelete(row),
+    });
+  };
 
   // ── 미리보기 ──
   const editingExpr = mode !== "edit" || storedExprKey !== exprKey(draft);
@@ -302,6 +349,8 @@ export default function DomainMngPage() {
           onClick: () => setParentLink("link") },
         { id: "btn_unlink_parent", label: "연결 제거", action: "save",
           disabled: busy || mode !== "edit" || selectedRow?.PARENT_DOMAIN_ID == null, onClick: () => setParentLink("unlink") },
+        { id: "btn_delete", label: "도메인 삭제", action: "delete", disabled: busy || mode !== "edit" || !selectedRow,
+          onClick: handleDelete },
       ]}
     >
       <SearchArea onSearch={() => void runSearch(filters)}>
@@ -372,6 +421,7 @@ export default function DomainMngPage() {
                     <div style={{ display: "flex", gap: "var(--spacing-sm)", marginTop: "var(--spacing-sm)" }}>
                       <Button onClick={() => void handleValidate()} disabled={busy}>도메인검증</Button>
                       <Button variant="primary" onClick={handleSave} disabled={!canSave}>저장</Button>
+                      {saveHint && <span data-testid="domain-save-hint" style={{ ...hint, alignSelf: "center" }}>{saveHint}</span>}
                     </div>
                   )}
                 </div>

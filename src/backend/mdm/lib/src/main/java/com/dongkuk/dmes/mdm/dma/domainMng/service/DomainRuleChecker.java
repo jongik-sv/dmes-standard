@@ -184,11 +184,11 @@ public class DomainRuleChecker {
         for (int i = 0; i < d.testCases().size(); i++) {
             DomainTestCase c = d.testCases().get(i);
             if (c.problem() != null) {
-                out.add(DomainIssue.of(DomainIssueCode.S06, "TEST_CASES", String.valueOf(i), c.problem()));
+                out.add(DomainIssue.of(DomainIssueCode.S06, "TEST_CASES", String.valueOf(i), "케이스 " + (i + 1) + ": " + c.problem()));
             }
             if (d.stdName() != null && c.vars() != null
                     && c.vars().keySet().stream().anyMatch(k -> k.equalsIgnoreCase(d.stdName()))) {
-                out.add(DomainIssue.of(DomainIssueCode.S06, "TEST_CASES", String.valueOf(i), "변수 이름이 표준명과 같다"));
+                out.add(DomainIssue.of(DomainIssueCode.S06, "TEST_CASES", String.valueOf(i), "케이스 " + (i + 1) + ": 변수 이름이 표준명과 같다"));
             }
         }
     }

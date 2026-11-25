@@ -2,7 +2,7 @@
 // 배열은 grids 로, grids 는 빈 배열이라도 늘 보내고(B0 c), params 에서 null·빈 값 키는 뺀다(B0 e).
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { saveDomain, searchDomains, validateDomain, executePreview } from "../../../pages/dma/domainMng/api";
-import { viewDomain } from "../../../pages/dma/domainMng/api";
+import { deleteDomain, viewDomain } from "../../../pages/dma/domainMng/api";
 import type { DomainDraft } from "../../../pages/dma/domainMng/types";
 import { describeOasisEnvelope } from "../../helpers/oasis-envelope";
 
@@ -44,6 +44,15 @@ describe("domainMng api", () => {
     expect(body.params).toEqual({ domainName: "두께", stdName: "THK", domainKind: "QTY", dataType: "NUMBER", scale: 3,
       unitCode: "mm", stdRule: "value > 0" });
     expect(body.grids).toEqual({ testCases: { rows: [{ VALUE: "1.6", EXPECT: true, VARS: "", MEMO: "" }] }, examples: { rows: [] } });
+  });
+
+  it("삭제는 domainId·ver 만 보내고 grids 는 없다", async () => {
+    stub({ meta: { success: true }, data: { result: { domainId: 7, movedDomainIds: [8], movedColumnCount: 2 } } });
+    const out = await deleteDomain(7, 3);
+    expect(calls[0].url).toBe("/api/mdm/oasis/domainMng/delete");
+    expect(calls[0].body.params).toEqual({ domainId: 7, ver: 3 });
+    expect(calls[0].body.grids).toBeUndefined();
+    expect(out.movedDomainIds).toEqual([8]);
   });
 
   it("미리보기는 vars grid 를 늘 보낸다", async () => {

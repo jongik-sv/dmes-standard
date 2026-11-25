@@ -66,6 +66,40 @@ public class DomainUnlinkMaterializer {
         return new Result(out, List.copyOf(fields));
     }
 
+    /**
+     * 도메인 삭제 때의 흡수. 지우는 도메인 {@code removed} 의 직속 하위 {@code child} 를 {@code removed} 의 부모로 올리면서,
+     * {@code removed} 가 체인에 보태던 자기 값을 {@code child} 에 옮겨 담는다. 올린 뒤에도 {@code child} 의 유효 정의가 같다.
+     *
+     * <ul>
+     *   <li>대체 상속 칸은 {@code child} 자기 값이 비어 있을 때만 {@code removed} 자기 값으로 채운다. 새 부모의 유효값은
+     *       {@code removed} 가 덮지 않은 칸에서 그대로 이어진다.</li>
+     *   <li>누적 상속 칸(표준식·비즈니스식)은 {@code removed} 자기 식과 {@code child} 식을 {@code &&} 로 잇는다.</li>
+     * </ul>
+     *
+     * <p>{@code removed} 가 최상위면 자기 값이 곧 유효값이라 {@link #materialize} 의 연결 제거와 같은 결과다. 순수 계산이다.
+     */
+    public Result absorb(DomainNode child, DomainNode removed) {
+        List<String> fields = new ArrayList<>();
+        Integer length = fill("LENGTH", child.length(), removed.length(), fields);
+        Integer scale = fill("SCALE", child.scale(), removed.scale(), fields);
+        String unit = fill("UNIT_CODE", child.unitCode(), removed.unitCode(), fields);
+        String maruCodeId = child.maruCodeId();
+        String cateId = child.cateId();
+        if (maruCodeId == null && removed.maruCodeId() != null) {
+            maruCodeId = removed.maruCodeId();
+            cateId = removed.cateId();
+            fields.add("MARU_CODE_ID");
+            fields.add("CATE_ID");
+        }
+        String stdRule = join("STD_RULE", removed.stdRule(), child.stdRule(), fields);
+        String bizRule = join("BIZ_RULE", removed.bizRule(), child.bizRule(), fields);
+        DomainDraft out = new DomainDraft(child.domainId(), child.ver(), child.domainName(), child.stdName(),
+                removed.parentDomainId(), child.domainKind(), child.dataType(), length, scale, unit, maruCodeId, cateId,
+                stdRule, bizRule, child.description(), DomainTestCases.fromJson(child.testCasesJson()),
+                DomainTestCases.examplesFromJson(child.examplesJson()));
+        return new Result(out, List.copyOf(fields));
+    }
+
     private static <T> T fill(String field, T own, T inherited, List<String> fields) {
         if (own != null || inherited == null) {
             return own;

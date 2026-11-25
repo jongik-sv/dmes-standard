@@ -13,7 +13,7 @@ import { MDM_OASIS_BASE, mdmFieldLabel, plainError } from "@/oasis-screen";
 import { DOMAIN_MNG_FIELD_LABELS } from "./fieldLabels";
 
 import type {
-  DomainDraft, ExecuteResult, PreviewRequest, SaveResult, SearchFilters, SearchResult, TestCaseRow,
+  DeleteResult, DomainDraft, ExecuteResult, PreviewRequest, SaveResult, SearchFilters, SearchResult, TestCaseRow,
   ValidateResult, ViewResult,
 } from "./types";
 
@@ -53,6 +53,11 @@ export function validateDomain(draft: DomainDraft, cases: TestCaseRow[], example
 /** B-005 저장. */
 export function saveDomain(draft: DomainDraft, cases: TestCaseRow[], examples: string[]): Promise<SaveResult> {
   return callAction("save", draft, draftGrids(cases, examples));
+}
+
+/** B-009 삭제 — 하위 도메인은 상위로 올리고, 참조 컬럼·룰 변수는 상위 도메인으로 옮긴다(상위가 없으면 비운다). ver 는 동시 수정 검사용. */
+export function deleteDomain(domainId: number, ver: number | null): Promise<DeleteResult> {
+  return callAction("delete", { domainId, ver });
 }
 
 /** 서버 미리보기(자동, 디바운스) — 쓰기 없음. vars = [{NAME, VALUE}]. */

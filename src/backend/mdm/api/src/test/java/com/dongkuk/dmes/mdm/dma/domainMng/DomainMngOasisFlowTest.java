@@ -174,6 +174,26 @@ class DomainMngOasisFlowTest extends AbstractMdmSharedDbTest {
     }
 
     @Test
+    void B6_부모를_지우면_자식이_최상위가_되고_정의를_받는다() throws Exception {
+        long[] ids = parentAndChild();
+        long ver = ((Number) row(ids[0]).get("VER")).longValue();
+        JsonNode r = post("delete", json.createObjectNode().put("domainId", ids[0]).put("ver", ver), null);
+        assertTrue(r.path("meta").path("success").asBoolean(), r.toString());
+        JsonNode result = r.path("data").path("result");
+        assertEquals("[" + ids[1] + "]", result.path("movedDomainIds").toString());
+        assertEquals(0, jdbc.queryForObject("SELECT COUNT(*) FROM TB_MDM_DOMAIN WHERE DOMAIN_ID = ?", Integer.class, ids[0]));
+        Map<String, Object> child = row(ids[1]);
+        assertEquals(null, child.get("PARENT_DOMAIN_ID"));
+        assertEquals("mm", child.get("UNIT_CODE"), "부모 단위를 받는다");
+        assertEquals(15, ((Number) child.get("LENGTH")).intValue(), "자기 길이는 그대로다");
+        assertEquals("(value <= 30) && (value >= 0)", child.get("STD_RULE"), "부모 식과 자기 식을 잇는다");
+
+        JsonNode again = post("delete", json.createObjectNode().put("domainId", ids[0]).put("ver", ver), null);
+        assertFalse(again.path("meta").path("success").asBoolean(true), again.toString());
+        assertTrue(again.path("meta").path("message").asText().contains("S06"), again.toString());
+    }
+
+    @Test
     void B2_부모를_좁혀도_하위_케이스가_통과하면_저장된다() throws Exception {
         long[] ids = parentAndChild();
         JsonNode r = post("save", edit(ids[0], (String) row(ids[0]).get("STD_NAME"), "value <= 28", 20), grids("25", "true"));

@@ -1,7 +1,7 @@
 /** @vitest-environment happy-dom */
 
 // A-TEST 테스트 케이스 그리드(L-001~L-005, B-006, GB-001). 칸을 눌러 편집하면 케이스 목록이 바뀌고(기대는 true/false 선택),
-// 결과 칸은 자기 케이스 결과와 메시지(title)를 보이며, 읽기 전용이면 편집기·삭제·추가가 없다.
+// 결과 칸은 자기 케이스 결과 배지와 메시지를 보이며(실패는 위험 색), 읽기 전용이면 편집기·삭제·추가가 없다.
 import { act, createElement, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -72,10 +72,17 @@ describe("DomainTestCaseGrid", () => {
     await render();
     expect(cellOf(1, "VALUE")?.textContent).toBe("A1");
     expect(cellOf(2, "EXPECT")?.textContent).toBe("false");
-    const result = cellOf(1, "RESULT_TEXT")?.querySelector("span[title]");
-    expect(result?.textContent).toBe(resultLabel("MISMATCH"));
-    expect(result?.getAttribute("title")).toBe("형식 불일치");
+    // 룰 화면처럼 결과 배지 뒤에 메시지를 보이고, 실패는 배지·메시지 모두 위험 색이다
+    const badge = container.querySelector("[data-testid='case-badge-1']") as HTMLElement | null;
+    expect(badge?.textContent).toBe(resultLabel("MISMATCH"));
+    expect(badge?.style.color).toBe("var(--color-danger)");
+    const message = container.querySelector("[data-testid='case-message-1']") as HTMLElement | null;
+    expect(message?.textContent?.trim()).toBe("형식 불일치");
+    expect(message?.style.color).toBe("var(--color-danger)");
     expect(cellOf(2, "RESULT_TEXT")?.textContent).toBe("-");
+    // 검사 목록의 "케이스 N" 과 맞춰 볼 수 있게 번호(1부터)를 칸으로 보인다
+    expect(cellOf(1, "ROW_KEY")?.textContent).toBe("1");
+    expect(cellOf(2, "ROW_KEY")?.textContent).toBe("2");
     // 변수가 필요 없는 도메인이면 변수 칸이 없다
     expect(container.querySelector("[col-id='VARS']")).toBeNull();
   });
