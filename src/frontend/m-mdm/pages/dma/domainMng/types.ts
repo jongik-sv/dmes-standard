@@ -175,6 +175,7 @@ export interface PreviewRequest {
   parentDomainId?: number | null;
   domainKind?: string | null;
   dataType?: string | null;
+  length?: number | null;
   scale?: number | null;
   stdName?: string | null;
   maruCodeId?: string | null;

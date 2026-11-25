@@ -208,7 +208,7 @@ public class DomainMngService {
     public Map<String, Object> execute(DomainPreviewRequest request, List<Map<String, Object>> vars) {
         DomainDraft draft = new DomainDraft(request.getDomainId(), null, null, DomainDraft.norm(request.getStdName()),
                 request.getParentDomainId(), DomainDraft.norm(request.getDomainKind()), DomainDraft.norm(request.getDataType()),
-                null, request.getScale(), null, DomainDraft.norm(request.getMaruCodeId()), DomainDraft.norm(request.getCateId()),
+                request.getLength(), request.getScale(), null, DomainDraft.norm(request.getMaruCodeId()), DomainDraft.norm(request.getCateId()),
                 DomainDraft.norm(request.getStdRule()), DomainDraft.norm(request.getBizRule()), null, List.of(), List.of());
         List<DomainIssue> compile = new ArrayList<>();
         compile.addAll(compiler.check(draft.stdRule(), Slot.DOMAIN_STD, "STD_RULE"));

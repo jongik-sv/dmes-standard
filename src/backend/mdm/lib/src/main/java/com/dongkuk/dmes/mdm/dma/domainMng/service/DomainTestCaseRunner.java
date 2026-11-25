@@ -58,6 +58,12 @@ public class DomainTestCaseRunner {
         if (c.problem() != null) {
             return new CaseResult("ERROR", null, c.problem());
         }
+        // 길이·자리수 초과는 식과 상관없이 실패다 — 엔진이 보지 않으므로 여기서 먼저 본다
+        String over = DomainLengthCheck.violation(view.dataType(), view.length(), view.scale(), c.value());
+        if (over != null) {
+            return new CaseResult(Boolean.FALSE.equals(c.expect()) ? "MATCH" : "MISMATCH", false,
+                    DomainLengthCheck.STEP + ": " + over);
+        }
         if (undecided(view)) {
             return new CaseResult("UNDECIDED", null, DomainIssueCode.W02.label());
         }
@@ -141,6 +147,11 @@ public class DomainTestCaseRunner {
             std = hasMaster(view.stdAst()) && !availability.available() || "CODE".equals(view.domainKind()) && !availability.available()
                     ? Judged.undecided()
                     : judge(definition(view, column, view.chainStdExpr(), null, List.of(), view.codeRef(), kind(view.domainKind())), column, record);
+        }
+        // 길이·자리수 초과는 표준 판정 실패로 보인다(식이 없어도)
+        String over = DomainLengthCheck.violation(view.dataType(), view.length(), view.scale(), value);
+        if (over != null) {
+            std = new Judged("false", DomainLengthCheck.STEP, over);
         }
         Judged biz = null;
         if (view.bizExpr() != null) {

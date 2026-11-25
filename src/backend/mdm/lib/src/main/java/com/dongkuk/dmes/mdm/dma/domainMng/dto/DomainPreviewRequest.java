@@ -10,6 +10,8 @@ public class DomainPreviewRequest {
     private Long parentDomainId;
     private String domainKind;
     private String dataType;
+    /** 자기 길이(비우면 상위 유효 길이). 미리보기 길이 검사에 쓴다. */
+    private Integer length;
     private Integer scale;
     private String stdName;
     private String maruCodeId;
@@ -23,6 +25,7 @@ public class DomainPreviewRequest {
     public Long getParentDomainId() { return parentDomainId; }
     public String getDomainKind() { return domainKind; }
     public String getDataType() { return dataType; }
+    public Integer getLength() { return length; }
     public Integer getScale() { return scale; }
     public String getStdName() { return stdName; }
     public String getMaruCodeId() { return maruCodeId; }
@@ -35,6 +38,7 @@ public class DomainPreviewRequest {
     public void setParentDomainId(Long v) { this.parentDomainId = v; }
     public void setDomainKind(String v) { this.domainKind = v; }
     public void setDataType(String v) { this.dataType = v; }
+    public void setLength(Integer v) { this.length = v; }
     public void setScale(Integer v) { this.scale = v; }
     public void setStdName(String v) { this.stdName = v; }
     public void setMaruCodeId(String v) { this.maruCodeId = v; }

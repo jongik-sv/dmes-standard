@@ -303,7 +303,7 @@ export default function DomainMngPage() {
       const vars = Object.entries(varValues).filter(([, v]) => v.trim() !== "").map(([NAME, VALUE]) => ({ NAME, VALUE }));
       executePreview({
         domainId: draft.domainId, parentDomainId: draft.parentDomainId, domainKind: draft.domainKind,
-        dataType: draft.dataType, scale: draft.scale, stdName: draft.stdName, maruCodeId: draft.maruCodeId,
+        dataType: draft.dataType, length: draft.length, scale: draft.scale, stdName: draft.stdName, maruCodeId: draft.maruCodeId,
         cateId: draft.cateId, stdRule: draft.stdRule, bizRule: draft.bizRule, value: previewValue,
       }, vars)
         .then((out) => setServer(out))
@@ -318,7 +318,12 @@ export default function DomainMngPage() {
   }, [needServer, previewKey]);
 
   const stdAstForPreview = editingExpr ? (server?.effStdAst ?? null) : storedAst;
-  const stdPreview = previewStandard(stdAstForPreview, previewValue, draft.dataType);
+  // 유효 길이 — 자기 값이 없으면 상위 도메인의 유효 값을 이어받는다
+  const effLimit = {
+    length: draft.length ?? (draft.parentDomainId != null ? parentRow?.EFF_LENGTH : null) ?? null,
+    scale: draft.scale ?? (draft.parentDomainId != null ? parentRow?.EFF_SCALE : null) ?? null,
+  };
+  const stdPreview = previewStandard(stdAstForPreview, previewValue, draft.dataType, effLimit);
   const effStdExpr = editingExpr ? (server?.effStdExpr ?? null) : (selectedRow?.EFF_STD_EXPR ?? null);
   const effBizExpr = editingExpr ? (server?.effBizExpr ?? null) : (selectedRow?.EFF_BIZ_EXPR ?? null);
 
