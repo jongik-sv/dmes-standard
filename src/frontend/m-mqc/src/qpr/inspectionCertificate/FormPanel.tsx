@@ -35,7 +35,7 @@ import {
   oneLine,
   Row,
   Stack,
-} from "./ui";
+} from "@/common/ui";
 
 const COL_COLUMNS: GridColumn[] = [
   {

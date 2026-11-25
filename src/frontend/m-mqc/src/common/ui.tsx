@@ -1,6 +1,6 @@
 "use client";
 
-/** 검사증명서 편집 패널 공통 배치 — 세로 쌓기, 한 줄 묶음, 라벨-값 상세 표 행. 색·간격은 의미 토큰만 쓴다. */
+/** 출력물 편집 패널(검사증명서·품질보증서) 공통 배치 — 세로 쌓기, 한 줄 묶음, 라벨-값 상세 표 행. 색·간격은 의미 토큰만 쓴다. */
 import type { CSSProperties, ReactNode } from "react";
 
 import { DETAIL_LABEL_CELL, DETAIL_TABLE_STYLE, DETAIL_VALUE_CELL } from "@dk-oasis/shared/layout";

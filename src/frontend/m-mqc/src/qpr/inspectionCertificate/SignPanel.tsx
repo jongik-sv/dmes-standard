@@ -14,7 +14,7 @@ import { useMessage } from "@dk-oasis/shared/message-provider";
 import { condText } from "./engine/resolve";
 import { loadPaperAssets } from "./paperAssets";
 import { todayDot, type MtcStore } from "./store";
-import { cellBadge, DetailTable, Field, Lead, Row, Stack } from "./ui";
+import { cellBadge, DetailTable, Field, Lead, Row, Stack } from "@/common/ui";
 
 const IMG_COLUMNS: GridColumn[] = [
   { key: "name", header: "파일", width: 190, minWidth: 150, align: "left" },

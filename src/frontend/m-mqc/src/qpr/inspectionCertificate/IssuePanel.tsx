@@ -21,7 +21,7 @@ import { autoFormKey, autoWhy, certDate, fmtD } from "./engine/resolve";
 import { clone } from "./engine/text";
 import type { Snap } from "./engine/types";
 import { fmtAt, type MtcStore } from "./store";
-import { cellBadge, DetailTable, Field, Lead, Row, Stack } from "./ui";
+import { cellBadge, DetailTable, Field, Lead, Row, Stack } from "@/common/ui";
 
 const ISSUED_COLUMNS: GridColumn[] = [
   { key: "mtcNo", header: "증명서번호", width: 140, align: "left" },

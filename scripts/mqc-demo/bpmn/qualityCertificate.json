@@ -1,12 +1,8 @@
 { "id": "qualityCertificate", "name": "품질보증서관리", "bean": "qualityCertificate",
-  "doc": "qualityCertificate — 주문·PO 단위 품질보증서. 발행 요청(save) → 초안 → 발행(issue) → 재발행(reissue) / 회수(cancel). 발행은 실린 코일이 모두 합격이어야 한다.",
+  "doc": "qualityCertificate — 품질보증서 양식 편집 목업(계약 docs/mqc/demo/wty-contract.md). 편집은 화면이 하고 서버는 문서 본문(불투명한 JSON)·상태(적용본·초안·승인 대기)·승인 버전 기록·이력을 저장한다. 승인 대기 중 저장 거부, 승인 시 버전 올림, 시연 초기화.",
   "actions": [
-    { "action": "search", "name": "보증서 목록 조회", "dto": "com.dongkuk.dmes.mqc.qpr.qualityCertificate.dto.QualityCertificateSearchRequest" },
-    { "action": "view", "name": "보증서 상세", "dto": "com.dongkuk.dmes.mqc.qpr.qualityCertificate.dto.QualityCertificateKeyRequest" },
-    { "action": "save", "name": "발행 요청(초안 생성)", "dto": "com.dongkuk.dmes.mqc.qpr.qualityCertificate.dto.QualityCertificateSaveRequest" },
-    { "action": "issue", "name": "발행", "dto": "com.dongkuk.dmes.mqc.qpr.qualityCertificate.dto.QualityCertificateKeyRequest" },
-    { "action": "reissue", "name": "재발행", "dto": "com.dongkuk.dmes.mqc.qpr.qualityCertificate.dto.QualityCertificateKeyRequest" },
-    { "action": "cancel", "name": "회수", "dto": "com.dongkuk.dmes.mqc.qpr.qualityCertificate.dto.QualityCertificateKeyRequest" },
-    { "action": "history", "name": "처리 이력", "dto": "com.dongkuk.dmes.mqc.qpr.qualityCertificate.dto.QualityCertificateHistoryRequest" },
-    { "action": "codes", "name": "발행 요청 고르기 값", "dto": "com.dongkuk.dmes.mqc.qpr.qualityCertificate.dto.QualityCertificateSearchRequest" }
+    { "action": "search", "name": "문서·버전·이력 조회", "dto": "com.dongkuk.dmes.mqc.qpr.qualityCertificate.dto.QualityCertificateRequest" },
+    { "action": "save", "name": "문서 저장(INIT·DRAFT·REQUEST·UNREQUEST·DISCARD)", "dto": "com.dongkuk.dmes.mqc.qpr.qualityCertificate.dto.QualityCertificateRequest" },
+    { "action": "approve", "name": "승인(버전 올림)", "dto": "com.dongkuk.dmes.mqc.qpr.qualityCertificate.dto.QualityCertificateRequest" },
+    { "action": "reset", "name": "시연 초기화", "dto": "com.dongkuk.dmes.mqc.qpr.qualityCertificate.dto.QualityCertificateRequest" }
   ] }

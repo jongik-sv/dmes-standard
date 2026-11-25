@@ -1,402 +1,240 @@
 package com.dongkuk.dmes.mqc.qpr.qualityCertificate.service;
 
-import com.dongkuk.dmes.mqc.qjd.qualityJudgment.domain.Coil;
-import com.dongkuk.dmes.mqc.qjd.qualityJudgment.domain.InspectionEvaluator;
-import com.dongkuk.dmes.mqc.qjd.qualityJudgment.domain.InspectionItem;
-import com.dongkuk.dmes.mqc.qjd.qualityJudgment.domain.ItemResult;
-import com.dongkuk.dmes.mqc.qjd.qualityJudgment.service.CoilLookup;
-import com.dongkuk.dmes.mqc.qjd.qualityJudgment.service.CoilSnapshot;
 import com.dongkuk.dmes.mqc.qjd.qualityJudgment.support.DemoSupport;
-import com.dongkuk.dmes.mqc.qpr.common.OutputHistories;
-import com.dongkuk.dmes.mqc.qpr.common.OutputHistory;
-import com.dongkuk.dmes.mqc.qpr.qualityCertificate.domain.QcStatus;
-import com.dongkuk.dmes.mqc.qpr.qualityCertificate.domain.QualityCertificate;
-import com.dongkuk.dmes.mqc.qpr.qualityCertificate.domain.QualityCertificateCoil;
-import com.dongkuk.dmes.mqc.qpr.qualityCertificate.dto.QualityCertificateHistoryRequest;
-import com.dongkuk.dmes.mqc.qpr.qualityCertificate.dto.QualityCertificateKeyRequest;
-import com.dongkuk.dmes.mqc.qpr.qualityCertificate.dto.QualityCertificateSaveRequest;
-import com.dongkuk.dmes.mqc.qpr.qualityCertificate.dto.QualityCertificateSearchRequest;
-import com.dongkuk.dmes.mqc.qpr.qualityCertificate.repository.QualityCertificateCoilRepository;
-import com.dongkuk.dmes.mqc.qpr.qualityCertificate.repository.QualityCertificateRepository;
-import java.math.BigDecimal;
+import com.dongkuk.dmes.mqc.qpr.qualityCertificate.domain.WtyDoc;
+import com.dongkuk.dmes.mqc.qpr.qualityCertificate.domain.WtyHistory;
+import com.dongkuk.dmes.mqc.qpr.qualityCertificate.domain.WtyVersion;
+import com.dongkuk.dmes.mqc.qpr.qualityCertificate.dto.QualityCertificateRequest;
+import com.dongkuk.dmes.mqc.qpr.qualityCertificate.repository.WtyDocRepository;
+import com.dongkuk.dmes.mqc.qpr.qualityCertificate.repository.WtyHistoryRepository;
+import com.dongkuk.dmes.mqc.qpr.qualityCertificate.repository.WtyVersionRepository;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
-import java.util.TreeMap;
+import java.util.function.Supplier;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 /**
- * 품질보증서관리(OASIS qualityCertificate, 화면 qpr/qualityCertificate). 주문·PO 단위로 코일 여러 개의 품질을 보증한다.
- * 발행 요청(save) → 초안 → 발행(issue) → 재발행(reissue, 판 +1) / 회수(cancel). 발행·재발행은 실린 코일이 모두 합격이어야 한다.
+ * 품질보증서관리(OASIS qualityCertificate, 화면 qpr/qualityCertificate). 계약 = docs/mqc/demo/wty-contract.md.
+ * 시연 목업이다 — 문서 편집은 화면이 하고, 서버는 문서 본문(불투명한 JSON) 저장, 상태(적용본·초안·승인 대기),
+ * 승인 시 버전 올림과 버전 기록, 이력, 시연 초기화를 맡는다.
  * 진입 빈이라 @Transactional 을 두지 않는다 — OASIS 가 서비스 단위 트랜잭션을 건다.
  */
 @Service("qualityCertificate")
 public class QualityCertificateService {
 
-    static final Map<String, String> TEMPLATES = Map.of("KS", "KS 표준", "CUS", "수요가 지정");
-    static final Map<String, String> LANGS = Map.of("KO", "국문", "EN", "영문");
-    /** 보증 항목(양식 KS 표준): 항목 코드, 이름, 기준 설명. 대표값은 실린 코일 검사값의 최솟값(YP 는 범위)이다. */
-    static final String[][] GUARANTEE = {
-        {"TS", "인장강도 TS (MPa)", "규격 하한 이상"},
-        {"YP", "항복강도 YP (MPa)", "규격 범위"},
-        {"EL", "연신율 EL (%)", "규격 하한 이상"},
-        {"COAT", "도금 부착량 (g/㎡)", "주문 도금량 이상"},
-    };
-    static final DateTimeFormatter NO_MONTH = DateTimeFormatter.ofPattern("yyMM");
+    static final String MSG_PENDING = "승인 대기 중에는 고칠 수 없습니다. 승인 요청을 먼저 취소하세요.";
+    static final String MSG_EXISTS = "이미 문서가 있습니다. 기본 문서는 문서가 없을 때만 만들 수 있습니다.";
+    static final String MSG_NO_DOC = "문서가 없습니다. 기본 문서를 먼저 만드세요.";
+    static final String MSG_NOT_PENDING = "승인 대기 중인 문서가 아닙니다.";
+    static final DateTimeFormatter TS = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss");
+    static final Set<String> SAVE_ACTS = Set.of(WtyHistory.INIT, WtyHistory.DRAFT, WtyHistory.REQUEST, WtyHistory.UNREQUEST,
+            WtyHistory.DISCARD);
+    static final Set<String> COLLAPSE_ACTS = Set.of(WtyHistory.DRAFT, WtyHistory.REQUEST);
+    static final Duration COLLAPSE_WINDOW = Duration.ofMinutes(1);
+    static final int TEXT_MAX = 1000;
 
-    private final QualityCertificateRepository certs;
-    private final QualityCertificateCoilRepository certCoils;
-    private final CoilLookup lookup;
-    private final OutputHistories histories;
+    private final WtyDocRepository docs;
+    private final WtyVersionRepository vers;
+    private final WtyHistoryRepository hist;
     private final Clock clock;
+    private final Supplier<String> actor;
+    private final ObjectMapper json = new ObjectMapper();
 
     @Autowired
-    public QualityCertificateService(QualityCertificateRepository certs, QualityCertificateCoilRepository certCoils,
-                                     CoilLookup lookup, OutputHistories histories) {
-        this(certs, certCoils, lookup, histories, DemoSupport.systemClock());
+    public QualityCertificateService(WtyDocRepository docs, WtyVersionRepository vers, WtyHistoryRepository hist) {
+        this(docs, vers, hist, DemoSupport.systemClock(), DemoSupport::actor);
     }
 
-    QualityCertificateService(QualityCertificateRepository certs, QualityCertificateCoilRepository certCoils,
-                              CoilLookup lookup, OutputHistories histories, Clock clock) {
-        this.certs = certs;
-        this.certCoils = certCoils;
-        this.lookup = lookup;
-        this.histories = histories;
+    QualityCertificateService(WtyDocRepository docs, WtyVersionRepository vers, WtyHistoryRepository hist, Clock clock,
+                              Supplier<String> actor) {
+        this.docs = docs;
+        this.vers = vers;
+        this.hist = hist;
         this.clock = clock;
+        this.actor = actor;
     }
 
-    /** 발행 목록. 기준일 = 발행일(초안은 요청일). 응답: rows[], totalCount, counts{DRAFT,ISSUED,REISSUED,RECALLED}. */
-    public Map<String, Object> search(QualityCertificateSearchRequest req) {
-        LocalDateTime[] r = DemoSupport.range(req.getFromDt(), req.getToDt());
-        QcStatus statusFilter = DemoSupport.isBlank(req.getStatus()) ? null : QcStatus.of(req.getStatus());
-        if (!DemoSupport.isBlank(req.getStatus()) && statusFilter == null) throw DemoSupport.invalid("상태가 올바르지 않습니다: " + req.getStatus());
+    // ── OASIS action ─────────────────────────────────────
 
-        Map<String, List<String>> coilsByCert = new HashMap<>();
-        for (QualityCertificateCoil c : certCoils.findAllByOrderByQcNoAscSeqAsc()) {
-            coilsByCert.computeIfAbsent(c.getQcNo(), k -> new ArrayList<>()).add(c.getCoilNo());
-        }
-        Set<String> allCoils = new HashSet<>();
-        coilsByCert.values().forEach(allCoils::addAll);
-        Map<String, CoilSnapshot> snaps = lookup.load(allCoils);
-
-        Map<String, Integer> counts = new LinkedHashMap<>();
-        for (QcStatus s : QcStatus.values()) counts.put(s.name(), 0);
-        List<Map<String, Object>> rows = new ArrayList<>();
-        for (QualityCertificate q : certs.findAllByOrderByQcNoDesc()) {
-            LocalDateTime base = q.getIssueAt() != null ? q.getIssueAt() : q.getReqAt();
-            if (base != null && (base.isBefore(r[0]) || !base.isBefore(r[1]))) continue;
-            if (!DemoSupport.eq(req.getCusNm(), q.getCusNm())) continue;
-            List<CoilSnapshot> coils = snapshots(coilsByCert.getOrDefault(q.getQcNo(), List.of()), snaps);
-            Map<String, Object> row = rowView(q, coils);
-            if (!DemoSupport.matches(req.getKeyword(), q.getQcNo(), q.getOrdNo(), q.getCusNm(), q.getPoNo(),
-                    (String) row.get("prdLabel"), (String) row.get("specCd"), q.getIssueBy(), q.getReqBy())) continue;
-            counts.merge(q.getStatCd().name(), 1, Integer::sum);
-            if (statusFilter != null && q.getStatCd() != statusFilter) continue;
-            rows.add(row);
-        }
+    /**
+     * 현재 문서·버전 기록·이력. 응답: doc {ver, state, json, base, updatedAt, updatedBy} 또는 null,
+     * versions [{ver, memo, approvedAt, approvedBy}](ver 내림차순), hist [{at, act, msg, by}](최근 100건, 최근 먼저).
+     */
+    public Map<String, Object> search(QualityCertificateRequest req) {
         Map<String, Object> out = new LinkedHashMap<>();
-        out.put("rows", rows);
-        out.put("totalCount", rows.size());
-        out.put("counts", counts);
+        out.put("doc", docs.findById(WtyDoc.MAIN).map(QualityCertificateService::docView).orElse(null));
+        List<Map<String, Object>> versions = new ArrayList<>();
+        for (WtyVersion v : vers.findByDocIdOrderByDocVerDesc(WtyDoc.MAIN)) versions.add(versionView(v));
+        out.put("versions", versions);
+        List<Map<String, Object>> events = new ArrayList<>();
+        for (WtyHistory h : hist.findTop100ByOrderByActAtDescHistNoDesc()) events.add(histView(h));
+        out.put("hist", events);
         return out;
-    }
-
-    /** 상세 — cert, coils[], guarantee[], actions{canIssue,canReissue,canCancel,blockReason}, history[]. */
-    public Map<String, Object> view(QualityCertificateKeyRequest req) {
-        return detail(DemoSupport.required(req.getQcNo(), "보증서번호"));
-    }
-
-    /** 발행 요청 — 같은 주문의 코일로 초안을 만든다. 다른 보증서(초안·발행·재발행)에 실린 코일은 받지 않는다. 응답은 view 와 같다. */
-    public Map<String, Object> save(QualityCertificateSaveRequest req) {
-        List<String> coilNos = DemoSupport.keys(req.getCoilNos(), "코일");
-        String tmpl = DemoSupport.isBlank(req.getTmplCd()) ? "KS" : req.getTmplCd().trim();
-        String lang = DemoSupport.isBlank(req.getLangCd()) ? "KO" : req.getLangCd().trim();
-        if (!TEMPLATES.containsKey(tmpl)) throw DemoSupport.invalid("양식이 올바르지 않습니다: " + tmpl);
-        if (!LANGS.containsKey(lang)) throw DemoSupport.invalid("언어가 올바르지 않습니다: " + lang);
-        String note = DemoSupport.trimToNull(req.getNote());
-        if (note != null && note.length() > 500) throw DemoSupport.invalid("비고는 500자까지 입력합니다.");
-
-        Map<String, CoilSnapshot> snaps = lookup.load(coilNos);
-        List<String> missing = coilNos.stream().filter(k -> !snaps.containsKey(k)).toList();
-        if (!missing.isEmpty()) throw DemoSupport.notFound("코일", String.join(", ", missing));
-        String ordNo = DemoSupport.trimToNull(req.getOrdNo());
-        if (ordNo == null) ordNo = snaps.get(coilNos.get(0)).coil().getOrdNo();
-        List<String> otherOrder = new ArrayList<>();
-        for (CoilSnapshot s : snaps.values()) {
-            if (!ordNo.equals(s.coil().getOrdNo())) otherOrder.add(s.coilNo() + "(" + s.coil().getOrdNo() + ")");
-        }
-        if (!otherOrder.isEmpty()) throw DemoSupport.business("주문 " + ordNo + " 의 코일만 실을 수 있습니다: " + String.join(", ", otherOrder));
-
-        List<String> taken = new ArrayList<>();
-        for (QualityCertificateCoil link : certCoils.findByCoilNoIn(coilNos)) {
-            certs.findById(link.getQcNo()).filter(q -> q.getStatCd() != QcStatus.RECALLED)
-                    .ifPresent(q -> taken.add(link.getCoilNo() + "(" + q.getQcNo() + " " + q.getStatCd().label() + ")"));
-        }
-        if (!taken.isEmpty()) throw DemoSupport.business("이미 다른 보증서에 실린 코일입니다: " + String.join(", ", taken));
-
-        LocalDateTime now = DemoSupport.now(clock);
-        String by = DemoSupport.actor();
-        Coil first = snaps.get(coilNos.get(0)).coil();
-        QualityCertificate q = QualityCertificate.draft(nextNo(now), ordNo, first.getCusNm(), first.getPoNo(), tmpl, lang, note, by, now);
-        certs.save(q);
-        int seq = 1;
-        for (String c : coilNos) certCoils.save(QualityCertificateCoil.of(q.getQcNo(), c, seq++));
-        histories.record(OutputHistory.QC, q.getQcNo(), q.getDocRev(), OutputHistory.REQUEST, null, QcStatus.DRAFT.name(), note, by, now);
-        return detail(q.getQcNo());
-    }
-
-    /** 발행 — 초안만. 실린 코일이 모두 합격이어야 한다. 응답은 view 와 같다. */
-    public Map<String, Object> issue(QualityCertificateKeyRequest req) {
-        QualityCertificate q = find(req.getQcNo());
-        if (q.getStatCd() != QcStatus.DRAFT) throw DemoSupport.business("초안만 발행합니다: " + q.getQcNo() + "(" + q.getStatCd().label() + ")");
-        requireAllPassed(q.getQcNo(), "발행");
-        LocalDateTime now = DemoSupport.now(clock);
-        String by = DemoSupport.actor();
-        q.issue(by, now);
-        certs.save(q);
-        histories.record(OutputHistory.QC, q.getQcNo(), q.getDocRev(), OutputHistory.ISSUE, QcStatus.DRAFT.name(), QcStatus.ISSUED.name(),
-                DemoSupport.trimToNull(req.getReason()), by, now);
-        return detail(q.getQcNo());
-    }
-
-    /** 재발행 — 발행·재발행 상태만, 사유 필수, 판 +1. 실린 코일이 모두 합격이어야 한다. */
-    public Map<String, Object> reissue(QualityCertificateKeyRequest req) {
-        QualityCertificate q = find(req.getQcNo());
-        String reason = DemoSupport.required(req.getReason(), "재발행 사유");
-        if (q.getStatCd() != QcStatus.ISSUED && q.getStatCd() != QcStatus.REISSUED) {
-            throw DemoSupport.business("발행된 보증서만 재발행합니다: " + q.getQcNo() + "(" + q.getStatCd().label() + ")");
-        }
-        requireAllPassed(q.getQcNo(), "재발행");
-        LocalDateTime now = DemoSupport.now(clock);
-        String by = DemoSupport.actor();
-        String before = q.getStatCd().name();
-        q.reissue(by, now);
-        certs.save(q);
-        histories.record(OutputHistory.QC, q.getQcNo(), q.getDocRev(), OutputHistory.REISSUE, before, QcStatus.REISSUED.name(), reason, by, now);
-        return detail(q.getQcNo());
-    }
-
-    /** 회수 — 초안·발행·재발행을 회수로. 사유 필수. 회수한 보증서의 코일은 다시 다른 보증서에 실을 수 있다. */
-    public Map<String, Object> cancel(QualityCertificateKeyRequest req) {
-        QualityCertificate q = find(req.getQcNo());
-        String reason = DemoSupport.required(req.getReason(), "회수 사유");
-        if (q.getStatCd() == QcStatus.RECALLED) throw DemoSupport.business("이미 회수한 보증서입니다: " + q.getQcNo());
-        LocalDateTime now = DemoSupport.now(clock);
-        String by = DemoSupport.actor();
-        String before = q.getStatCd().name();
-        q.recall();
-        certs.save(q);
-        histories.record(OutputHistory.QC, q.getQcNo(), q.getDocRev(), OutputHistory.CANCEL, before, QcStatus.RECALLED.name(), reason, by, now);
-        return detail(q.getQcNo());
-    }
-
-    /** 처리 이력. qcNo 가 있으면 그 문서, 없으면 처리일 기간. 응답: events[]. */
-    public Map<String, Object> history(QualityCertificateHistoryRequest req) {
-        return Map.of("events", histories.list(OutputHistory.QC, req.getQcNo(), req.getFromDt(), req.getToDt(),
-                QcStatus::labelOf, QualityCertificateService::actionName));
     }
 
     /**
-     * 발행 요청 칸의 고르기 값 — 주문별 코일(판정 상태, 다른 보증서에 실렸는지)과 수요가 목록.
-     * 응답: orders[{ordNo, cusNm, poNo, prdLabel, specCd, coils[{coilNo, sizeText, wgt, status, statusNm, takenBy}]}], customers[].
+     * 현재 문서 저장. INIT 은 문서가 없을 때만(적용본·v1 버전 기록도 같은 본문). DISCARD 는 본문을 적용본으로 되돌린다(json 무시).
+     * 승인 대기 중에는 UNREQUEST 만 받는다. 상태: INIT·DISCARD = APPLIED, REQUEST = PENDING, DRAFT·UNREQUEST = state(APPLIED·DRAFT, 비면 DRAFT).
+     * 응답: {ver, state, updatedAt}.
      */
-    public Map<String, Object> codes(QualityCertificateSearchRequest req) {
-        Map<String, String> takenBy = new HashMap<>();
-        Map<String, QcStatus> certStatus = new HashMap<>();
-        for (QualityCertificate q : certs.findAll()) certStatus.put(q.getQcNo(), q.getStatCd());
-        for (QualityCertificateCoil link : certCoils.findAllByOrderByQcNoAscSeqAsc()) {
-            QcStatus st = certStatus.get(link.getQcNo());
-            if (st != null && st != QcStatus.RECALLED) takenBy.put(link.getCoilNo(), link.getQcNo());
+    public Map<String, Object> save(QualityCertificateRequest req) {
+        String act = DemoSupport.required(req.getAct(), "동작(act)").toUpperCase();
+        if (!SAVE_ACTS.contains(act)) throw DemoSupport.invalid("저장 동작(act)이 올바르지 않습니다: " + act);
+        String msg = text(req.getMsg(), "메시지(msg)");
+        LocalDateTime now = DemoSupport.now(clock);
+        String by = actor.get();
+        WtyDoc doc = docs.findById(WtyDoc.MAIN).orElse(null);
+
+        if (WtyHistory.INIT.equals(act)) {
+            if (doc != null) throw DemoSupport.business(MSG_EXISTS);
+            String body = body(req.getJson(), true);
+            doc = WtyDoc.init(WtyDoc.MAIN, body, by, now);
+            docs.save(doc);
+            vers.save(WtyVersion.of(WtyDoc.MAIN, 1, body, msg == null ? "기본 문서" : msg, by, now));
+            record(WtyHistory.INIT, msg == null ? "기본 문서 만들기 (v1)" : msg, by, now);
+            return saved(doc);
         }
-        Map<String, Map<String, Object>> orders = new TreeMap<>();
-        Set<String> customers = new java.util.TreeSet<>();
-        for (CoilSnapshot s : lookup.all()) {
-            Coil c = s.coil();
-            if (c.getCusNm() != null) customers.add(c.getCusNm());
-            Map<String, Object> o = orders.computeIfAbsent(c.getOrdNo(), k -> {
-                Map<String, Object> m = new LinkedHashMap<>();
-                m.put("ordNo", k);
-                m.put("cusNm", c.getCusNm());
-                m.put("poNo", c.getPoNo());
-                m.put("prdLabel", c.prdLabel());
-                m.put("specCd", c.getSpecCd());
-                m.put("coils", new ArrayList<Map<String, Object>>());
-                return m;
-            });
-            Map<String, Object> cm = new LinkedHashMap<>();
-            cm.put("coilNo", c.getCoilNo());
-            cm.put("sizeText", c.sizeText());
-            cm.put("wgt", c.getWgt());
-            cm.put("status", s.status().name());
-            cm.put("statusNm", s.status().label());
-            cm.put("takenBy", takenBy.get(c.getCoilNo()));
-            @SuppressWarnings("unchecked")
-            List<Map<String, Object>> list = (List<Map<String, Object>>) o.get("coils");
-            list.add(cm);
+
+        if (doc == null) throw DemoSupport.business(MSG_NO_DOC);
+        if (doc.isPending() && !WtyHistory.UNREQUEST.equals(act)) throw DemoSupport.business(MSG_PENDING);
+        if (!doc.isPending() && WtyHistory.UNREQUEST.equals(act)) throw DemoSupport.business(MSG_NOT_PENDING);
+
+        if (WtyHistory.DISCARD.equals(act)) {
+            doc.write(doc.getBaseJson(), WtyDoc.APPLIED, by, now);
+        } else {
+            String body = body(req.getJson(), false);
+            String state = WtyHistory.REQUEST.equals(act) ? WtyDoc.PENDING : editState(req.getState());
+            doc.write(body == null ? doc.getBodyJson() : body, state, by, now);
         }
+        docs.save(doc);
+        record(act, msg, by, now);
+        return saved(doc);
+    }
+
+    /** 승인 — 승인 대기일 때만. ver + 1, 적용본 = 현재 본문, 상태 APPLIED, 버전 기록 1행. 응답: {ver, approvedAt}. */
+    public Map<String, Object> approve(QualityCertificateRequest req) {
+        WtyDoc doc = docs.findById(WtyDoc.MAIN).orElseThrow(() -> DemoSupport.business(MSG_NO_DOC));
+        if (!doc.isPending()) throw DemoSupport.business(MSG_NOT_PENDING);
+        String memo = text(req.getMemo(), "승인 메모(memo)");
+        LocalDateTime now = DemoSupport.now(clock);
+        String by = actor.get();
+        doc.approve(by, now);
+        docs.save(doc);
+        vers.save(WtyVersion.of(WtyDoc.MAIN, doc.getDocVer(), doc.getBodyJson(), memo, by, now));
+        record(WtyHistory.APPROVE, "v" + doc.getDocVer() + " 승인" + (memo == null ? "" : " — " + memo), by, now);
         Map<String, Object> out = new LinkedHashMap<>();
-        out.put("orders", new ArrayList<>(orders.values()));
-        out.put("customers", new ArrayList<>(customers));
+        out.put("ver", doc.getDocVer());
+        out.put("approvedAt", ts(now));
         return out;
     }
 
-    // ── 내부 ─────────────────────────────────────────────
-
-    static String actionName(String actCd) {
-        return switch (actCd) {
-            case OutputHistory.REQUEST -> "발행 요청";
-            case OutputHistory.ISSUE -> "발행";
-            case OutputHistory.REISSUE -> "재발행";
-            case OutputHistory.CANCEL -> "회수";
-            default -> actCd;
-        };
+    /** 시연 초기화 — 문서·버전·이력을 모두 지우고 RESET 이력 1행만 남긴다(화면이 기본 문서로 다시 INIT 한다). 응답: {ok: true}. */
+    public Map<String, Object> reset(QualityCertificateRequest req) {
+        hist.deleteAllInBatch();
+        vers.deleteAllInBatch();
+        docs.deleteAllInBatch();
+        record(WtyHistory.RESET, "시연 초기화", actor.get(), DemoSupport.now(clock));
+        return Map.of("ok", true);
     }
 
-    private QualityCertificate find(String qcNo) {
-        String no = DemoSupport.required(qcNo, "보증서번호");
-        return certs.findById(no).orElseThrow(() -> DemoSupport.notFound("품질보증서", no));
-    }
+    // ── 도우미 ───────────────────────────────────────────
 
-    private List<CoilSnapshot> coilsOf(String qcNo) {
-        List<String> nos = certCoils.findByQcNoOrderBySeqAsc(qcNo).stream().map(QualityCertificateCoil::getCoilNo).toList();
-        return snapshots(nos, lookup.load(nos));
-    }
-
-    private static List<CoilSnapshot> snapshots(List<String> nos, Map<String, CoilSnapshot> snaps) {
-        List<CoilSnapshot> out = new ArrayList<>();
-        for (String n : nos) {
-            CoilSnapshot s = snaps.get(n);
-            if (s != null) out.add(s);
+    /** 이력 1행. DRAFT·REQUEST 는 직전 행이 같은 사용자·같은 동작이고 1분 안이면 새 행 대신 그 행을 바꾼다. */
+    private void record(String act, String msg, String by, LocalDateTime at) {
+        if (COLLAPSE_ACTS.contains(act)) {
+            WtyHistory last = hist.findFirstByOrderByActAtDescHistNoDesc().orElse(null);
+            if (last != null && act.equals(last.getActCd()) && Objects.equals(by, last.getActBy())
+                    && !last.getActAt().isBefore(at.minus(COLLAPSE_WINDOW))) {
+                last.touch(msg, at);
+                hist.save(last);
+                return;
+            }
         }
+        hist.save(WtyHistory.of(WtyDoc.MAIN, act, msg, by, at));
+    }
+
+    /** 본문 — JSON 객체 문자열. required 가 아니면 빈 값은 null(지금 본문 유지). */
+    private String body(String text, boolean required) {
+        if (DemoSupport.isBlank(text)) {
+            if (required) throw DemoSupport.invalid("본문(json)을 넣으세요.");
+            return null;
+        }
+        String body = text.trim();
+        try {
+            JsonNode n = json.readTree(body);
+            if (n == null || !n.isObject()) throw DemoSupport.invalid("본문(json)은 JSON 객체여야 합니다.");
+        } catch (JsonProcessingException e) {
+            throw DemoSupport.invalid("본문(json)이 JSON 형식이 아닙니다.");
+        }
+        return body;
+    }
+
+    /** DRAFT·UNREQUEST 가 둘 수 있는 상태 — APPLIED 또는 DRAFT(비면 DRAFT). 승인 대기는 REQUEST 로만 간다. */
+    private static String editState(String state) {
+        String s = DemoSupport.trimToNull(state);
+        if (s == null) return WtyDoc.DRAFT;
+        s = s.toUpperCase();
+        if (WtyDoc.APPLIED.equals(s) || WtyDoc.DRAFT.equals(s)) return s;
+        if (WtyDoc.PENDING.equals(s)) throw DemoSupport.invalid("승인 대기 상태는 승인 요청(REQUEST)으로만 둘 수 있습니다.");
+        throw DemoSupport.invalid("상태(state)가 올바르지 않습니다: " + state);
+    }
+
+    private static String text(String s, String label) {
+        String t = DemoSupport.trimToNull(s);
+        if (t != null && t.length() > TEXT_MAX) throw DemoSupport.invalid(label + "은(는) " + TEXT_MAX + "자까지 입력합니다.");
+        return t;
+    }
+
+    private static Map<String, Object> saved(WtyDoc d) {
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("ver", d.getDocVer());
+        out.put("state", d.getStatCd());
+        out.put("updatedAt", ts(d.getUpdAt()));
         return out;
     }
 
-    /** 합격이 아닌 코일 설명(없으면 null). */
-    static String blockReason(List<CoilSnapshot> coils) {
-        if (coils.isEmpty()) return "실린 코일이 없습니다.";
-        List<String> bad = new ArrayList<>();
-        for (CoilSnapshot s : coils) {
-            if (!s.passed()) bad.add(s.coilNo() + "(" + s.status().label() + ")");
-        }
-        return bad.isEmpty() ? null : "합격하지 않은 코일이 있습니다: " + String.join(", ", bad);
-    }
-
-    private void requireAllPassed(String qcNo, String action) {
-        String reason = blockReason(coilsOf(qcNo));
-        if (reason != null) throw DemoSupport.business(action + "할 수 없습니다. " + reason);
-    }
-
-    private String nextNo(LocalDateTime now) {
-        String prefix = "QC-" + NO_MONTH.format(now) + "-";
-        int seq = certs.findTopByQcNoStartingWithOrderByQcNoDesc(prefix)
-                .map(q -> Integer.parseInt(q.getQcNo().substring(prefix.length())) + 1).orElse(1);
-        return prefix + String.format("%04d", seq);
-    }
-
-    private Map<String, Object> rowView(QualityCertificate q, List<CoilSnapshot> coils) {
+    private static Map<String, Object> docView(WtyDoc d) {
         Map<String, Object> m = new LinkedHashMap<>();
-        m.put("qcNo", q.getQcNo());
-        m.put("docRev", q.getDocRev());
-        m.put("revText", "v" + q.getDocRev());
-        m.put("ordNo", q.getOrdNo());
-        m.put("cusNm", q.getCusNm());
-        m.put("poNo", q.getPoNo());
-        Coil first = coils.isEmpty() ? null : coils.get(0).coil();
-        m.put("prdLabel", first == null ? null : first.prdLabel());
-        m.put("specCd", first == null ? null : first.getSpecCd());
-        m.put("sizeText", first == null ? null : first.sizeText());
-        m.put("coilCount", coils.size());
-        BigDecimal wgt = BigDecimal.ZERO;
-        for (CoilSnapshot s : coils) if (s.coil().getWgt() != null) wgt = wgt.add(s.coil().getWgt());
-        m.put("totalWgt", wgt);
-        m.put("tmplCd", q.getTmplCd());
-        m.put("tmplNm", TEMPLATES.getOrDefault(q.getTmplCd(), q.getTmplCd()));
-        m.put("langCd", q.getLangCd());
-        m.put("langNm", LANGS.getOrDefault(q.getLangCd(), q.getLangCd()));
-        m.put("status", q.getStatCd().name());
-        m.put("statusNm", q.getStatCd().label());
-        m.put("reqBy", q.getReqBy());
-        m.put("reqAt", DemoSupport.format(q.getReqAt()));
-        m.put("issueBy", q.getIssueBy());
-        m.put("issueAt", DemoSupport.format(q.getIssueAt()));
-        m.put("issueDate", DemoSupport.formatDate(q.getIssueAt()));
-        m.put("note", q.getNote());
+        m.put("ver", d.getDocVer());
+        m.put("state", d.getStatCd());
+        m.put("json", d.getBodyJson());
+        m.put("base", d.getBaseJson());
+        m.put("updatedAt", ts(d.getUpdAt()));
+        m.put("updatedBy", d.getUpdBy());
         return m;
     }
 
-    private Map<String, Object> detail(String qcNo) {
-        QualityCertificate q = certs.findById(qcNo).orElseThrow(() -> DemoSupport.notFound("품질보증서", qcNo));
-        List<CoilSnapshot> coils = coilsOf(qcNo);
-        List<Map<String, Object>> coilRows = new ArrayList<>();
-        for (CoilSnapshot s : coils) {
-            Map<String, Object> m = new LinkedHashMap<>();
-            m.put("coilNo", s.coilNo());
-            m.put("sizeText", s.coil().sizeText());
-            m.put("wgt", s.coil().getWgt());
-            m.put("heatNo", s.coil().getHeatNo());
-            m.put("status", s.status().name());
-            m.put("statusNm", s.status().label());
-            m.put("yp", s.value("YP"));
-            m.put("ts", s.value("TS"));
-            m.put("el", s.value("EL"));
-            m.put("coat", s.value("COAT"));
-            coilRows.add(m);
-        }
-        String block = blockReason(coils);
-        boolean issued = q.getStatCd() == QcStatus.ISSUED || q.getStatCd() == QcStatus.REISSUED;
-        Map<String, Object> actions = new LinkedHashMap<>();
-        actions.put("canIssue", q.getStatCd() == QcStatus.DRAFT && block == null);
-        actions.put("canReissue", issued && block == null);
-        actions.put("canCancel", q.getStatCd() != QcStatus.RECALLED);
-        actions.put("blockReason", block);
-        Map<String, Object> out = new LinkedHashMap<>();
-        out.put("cert", rowView(q, coils));
-        out.put("coils", coilRows);
-        out.put("guarantee", guarantee(coils));
-        out.put("actions", actions);
-        out.put("history", histories.list(OutputHistory.QC, qcNo, null, null, QcStatus::labelOf, QualityCertificateService::actionName));
-        return out;
+    private static Map<String, Object> versionView(WtyVersion v) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("ver", v.getDocVer());
+        m.put("memo", v.getMemoTxt());
+        m.put("approvedAt", ts(v.getAprvAt()));
+        m.put("approvedBy", v.getAprvBy());
+        return m;
     }
 
-    /** 보증 항목 — 기준(첫 코일 검사 항목의 기준 글)과 대표값(최솟값, YP 는 최소~최대), 모든 코일 판정의 나쁜 쪽. */
-    static List<Map<String, Object>> guarantee(List<CoilSnapshot> coils) {
-        List<Map<String, Object>> out = new ArrayList<>();
-        for (String[] g : GUARANTEE) {
-            BigDecimal min = null;
-            BigDecimal max = null;
-            String crit = null;
-            List<ItemResult> results = new ArrayList<>();
-            for (CoilSnapshot s : coils) {
-                InspectionItem i = s.item(g[0]);
-                if (i == null) continue;
-                if (crit == null) crit = i.getCritTxt();
-                results.add(i.getRsltCd());
-                BigDecimal v = i.numericValue();
-                if (v == null) continue;
-                if (min == null || v.compareTo(min) < 0) min = v;
-                if (max == null || v.compareTo(max) > 0) max = v;
-            }
-            String value = min == null ? "—"
-                    : "YP".equals(g[0]) && max.compareTo(min) != 0 ? min.toPlainString() + "~" + max.toPlainString() : min.toPlainString();
-            ItemResult worst = InspectionEvaluator.worst(results);
-            Map<String, Object> m = new LinkedHashMap<>();
-            m.put("itemCd", g[0]);
-            m.put("itemNm", g[1]);
-            m.put("basis", g[2]);
-            m.put("critTxt", crit);
-            m.put("value", value);
-            m.put("result", worst.name());
-            m.put("resultNm", worst.label());
-            out.add(m);
-        }
-        return out;
+    private static Map<String, Object> histView(WtyHistory h) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("at", ts(h.getActAt()));
+        m.put("act", h.getActCd());
+        m.put("msg", h.getMsgTxt());
+        m.put("by", h.getActBy());
+        return m;
+    }
+
+    static String ts(LocalDateTime t) {
+        return t == null ? null : TS.format(t);
     }
 }

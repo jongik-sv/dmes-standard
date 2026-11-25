@@ -24,7 +24,7 @@ import { PaperPreview } from "./PaperPreview";
 import { RulePanel } from "./RulePanel";
 import { SignPanel } from "./SignPanel";
 import { useMtcStore, type TabKey } from "./store";
-import { Lead, Stack } from "./ui";
+import { Lead, Stack } from "@/common/ui";
 
 const PANELS = { issue: IssuePanel, form: FormPanel, ovr: OvrPanel, rule: RulePanel, sign: SignPanel } as const;
 

@@ -2,153 +2,209 @@ package com.dongkuk.dmes.mqc.qpr.qualityCertificate.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyCollection;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.BDDMockito.given;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
 
 import com.dongkuk.dmes.cactus.common.BusinessException;
-import com.dongkuk.dmes.mqc.qjd.qualityJudgment.domain.JudgmentStatus;
-import com.dongkuk.dmes.mqc.qjd.qualityJudgment.service.CoilFixtures;
-import com.dongkuk.dmes.mqc.qjd.qualityJudgment.service.CoilLookup;
-import com.dongkuk.dmes.mqc.qjd.qualityJudgment.service.CoilSnapshot;
-import com.dongkuk.dmes.mqc.qpr.common.OutputHistories;
-import com.dongkuk.dmes.mqc.qpr.common.OutputHistory;
-import com.dongkuk.dmes.mqc.qpr.qualityCertificate.domain.QcStatus;
-import com.dongkuk.dmes.mqc.qpr.qualityCertificate.domain.QualityCertificate;
-import com.dongkuk.dmes.mqc.qpr.qualityCertificate.domain.QualityCertificateCoil;
-import com.dongkuk.dmes.mqc.qpr.qualityCertificate.dto.QualityCertificateKeyRequest;
-import com.dongkuk.dmes.mqc.qpr.qualityCertificate.dto.QualityCertificateSaveRequest;
-import com.dongkuk.dmes.mqc.qpr.qualityCertificate.repository.QualityCertificateCoilRepository;
-import com.dongkuk.dmes.mqc.qpr.qualityCertificate.repository.QualityCertificateRepository;
-import java.util.LinkedHashMap;
+import com.dongkuk.dmes.mqc.qpr.qualityCertificate.domain.WtyDoc;
+import com.dongkuk.dmes.mqc.qpr.qualityCertificate.domain.WtyHistory;
+import com.dongkuk.dmes.mqc.qpr.qualityCertificate.domain.WtyVersion;
+import com.dongkuk.dmes.mqc.qpr.qualityCertificate.domain.WtyVersionId;
+import com.dongkuk.dmes.mqc.qpr.qualityCertificate.dto.QualityCertificateRequest;
+import com.dongkuk.dmes.mqc.qpr.qualityCertificate.repository.WtyDocRepository;
+import com.dongkuk.dmes.mqc.qpr.qualityCertificate.repository.WtyHistoryRepository;
+import com.dongkuk.dmes.mqc.qpr.qualityCertificate.repository.WtyVersionRepository;
+import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-import org.mockito.junit.jupiter.MockitoSettings;
-import org.mockito.quality.Strictness;
 
-@ExtendWith(MockitoExtension.class)
-@MockitoSettings(strictness = Strictness.LENIENT)
 class QualityCertificateServiceTest {
 
-    @Mock QualityCertificateRepository certs;
-    @Mock QualityCertificateCoilRepository certCoils;
-    @Mock CoilLookup lookup;
-    @Mock OutputHistories histories;
+    static final ZoneId KST = ZoneId.of("Asia/Seoul");
+    static final String BODY = "{\"brand\":\"DK\",\"clauses\":[]}";
+    static final String EDITED = "{\"brand\":\"DK\",\"clauses\":[{\"id\":\"c1\"}]}";
 
-    QualityCertificateService service;
+    WtyDocRepository docs;
+    WtyVersionRepository vers;
+    WtyHistoryRepository hist;
+    Instant now;
+    String user;
+    QualityCertificateService s;
 
     @BeforeEach
     void setUp() {
-        service = new QualityCertificateService(certs, certCoils, lookup, histories, CoilFixtures.CLOCK);
+        docs = WtyMemoryRepos.of(WtyDocRepository.class, o -> ((WtyDoc) o).getDocId());
+        vers = WtyMemoryRepos.of(WtyVersionRepository.class,
+                o -> new WtyVersionId(((WtyVersion) o).getDocId(), ((WtyVersion) o).getDocVer()));
+        hist = WtyMemoryRepos.of(WtyHistoryRepository.class, o -> ((WtyHistory) o).getHistNo());
+        now = ZonedDateTime.of(2026, 11, 25, 10, 0, 0, 0, KST).toInstant();
+        user = "kim";
+        Clock clock = new Clock() {
+            @Override public ZoneId getZone() { return KST; }
+            @Override public Clock withZone(ZoneId zone) { return this; }
+            @Override public Instant instant() { return now; }
+        };
+        s = new QualityCertificateService(docs, vers, hist, clock, () -> user);
     }
 
-    private void link(String qcNo, CoilSnapshot... snaps) {
-        Map<String, CoilSnapshot> m = new LinkedHashMap<>();
-        List<QualityCertificateCoil> links = new java.util.ArrayList<>();
-        int seq = 1;
-        for (CoilSnapshot s : snaps) {
-            m.put(s.coilNo(), s);
-            links.add(QualityCertificateCoil.of(qcNo, s.coilNo(), seq++));
-        }
-        given(certCoils.findByQcNoOrderBySeqAsc(qcNo)).willReturn(links);
-        given(lookup.load(anyCollection())).willReturn(m);
-    }
-
-    private static QualityCertificateKeyRequest key(String qcNo, String reason) {
-        QualityCertificateKeyRequest r = new QualityCertificateKeyRequest();
-        r.setQcNo(qcNo);
-        r.setReason(reason);
+    private static QualityCertificateRequest save(String act, String state, String json) {
+        QualityCertificateRequest r = new QualityCertificateRequest();
+        r.setAct(act);
+        r.setState(state);
+        r.setJson(json);
         return r;
     }
 
-    @Test
-    @DisplayName("issue: 실린 코일이 모두 합격이면 초안을 발행하고 이력을 남긴다")
-    void issue() {
-        QualityCertificate q = QualityCertificate.of("QC-1", "D1-010", QcStatus.DRAFT);
-        given(certs.findById("QC-1")).willReturn(Optional.of(q));
-        link("QC-1", CoilFixtures.snapshot("C1", "D1-010", JudgmentStatus.PASS, JudgmentStatus.PASS));
+    private static QualityCertificateRequest memo(String memo) {
+        QualityCertificateRequest r = new QualityCertificateRequest();
+        r.setMemo(memo);
+        return r;
+    }
 
-        Map<String, Object> out = service.issue(key("QC-1", null));
+    private void tick(int seconds) {
+        now = now.plus(Duration.ofSeconds(seconds));
+    }
 
-        assertThat(q.getStatCd()).isEqualTo(QcStatus.ISSUED);
-        assertThat(q.getIssueAt()).isNotNull();
-        verify(histories).record(eq(OutputHistory.QC), eq("QC-1"), eq(1), eq(OutputHistory.ISSUE), eq("DRAFT"), eq("ISSUED"), any(), any(), any());
-        @SuppressWarnings("unchecked")
-        Map<String, Object> actions = (Map<String, Object>) out.get("actions");
-        assertThat(actions.get("canReissue")).isEqualTo(true);
+    @SuppressWarnings("unchecked")
+    private static List<Map<String, Object>> list(Map<String, Object> out, String key) {
+        return (List<Map<String, Object>>) out.get(key);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> doc(Map<String, Object> out) {
+        return (Map<String, Object>) out.get("doc");
+    }
+
+    private void init() {
+        s.save(save("INIT", "APPLIED", BODY));
     }
 
     @Test
-    @DisplayName("issue: 합격하지 않은 코일이 있으면 발행하지 않는다")
-    void issueBlocked() {
-        QualityCertificate q = QualityCertificate.of("QC-1", "D1-010", QcStatus.DRAFT);
-        given(certs.findById("QC-1")).willReturn(Optional.of(q));
-        link("QC-1", CoilFixtures.snapshot("C1", "D1-010", JudgmentStatus.PASS, JudgmentStatus.PASS),
-                CoilFixtures.snapshot("C2", "D1-010", JudgmentStatus.HOLD, JudgmentStatus.HOLD));
-
-        assertThatThrownBy(() -> service.issue(key("QC-1", null))).isInstanceOf(BusinessException.class).hasMessageContaining("C2(보류)");
-        assertThat(q.getStatCd()).isEqualTo(QcStatus.DRAFT);
-        verify(certs, never()).save(any());
+    @DisplayName("search: 문서가 없으면 doc 은 null, 목록은 비어 있다")
+    void searchEmpty() {
+        Map<String, Object> out = s.search(new QualityCertificateRequest());
+        assertThat(out).containsKeys("doc", "versions", "hist");
+        assertThat(out.get("doc")).isNull();
+        assertThat(list(out, "versions")).isEmpty();
+        assertThat(list(out, "hist")).isEmpty();
     }
 
     @Test
-    @DisplayName("reissue: 사유가 있어야 하고 판이 1 오른다. cancel 은 회수로 바꾼다")
-    void reissueAndCancel() {
-        QualityCertificate q = QualityCertificate.of("QC-1", "D1-010", QcStatus.ISSUED);
-        given(certs.findById("QC-1")).willReturn(Optional.of(q));
-        link("QC-1", CoilFixtures.snapshot("C1", "D1-010", JudgmentStatus.PASS, JudgmentStatus.PASS));
+    @DisplayName("save INIT: 본문·적용본·v1 버전 기록을 같은 본문으로 만들고, 문서가 있으면 거부한다")
+    void init_createsV1() {
+        Map<String, Object> r = s.save(save("INIT", null, BODY));
+        assertThat(r).containsEntry("ver", 1).containsEntry("state", "APPLIED").containsEntry("updatedAt", "2026-11-25T10:00:00");
 
-        assertThatThrownBy(() -> service.reissue(key("QC-1", " "))).isInstanceOf(BusinessException.class);
-        service.reissue(key("QC-1", "품명 정정"));
-        assertThat(q.getStatCd()).isEqualTo(QcStatus.REISSUED);
-        assertThat(q.getDocRev()).isEqualTo(2);
+        Map<String, Object> out = s.search(new QualityCertificateRequest());
+        assertThat(doc(out)).containsEntry("ver", 1).containsEntry("state", "APPLIED").containsEntry("json", BODY)
+                .containsEntry("base", BODY).containsEntry("updatedBy", "kim");
+        assertThat(list(out, "versions")).singleElement().satisfies(v ->
+                assertThat(v).containsEntry("ver", 1).containsEntry("approvedBy", "kim").containsKeys("memo", "approvedAt"));
+        assertThat(list(out, "hist")).singleElement().satisfies(h -> assertThat(h).containsEntry("act", "INIT").containsEntry("by", "kim"));
 
-        service.cancel(key("QC-1", "수요가 반품"));
-        assertThat(q.getStatCd()).isEqualTo(QcStatus.RECALLED);
-        assertThatThrownBy(() -> service.cancel(key("QC-1", "x"))).isInstanceOf(BusinessException.class);
+        assertThatThrownBy(() -> s.save(save("INIT", null, BODY))).isInstanceOf(BusinessException.class)
+                .hasMessageContaining("이미 문서가 있습니다");
     }
 
     @Test
-    @DisplayName("save: 다른 주문의 코일은 실을 수 없고, 같은 주문이면 QC-yyMM-0001 로 초안을 만든다")
-    void save() {
-        Map<String, CoilSnapshot> snaps = new LinkedHashMap<>();
-        snaps.put("C1", CoilFixtures.snapshot("C1", "D1-010", JudgmentStatus.WAIT, JudgmentStatus.HOLD));
-        snaps.put("C2", CoilFixtures.snapshot("C2", "D2-010", JudgmentStatus.PASS, JudgmentStatus.PASS));
-        given(lookup.load(anyCollection())).willReturn(snaps);
-        QualityCertificateSaveRequest req = new QualityCertificateSaveRequest();
-        req.setOrdNo("D1-010");
-        req.setCoilNos("C1,C2");
-        assertThatThrownBy(() -> service.save(req)).isInstanceOf(BusinessException.class).hasMessageContaining("C2(D2-010)");
-
-        snaps.remove("C2");
-        req.setCoilNos("C1");
-        given(certCoils.findByCoilNoIn(anyCollection())).willReturn(List.of());
-        given(certs.findTopByQcNoStartingWithOrderByQcNoDesc("QC-2609-")).willReturn(Optional.empty());
-        given(certs.findById("QC-2609-0001")).willReturn(Optional.of(QualityCertificate.of("QC-2609-0001", "D1-010", QcStatus.DRAFT)));
-        given(certCoils.findByQcNoOrderBySeqAsc("QC-2609-0001")).willReturn(List.of(QualityCertificateCoil.of("QC-2609-0001", "C1", 1)));
-        service.save(req);
-        verify(certs).save(org.mockito.ArgumentMatchers.argThat(q -> "QC-2609-0001".equals(q.getQcNo()) && q.getStatCd() == QcStatus.DRAFT));
+    @DisplayName("save: 문서가 없으면 INIT 외 동작을 거부하고, 본문은 JSON 객체여야 한다")
+    void save_validation() {
+        assertThatThrownBy(() -> s.save(save("DRAFT", "DRAFT", EDITED))).isInstanceOf(BusinessException.class)
+                .hasMessageContaining("문서가 없습니다");
+        assertThatThrownBy(() -> s.save(save("INIT", null, "[1,2]"))).isInstanceOf(BusinessException.class);
+        assertThatThrownBy(() -> s.save(save("INIT", null, "{oops"))).isInstanceOf(BusinessException.class);
+        assertThatThrownBy(() -> s.save(save("PUBLISH", null, BODY))).isInstanceOf(BusinessException.class);
     }
 
     @Test
-    @DisplayName("guarantee: 대표값은 코일 검사값의 최솟값, YP 는 범위다")
-    void guarantee() {
-        CoilSnapshot a = CoilFixtures.snapshot("C1", "D1-010", JudgmentStatus.PASS, JudgmentStatus.PASS);
-        CoilSnapshot b = new CoilSnapshot(CoilFixtures.coil("C2", "D1-010"), null,
-                CoilFixtures.items("C2", "96", "A", "268", "350", "31", "+0.001"));
-        List<Map<String, Object>> rows = QualityCertificateService.guarantee(List.of(a, b));
-        assertThat(rows.get(0).get("value")).isEqualTo("350");
-        assertThat(rows.get(1).get("value")).isEqualTo("268~312");
-        assertThat(rows.get(3).get("value")).isEqualTo("96");
+    @DisplayName("승인 대기 중에는 UNREQUEST 외 저장을 거부하고, 승인은 PENDING 일 때만 ver+1·적용본 교체·버전 기록을 만든다")
+    void pendingFlow() {
+        init();
+        tick(10);
+        s.save(save("DRAFT", "DRAFT", EDITED));
+        assertThatThrownBy(() -> s.approve(memo("x"))).isInstanceOf(BusinessException.class).hasMessageContaining("승인 대기 중인 문서가 아닙니다");
+
+        tick(10);
+        Map<String, Object> r = s.save(save("REQUEST", "PENDING", EDITED));
+        assertThat(r).containsEntry("state", "PENDING").containsEntry("ver", 1);
+        for (String act : List.of("DRAFT", "REQUEST", "DISCARD")) {
+            assertThatThrownBy(() -> s.save(save(act, "DRAFT", BODY))).isInstanceOf(BusinessException.class)
+                    .hasMessage(QualityCertificateService.MSG_PENDING);
+        }
+
+        tick(10);
+        Map<String, Object> a = s.approve(memo("조항 추가"));
+        assertThat(a).containsEntry("ver", 2).containsEntry("approvedAt", "2026-11-25T10:00:30");
+        Map<String, Object> out = s.search(new QualityCertificateRequest());
+        assertThat(doc(out)).containsEntry("ver", 2).containsEntry("state", "APPLIED").containsEntry("json", EDITED)
+                .containsEntry("base", EDITED);
+        assertThat(list(out, "versions")).extracting(v -> v.get("ver")).containsExactly(2, 1);
+        assertThat(list(out, "versions").get(0)).containsEntry("memo", "조항 추가");
+        assertThat(list(out, "hist")).extracting(h -> h.get("act")).containsExactly("APPROVE", "REQUEST", "DRAFT", "INIT");
+    }
+
+    @Test
+    @DisplayName("UNREQUEST 는 승인 대기를 풀고, DISCARD 는 본문을 적용본으로 되돌린다(json 무시)")
+    void unrequestAndDiscard() {
+        init();
+        s.save(save("REQUEST", "PENDING", EDITED));
+        Map<String, Object> r = s.save(save("UNREQUEST", "DRAFT", null));
+        assertThat(r).containsEntry("state", "DRAFT");
+        assertThat(docs.findById("MAIN").orElseThrow().getBodyJson()).isEqualTo(EDITED);
+        assertThatThrownBy(() -> s.save(save("UNREQUEST", "DRAFT", null))).isInstanceOf(BusinessException.class);
+
+        Map<String, Object> d = s.save(save("DISCARD", "DRAFT", "{\"ignored\":true}"));
+        assertThat(d).containsEntry("state", "APPLIED").containsEntry("ver", 1);
+        assertThat(docs.findById("MAIN").orElseThrow().getBodyJson()).isEqualTo(BODY);
+    }
+
+    @Test
+    @DisplayName("이력: 같은 사용자의 DRAFT·REQUEST 되풀이는 1분 안이면 한 행으로 모이고, 1분이 지나거나 사용자가 다르면 새 행이다")
+    void historyCollapse() {
+        init();
+        tick(5);
+        s.save(save("DRAFT", "DRAFT", EDITED));
+        tick(30);
+        s.save(save("DRAFT", "DRAFT", EDITED));
+        assertThat(hist.count()).isEqualTo(2);
+        assertThat(list(s.search(new QualityCertificateRequest()), "hist").get(0)).containsEntry("at", "2026-11-25T10:00:35")
+                .containsEntry("act", "DRAFT");
+
+        tick(61);
+        s.save(save("DRAFT", "DRAFT", EDITED));
+        assertThat(hist.count()).isEqualTo(3);
+
+        user = "lee";
+        tick(1);
+        s.save(save("DRAFT", "DRAFT", EDITED));
+        assertThat(hist.count()).isEqualTo(4);
+
+        tick(1);
+        s.save(save("DISCARD", null, null));
+        tick(1);
+        s.save(save("DISCARD", null, null));
+        assertThat(hist.count()).isEqualTo(6);
+    }
+
+    @Test
+    @DisplayName("reset: 문서·버전·이력을 지우고 RESET 이력 1행만 남긴다. 그 뒤 INIT 을 다시 받는다")
+    void reset() {
+        init();
+        s.save(save("REQUEST", "PENDING", EDITED));
+        s.approve(memo(null));
+
+        assertThat(s.reset(new QualityCertificateRequest())).containsEntry("ok", true);
+        Map<String, Object> out = s.search(new QualityCertificateRequest());
+        assertThat(out.get("doc")).isNull();
+        assertThat(list(out, "versions")).isEmpty();
+        assertThat(list(out, "hist")).extracting(h -> h.get("act")).containsExactly("RESET");
+
+        init();
+        assertThat(docs.findById("MAIN").orElseThrow().getDocVer()).isEqualTo(1);
     }
 }

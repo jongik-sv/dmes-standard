@@ -12,7 +12,7 @@ import { useMessage } from "@dk-oasis/shared/message-provider";
 import { CUSTS, FORMNAME, KINDS, RF, RT, kindOf } from "./engine/constants";
 import { condText, condVal, ctxOf, fmtD, hasCust, matchRule, prioOf, resText, rivals, validYmd } from "./engine/resolve";
 import type { MtcStore } from "./store";
-import { cellBadge, DetailTable, Field, Grow, Lead, Row, Stack } from "./ui";
+import { cellBadge, DetailTable, Field, Grow, Lead, Row, Stack } from "@/common/ui";
 
 const FILTERS = ["전체", ...Object.keys(KINDS), "고객"];
 

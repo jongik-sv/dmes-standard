@@ -16,7 +16,7 @@ import { COIL_EDIT, FORM_KEYS, FORMNAME, HEADF, custName } from "./engine/consta
 import { snapDiff } from "./engine/diff";
 import { baseRemark } from "./engine/resolve";
 import type { MtcStore } from "./store";
-import { DetailTable, Field, Grow, Lead, Row, Stack } from "./ui";
+import { DetailTable, Field, Grow, Lead, Row, Stack } from "@/common/ui";
 
 function Clear({ show, onClick }: { show: boolean; onClick: () => void }) {
   return show ? (
