@@ -5,8 +5,6 @@ import { describe, expect, it } from "vitest";
 import { buildValuesJson } from "@/qjd/qualityJudgment/api";
 import { CertificateSheet } from "@/qpr/qualityCertificate/CertificateSheet";
 import type { CertDetail } from "@/qpr/qualityCertificate/types";
-import { MtcSheet } from "@/qpr/inspectionCertificate/MtcSheet";
-import type { MtcDetail } from "@/qpr/inspectionCertificate/types";
 import { toneOf } from "@/qpr/shared/status";
 import { reissueParams } from "@/qpr/tagManagement/api";
 import { isTagNo } from "@/qpr/tagManagement/types";
@@ -93,55 +91,5 @@ describe("인쇄 양식", () => {
     expect(html).toContain("QUALITY CERTIFICATE");
     expect(html).toContain("Customer");
     expect(html).not.toContain("미리보기");
-  });
-
-  it("검사증명서: 화학 성분을 원소별 칸으로 싣는다", () => {
-    const mtc: MtcDetail = {
-      cert: {
-        mtcNo: "MTC-260901-07",
-        stdCd: "KS D 3506",
-        coilNo: "C260901003",
-        heatNo: "5A1198",
-        ordNo: "D260831021-010",
-        cusNm: "수요가 C",
-        prdLabel: "G : GI",
-        specCd: "KSG-SGC340",
-        sizeText: "0.440 × 1225",
-        wgt: 7820,
-        yp: 312,
-        ts: 398,
-        el: 29,
-        coat: 104,
-        fixed: true,
-        status: "ISSUED",
-        statusNm: "발행",
-        judgStatus: "PASS",
-        judgStatusNm: "합격",
-        inspDate: "2026-09-01",
-        inspBy: "박서연",
-        srcCd: "SELF",
-        srcNm: "자체 시험",
-        langCd: "KO",
-        langNm: "국문",
-        docRev: 1,
-        reqBy: "박서연",
-        reqAt: "2026-09-01 17:10",
-        issueBy: "박서연",
-        issueAt: "2026-09-01 17:20",
-        note: null,
-      },
-      mech: [{ itemCd: "YP", itemNm: "항복강도 YP (MPa)", critTxt: "245~", value: 312, result: "PASS", resultNm: "합" }],
-      chemistry: [
-        { elemCd: "C", value: 0.052 },
-        { elemCd: "Mn", value: 0.24 },
-      ],
-      actions: { canIssue: false, canReissue: true, canCancel: true, blockReason: null },
-      history: [],
-    };
-    const html = renderToStaticMarkup(<MtcSheet detail={mtc} />);
-    expect(html).toContain("검 사 증 명 서");
-    expect(html).toContain("5A1198");
-    expect(html).toContain("0.052");
-    expect(html).toContain("2026-09-01");
   });
 });

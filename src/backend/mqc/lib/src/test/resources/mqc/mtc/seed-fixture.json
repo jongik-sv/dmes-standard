@@ -1,0 +1,28 @@
+{
+  "forms": [
+    { "key": "en", "json": { "applied": { "ver": 3 }, "draft": null, "pending": false, "hist": [] } },
+    { "key": "ko", "json": { "applied": { "ver": 1 }, "draft": null, "pending": true, "hist": [] } }
+  ],
+  "rules": [
+    { "key": "R1", "json": { "id": "R1", "code": "V-44", "name": "BIS REMARK", "st": "ACTIVE", "prio": 50 } },
+    { "key": "R2", "json": { "id": "R2", "code": "고객", "name": "멕시코 제목", "st": "ACTIVE", "prio": 10 } }
+  ],
+  "certs": [
+    { "key": "C1", "json": { "head": { "mtc": "UC1-1-261101-001" }, "kind": 1, "cust": "IN-1001", "at": { "lang": "E" } } },
+    { "key": "C2", "json": { "head": { "mtc": "UC1-2-261101-002" }, "kind": 2, "cust": "KR-2001", "at": { "lang": "K" } } }
+  ],
+  "ovrs": [
+    { "key": "C2", "json": { "remark": ["P/O 추가"] } }
+  ],
+  "imgs": [
+    { "key": "Z_MTC_SIGN_20251229.png", "json": { "kind": "서명", "remark": "", "data": "data:image/png;base64,AAAA" } }
+  ],
+  "issued": [
+    { "certId": "C1", "issueNo": 2, "issuedAt": "2026-11-01T08:10:00", "reissueCnt": 0, "snap": { "fname": "수출 영문", "fver": 3 } },
+    { "certId": "C2", "issueNo": 3, "issuedAt": "2026.11.01 08:17", "reissueCnt": 0, "snap": { "fname": "내수 한글", "fver": 1 } }
+  ],
+  "hist": [
+    { "at": "2026-11-01T08:10:00", "docNo": "UC1-1-261101-001", "act": "AUTO_ISSUE", "msg": "자동 발행 (수출 영문 v3)" },
+    { "at": "2026-11-01T08:17:00", "docNo": "UC1-2-261101-002", "act": "AUTO_ISSUE", "msg": "자동 발행 (내수 한글 v1)" }
+  ]
+}

@@ -1821,6 +1821,5 @@ export const SCREEN_CODES: Record<string, string[]> = {
     "QC_SPEC_CD",
   ],
   qualityCertificate: ["QC_QCERT_STATUS", "QC_CUSTOMER", "QC_PRD_NM_CD"],
-  inspectionCertificate: ["QC_MTC_STATUS", "QC_SPEC_CD"],
   tagManagement: ["QC_TAG_STATUS", "QC_TAG_KIND", "QC_PRD_NM_CD"],
 };

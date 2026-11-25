@@ -149,7 +149,10 @@ public final class CoreRbacSeeder extends SeedSupport {
                 "searchAssign", "saveAssign", "myList", "getDef", "run",
                 // 2026-11-25 — mqc 품질관리 시연 화면(services/qcd·qjd·qpr). 판정·코드 조회·전송·발행·재발행.
                 //   이미 시드된 DB 는 ensurePermAllActions 가 덧붙인다.
-                "judge", "codes", "send", "issue", "reissue"
+                "judge", "codes", "send", "issue", "reissue",
+                // 2026-11-25 — mqc 검사증명서관리(services/qpr/inspectionCertificate.bpmn) 시연 초기화.
+                //   이미 시드된 DB 는 ensurePermAllActions 가 덧붙인다.
+                "reset"
 
                 // ── 업무 모듈을 붙일 때 여기에 해당 모듈의 OASIS action 을 추가한다 ──────────────
                 // 본 목록은 PERM_ALL 의 PERMISSION_ACTION 이며, UserPermCache 가 콤마 분할해 PermKey

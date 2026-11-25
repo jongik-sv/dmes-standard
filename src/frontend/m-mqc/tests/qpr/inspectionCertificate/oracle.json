@@ -1,0 +1,3757 @@
+{
+ "snaps": {
+  "C1": {
+   "id": "C1",
+   "fk": "en",
+   "fname": "수출 영문",
+   "fver": 3,
+   "T": {
+    "h.cust1": "SAMPLE STEEL INDIA PRIVATE LIMITED",
+    "h.cust2": "Plot 12, Sample Industrial Park,",
+    "h.cust3": "GST Road, Sriperumbudur,",
+    "h.cust4": "Kancheepuram District, Chennai-600001 INDIA",
+    "h.commodity": "Pre-Painted Aluminium Zinc Alloy Metallic Coated Strip (Plain)",
+    "h.spec": "IS 15965 : 2012, 250 MPa",
+    "h.date": "2026.11.01",
+    "h.order": "E261101001",
+    "h.invoice": "D20261101C001",
+    "h.lc": "T/T",
+    "h.po": "2611000001",
+    "h.mtc": "UC1-1-261101-001",
+    "f.title": "MILL TEST CERTIFICATE",
+    "f.statement": "We hearby certify that the material herein has been made\nand tested in accordance with the above specification\nand the results of all test are acceptable.",
+    "f.signLabel": "CHIEF OF QUALITY CONTROL TEAM",
+    "f.legend": "T : TOP\nB : BACK\nG : GOOD\nGRS wt : GROSS wt",
+    "f.maker": "MANUFACTURER: DONGKUK COATED METAL CO., LTD. 102 SINSEON-RO, NAM-GU, BUSAN, KOREA ZIP 48481, TEL : 82-51-640-5114",
+    "f.docno": "USS-G-0913-01 REV.2",
+    "n.1": "11/11, 6mm",
+    "n.2": "100",
+    "n.3": "H / 1Kg",
+    "n.4": "1000 hrs",
+    "n.5": "1000 hrs",
+    "n.6": "5% HCl 48Hrs",
+    "n.7": "5% NaOH 48 Hrs",
+    "rm.0": "For details of BIS Certification please visit www.bis.gov.in",
+    "rm.1": "",
+    "rm.2": "",
+    "rm.3": "",
+    "rm.4": "",
+    "rm.5": "",
+    "rm.6": "",
+    "m.1": "IS 15965:2012",
+    "m.2": "CML/4100021451"
+   },
+   "src": {
+    "form": "base",
+    "h.cust1": "base",
+    "h.cust2": "base",
+    "h.cust3": "base",
+    "h.cust4": "base",
+    "h.commodity": "base",
+    "h.spec": "base",
+    "h.date": "base",
+    "h.order": "base",
+    "h.invoice": "base",
+    "h.lc": "base",
+    "h.po": "base",
+    "f.title": "base",
+    "rm.0": "rule",
+    "rm.1": "base",
+    "rm.2": "base",
+    "rm.3": "base",
+    "rm.4": "base",
+    "rm.5": "base",
+    "rm.6": "base",
+    "mark": "rule",
+    "m.2": "rule",
+    "m.1": "rule",
+    "qr": "base",
+    "stamp": "base"
+   },
+   "why": {
+    "rm.0": "V-44 REMARK — BIS 인증 안내",
+    "mark": "V-03·V-04·D-01 BIS 인증 표시 — CCLI",
+    "m.2": "V-03·V-04·D-01 BIS 인증 표시 — CCLI",
+    "m.1": "V-03·V-04·D-01 BIS 인증 표시 — CCLI"
+   },
+   "cols": [
+    {
+     "k": "coil",
+     "l": "COIL NO.",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "size",
+     "l": "SIZE",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "net",
+     "l": "NET wt\n(KGS/LBS)",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "grs",
+     "l": "GRS wt\n(KGS/LBS)",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "C",
+     "l": "C",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "Si",
+     "l": "Si",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "Mn",
+     "l": "Mn",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "P",
+     "l": "P",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "S",
+     "l": "S",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "Al",
+     "l": "Al",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "B",
+     "l": "B",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "hrb",
+     "l": "HARD\nNESS",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "eri",
+     "l": "ERIC\nHSEN",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "yp",
+     "l": "YP",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "ts",
+     "l": "TS",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "el",
+     "l": "%",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "bend",
+     "l": "BENDING TEST",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "coat",
+     "l": "AL ZN+MG\nCOATING\n(g/㎡)",
+     "s": "rule",
+     "w": "L-03 도금량 라벨 — AL ZN+MG (수출 영문)"
+    },
+    {
+     "k": "heat",
+     "l": "HEAT No.",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "cross",
+     "l": "CROSSCUT\nERI TEST",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "mek",
+     "l": "MEK\nRESISTANCE",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "imp",
+     "l": "IMPACT\nTEST",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "pencil",
+     "l": "PENCIL\nHARDNESS",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "gloss",
+     "l": "GLOSS TEST",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "salt",
+     "l": "SALT SPRAY",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "weather",
+     "l": "WEATHER\nO-METER",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "hcl",
+     "l": "HCL",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "naoh",
+     "l": "NaOH",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "thick",
+     "l": "COATING\nTHICK",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "surf",
+     "l": "SPANGLE",
+     "s": null,
+     "w": null
+    }
+   ],
+   "cellOv": {},
+   "hidden": [],
+   "overflow": 0,
+   "mark": true,
+   "qr": true,
+   "stamp": false,
+   "coils": [
+    {
+     "coil": "010-00001\nSIM-A01",
+     "size": "0.42MM X 1220MM X COIL",
+     "net": "3,320\n7,320",
+     "grs": "3,430\n7,562",
+     "C": "40",
+     "Si": "30",
+     "Mn": "240",
+     "P": "14",
+     "S": "7",
+     "Al": "0",
+     "B": "0.1",
+     "hrb": "62.4",
+     "eri": "7.6",
+     "yp": "381",
+     "ts": "429",
+     "el": "23.2",
+     "bend": "G",
+     "coat": "123.5\n0.0",
+     "heat": "NV6034",
+     "cross": "G",
+     "mek": "G",
+     "imp": "G",
+     "pencil": "G",
+     "gloss": "4.8\n24.2",
+     "salt": "G",
+     "weather": "G",
+     "hcl": "G",
+     "naoh": "G",
+     "thick": "37\n5",
+     "surf": "EXTRA SMOOTH",
+     "_id": "SIM-A01",
+     "_color": "Cloudy / Red Brown(JR02B) / GREY WASH (Tote)(N9013)",
+     "wl": "3,320",
+     "Cr": "15",
+     "Ni": "10",
+     "Cu": "12",
+     "Ti": "1",
+     "V": "1",
+     "Nb": "0",
+     "paint": "PM-01"
+    },
+    {
+     "coil": "010-00002\nSIM-A02",
+     "size": "0.42MM X 1220MM X COIL",
+     "net": "3,480\n7,673",
+     "grs": "3,590\n7,915",
+     "C": "40",
+     "Si": "30",
+     "Mn": "240",
+     "P": "14",
+     "S": "7",
+     "Al": "0",
+     "B": "0.1",
+     "hrb": "62.4",
+     "eri": "7.6",
+     "yp": "381",
+     "ts": "429",
+     "el": "23.2",
+     "bend": "G",
+     "coat": "123.5\n0.0",
+     "heat": "NV6034",
+     "cross": "G",
+     "mek": "G",
+     "imp": "G",
+     "pencil": "G",
+     "gloss": "4.8\n24.2",
+     "salt": "G",
+     "weather": "G",
+     "hcl": "G",
+     "naoh": "G",
+     "thick": "37\n5",
+     "surf": "EXTRA SMOOTH",
+     "_id": "SIM-A02",
+     "_color": "Cloudy / Red Brown(JR02B) / GREY WASH (Tote)(N9013)",
+     "wl": "3,480",
+     "Cr": "17",
+     "Ni": "11",
+     "Cu": "15",
+     "Ti": "2",
+     "V": "2",
+     "Nb": "1",
+     "paint": "PM-02"
+    },
+    {
+     "coil": "010-00003\nSIM-A03",
+     "size": "0.42MM X 1220MM X COIL",
+     "net": "2,640\n5,821",
+     "grs": "2,750\n6,063",
+     "C": "40",
+     "Si": "30",
+     "Mn": "240",
+     "P": "14",
+     "S": "7",
+     "Al": "0",
+     "B": "0.1",
+     "hrb": "62.4",
+     "eri": "7.6",
+     "yp": "381",
+     "ts": "429",
+     "el": "23.2",
+     "bend": "G",
+     "coat": "123.5\n0.0",
+     "heat": "NV6034",
+     "cross": "G",
+     "mek": "G",
+     "imp": "G",
+     "pencil": "G",
+     "gloss": "4.8\n24.2",
+     "salt": "G",
+     "weather": "G",
+     "hcl": "G",
+     "naoh": "G",
+     "thick": "37\n5",
+     "surf": "EXTRA SMOOTH",
+     "_id": "SIM-A03",
+     "_color": "Cloudy / Red Brown(JR02B) / GREY WASH (Tote)(N9013)",
+     "wl": "2,640",
+     "Cr": "15",
+     "Ni": "10",
+     "Cu": "12",
+     "Ti": "1",
+     "V": "1",
+     "Nb": "0",
+     "paint": "PM-01"
+    },
+    {
+     "coil": "020-00001\nSIM-A04",
+     "size": "0.42MM X 1220MM X COIL",
+     "net": "3,360\n7,408",
+     "grs": "3,470\n7,651",
+     "C": "40",
+     "Si": "30",
+     "Mn": "240",
+     "P": "14",
+     "S": "7",
+     "Al": "0",
+     "B": "0.1",
+     "hrb": "62.4",
+     "eri": "7.6",
+     "yp": "381",
+     "ts": "429",
+     "el": "23.2",
+     "bend": "G",
+     "coat": "123.5\n0.0",
+     "heat": "NV6034",
+     "cross": "G",
+     "mek": "G",
+     "imp": "G",
+     "pencil": "G",
+     "gloss": "4.7\n23.0",
+     "salt": "G",
+     "weather": "G",
+     "hcl": "G",
+     "naoh": "G",
+     "thick": "37\n5",
+     "surf": "EXTRA SMOOTH",
+     "_id": "SIM-A04",
+     "_color": "TIGER WOOD(JW06B) / GREY WASH (Tote)(N9013)",
+     "wl": "3,360",
+     "Cr": "17",
+     "Ni": "11",
+     "Cu": "15",
+     "Ti": "2",
+     "V": "2",
+     "Nb": "1",
+     "paint": "PM-02"
+    },
+    {
+     "coil": "030-00001\nSIM-A05",
+     "size": "0.42MM X 1220MM X COIL",
+     "net": "3,530\n7,783",
+     "grs": "3,640\n8,025",
+     "C": "40",
+     "Si": "10",
+     "Mn": "240",
+     "P": "18",
+     "S": "5",
+     "Al": "27",
+     "B": "0",
+     "hrb": "62.6",
+     "eri": "7.6",
+     "yp": "382",
+     "ts": "435",
+     "el": "22.7",
+     "bend": "G",
+     "coat": "125.3\n0.0",
+     "heat": "F0953",
+     "cross": "G",
+     "mek": "G",
+     "imp": "G",
+     "pencil": "G",
+     "gloss": "3.8\n25.2",
+     "salt": "G",
+     "weather": "G",
+     "hcl": "G",
+     "naoh": "G",
+     "thick": "37\n5",
+     "surf": "EXTRA SMOOTH",
+     "_id": "SIM-A05",
+     "_color": "Rust / Orange(JC06A) / GREY WASH (Tote)(N9013)",
+     "wl": "3,530",
+     "Cr": "15",
+     "Ni": "10",
+     "Cu": "12",
+     "Ti": "1",
+     "V": "1",
+     "Nb": "0",
+     "paint": "PM-01"
+    }
+   ],
+   "coilOv": {},
+   "rules": [
+    "V-03·V-04·D-01 BIS 인증 표시 — CCLI",
+    "V-44 REMARK — BIS 인증 안내",
+    "L-03 도금량 라벨 — AL ZN+MG (수출 영문)",
+    "서명 2016-01-01 이전",
+    "서명 2016-01-01 인사발령",
+    "서명 2016-02-01 인사발령",
+    "서명 2018-07-01 인사발령",
+    "서명 2018-12-01 인사발령",
+    "서명 2019-01-01 인사발령",
+    "서명 2021-01-01 인사발령",
+    "서명 2024-01-01 인사발령",
+    "서명 2025-12-29 인사발령 (신도장)",
+    "도장 2025-12-29 신도장"
+   ],
+   "signImg": "Z_MTC_SIGN_20251229.png",
+   "stampImg": "cm_stamp2.png",
+   "signWhy": "서명 2025-12-29 인사발령 (신도장)",
+   "stampWhy": "도장 2025-12-29 신도장",
+   "nOvr": 0,
+   "nRule": 13
+  },
+  "C2": {
+   "id": "C2",
+   "fk": "ko",
+   "fname": "내수 한글",
+   "fver": 1,
+   "T": {
+    "h.commodity": "도장전기아연도금강판 및 강대",
+    "h.commodity2": "HI-POLY (MICA)",
+    "h.grade": "SECE",
+    "h.spec": "KS D 3528",
+    "h.cust": "(주)한빛가전 가상공장",
+    "h.issueNo": "5015000002",
+    "h.delivDate": "2026.11.01",
+    "h.issueDate": "2026.11.01",
+    "h.mtc": "UC1-2-261101-002",
+    "h.commodityKo": "도장전기아연도금강판 및 강대\nHI-POLY (MICA)",
+    "f.title": "시      험      성      적      서\nMILL TEST CERTIFICATION",
+    "f.statement": "상기 적용규격에 따른 시험결과 이상없음을 증명함.\nWe hearby certify that the material herein has been made and tested in accordance with\nthe above specification and the results of all test are acceptable.\n본 검사증명서에 명기된 규격용도외로 사용시 안전상 문제가 발생할 수 있으며, 검사증명서의\n위/변조시 사문서 위조(형법231조)로 불이익을 당하실 수 있습니다.",
+    "f.signLabel": "품        질        관        리        팀        장\nCHIEF OF QUALITY CONTROL TEAM",
+    "f.legend": "※ T : TOP, B : BACK, G : GOOD",
+    "f.maker": "MANUFACTURER: DONGKUK COATED METAL CO., LTD  102 SINSEON-RO, NAM-GU, BUSAN, KOREA ZIP 48481, TEL : 82-51-640-5114",
+    "f.docno": "USS-G-0913-01 REV.3",
+    "n.1": "11/11, 6mm",
+    "n.2": "50",
+    "n.3": "F / 1Kg",
+    "n.4": "240 hrs",
+    "n.5": "",
+    "n.6": "5% HCl 24Hrs",
+    "n.7": "5% NaOH 24Hrs",
+    "rm.0": "",
+    "rm.1": "",
+    "rm.2": "",
+    "m.1": "",
+    "m.2": ""
+   },
+   "src": {
+    "form": "base",
+    "h.commodity": "base",
+    "h.commodity2": "base",
+    "h.grade": "base",
+    "h.spec": "base",
+    "h.cust": "base",
+    "h.issueNo": "base",
+    "h.delivDate": "base",
+    "h.issueDate": "base",
+    "h.commodityKo": "base",
+    "f.title": "base",
+    "rm.0": "base",
+    "rm.1": "base",
+    "rm.2": "base",
+    "qr": "base",
+    "stamp": "base"
+   },
+   "why": {},
+   "cols": [
+    {
+     "k": "coil",
+     "l": "제품번호\nCOIL ID",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "size",
+     "l": "제품치수\nSIZE(mm)",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "wl",
+     "l": "중량(KG)\nWEIGHT\n길이(m)\nLENGTH",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "C",
+     "l": "C",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "Si",
+     "l": "Si",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "Mn",
+     "l": "Mn",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "P",
+     "l": "P",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "S",
+     "l": "S",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "Al",
+     "l": "Al",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "B",
+     "l": "B",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "hrb",
+     "l": "경도\nHARDNESS",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "eri",
+     "l": "에릭슨\nERICHSEN",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "yp",
+     "l": "YP",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "ts",
+     "l": "TS",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "el",
+     "l": "%",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "bend",
+     "l": "BENDING TEST",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "cond",
+     "l": "전도성\nTEST\n1500㎎/㎡\n이하\n1mΩ이하",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "coat",
+     "l": "부착량\nZINC COATING\n(g/㎡)",
+     "s": "rule",
+     "w": "L-16 도금량 라벨 — ZINC (내수 한글)"
+    },
+    {
+     "k": "color",
+     "l": "색상\nCOLOR",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "cross",
+     "l": "CROSSCUT\nERI TEST",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "mek",
+     "l": "MEK\nRESISTANCE",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "imp",
+     "l": "IMPACT\nTEST",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "pencil",
+     "l": "PENCIL\nHARDNESS",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "gloss",
+     "l": "광택도\nGLOSSTEST",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "salt",
+     "l": "SALT SPRAY",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "weather",
+     "l": "WEATHER\nO-METER",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "hcl",
+     "l": "HCL",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "naoh",
+     "l": "NaOH",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "thick",
+     "l": "COATING\nTHICK",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "surf",
+     "l": "도금형태\nSPANGLE",
+     "s": null,
+     "w": null
+    }
+   ],
+   "cellOv": {},
+   "hidden": [],
+   "overflow": 0,
+   "mark": false,
+   "qr": true,
+   "stamp": false,
+   "coils": [
+    {
+     "coil": "SIM-B01",
+     "size": "0.5 X 1232 X COIL",
+     "wl": "5,850\n1,250",
+     "C": "2",
+     "Si": "1",
+     "Mn": "58",
+     "P": "7",
+     "S": "4",
+     "Al": "0",
+     "B": "0",
+     "hrb": "36.3",
+     "eri": "9.2",
+     "yp": "168",
+     "ts": "308",
+     "el": "46.5",
+     "bend": "G",
+     "cond": ".06",
+     "coat": "17.4\n17.5",
+     "color": "K5000\nC9200",
+     "cross": "G",
+     "mek": "G",
+     "imp": "G",
+     "pencil": "G",
+     "gloss": "3.7\n12.0",
+     "salt": "G",
+     "weather": "",
+     "hcl": "G",
+     "naoh": "G",
+     "thick": "26\n1",
+     "surf": "",
+     "_id": "SIM-B01",
+     "net": "5,850",
+     "Cr": "15",
+     "Ni": "10",
+     "Cu": "12",
+     "Ti": "1",
+     "V": "1",
+     "Nb": "0",
+     "paint": "PM-01"
+    },
+    {
+     "coil": "SIM-B02",
+     "size": "0.5 X 1232 X COIL",
+     "wl": "5,690\n1,217",
+     "C": "2",
+     "Si": "1",
+     "Mn": "58",
+     "P": "7",
+     "S": "4",
+     "Al": "0",
+     "B": "0",
+     "hrb": "36.3",
+     "eri": "9.2",
+     "yp": "168",
+     "ts": "308",
+     "el": "46.5",
+     "bend": "G",
+     "cond": ".06",
+     "coat": "17.4\n17.5",
+     "color": "K5000\nC9200",
+     "cross": "G",
+     "mek": "G",
+     "imp": "G",
+     "pencil": "G",
+     "gloss": "3.7\n12.0",
+     "salt": "G",
+     "weather": "",
+     "hcl": "G",
+     "naoh": "G",
+     "thick": "26\n1",
+     "surf": "",
+     "_id": "SIM-B02",
+     "net": "5,690",
+     "Cr": "17",
+     "Ni": "11",
+     "Cu": "15",
+     "Ti": "2",
+     "V": "2",
+     "Nb": "1",
+     "paint": "PM-02"
+    },
+    {
+     "coil": "SIM-B03",
+     "size": "0.5 X 1232 X COIL",
+     "wl": "5,850\n1,250",
+     "C": "2",
+     "Si": "1",
+     "Mn": "58",
+     "P": "7",
+     "S": "4",
+     "Al": "20",
+     "B": "0",
+     "hrb": "37",
+     "eri": "9.1",
+     "yp": "167",
+     "ts": "313",
+     "el": "45.4",
+     "bend": "G",
+     "cond": ".06",
+     "coat": "17.9\n17.9",
+     "color": "K5000\nC9200",
+     "cross": "G",
+     "mek": "G",
+     "imp": "G",
+     "pencil": "G",
+     "gloss": "3.6\n11.1",
+     "salt": "G",
+     "weather": "",
+     "hcl": "G",
+     "naoh": "G",
+     "thick": "26\n1",
+     "surf": "",
+     "_id": "SIM-B03",
+     "net": "5,850",
+     "Cr": "15",
+     "Ni": "10",
+     "Cu": "12",
+     "Ti": "1",
+     "V": "1",
+     "Nb": "0",
+     "paint": "PM-01"
+    },
+    {
+     "coil": "SIM-B04",
+     "size": "0.5 X 1232 X COIL",
+     "wl": "5,840\n1,250",
+     "C": "2",
+     "Si": "1",
+     "Mn": "58",
+     "P": "7",
+     "S": "4",
+     "Al": "20",
+     "B": "0",
+     "hrb": "37",
+     "eri": "9.1",
+     "yp": "167",
+     "ts": "313",
+     "el": "45.4",
+     "bend": "G",
+     "cond": ".06",
+     "coat": "17.9\n17.9",
+     "color": "K5000\nC9200",
+     "cross": "G",
+     "mek": "G",
+     "imp": "G",
+     "pencil": "G",
+     "gloss": "3.6\n11.1",
+     "salt": "G",
+     "weather": "",
+     "hcl": "G",
+     "naoh": "G",
+     "thick": "26\n1",
+     "surf": "",
+     "_id": "SIM-B04",
+     "net": "5,840",
+     "Cr": "17",
+     "Ni": "11",
+     "Cu": "15",
+     "Ti": "2",
+     "V": "2",
+     "Nb": "1",
+     "paint": "PM-02"
+    }
+   ],
+   "coilOv": {},
+   "rules": [
+    "L-16 도금량 라벨 — ZINC (내수 한글)",
+    "서명 2016-01-01 이전",
+    "서명 2016-01-01 인사발령",
+    "서명 2016-02-01 인사발령",
+    "서명 2018-07-01 인사발령",
+    "서명 2018-12-01 인사발령",
+    "서명 2019-01-01 인사발령",
+    "서명 2021-01-01 인사발령",
+    "서명 2024-01-01 인사발령",
+    "서명 2025-12-29 인사발령 (신도장)",
+    "도장 2025-12-29 신도장"
+   ],
+   "signImg": "Z_MTC_SIGN_20251229.png",
+   "stampImg": "cm_stamp2.png",
+   "signWhy": "서명 2025-12-29 인사발령 (신도장)",
+   "stampWhy": "도장 2025-12-29 신도장",
+   "nOvr": 0,
+   "nRule": 11
+  },
+  "C3": {
+   "id": "C3",
+   "fk": "es",
+   "fname": "스페인어",
+   "fver": 1,
+   "T": {
+    "h.cust1": "MUESTRA ACEROS S.A. DE C.V.",
+    "h.cust2": "Av. Ejemplo 100, Parque Industrial,",
+    "h.cust3": "Monterrey, N.L. MEXICO",
+    "h.cust4": "",
+    "h.commodity": "LAMINA DE ACERO PREPINTADA CON RECUBRIMIENTO DE ALEACION 55% DE ALUMINIO Y ZINC EN HOJA O BOBINA",
+    "h.spec": "ASTM A755 CS(TYPE_B)",
+    "h.date": "2026.11.01",
+    "h.order": "L261101003",
+    "h.invoice": "L20261101C003",
+    "h.lc": "",
+    "h.po": "",
+    "h.mtc": "UC1-1-261101-003",
+    "f.title": "CERTIFICADO DE CALIDAD",
+    "f.statement": "Por la presente certificamos que el material aquí incluido ha sido fabricado y probado de acuerdo con la especificacion anterior, y los resultados de todas las pruebas son aceptables",
+    "f.signLabel": "Jefe del equipo de control de Calidad",
+    "f.legend": "T : ARRIBA\nB : ATRAS\nG : BUENO\nGRS wt : BRUTO wt",
+    "f.maker": "MANUFACTURADOR: DONGKUK COATED METAL CO., LTD. 102 SINSEON-RO, NAM-GU, BUSAN, COREA DEL SUR  ZIP 48481, TEL : 82-51-640-5114",
+    "f.docno": "USS-G-0913-01 REV.2",
+    "n.1": "11/11, 6mm",
+    "n.2": "50",
+    "n.3": "H / 1Kg",
+    "n.4": "500 hrs",
+    "n.5": "1000 hrs",
+    "n.6": "5% HCl 24Hrs",
+    "n.7": "5% NaOH 24 Hrs",
+    "rm.0": "País de Origen : Corea del sur",
+    "rm.1": "",
+    "rm.2": "",
+    "rm.3": "",
+    "rm.4": "",
+    "rm.5": "",
+    "rm.6": "",
+    "m.1": "",
+    "m.2": ""
+   },
+   "src": {
+    "form": "base",
+    "h.cust1": "base",
+    "h.cust2": "base",
+    "h.cust3": "base",
+    "h.cust4": "base",
+    "h.commodity": "base",
+    "h.spec": "base",
+    "h.date": "base",
+    "h.order": "base",
+    "h.invoice": "base",
+    "h.lc": "base",
+    "h.po": "base",
+    "f.title": "rule",
+    "rm.0": "rule",
+    "rm.1": "base",
+    "rm.2": "base",
+    "rm.3": "base",
+    "rm.4": "base",
+    "rm.5": "base",
+    "rm.6": "base",
+    "qr": "rule",
+    "stamp": "rule"
+   },
+   "why": {
+    "f.title": "고객 제목 — 멕시코 통관 대응",
+    "rm.0": "V-47 REMARK — 원산지 (스페인어)",
+    "qr": "고객 QR 표시 — 멕시코 통관 대응",
+    "stamp": "고객 도장 표시 — 멕시코 통관 대응"
+   },
+   "cols": [
+    {
+     "k": "coil",
+     "l": "No. Bobina",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "size",
+     "l": "Dimensiones",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "net",
+     "l": "Neto\n(KGS/LBS)",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "grs",
+     "l": "BRUTO\n(KGS/LBS)",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "qty",
+     "l": "Cantidad\n(PIEZA)",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "C",
+     "l": "C",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "Si",
+     "l": "Si",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "Mn",
+     "l": "Mn",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "P",
+     "l": "P",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "S",
+     "l": "S",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "Al",
+     "l": "Al",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "B",
+     "l": "B",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "hrb",
+     "l": "Dureza",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "eri",
+     "l": "Resistencia\nal rayado",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "yp",
+     "l": "YP",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "ts",
+     "l": "TS",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "el",
+     "l": "%",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "bend",
+     "l": "Prueba de flexión",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "coat",
+     "l": "Recubrimiento\nAL-ZINC\n(g/㎡)",
+     "s": "rule",
+     "w": "L-13 도금량 라벨 — AL-ZINC (스페인어)"
+    },
+    {
+     "k": "heat",
+     "l": "No. Colada",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "cross",
+     "l": "Prueba de adhesión",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "mek",
+     "l": "Prueba de\nresistencia\nmetil",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "imp",
+     "l": "Prueba de impacto",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "pencil",
+     "l": "Prueba de dureza\nde lápiz",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "gloss",
+     "l": "Prueba de\nbrillo",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "salt",
+     "l": "cámara salina\n(resistencia a la corrosión)",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "weather",
+     "l": "Prueba de durabilidad",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "hcl",
+     "l": "Degradación\nmicroestructural\ndel acero",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "naoh",
+     "l": "Ensayo de corrosión\nsin tensión",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "thick",
+     "l": "Medición del\nespesor de la\npintura y el\nrevestimiento",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "surf",
+     "l": "Acabado Superficial",
+     "s": null,
+     "w": null
+    }
+   ],
+   "cellOv": {},
+   "hidden": [],
+   "overflow": 0,
+   "mark": false,
+   "qr": true,
+   "stamp": true,
+   "coils": [
+    {
+     "coil": "010-00001\nSIM-C01",
+     "size": "0.57MM X 1219MM X COIL",
+     "net": "5,590\n12,324",
+     "grs": "5,650\n12,457",
+     "qty": "",
+     "C": "40",
+     "Si": "0",
+     "Mn": "220",
+     "P": "13",
+     "S": "8",
+     "Al": "45",
+     "B": "3",
+     "hrb": "59.7",
+     "eri": "8.2",
+     "yp": "331",
+     "ts": "406",
+     "el": "31.7",
+     "bend": "G",
+     "coat": "75.8",
+     "heat": "E7776",
+     "cross": "G",
+     "mek": "G",
+     "imp": "G",
+     "pencil": "G",
+     "gloss": "21.1\n42.4",
+     "salt": "G",
+     "weather": "G",
+     "hcl": "G",
+     "naoh": "G",
+     "thick": "21\n13",
+     "surf": "EXTRA SMOOTH",
+     "_id": "SIM-C01",
+     "_color": "WHITE(W0506) / RAL 9002(H9130)",
+     "wl": "5,590",
+     "Cr": "15",
+     "Ni": "10",
+     "Cu": "12",
+     "Ti": "1",
+     "V": "1",
+     "Nb": "0",
+     "paint": "PM-01"
+    },
+    {
+     "coil": "010-00002\nSIM-C02",
+     "size": "0.57MM X 1219MM X COIL",
+     "net": "5,590\n12,324",
+     "grs": "5,650\n12,457",
+     "qty": "",
+     "C": "40",
+     "Si": "0",
+     "Mn": "220",
+     "P": "13",
+     "S": "8",
+     "Al": "45",
+     "B": "3",
+     "hrb": "59.7",
+     "eri": "8.2",
+     "yp": "331",
+     "ts": "406",
+     "el": "31.7",
+     "bend": "G",
+     "coat": "75.8",
+     "heat": "E7776",
+     "cross": "G",
+     "mek": "G",
+     "imp": "G",
+     "pencil": "G",
+     "gloss": "21.1\n42.4",
+     "salt": "G",
+     "weather": "G",
+     "hcl": "G",
+     "naoh": "G",
+     "thick": "21\n13",
+     "surf": "EXTRA SMOOTH",
+     "_id": "SIM-C02",
+     "_color": "WHITE(W0506) / RAL 9002(H9130)",
+     "wl": "5,590",
+     "Cr": "17",
+     "Ni": "11",
+     "Cu": "15",
+     "Ti": "2",
+     "V": "2",
+     "Nb": "1",
+     "paint": "PM-02"
+    },
+    {
+     "coil": "010-00003\nSIM-C03",
+     "size": "0.57MM X 1219MM X COIL",
+     "net": "5,590\n12,324",
+     "grs": "5,650\n12,457",
+     "qty": "",
+     "C": "40",
+     "Si": "0",
+     "Mn": "220",
+     "P": "13",
+     "S": "8",
+     "Al": "45",
+     "B": "3",
+     "hrb": "59.7",
+     "eri": "8.2",
+     "yp": "331",
+     "ts": "406",
+     "el": "31.7",
+     "bend": "G",
+     "coat": "75.8",
+     "heat": "E7776",
+     "cross": "G",
+     "mek": "G",
+     "imp": "G",
+     "pencil": "G",
+     "gloss": "21.1\n42.4",
+     "salt": "G",
+     "weather": "G",
+     "hcl": "G",
+     "naoh": "G",
+     "thick": "21\n13",
+     "surf": "EXTRA SMOOTH",
+     "_id": "SIM-C03",
+     "_color": "WHITE(W0506) / RAL 9002(H9130)",
+     "wl": "5,590",
+     "Cr": "15",
+     "Ni": "10",
+     "Cu": "12",
+     "Ti": "1",
+     "V": "1",
+     "Nb": "0",
+     "paint": "PM-01"
+    },
+    {
+     "coil": "010-00004\nSIM-C04",
+     "size": "0.57MM X 1219MM X COIL",
+     "net": "5,300\n11,685",
+     "grs": "5,360\n11,817",
+     "qty": "",
+     "C": "40",
+     "Si": "0",
+     "Mn": "220",
+     "P": "13",
+     "S": "8",
+     "Al": "45",
+     "B": "3",
+     "hrb": "59.7",
+     "eri": "8.2",
+     "yp": "331",
+     "ts": "406",
+     "el": "31.7",
+     "bend": "G",
+     "coat": "75.8",
+     "heat": "E7776",
+     "cross": "G",
+     "mek": "G",
+     "imp": "G",
+     "pencil": "G",
+     "gloss": "21.1\n42.4",
+     "salt": "G",
+     "weather": "G",
+     "hcl": "G",
+     "naoh": "G",
+     "thick": "21\n13",
+     "surf": "EXTRA SMOOTH",
+     "_id": "SIM-C04",
+     "_color": "WHITE(W0506) / RAL 9002(H9130)",
+     "wl": "5,300",
+     "Cr": "17",
+     "Ni": "11",
+     "Cu": "15",
+     "Ti": "2",
+     "V": "2",
+     "Nb": "1",
+     "paint": "PM-02"
+    },
+    {
+     "coil": "010-00005\nSIM-C05",
+     "size": "0.57MM X 1219MM X COIL",
+     "net": "5,550\n12,236",
+     "grs": "5,610\n12,368",
+     "qty": "",
+     "C": "40",
+     "Si": "0",
+     "Mn": "210",
+     "P": "11",
+     "S": "7",
+     "Al": "41",
+     "B": "2",
+     "hrb": "59.3",
+     "eri": "8.3",
+     "yp": "322",
+     "ts": "392",
+     "el": "30.6",
+     "bend": "G",
+     "coat": "75.3",
+     "heat": "E7778",
+     "cross": "G",
+     "mek": "G",
+     "imp": "G",
+     "pencil": "G",
+     "gloss": "21.3\n39.7",
+     "salt": "G",
+     "weather": "G",
+     "hcl": "G",
+     "naoh": "G",
+     "thick": "21\n13",
+     "surf": "EXTRA SMOOTH",
+     "_id": "SIM-C05",
+     "_color": "WHITE(W0506) / RAL 9002(H9130)",
+     "wl": "5,550",
+     "Cr": "15",
+     "Ni": "10",
+     "Cu": "12",
+     "Ti": "1",
+     "V": "1",
+     "Nb": "0",
+     "paint": "PM-01"
+    }
+   ],
+   "coilOv": {},
+   "rules": [
+    "V-47 REMARK — 원산지 (스페인어)",
+    "L-13 도금량 라벨 — AL-ZINC (스페인어)",
+    "서명 2016-01-01 이전",
+    "서명 2016-01-01 인사발령",
+    "서명 2016-02-01 인사발령",
+    "서명 2018-07-01 인사발령",
+    "서명 2018-12-01 인사발령",
+    "서명 2019-01-01 인사발령",
+    "서명 2021-01-01 인사발령",
+    "서명 2024-01-01 인사발령",
+    "서명 2025-12-29 인사발령 (신도장)",
+    "도장 2025-12-29 신도장",
+    "고객 제목 — 멕시코 통관 대응",
+    "고객 QR 표시 — 멕시코 통관 대응",
+    "고객 도장 표시 — 멕시코 통관 대응"
+   ],
+   "signImg": "Z_MTC_SIGN_20251229.png",
+   "stampImg": "cm_stamp2.png",
+   "signWhy": "서명 2025-12-29 인사발령 (신도장)",
+   "stampWhy": "도장 2025-12-29 신도장",
+   "nOvr": 0,
+   "nRule": 15
+  },
+  "C4": {
+   "id": "C4",
+   "fk": "en",
+   "fname": "수출 영문",
+   "fver": 3,
+   "T": {
+    "h.cust1": "SAMPLE TRADING INC.",
+    "h.cust2": "500 Example Blvd,",
+    "h.cust3": "Houston, TX 77001 USA",
+    "h.cust4": "",
+    "h.commodity": "PREPAINTED HOT DIP 55% ALUMINUM-ZINC ALLOY COATED STEEL SHEETS & COIL",
+    "h.spec": "ASTM A755 CS(TYPE_B)",
+    "h.date": "2026.11.01",
+    "h.order": "L261101004",
+    "h.invoice": "L20261101C004",
+    "h.lc": "",
+    "h.po": "",
+    "h.mtc": "UC1-1-261101-004",
+    "f.title": "MILL TEST CERTIFICATE",
+    "f.statement": "We hearby certify that the material herein has been made\nand tested in accordance with the above specification\nand the results of all test are acceptable.",
+    "f.signLabel": "CHIEF OF QUALITY CONTROL TEAM",
+    "f.legend": "T : TOP\nB : BACK\nG : GOOD\nGRS wt : GROSS wt",
+    "f.maker": "MANUFACTURER: DONGKUK COATED METAL CO., LTD. 102 SINSEON-RO, NAM-GU, BUSAN, KOREA ZIP 48481, TEL : 82-51-640-5114",
+    "f.docno": "USS-G-0913-01 REV.2",
+    "n.1": "11/11, 6mm",
+    "n.2": "50",
+    "n.3": "H / 1Kg",
+    "n.4": "500 hrs",
+    "n.5": "1000 hrs",
+    "n.6": "5% HCl 24Hrs",
+    "n.7": "5% NaOH 24 Hrs",
+    "rm.0": "",
+    "rm.1": "",
+    "rm.2": "",
+    "rm.3": "",
+    "rm.4": "",
+    "rm.5": "",
+    "rm.6": "",
+    "m.1": "",
+    "m.2": ""
+   },
+   "src": {
+    "form": "base",
+    "h.cust1": "base",
+    "h.cust2": "base",
+    "h.cust3": "base",
+    "h.cust4": "base",
+    "h.commodity": "base",
+    "h.spec": "base",
+    "h.date": "base",
+    "h.order": "base",
+    "h.invoice": "base",
+    "h.lc": "base",
+    "h.po": "base",
+    "f.title": "base",
+    "rm.0": "base",
+    "rm.1": "base",
+    "rm.2": "base",
+    "rm.3": "base",
+    "rm.4": "base",
+    "rm.5": "base",
+    "rm.6": "base",
+    "qr": "base",
+    "stamp": "base"
+   },
+   "why": {},
+   "cols": [
+    {
+     "k": "coil",
+     "l": "COIL NO.",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "size",
+     "l": "SIZE",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "net",
+     "l": "NET wt\n(KGS/LBS)",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "grs",
+     "l": "GRS wt\n(KGS/LBS)",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "C",
+     "l": "C",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "Si",
+     "l": "Si",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "Mn",
+     "l": "Mn",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "P",
+     "l": "P",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "S",
+     "l": "S",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "Al",
+     "l": "Al",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "hrb",
+     "l": "HARD\nNESS",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "eri",
+     "l": "ERIC\nHSEN",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "yp",
+     "l": "YP",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "ts",
+     "l": "TS",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "el",
+     "l": "%",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "bend",
+     "l": "BENDING TEST",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "coat",
+     "l": "AL-ZINC\nCOATING\n(g/㎡)",
+     "s": "rule",
+     "w": "L-01 도금량 라벨 — AL-ZINC (수출 영문)"
+    },
+    {
+     "k": "heat",
+     "l": "HEAT No.",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "cross",
+     "l": "CROSSCUT\nERI TEST",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "mek",
+     "l": "MEK\nRESISTANCE",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "imp",
+     "l": "IMPACT\nTEST",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "pencil",
+     "l": "PENCIL\nHARDNESS",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "gloss",
+     "l": "GLOSS TEST",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "salt",
+     "l": "SALT SPRAY",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "weather",
+     "l": "WEATHER\nO-METER",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "hcl",
+     "l": "HCL",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "naoh",
+     "l": "NaOH",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "thick",
+     "l": "COATING\nTHICK",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "surf",
+     "l": "SPANGLE",
+     "s": null,
+     "w": null
+    }
+   ],
+   "cellOv": {},
+   "hidden": [
+    [
+     "B",
+     "예외 규칙 D-12 Boron 칸 숨김"
+    ]
+   ],
+   "overflow": 0,
+   "mark": false,
+   "qr": true,
+   "stamp": false,
+   "coils": [
+    {
+     "coil": "010-00001\nSIM-D01",
+     "size": "0.57MM X 1219MM X COIL",
+     "net": "5,590\n12,324",
+     "grs": "5,650\n12,457",
+     "qty": "",
+     "C": "40",
+     "Si": "0",
+     "Mn": "220",
+     "P": "13",
+     "S": "8",
+     "Al": "45",
+     "B": "3",
+     "hrb": "59.7",
+     "eri": "8.2",
+     "yp": "331",
+     "ts": "406",
+     "el": "31.7",
+     "bend": "G",
+     "coat": "75.8",
+     "heat": "E7776",
+     "cross": "G",
+     "mek": "G",
+     "imp": "G",
+     "pencil": "G",
+     "gloss": "21.1\n42.4",
+     "salt": "G",
+     "weather": "G",
+     "hcl": "G",
+     "naoh": "G",
+     "thick": "21\n13",
+     "surf": "EXTRA SMOOTH",
+     "_id": "SIM-D01",
+     "_color": "WHITE(W0506) / RAL 9002(H9130)",
+     "wl": "5,590",
+     "Cr": "15",
+     "Ni": "10",
+     "Cu": "12",
+     "Ti": "1",
+     "V": "1",
+     "Nb": "0",
+     "paint": "PM-01"
+    },
+    {
+     "coil": "010-00004\nSIM-D02",
+     "size": "0.57MM X 1219MM X COIL",
+     "net": "5,300\n11,685",
+     "grs": "5,360\n11,817",
+     "qty": "",
+     "C": "40",
+     "Si": "0",
+     "Mn": "220",
+     "P": "13",
+     "S": "8",
+     "Al": "45",
+     "B": "3",
+     "hrb": "59.7",
+     "eri": "8.2",
+     "yp": "331",
+     "ts": "406",
+     "el": "31.7",
+     "bend": "G",
+     "coat": "75.8",
+     "heat": "E7776",
+     "cross": "G",
+     "mek": "G",
+     "imp": "G",
+     "pencil": "G",
+     "gloss": "21.1\n42.4",
+     "salt": "G",
+     "weather": "G",
+     "hcl": "G",
+     "naoh": "G",
+     "thick": "21\n13",
+     "surf": "EXTRA SMOOTH",
+     "_id": "SIM-D02",
+     "_color": "WHITE(W0506) / RAL 9002(H9130)",
+     "wl": "5,300",
+     "Cr": "17",
+     "Ni": "11",
+     "Cu": "15",
+     "Ti": "2",
+     "V": "2",
+     "Nb": "1",
+     "paint": "PM-02"
+    },
+    {
+     "coil": "010-00005\nSIM-D03",
+     "size": "0.57MM X 1219MM X COIL",
+     "net": "5,550\n12,236",
+     "grs": "5,610\n12,368",
+     "qty": "",
+     "C": "40",
+     "Si": "0",
+     "Mn": "210",
+     "P": "11",
+     "S": "7",
+     "Al": "41",
+     "B": "2",
+     "hrb": "59.3",
+     "eri": "8.3",
+     "yp": "322",
+     "ts": "392",
+     "el": "30.6",
+     "bend": "G",
+     "coat": "75.3",
+     "heat": "E7778",
+     "cross": "G",
+     "mek": "G",
+     "imp": "G",
+     "pencil": "G",
+     "gloss": "21.3\n39.7",
+     "salt": "G",
+     "weather": "G",
+     "hcl": "G",
+     "naoh": "G",
+     "thick": "21\n13",
+     "surf": "EXTRA SMOOTH",
+     "_id": "SIM-D03",
+     "_color": "WHITE(W0506) / RAL 9002(H9130)",
+     "wl": "5,550",
+     "Cr": "15",
+     "Ni": "10",
+     "Cu": "12",
+     "Ti": "1",
+     "V": "1",
+     "Nb": "0",
+     "paint": "PM-01"
+    }
+   ],
+   "coilOv": {},
+   "rules": [
+    "L-01 도금량 라벨 — AL-ZINC (수출 영문)",
+    "D-12 Boron 칸 숨김",
+    "서명 2016-01-01 이전",
+    "서명 2016-01-01 인사발령",
+    "서명 2016-02-01 인사발령",
+    "서명 2018-07-01 인사발령",
+    "서명 2018-12-01 인사발령",
+    "서명 2019-01-01 인사발령",
+    "서명 2021-01-01 인사발령",
+    "서명 2024-01-01 인사발령",
+    "서명 2025-12-29 인사발령 (신도장)",
+    "도장 2025-12-29 신도장"
+   ],
+   "signImg": "Z_MTC_SIGN_20251229.png",
+   "stampImg": "cm_stamp2.png",
+   "signWhy": "서명 2025-12-29 인사발령 (신도장)",
+   "stampWhy": "도장 2025-12-29 신도장",
+   "nOvr": 0,
+   "nRule": 12
+  },
+  "C5": {
+   "id": "C5",
+   "fk": "en",
+   "fname": "수출 영문",
+   "fver": 2,
+   "T": {
+    "h.cust1": "SAMPLE TRADING INC.",
+    "h.cust2": "500 Example Blvd,",
+    "h.cust3": "Houston, TX 77001 USA",
+    "h.cust4": "",
+    "h.commodity": "PREPAINTED HOT DIP 55% ALUMINUM-ZINC ALLOY COATED STEEL SHEETS & COIL",
+    "h.spec": "ASTM A755 CS(TYPE_B)",
+    "h.date": "2026.10.20",
+    "h.order": "L261020005",
+    "h.invoice": "L20261020C005",
+    "h.lc": "",
+    "h.po": "US-77812",
+    "h.mtc": "UC1-1-261020-005",
+    "f.title": "MILL TEST CERTIFICATE",
+    "f.statement": "We hearby certify that the material herein has been made\nand tested in accordance with the above specification\nand the results of all test are acceptable.",
+    "f.signLabel": "CHIEF OF QUALITY CONTROL TEAM",
+    "f.legend": "T : TOP\nB : BACK\nG : GOOD\nGRS wt : GROSS wt",
+    "f.maker": "MANUFACTURER: DONGKUK COATED METAL CO., LTD. 102 SINSEON-RO, NAM-GU, BUSAN, KOREA ZIP 48481, TEL : 82-51-640-5114",
+    "f.docno": "USS-G-0913-01 REV.1",
+    "n.1": "11/11, 6mm",
+    "n.2": "50",
+    "n.3": "H / 1Kg",
+    "n.4": "500 hrs",
+    "n.5": "1000 hrs",
+    "n.6": "5% HCl 24Hrs",
+    "n.7": "5% NaOH 24 Hrs",
+    "rm.0": "",
+    "rm.1": "",
+    "rm.2": "",
+    "rm.3": "",
+    "rm.4": "",
+    "rm.5": "",
+    "rm.6": "",
+    "m.1": "",
+    "m.2": ""
+   },
+   "src": {
+    "form": "base",
+    "h.cust1": "base",
+    "h.cust2": "base",
+    "h.cust3": "base",
+    "h.cust4": "base",
+    "h.commodity": "base",
+    "h.spec": "base",
+    "h.date": "base",
+    "h.order": "base",
+    "h.invoice": "base",
+    "h.lc": "base",
+    "h.po": "base",
+    "f.title": "base",
+    "rm.0": "base",
+    "rm.1": "base",
+    "rm.2": "base",
+    "rm.3": "base",
+    "rm.4": "base",
+    "rm.5": "base",
+    "rm.6": "base",
+    "qr": "base",
+    "stamp": "base"
+   },
+   "why": {},
+   "cols": [
+    {
+     "k": "coil",
+     "l": "COIL NO.",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "size",
+     "l": "SIZE",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "net",
+     "l": "NET wt\n(KGS/LBS)",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "grs",
+     "l": "GRS wt\n(KGS/LBS)",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "C",
+     "l": "C",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "Si",
+     "l": "Si",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "Mn",
+     "l": "Mn",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "P",
+     "l": "P",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "S",
+     "l": "S",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "Al",
+     "l": "Al",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "B",
+     "l": "B",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "hrb",
+     "l": "HARD\nNESS",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "eri",
+     "l": "ERIC\nHSEN",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "yp",
+     "l": "YP",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "ts",
+     "l": "TS",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "el",
+     "l": "%",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "bend",
+     "l": "BENDING TEST",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "coat",
+     "l": "AL-ZINC\nCOATING\n(g/㎡)",
+     "s": "rule",
+     "w": "L-01 도금량 라벨 — AL-ZINC (수출 영문)"
+    },
+    {
+     "k": "heat",
+     "l": "HEAT No.",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "cross",
+     "l": "CROSSCUT\nERI TEST",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "mek",
+     "l": "MEK\nRESISTANCE",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "imp",
+     "l": "IMPACT\nTEST",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "pencil",
+     "l": "PENCIL\nHARDNESS",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "gloss",
+     "l": "GLOSS TEST",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "salt",
+     "l": "SALT SPRAY",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "weather",
+     "l": "WEATHER\nO-METER",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "hcl",
+     "l": "HCL",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "naoh",
+     "l": "NaOH",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "thick",
+     "l": "COATING\nTHICK",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "surf",
+     "l": "SPANGLE",
+     "s": null,
+     "w": null
+    }
+   ],
+   "cellOv": {},
+   "hidden": [],
+   "overflow": 0,
+   "mark": false,
+   "qr": true,
+   "stamp": false,
+   "coils": [
+    {
+     "coil": "010-00002\nSIM-E01",
+     "size": "0.57MM X 1219MM X COIL",
+     "net": "5,590\n12,324",
+     "grs": "5,650\n12,457",
+     "qty": "",
+     "C": "40",
+     "Si": "0",
+     "Mn": "220",
+     "P": "13",
+     "S": "8",
+     "Al": "45",
+     "B": "3",
+     "hrb": "59.7",
+     "eri": "8.2",
+     "yp": "331",
+     "ts": "406",
+     "el": "31.7",
+     "bend": "G",
+     "coat": "75.8",
+     "heat": "E7776",
+     "cross": "G",
+     "mek": "G",
+     "imp": "G",
+     "pencil": "G",
+     "gloss": "21.1\n42.4",
+     "salt": "G",
+     "weather": "G",
+     "hcl": "G",
+     "naoh": "G",
+     "thick": "21\n13",
+     "surf": "EXTRA SMOOTH",
+     "_id": "SIM-E01",
+     "_color": "WHITE(W0506) / RAL 9002(H9130)",
+     "wl": "5,590",
+     "Cr": "15",
+     "Ni": "10",
+     "Cu": "12",
+     "Ti": "1",
+     "V": "1",
+     "Nb": "0",
+     "paint": "PM-01"
+    },
+    {
+     "coil": "010-00003\nSIM-E02",
+     "size": "0.57MM X 1219MM X COIL",
+     "net": "5,590\n12,324",
+     "grs": "5,650\n12,457",
+     "qty": "",
+     "C": "40",
+     "Si": "0",
+     "Mn": "220",
+     "P": "13",
+     "S": "8",
+     "Al": "45",
+     "B": "3",
+     "hrb": "59.7",
+     "eri": "8.2",
+     "yp": "331",
+     "ts": "406",
+     "el": "31.7",
+     "bend": "G",
+     "coat": "75.8",
+     "heat": "E7776",
+     "cross": "G",
+     "mek": "G",
+     "imp": "G",
+     "pencil": "G",
+     "gloss": "21.1\n42.4",
+     "salt": "G",
+     "weather": "G",
+     "hcl": "G",
+     "naoh": "G",
+     "thick": "21\n13",
+     "surf": "EXTRA SMOOTH",
+     "_id": "SIM-E02",
+     "_color": "WHITE(W0506) / RAL 9002(H9130)",
+     "wl": "5,590",
+     "Cr": "17",
+     "Ni": "11",
+     "Cu": "15",
+     "Ti": "2",
+     "V": "2",
+     "Nb": "1",
+     "paint": "PM-02"
+    }
+   ],
+   "coilOv": {},
+   "rules": [
+    "L-01 도금량 라벨 — AL-ZINC (수출 영문)",
+    "서명 2016-01-01 이전",
+    "서명 2016-01-01 인사발령",
+    "서명 2016-02-01 인사발령",
+    "서명 2018-07-01 인사발령",
+    "서명 2018-12-01 인사발령",
+    "서명 2019-01-01 인사발령",
+    "서명 2021-01-01 인사발령",
+    "서명 2024-01-01 인사발령",
+    "서명 2025-12-29 인사발령 (신도장)",
+    "도장 2025-12-29 신도장"
+   ],
+   "signImg": "Z_MTC_SIGN_20251229.png",
+   "stampImg": "cm_stamp2.png",
+   "signWhy": "서명 2025-12-29 인사발령 (신도장)",
+   "stampWhy": "도장 2025-12-29 신도장",
+   "nOvr": 0,
+   "nRule": 11
+  }
+ },
+ "papers": {
+  "C1": {
+   "orig": {
+    "sha": "b735ab3640d1c86243cdeb83bf2ba75eab635b1658af3e93688415ef245eccb8",
+    "len": 201801
+   },
+   "copy": {
+    "sha": "8293ccbf30e14c4602bd347954a69131ee01ba997c2e0c3050a8f7fe5e2d8f9a",
+    "len": 197712
+   }
+  },
+  "C2": {
+   "orig": {
+    "sha": "7e4f0baaa4aac5414daa2e60881cc4abe9f57fc601603973e53bc2587f91aaff",
+    "len": 182760
+   },
+   "copy": {
+    "sha": "c1c252ca4405803f4aebd044a0d751edcfaeeb4189bcebdb78d1aba16ab3b6e4",
+    "len": 178671
+   }
+  },
+  "C3": {
+   "orig": {
+    "sha": "037e22391098536576c1d20eb2cd0493947c725ad67c52699c04b3c89f90c987",
+    "len": 297877
+   },
+   "copy": {
+    "sha": "122d28ba6c624f6acbe5b3ecf18156b194dfecaf3a6c7341453f39d22cc94988",
+    "len": 293788
+   }
+  },
+  "C4": {
+   "orig": {
+    "sha": "c10d2f793c8469727784e3361295d2543a1528360e4148e65694dd54e9a59c1c",
+    "len": 189528
+   },
+   "copy": {
+    "sha": "6f492151dde9f55e1e2157fa9b5d0faeec28aaa5b9d5c8e016e0b1c5d7a2fd24",
+    "len": 185439
+   }
+  },
+  "C5": {
+   "orig": {
+    "sha": "18ef7eb3227e5586854a8659c66c70512bbfdb2a8205f234c961f9eacd8cc9ab",
+    "len": 189055
+   },
+   "copy": {
+    "sha": "fac5aaa99b20f4760e55e50dfc41b3bfb5da6c8e9871c5ee6811376c7d5e4e8e",
+    "len": 184966
+   }
+  },
+  "ovrC4": {
+   "orig": {
+    "sha": "74ef0235cb0d4c9d51f8ca1b7ccb40ffbb63e1df9b67ef63494df820252d8dbe",
+    "len": 189588
+   }
+  }
+ },
+ "diffs": {
+  "C5": [
+   [
+    "양식",
+    "수출 영문 v2",
+    "수출 영문 v3"
+   ],
+   [
+    "문서번호",
+    "USS-G-0913-01 REV.1",
+    "USS-G-0913-01 REV.2"
+   ]
+  ]
+ },
+ "forms": {
+  "en": {
+   "applied": {
+    "ver": 3,
+    "qr": true,
+    "stamp": false,
+    "title": "MILL TEST CERTIFICATE",
+    "statement": "We hearby certify that the material herein has been made\nand tested in accordance with the above specification\nand the results of all test are acceptable.",
+    "signLabel": "CHIEF OF QUALITY CONTROL TEAM",
+    "legend": "T : TOP\nB : BACK\nG : GOOD\nGRS wt : GROSS wt",
+    "maker": "MANUFACTURER: DONGKUK COATED METAL CO., LTD. 102 SINSEON-RO, NAM-GU, BUSAN, KOREA ZIP 48481, TEL : 82-51-640-5114",
+    "docno": "USS-G-0913-01 REV.2",
+    "labels": {
+     "coil": "COIL NO.",
+     "size": "SIZE",
+     "net": "NET wt\n(KGS/LBS)",
+     "grs": "GRS wt\n(KGS/LBS)",
+     "C": "C",
+     "Si": "Si",
+     "Mn": "Mn",
+     "P": "P",
+     "S": "S",
+     "Al": "Al",
+     "B": "B",
+     "hrb": "HARD\nNESS",
+     "eri": "ERIC\nHSEN",
+     "yp": "YP",
+     "ts": "TS",
+     "el": "%",
+     "bend": "BENDING TEST",
+     "coat": "ZINC\nCOATING\n(g/㎡)",
+     "heat": "HEAT No.",
+     "cross": "CROSSCUT\nERI TEST",
+     "mek": "MEK\nRESISTANCE",
+     "imp": "IMPACT\nTEST",
+     "pencil": "PENCIL\nHARDNESS",
+     "gloss": "GLOSS TEST",
+     "salt": "SALT SPRAY",
+     "weather": "WEATHER\nO-METER",
+     "hcl": "HCL",
+     "naoh": "NaOH",
+     "thick": "COATING\nTHICK",
+     "surf": "SPANGLE"
+    },
+    "cols": [
+     {
+      "k": "coil",
+      "on": true
+     },
+     {
+      "k": "size",
+      "on": true
+     },
+     {
+      "k": "net",
+      "on": true
+     },
+     {
+      "k": "grs",
+      "on": true
+     },
+     {
+      "k": "C",
+      "on": true
+     },
+     {
+      "k": "Si",
+      "on": true
+     },
+     {
+      "k": "Mn",
+      "on": true
+     },
+     {
+      "k": "P",
+      "on": true
+     },
+     {
+      "k": "S",
+      "on": true
+     },
+     {
+      "k": "Al",
+      "on": true
+     },
+     {
+      "k": "B",
+      "on": true
+     },
+     {
+      "k": "hrb",
+      "on": true
+     },
+     {
+      "k": "eri",
+      "on": true
+     },
+     {
+      "k": "yp",
+      "on": true
+     },
+     {
+      "k": "ts",
+      "on": true
+     },
+     {
+      "k": "el",
+      "on": true
+     },
+     {
+      "k": "bend",
+      "on": true
+     },
+     {
+      "k": "coat",
+      "on": true
+     },
+     {
+      "k": "heat",
+      "on": true
+     },
+     {
+      "k": "cross",
+      "on": true
+     },
+     {
+      "k": "mek",
+      "on": true
+     },
+     {
+      "k": "imp",
+      "on": true
+     },
+     {
+      "k": "pencil",
+      "on": true
+     },
+     {
+      "k": "gloss",
+      "on": true
+     },
+     {
+      "k": "salt",
+      "on": true
+     },
+     {
+      "k": "weather",
+      "on": true
+     },
+     {
+      "k": "hcl",
+      "on": true
+     },
+     {
+      "k": "naoh",
+      "on": true
+     },
+     {
+      "k": "thick",
+      "on": true
+     },
+     {
+      "k": "surf",
+      "on": true
+     }
+    ]
+   },
+   "draft": null,
+   "pending": false,
+   "hist": [
+    {
+     "v": 3,
+     "at": "2026.10.26",
+     "memo": "문서번호 개정 (REV.1 → REV.2)"
+    },
+    {
+     "v": 2,
+     "at": "2026.01.02",
+     "memo": "현행 양식 이관"
+    }
+   ]
+  },
+  "ko": {
+   "applied": {
+    "ver": 1,
+    "qr": true,
+    "stamp": false,
+    "title": "시      험      성      적      서\nMILL TEST CERTIFICATION",
+    "statement": "상기 적용규격에 따른 시험결과 이상없음을 증명함.\nWe hearby certify that the material herein has been made and tested in accordance with\nthe above specification and the results of all test are acceptable.\n본 검사증명서에 명기된 규격용도외로 사용시 안전상 문제가 발생할 수 있으며, 검사증명서의\n위/변조시 사문서 위조(형법231조)로 불이익을 당하실 수 있습니다.",
+    "signLabel": "품        질        관        리        팀        장\nCHIEF OF QUALITY CONTROL TEAM",
+    "legend": "※ T : TOP, B : BACK, G : GOOD",
+    "maker": "MANUFACTURER: DONGKUK COATED METAL CO., LTD  102 SINSEON-RO, NAM-GU, BUSAN, KOREA ZIP 48481, TEL : 82-51-640-5114",
+    "docno": "USS-G-0913-01 REV.3",
+    "labels": {
+     "coil": "제품번호\nCOIL ID",
+     "size": "제품치수\nSIZE(mm)",
+     "wl": "중량(KG)\nWEIGHT\n길이(m)\nLENGTH",
+     "C": "C",
+     "Si": "Si",
+     "Mn": "Mn",
+     "P": "P",
+     "S": "S",
+     "Al": "Al",
+     "B": "B",
+     "hrb": "경도\nHARDNESS",
+     "eri": "에릭슨\nERICHSEN",
+     "yp": "YP",
+     "ts": "TS",
+     "el": "%",
+     "bend": "BENDING TEST",
+     "cond": "전도성\nTEST\n1500㎎/㎡\n이하\n1mΩ이하",
+     "coat": "부착량\nCOATING\n(g/㎡)",
+     "color": "색상\nCOLOR",
+     "cross": "CROSSCUT\nERI TEST",
+     "mek": "MEK\nRESISTANCE",
+     "imp": "IMPACT\nTEST",
+     "pencil": "PENCIL\nHARDNESS",
+     "gloss": "광택도\nGLOSSTEST",
+     "salt": "SALT SPRAY",
+     "weather": "WEATHER\nO-METER",
+     "hcl": "HCL",
+     "naoh": "NaOH",
+     "thick": "COATING\nTHICK",
+     "surf": "도금형태\nSPANGLE"
+    },
+    "cols": [
+     {
+      "k": "coil",
+      "on": true
+     },
+     {
+      "k": "size",
+      "on": true
+     },
+     {
+      "k": "wl",
+      "on": true
+     },
+     {
+      "k": "C",
+      "on": true
+     },
+     {
+      "k": "Si",
+      "on": true
+     },
+     {
+      "k": "Mn",
+      "on": true
+     },
+     {
+      "k": "P",
+      "on": true
+     },
+     {
+      "k": "S",
+      "on": true
+     },
+     {
+      "k": "Al",
+      "on": true
+     },
+     {
+      "k": "B",
+      "on": true
+     },
+     {
+      "k": "hrb",
+      "on": true
+     },
+     {
+      "k": "eri",
+      "on": true
+     },
+     {
+      "k": "yp",
+      "on": true
+     },
+     {
+      "k": "ts",
+      "on": true
+     },
+     {
+      "k": "el",
+      "on": true
+     },
+     {
+      "k": "bend",
+      "on": true
+     },
+     {
+      "k": "cond",
+      "on": true
+     },
+     {
+      "k": "coat",
+      "on": true
+     },
+     {
+      "k": "color",
+      "on": true
+     },
+     {
+      "k": "cross",
+      "on": true
+     },
+     {
+      "k": "mek",
+      "on": true
+     },
+     {
+      "k": "imp",
+      "on": true
+     },
+     {
+      "k": "pencil",
+      "on": true
+     },
+     {
+      "k": "gloss",
+      "on": true
+     },
+     {
+      "k": "salt",
+      "on": true
+     },
+     {
+      "k": "weather",
+      "on": true
+     },
+     {
+      "k": "hcl",
+      "on": true
+     },
+     {
+      "k": "naoh",
+      "on": true
+     },
+     {
+      "k": "thick",
+      "on": true
+     },
+     {
+      "k": "surf",
+      "on": true
+     }
+    ]
+   },
+   "draft": null,
+   "pending": false,
+   "hist": [
+    {
+     "v": 1,
+     "at": "2026.01.02",
+     "memo": "현행 양식 이관"
+    }
+   ]
+  },
+  "es": {
+   "applied": {
+    "ver": 1,
+    "qr": false,
+    "stamp": false,
+    "title": "CERTIFICADO DE MOLINO",
+    "statement": "Por la presente certificamos que el material aquí incluido ha sido fabricado y probado de acuerdo con la especificacion anterior, y los resultados de todas las pruebas son aceptables",
+    "signLabel": "Jefe del equipo de control de Calidad",
+    "legend": "T : ARRIBA\nB : ATRAS\nG : BUENO\nGRS wt : BRUTO wt",
+    "maker": "MANUFACTURADOR: DONGKUK COATED METAL CO., LTD. 102 SINSEON-RO, NAM-GU, BUSAN, COREA DEL SUR  ZIP 48481, TEL : 82-51-640-5114",
+    "docno": "USS-G-0913-01 REV.2",
+    "labels": {
+     "coil": "No. Bobina",
+     "size": "Dimensiones",
+     "net": "Neto\n(KGS/LBS)",
+     "grs": "BRUTO\n(KGS/LBS)",
+     "qty": "Cantidad\n(PIEZA)",
+     "C": "C",
+     "Si": "Si",
+     "Mn": "Mn",
+     "P": "P",
+     "S": "S",
+     "Al": "Al",
+     "B": "B",
+     "hrb": "Dureza",
+     "eri": "Resistencia\nal rayado",
+     "yp": "YP",
+     "ts": "TS",
+     "el": "%",
+     "bend": "Prueba de flexión",
+     "coat": "Recubrimiento\nZINC\n(g/㎡)",
+     "heat": "No. Colada",
+     "cross": "Prueba de adhesión",
+     "mek": "Prueba de\nresistencia\nmetil",
+     "imp": "Prueba de impacto",
+     "pencil": "Prueba de dureza\nde lápiz",
+     "gloss": "Prueba de\nbrillo",
+     "salt": "cámara salina\n(resistencia a la corrosión)",
+     "weather": "Prueba de durabilidad",
+     "hcl": "Degradación\nmicroestructural\ndel acero",
+     "naoh": "Ensayo de corrosión\nsin tensión",
+     "thick": "Medición del\nespesor de la\npintura y el\nrevestimiento",
+     "surf": "Acabado Superficial"
+    },
+    "cols": [
+     {
+      "k": "coil",
+      "on": true
+     },
+     {
+      "k": "size",
+      "on": true
+     },
+     {
+      "k": "net",
+      "on": true
+     },
+     {
+      "k": "grs",
+      "on": true
+     },
+     {
+      "k": "qty",
+      "on": true
+     },
+     {
+      "k": "C",
+      "on": true
+     },
+     {
+      "k": "Si",
+      "on": true
+     },
+     {
+      "k": "Mn",
+      "on": true
+     },
+     {
+      "k": "P",
+      "on": true
+     },
+     {
+      "k": "S",
+      "on": true
+     },
+     {
+      "k": "Al",
+      "on": true
+     },
+     {
+      "k": "B",
+      "on": true
+     },
+     {
+      "k": "hrb",
+      "on": true
+     },
+     {
+      "k": "eri",
+      "on": true
+     },
+     {
+      "k": "yp",
+      "on": true
+     },
+     {
+      "k": "ts",
+      "on": true
+     },
+     {
+      "k": "el",
+      "on": true
+     },
+     {
+      "k": "bend",
+      "on": true
+     },
+     {
+      "k": "coat",
+      "on": true
+     },
+     {
+      "k": "heat",
+      "on": true
+     },
+     {
+      "k": "cross",
+      "on": true
+     },
+     {
+      "k": "mek",
+      "on": true
+     },
+     {
+      "k": "imp",
+      "on": true
+     },
+     {
+      "k": "pencil",
+      "on": true
+     },
+     {
+      "k": "gloss",
+      "on": true
+     },
+     {
+      "k": "salt",
+      "on": true
+     },
+     {
+      "k": "weather",
+      "on": true
+     },
+     {
+      "k": "hcl",
+      "on": true
+     },
+     {
+      "k": "naoh",
+      "on": true
+     },
+     {
+      "k": "thick",
+      "on": true
+     },
+     {
+      "k": "surf",
+      "on": true
+     }
+    ]
+   },
+   "draft": null,
+   "pending": false,
+   "hist": [
+    {
+     "v": 1,
+     "at": "2025.12.29",
+     "memo": "신양식 (서명·스탬프 변경) 이관"
+    }
+   ]
+  }
+ },
+ "rules": [
+  "R1",
+  "R2",
+  "R3",
+  "R4",
+  "R5",
+  "R6",
+  "R7",
+  "R8",
+  "R9",
+  "R10",
+  "R11",
+  "R12",
+  "R13",
+  "R14",
+  "R15",
+  "S1",
+  "S2",
+  "S3",
+  "S4",
+  "S5",
+  "S6",
+  "S7",
+  "S8",
+  "S9",
+  "S10"
+ ],
+ "ovr": {
+  "C4": {
+   "id": "C4",
+   "fk": "en",
+   "fname": "수출 영문",
+   "fver": 3,
+   "T": {
+    "h.cust1": "SAMPLE TRADING INC.",
+    "h.cust2": "500 Example Blvd,",
+    "h.cust3": "Houston, TX 77001 USA",
+    "h.cust4": "",
+    "h.commodity": "PREPAINTED HOT DIP 55% ALUMINUM-ZINC ALLOY COATED STEEL SHEETS & COIL",
+    "h.spec": "ASTM A755 CS(TYPE_B)",
+    "h.date": "2026.11.01",
+    "h.order": "L261101004",
+    "h.invoice": "L20261101C004",
+    "h.lc": "",
+    "h.po": "PO-2026-118",
+    "h.mtc": "UC1-1-261101-004",
+    "f.title": "MILL TEST CERTIFICATE",
+    "f.statement": "We hearby certify that the material herein has been made\nand tested in accordance with the above specification\nand the results of all test are acceptable.",
+    "f.signLabel": "CHIEF OF QUALITY CONTROL TEAM",
+    "f.legend": "T : TOP\nB : BACK\nG : GOOD\nGRS wt : GROSS wt",
+    "f.maker": "MANUFACTURER: DONGKUK COATED METAL CO., LTD. 102 SINSEON-RO, NAM-GU, BUSAN, KOREA ZIP 48481, TEL : 82-51-640-5114",
+    "f.docno": "USS-G-0913-01 REV.2",
+    "n.1": "11/11, 6mm",
+    "n.2": "50",
+    "n.3": "H / 1Kg",
+    "n.4": "500 hrs",
+    "n.5": "1000 hrs",
+    "n.6": "5% HCl 24Hrs",
+    "n.7": "5% NaOH 24 Hrs",
+    "rm.0": "Packing : Export standard",
+    "rm.1": "",
+    "rm.2": "",
+    "rm.3": "",
+    "rm.4": "",
+    "rm.5": "",
+    "rm.6": "",
+    "m.1": "",
+    "m.2": ""
+   },
+   "src": {
+    "form": "base",
+    "h.cust1": "base",
+    "h.cust2": "base",
+    "h.cust3": "base",
+    "h.cust4": "base",
+    "h.commodity": "base",
+    "h.spec": "base",
+    "h.date": "base",
+    "h.order": "base",
+    "h.invoice": "base",
+    "h.lc": "base",
+    "h.po": "ovr",
+    "f.title": "base",
+    "remark": "ovr",
+    "rm.0": "ovr",
+    "rm.1": "base",
+    "rm.2": "base",
+    "rm.3": "base",
+    "rm.4": "base",
+    "rm.5": "base",
+    "rm.6": "base",
+    "qr": "base",
+    "stamp": "base"
+   },
+   "why": {},
+   "cols": [
+    {
+     "k": "coil",
+     "l": "COIL NO.",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "size",
+     "l": "SIZE",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "net",
+     "l": "NET wt\n(KGS/LBS)",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "grs",
+     "l": "GRS wt\n(KGS/LBS)",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "C",
+     "l": "C",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "Si",
+     "l": "Si",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "Mn",
+     "l": "Mn",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "P",
+     "l": "P",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "S",
+     "l": "S",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "Al",
+     "l": "Al",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "hrb",
+     "l": "HARD\nNESS",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "eri",
+     "l": "ERIC\nHSEN",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "yp",
+     "l": "YP",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "ts",
+     "l": "TS",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "el",
+     "l": "%",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "bend",
+     "l": "BENDING TEST",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "coat",
+     "l": "AL-ZINC\nCOATING\n(g/㎡)",
+     "s": "rule",
+     "w": "L-01 도금량 라벨 — AL-ZINC (수출 영문)"
+    },
+    {
+     "k": "heat",
+     "l": "HEAT No.",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "cross",
+     "l": "CROSSCUT\nERI TEST",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "mek",
+     "l": "MEK\nRESISTANCE",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "imp",
+     "l": "IMPACT\nTEST",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "pencil",
+     "l": "PENCIL\nHARDNESS",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "gloss",
+     "l": "GLOSS TEST",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "salt",
+     "l": "SALT SPRAY",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "weather",
+     "l": "WEATHER\nO-METER",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "hcl",
+     "l": "HCL",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "naoh",
+     "l": "NaOH",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "thick",
+     "l": "COATING\nTHICK",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "surf",
+     "l": "SPANGLE",
+     "s": null,
+     "w": null
+    }
+   ],
+   "cellOv": {},
+   "hidden": [
+    [
+     "B",
+     "예외 규칙 D-12 Boron 칸 숨김"
+    ]
+   ],
+   "overflow": 0,
+   "mark": false,
+   "qr": true,
+   "stamp": false,
+   "coils": [
+    {
+     "coil": "010-00001\nSIM-D01",
+     "size": "0.57MM X 1219MM X COIL",
+     "net": "3,000\n6,614",
+     "grs": "5,650\n12,457",
+     "qty": "",
+     "C": "40",
+     "Si": "0",
+     "Mn": "220",
+     "P": "13",
+     "S": "8",
+     "Al": "45",
+     "B": "3",
+     "hrb": "59.7",
+     "eri": "8.2",
+     "yp": "331",
+     "ts": "406",
+     "el": "31.7",
+     "bend": "G",
+     "coat": "75.8",
+     "heat": "E7776",
+     "cross": "G",
+     "mek": "G",
+     "imp": "G",
+     "pencil": "G",
+     "gloss": "21.1\n42.4",
+     "salt": "G",
+     "weather": "G",
+     "hcl": "G",
+     "naoh": "G",
+     "thick": "21\n13",
+     "surf": "EXTRA SMOOTH",
+     "_id": "SIM-D01",
+     "_color": "WHITE(W0506) / RAL 9002(H9130)",
+     "wl": "5,590",
+     "Cr": "15",
+     "Ni": "10",
+     "Cu": "12",
+     "Ti": "1",
+     "V": "1",
+     "Nb": "0",
+     "paint": "PM-01"
+    },
+    {
+     "coil": "010-00004\nSIM-D02",
+     "size": "0.57MM X 1219MM X COIL",
+     "net": "5,300\n11,685",
+     "grs": "5,360\n11,817",
+     "qty": "",
+     "C": "40",
+     "Si": "0",
+     "Mn": "220",
+     "P": "13",
+     "S": "8",
+     "Al": "45",
+     "B": "3",
+     "hrb": "59.7",
+     "eri": "8.2",
+     "yp": "331",
+     "ts": "406",
+     "el": "31.7",
+     "bend": "G",
+     "coat": "75.8",
+     "heat": "E7776",
+     "cross": "G",
+     "mek": "G",
+     "imp": "G",
+     "pencil": "G",
+     "gloss": "21.1\n42.4",
+     "salt": "G",
+     "weather": "G",
+     "hcl": "G",
+     "naoh": "G",
+     "thick": "21\n13",
+     "surf": "EXTRA SMOOTH",
+     "_id": "SIM-D02",
+     "_color": "WHITE(W0506) / RAL 9002(H9130)",
+     "wl": "5,300",
+     "Cr": "17",
+     "Ni": "11",
+     "Cu": "15",
+     "Ti": "2",
+     "V": "2",
+     "Nb": "1",
+     "paint": "PM-02"
+    },
+    {
+     "coil": "010-00005\nSIM-D03",
+     "size": "0.57MM X 1219MM X COIL",
+     "net": "5,550\n12,236",
+     "grs": "5,610\n12,368",
+     "qty": "",
+     "C": "40",
+     "Si": "0",
+     "Mn": "210",
+     "P": "11",
+     "S": "7",
+     "Al": "41",
+     "B": "2",
+     "hrb": "59.3",
+     "eri": "8.3",
+     "yp": "322",
+     "ts": "392",
+     "el": "30.6",
+     "bend": "G",
+     "coat": "75.3",
+     "heat": "E7778",
+     "cross": "G",
+     "mek": "G",
+     "imp": "G",
+     "pencil": "G",
+     "gloss": "21.3\n39.7",
+     "salt": "G",
+     "weather": "G",
+     "hcl": "G",
+     "naoh": "G",
+     "thick": "21\n13",
+     "surf": "EXTRA SMOOTH",
+     "_id": "SIM-D03",
+     "_color": "WHITE(W0506) / RAL 9002(H9130)",
+     "wl": "5,550",
+     "Cr": "15",
+     "Ni": "10",
+     "Cu": "12",
+     "Ti": "1",
+     "V": "1",
+     "Nb": "0",
+     "paint": "PM-01"
+    }
+   ],
+   "coilOv": {
+    "0.net": 1
+   },
+   "rules": [
+    "L-01 도금량 라벨 — AL-ZINC (수출 영문)",
+    "D-12 Boron 칸 숨김",
+    "서명 2016-01-01 이전",
+    "서명 2016-01-01 인사발령",
+    "서명 2016-02-01 인사발령",
+    "서명 2018-07-01 인사발령",
+    "서명 2018-12-01 인사발령",
+    "서명 2019-01-01 인사발령",
+    "서명 2021-01-01 인사발령",
+    "서명 2024-01-01 인사발령",
+    "서명 2025-12-29 인사발령 (신도장)",
+    "도장 2025-12-29 신도장"
+   ],
+   "signImg": "Z_MTC_SIGN_20251229.png",
+   "stampImg": "cm_stamp2.png",
+   "signWhy": "서명 2025-12-29 인사발령 (신도장)",
+   "stampWhy": "도장 2025-12-29 신도장",
+   "nOvr": 4,
+   "nRule": 12
+  },
+  "C3": {
+   "id": "C3",
+   "fk": "en",
+   "fname": "수출 영문",
+   "fver": 3,
+   "T": {
+    "h.cust1": "MUESTRA ACEROS S.A. DE C.V.",
+    "h.cust2": "Av. Ejemplo 100, Parque Industrial,",
+    "h.cust3": "Monterrey, N.L. MEXICO",
+    "h.cust4": "",
+    "h.commodity": "LAMINA DE ACERO PREPINTADA CON RECUBRIMIENTO DE ALEACION 55% DE ALUMINIO Y ZINC EN HOJA O BOBINA",
+    "h.spec": "ASTM A755 CS(TYPE_B)",
+    "h.date": "2026.11.01",
+    "h.order": "L261101003",
+    "h.invoice": "L20261101C003",
+    "h.lc": "",
+    "h.po": "",
+    "h.mtc": "UC1-1-261101-003",
+    "f.title": "CERTIFICADO DE CALIDAD",
+    "f.statement": "We hearby certify that the material herein has been made\nand tested in accordance with the above specification\nand the results of all test are acceptable.",
+    "f.signLabel": "CHIEF OF QUALITY CONTROL TEAM",
+    "f.legend": "T : TOP\nB : BACK\nG : GOOD\nGRS wt : GROSS wt",
+    "f.maker": "MANUFACTURER: DONGKUK COATED METAL CO., LTD. 102 SINSEON-RO, NAM-GU, BUSAN, KOREA ZIP 48481, TEL : 82-51-640-5114",
+    "f.docno": "USS-G-0913-01 REV.2",
+    "n.1": "11/11, 6mm",
+    "n.2": "50",
+    "n.3": "H / 1Kg",
+    "n.4": "500 hrs",
+    "n.5": "1000 hrs",
+    "n.6": "5% HCl 24Hrs",
+    "n.7": "5% NaOH 24 Hrs",
+    "rm.0": "País de Origen : Corea del sur",
+    "rm.1": "",
+    "rm.2": "",
+    "rm.3": "",
+    "rm.4": "",
+    "rm.5": "",
+    "rm.6": "",
+    "m.1": "",
+    "m.2": ""
+   },
+   "src": {
+    "form": "ovr",
+    "h.cust1": "base",
+    "h.cust2": "base",
+    "h.cust3": "base",
+    "h.cust4": "base",
+    "h.commodity": "base",
+    "h.spec": "base",
+    "h.date": "base",
+    "h.order": "base",
+    "h.invoice": "base",
+    "h.lc": "base",
+    "h.po": "base",
+    "f.title": "rule",
+    "rm.0": "rule",
+    "rm.1": "base",
+    "rm.2": "base",
+    "rm.3": "base",
+    "rm.4": "base",
+    "rm.5": "base",
+    "rm.6": "base",
+    "qr": "rule",
+    "stamp": "rule"
+   },
+   "why": {
+    "f.title": "고객 제목 — 멕시코 통관 대응",
+    "rm.0": "V-47 REMARK — 원산지 (스페인어)",
+    "qr": "고객 QR 표시 — 멕시코 통관 대응",
+    "stamp": "고객 도장 표시 — 멕시코 통관 대응"
+   },
+   "cols": [
+    {
+     "k": "coil",
+     "l": "COIL NO.",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "size",
+     "l": "SIZE",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "net",
+     "l": "NET wt\n(KGS/LBS)",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "grs",
+     "l": "GRS wt\n(KGS/LBS)",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "C",
+     "l": "C",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "Si",
+     "l": "Si",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "Mn",
+     "l": "Mn",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "P",
+     "l": "P",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "S",
+     "l": "S",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "Al",
+     "l": "Al",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "B",
+     "l": "B",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "hrb",
+     "l": "HARD\nNESS",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "eri",
+     "l": "ERIC\nHSEN",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "yp",
+     "l": "YP",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "ts",
+     "l": "TS",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "el",
+     "l": "%",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "bend",
+     "l": "BENDING TEST",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "coat",
+     "l": "AL-ZINC\nCOATING\n(g/㎡)",
+     "s": "rule",
+     "w": "L-01 도금량 라벨 — AL-ZINC (수출 영문)"
+    },
+    {
+     "k": "heat",
+     "l": "HEAT No.",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "cross",
+     "l": "CROSSCUT\nERI TEST",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "mek",
+     "l": "MEK\nRESISTANCE",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "imp",
+     "l": "IMPACT\nTEST",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "pencil",
+     "l": "PENCIL\nHARDNESS",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "gloss",
+     "l": "GLOSS TEST",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "salt",
+     "l": "SALT SPRAY",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "weather",
+     "l": "WEATHER\nO-METER",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "hcl",
+     "l": "HCL",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "naoh",
+     "l": "NaOH",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "thick",
+     "l": "COATING\nTHICK",
+     "s": null,
+     "w": null
+    },
+    {
+     "k": "surf",
+     "l": "SPANGLE",
+     "s": null,
+     "w": null
+    }
+   ],
+   "cellOv": {},
+   "hidden": [],
+   "overflow": 0,
+   "mark": false,
+   "qr": true,
+   "stamp": true,
+   "coils": [
+    {
+     "coil": "010-00001\nSIM-C01",
+     "size": "0.57MM X 1219MM X COIL",
+     "net": "5,590\n12,324",
+     "grs": "5,650\n12,457",
+     "qty": "",
+     "C": "40",
+     "Si": "0",
+     "Mn": "220",
+     "P": "13",
+     "S": "8",
+     "Al": "45",
+     "B": "3",
+     "hrb": "59.7",
+     "eri": "8.2",
+     "yp": "331",
+     "ts": "406",
+     "el": "31.7",
+     "bend": "G",
+     "coat": "75.8",
+     "heat": "E7776",
+     "cross": "G",
+     "mek": "G",
+     "imp": "G",
+     "pencil": "G",
+     "gloss": "21.1\n42.4",
+     "salt": "G",
+     "weather": "G",
+     "hcl": "G",
+     "naoh": "G",
+     "thick": "21\n13",
+     "surf": "EXTRA SMOOTH",
+     "_id": "SIM-C01",
+     "_color": "WHITE(W0506) / RAL 9002(H9130)",
+     "wl": "5,590",
+     "Cr": "15",
+     "Ni": "10",
+     "Cu": "12",
+     "Ti": "1",
+     "V": "1",
+     "Nb": "0",
+     "paint": "PM-01"
+    },
+    {
+     "coil": "010-00002\nSIM-C02",
+     "size": "0.57MM X 1219MM X COIL",
+     "net": "5,590\n12,324",
+     "grs": "5,650\n12,457",
+     "qty": "",
+     "C": "40",
+     "Si": "0",
+     "Mn": "220",
+     "P": "13",
+     "S": "8",
+     "Al": "45",
+     "B": "3",
+     "hrb": "59.7",
+     "eri": "8.2",
+     "yp": "331",
+     "ts": "406",
+     "el": "31.7",
+     "bend": "G",
+     "coat": "75.8",
+     "heat": "E7776",
+     "cross": "G",
+     "mek": "G",
+     "imp": "G",
+     "pencil": "G",
+     "gloss": "21.1\n42.4",
+     "salt": "G",
+     "weather": "G",
+     "hcl": "G",
+     "naoh": "G",
+     "thick": "21\n13",
+     "surf": "EXTRA SMOOTH",
+     "_id": "SIM-C02",
+     "_color": "WHITE(W0506) / RAL 9002(H9130)",
+     "wl": "5,590",
+     "Cr": "17",
+     "Ni": "11",
+     "Cu": "15",
+     "Ti": "2",
+     "V": "2",
+     "Nb": "1",
+     "paint": "PM-02"
+    },
+    {
+     "coil": "010-00003\nSIM-C03",
+     "size": "0.57MM X 1219MM X COIL",
+     "net": "5,590\n12,324",
+     "grs": "5,650\n12,457",
+     "qty": "",
+     "C": "40",
+     "Si": "0",
+     "Mn": "220",
+     "P": "13",
+     "S": "8",
+     "Al": "45",
+     "B": "3",
+     "hrb": "59.7",
+     "eri": "8.2",
+     "yp": "331",
+     "ts": "406",
+     "el": "31.7",
+     "bend": "G",
+     "coat": "75.8",
+     "heat": "E7776",
+     "cross": "G",
+     "mek": "G",
+     "imp": "G",
+     "pencil": "G",
+     "gloss": "21.1\n42.4",
+     "salt": "G",
+     "weather": "G",
+     "hcl": "G",
+     "naoh": "G",
+     "thick": "21\n13",
+     "surf": "EXTRA SMOOTH",
+     "_id": "SIM-C03",
+     "_color": "WHITE(W0506) / RAL 9002(H9130)",
+     "wl": "5,590",
+     "Cr": "15",
+     "Ni": "10",
+     "Cu": "12",
+     "Ti": "1",
+     "V": "1",
+     "Nb": "0",
+     "paint": "PM-01"
+    },
+    {
+     "coil": "010-00004\nSIM-C04",
+     "size": "0.57MM X 1219MM X COIL",
+     "net": "5,300\n11,685",
+     "grs": "5,360\n11,817",
+     "qty": "",
+     "C": "40",
+     "Si": "0",
+     "Mn": "220",
+     "P": "13",
+     "S": "8",
+     "Al": "45",
+     "B": "3",
+     "hrb": "59.7",
+     "eri": "8.2",
+     "yp": "331",
+     "ts": "406",
+     "el": "31.7",
+     "bend": "G",
+     "coat": "75.8",
+     "heat": "E7776",
+     "cross": "G",
+     "mek": "G",
+     "imp": "G",
+     "pencil": "G",
+     "gloss": "21.1\n42.4",
+     "salt": "G",
+     "weather": "G",
+     "hcl": "G",
+     "naoh": "G",
+     "thick": "21\n13",
+     "surf": "EXTRA SMOOTH",
+     "_id": "SIM-C04",
+     "_color": "WHITE(W0506) / RAL 9002(H9130)",
+     "wl": "5,300",
+     "Cr": "17",
+     "Ni": "11",
+     "Cu": "15",
+     "Ti": "2",
+     "V": "2",
+     "Nb": "1",
+     "paint": "PM-02"
+    },
+    {
+     "coil": "010-00005\nSIM-C05",
+     "size": "0.57MM X 1219MM X COIL",
+     "net": "5,550\n12,236",
+     "grs": "5,610\n12,368",
+     "qty": "",
+     "C": "40",
+     "Si": "0",
+     "Mn": "210",
+     "P": "11",
+     "S": "7",
+     "Al": "41",
+     "B": "2",
+     "hrb": "59.3",
+     "eri": "8.3",
+     "yp": "322",
+     "ts": "392",
+     "el": "30.6",
+     "bend": "G",
+     "coat": "75.3",
+     "heat": "E7778",
+     "cross": "G",
+     "mek": "G",
+     "imp": "G",
+     "pencil": "G",
+     "gloss": "21.3\n39.7",
+     "salt": "G",
+     "weather": "G",
+     "hcl": "G",
+     "naoh": "G",
+     "thick": "21\n13",
+     "surf": "EXTRA SMOOTH",
+     "_id": "SIM-C05",
+     "_color": "WHITE(W0506) / RAL 9002(H9130)",
+     "wl": "5,550",
+     "Cr": "15",
+     "Ni": "10",
+     "Cu": "12",
+     "Ti": "1",
+     "V": "1",
+     "Nb": "0",
+     "paint": "PM-01"
+    }
+   ],
+   "coilOv": {},
+   "rules": [
+    "V-47 REMARK — 원산지 (스페인어)",
+    "L-01 도금량 라벨 — AL-ZINC (수출 영문)",
+    "서명 2016-01-01 이전",
+    "서명 2016-01-01 인사발령",
+    "서명 2016-02-01 인사발령",
+    "서명 2018-07-01 인사발령",
+    "서명 2018-12-01 인사발령",
+    "서명 2019-01-01 인사발령",
+    "서명 2021-01-01 인사발령",
+    "서명 2024-01-01 인사발령",
+    "서명 2025-12-29 인사발령 (신도장)",
+    "도장 2025-12-29 신도장",
+    "고객 제목 — 멕시코 통관 대응",
+    "고객 QR 표시 — 멕시코 통관 대응",
+    "고객 도장 표시 — 멕시코 통관 대응"
+   ],
+   "signImg": "Z_MTC_SIGN_20251229.png",
+   "stampImg": "cm_stamp2.png",
+   "signWhy": "서명 2025-12-29 인사발령 (신도장)",
+   "stampWhy": "도장 2025-12-29 신도장",
+   "nOvr": 1,
+   "nRule": 15
+  }
+ }
+}

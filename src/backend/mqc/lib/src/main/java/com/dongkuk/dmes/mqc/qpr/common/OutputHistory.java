@@ -12,8 +12,9 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 /**
- * 출력물 처리 이력(TB_MQC_OUTPUT_HIST). 품질보증서(QC)·검사증명서(MTC)·Tag(TAG)가 함께 쓴다. 쌓기만 한다.
- * ACT_CD: REQUEST 요청 · ISSUE 발행 · REISSUE 재발행 · CANCEL 회수(보증서)·보류(증명서)·폐기(Tag). 상태 값은 문서 종류의 코드다.
+ * 출력물 처리 이력(TB_MQC_OUTPUT_HIST). 품질보증서(QC)·Tag(TAG)가 함께 쓴다. 쌓기만 한다.
+ * 검사증명서는 V5 부터 자기 이력 표(TB_MQC_MTC_HIST)를 쓴다.
+ * ACT_CD: REQUEST 요청 · ISSUE 발행 · REISSUE 재발행 · CANCEL 회수(보증서)·폐기(Tag). 상태 값은 문서 종류의 코드다.
  */
 @Entity
 @Table(name = "TB_MQC_OUTPUT_HIST")
@@ -22,7 +23,6 @@ import lombok.NoArgsConstructor;
 public class OutputHistory {
 
     public static final String QC = "QC";
-    public static final String MTC = "MTC";
     public static final String TAG = "TAG";
 
     public static final String REQUEST = "REQUEST";

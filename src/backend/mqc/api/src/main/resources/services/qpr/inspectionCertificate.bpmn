@@ -1,16 +1,15 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:modeler="http://camunda.org/schema/modeler/1.0" xmlns:camunda="http://camunda.org/schema/1.0/bpmn" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_inspectionCertificate" targetNamespace="http://bpmn.io/schema/bpmn" exporter="bpmn-tool" exporterVersion="1.3.0" modeler:executionPlatform="Camunda Platform" modeler:executionPlatformVersion="7.15.0">
   <bpmn:process id="inspectionCertificate" name="검사증명서관리" isExecutable="true">
-    <bpmn:documentation>inspectionCertificate — 코일·적용 규격 단위 검사증명서(MTC). 발행 요청(save) → 검토중 → 발행(issue, 검사값 고정) / 보류(cancel), 재발행(reissue). 발행은 코일이 합격이어야 한다.
+    <bpmn:documentation>inspectionCertificate — 검사증명서(MTC) 발행 목업(계약 docs/mqc/demo/mtc-contract.md). 계산은 화면 TS 엔진이 하고 서버는 양식·예외 규칙·증명서 원천·단건 수정·이미지·발행본·이력을 JSON 본문으로 저장한다. 발행 번호 채번, 신규 수신 복제, 재발행 사유 검사, 위변조방지(문서 해시·진위 확인 번호), 시연 초기화.
 
-action=search -&gt; searchTask (inspectionCertificate.search) 증명서 목록 조회
-action=view -&gt; viewTask (inspectionCertificate.view) 증명서 상세
-action=save -&gt; saveTask (inspectionCertificate.save) 발행 요청(검토중 생성)
+action=search -&gt; searchTask (inspectionCertificate.search) 전체 조회(비었으면 시드)
+action=save -&gt; saveTask (inspectionCertificate.save) 본문 저장·삭제
+action=reg -&gt; regTask (inspectionCertificate.reg) 신규 수신(원천 복제)
 action=issue -&gt; issueTask (inspectionCertificate.issue) 발행
 action=reissue -&gt; reissueTask (inspectionCertificate.reissue) 재발행
-action=cancel -&gt; cancelTask (inspectionCertificate.cancel) 보류
-action=history -&gt; historyTask (inspectionCertificate.history) 처리 이력
-action=codes -&gt; codesTask (inspectionCertificate.codes) 발행 요청 고르기 값</bpmn:documentation>
+action=confirm -&gt; confirmTask (inspectionCertificate.confirm) 진위 확인
+action=reset -&gt; resetTask (inspectionCertificate.reset) 시연 초기화</bpmn:documentation>
     <bpmn:startEvent id="start" name="시작">
       <bpmn:outgoing>flow_to_gw</bpmn:outgoing>
     </bpmn:startEvent>
@@ -22,53 +21,52 @@ action=codes -&gt; codesTask (inspectionCertificate.codes) 발행 요청 고르�
       </bpmn:extensionElements>
       <bpmn:incoming>flow_to_gw</bpmn:incoming>
       <bpmn:outgoing>flow_search</bpmn:outgoing>
-      <bpmn:outgoing>flow_view</bpmn:outgoing>
       <bpmn:outgoing>flow_save</bpmn:outgoing>
+      <bpmn:outgoing>flow_reg</bpmn:outgoing>
       <bpmn:outgoing>flow_issue</bpmn:outgoing>
       <bpmn:outgoing>flow_reissue</bpmn:outgoing>
-      <bpmn:outgoing>flow_cancel</bpmn:outgoing>
-      <bpmn:outgoing>flow_history</bpmn:outgoing>
-      <bpmn:outgoing>flow_codes</bpmn:outgoing>
+      <bpmn:outgoing>flow_confirm</bpmn:outgoing>
+      <bpmn:outgoing>flow_reset</bpmn:outgoing>
     </bpmn:exclusiveGateway>
-    <bpmn:serviceTask id="searchTask" name="증명서 목록 조회" camunda:class="inspectionCertificate">
+    <bpmn:serviceTask id="searchTask" name="전체 조회(비었으면 시드)" camunda:class="inspectionCertificate">
       <bpmn:extensionElements>
         <camunda:properties>
           <camunda:property name="method" value="search" />
           <camunda:property name="output" value="result" />
-          <camunda:property name="dto" value="com.dongkuk.dmes.mqc.qpr.inspectionCertificate.dto.InspectionCertificateSearchRequest" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mqc.qpr.inspectionCertificate.dto.InspectionCertificateRequest" />
         </camunda:properties>
       </bpmn:extensionElements>
       <bpmn:incoming>flow_search</bpmn:incoming>
       <bpmn:outgoing>flow_search_end</bpmn:outgoing>
     </bpmn:serviceTask>
-    <bpmn:serviceTask id="viewTask" name="증명서 상세" camunda:class="inspectionCertificate">
-      <bpmn:extensionElements>
-        <camunda:properties>
-          <camunda:property name="method" value="view" />
-          <camunda:property name="output" value="result" />
-          <camunda:property name="dto" value="com.dongkuk.dmes.mqc.qpr.inspectionCertificate.dto.InspectionCertificateKeyRequest" />
-        </camunda:properties>
-      </bpmn:extensionElements>
-      <bpmn:incoming>flow_view</bpmn:incoming>
-      <bpmn:outgoing>flow_view_end</bpmn:outgoing>
-    </bpmn:serviceTask>
-    <bpmn:serviceTask id="saveTask" name="발행 요청(검토중 생성)" camunda:class="inspectionCertificate">
+    <bpmn:serviceTask id="saveTask" name="본문 저장·삭제" camunda:class="inspectionCertificate">
       <bpmn:extensionElements>
         <camunda:properties>
           <camunda:property name="method" value="save" />
           <camunda:property name="output" value="result" />
-          <camunda:property name="dto" value="com.dongkuk.dmes.mqc.qpr.inspectionCertificate.dto.InspectionCertificateSaveRequest" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mqc.qpr.inspectionCertificate.dto.InspectionCertificateRequest" />
         </camunda:properties>
       </bpmn:extensionElements>
       <bpmn:incoming>flow_save</bpmn:incoming>
       <bpmn:outgoing>flow_save_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="regTask" name="신규 수신(원천 복제)" camunda:class="inspectionCertificate">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="reg" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mqc.qpr.inspectionCertificate.dto.InspectionCertificateRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_reg</bpmn:incoming>
+      <bpmn:outgoing>flow_reg_end</bpmn:outgoing>
     </bpmn:serviceTask>
     <bpmn:serviceTask id="issueTask" name="발행" camunda:class="inspectionCertificate">
       <bpmn:extensionElements>
         <camunda:properties>
           <camunda:property name="method" value="issue" />
           <camunda:property name="output" value="result" />
-          <camunda:property name="dto" value="com.dongkuk.dmes.mqc.qpr.inspectionCertificate.dto.InspectionCertificateKeyRequest" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mqc.qpr.inspectionCertificate.dto.InspectionCertificateRequest" />
         </camunda:properties>
       </bpmn:extensionElements>
       <bpmn:incoming>flow_issue</bpmn:incoming>
@@ -79,53 +77,42 @@ action=codes -&gt; codesTask (inspectionCertificate.codes) 발행 요청 고르�
         <camunda:properties>
           <camunda:property name="method" value="reissue" />
           <camunda:property name="output" value="result" />
-          <camunda:property name="dto" value="com.dongkuk.dmes.mqc.qpr.inspectionCertificate.dto.InspectionCertificateKeyRequest" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mqc.qpr.inspectionCertificate.dto.InspectionCertificateRequest" />
         </camunda:properties>
       </bpmn:extensionElements>
       <bpmn:incoming>flow_reissue</bpmn:incoming>
       <bpmn:outgoing>flow_reissue_end</bpmn:outgoing>
     </bpmn:serviceTask>
-    <bpmn:serviceTask id="cancelTask" name="보류" camunda:class="inspectionCertificate">
+    <bpmn:serviceTask id="confirmTask" name="진위 확인" camunda:class="inspectionCertificate">
       <bpmn:extensionElements>
         <camunda:properties>
-          <camunda:property name="method" value="cancel" />
+          <camunda:property name="method" value="confirm" />
           <camunda:property name="output" value="result" />
-          <camunda:property name="dto" value="com.dongkuk.dmes.mqc.qpr.inspectionCertificate.dto.InspectionCertificateKeyRequest" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mqc.qpr.inspectionCertificate.dto.InspectionCertificateRequest" />
         </camunda:properties>
       </bpmn:extensionElements>
-      <bpmn:incoming>flow_cancel</bpmn:incoming>
-      <bpmn:outgoing>flow_cancel_end</bpmn:outgoing>
+      <bpmn:incoming>flow_confirm</bpmn:incoming>
+      <bpmn:outgoing>flow_confirm_end</bpmn:outgoing>
     </bpmn:serviceTask>
-    <bpmn:serviceTask id="historyTask" name="처리 이력" camunda:class="inspectionCertificate">
+    <bpmn:serviceTask id="resetTask" name="시연 초기화" camunda:class="inspectionCertificate">
       <bpmn:extensionElements>
         <camunda:properties>
-          <camunda:property name="method" value="history" />
+          <camunda:property name="method" value="reset" />
           <camunda:property name="output" value="result" />
-          <camunda:property name="dto" value="com.dongkuk.dmes.mqc.qpr.inspectionCertificate.dto.InspectionCertificateHistoryRequest" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mqc.qpr.inspectionCertificate.dto.InspectionCertificateRequest" />
         </camunda:properties>
       </bpmn:extensionElements>
-      <bpmn:incoming>flow_history</bpmn:incoming>
-      <bpmn:outgoing>flow_history_end</bpmn:outgoing>
+      <bpmn:incoming>flow_reset</bpmn:incoming>
+      <bpmn:outgoing>flow_reset_end</bpmn:outgoing>
     </bpmn:serviceTask>
-    <bpmn:serviceTask id="codesTask" name="발행 요청 고르기 값" camunda:class="inspectionCertificate">
-      <bpmn:extensionElements>
-        <camunda:properties>
-          <camunda:property name="method" value="codes" />
-          <camunda:property name="output" value="result" />
-          <camunda:property name="dto" value="com.dongkuk.dmes.mqc.qpr.inspectionCertificate.dto.InspectionCertificateSearchRequest" />
-        </camunda:properties>
-      </bpmn:extensionElements>
-      <bpmn:incoming>flow_codes</bpmn:incoming>
-      <bpmn:outgoing>flow_codes_end</bpmn:outgoing>
-    </bpmn:serviceTask>
-    <bpmn:endEvent id="endSearch" name="증명서 목록 조회 완료">
+    <bpmn:endEvent id="endSearch" name="전체 조회(비었으면 시드) 완료">
       <bpmn:incoming>flow_search_end</bpmn:incoming>
     </bpmn:endEvent>
-    <bpmn:endEvent id="endView" name="증명서 상세 완료">
-      <bpmn:incoming>flow_view_end</bpmn:incoming>
-    </bpmn:endEvent>
-    <bpmn:endEvent id="endSave" name="발행 요청(검토중 생성) 완료">
+    <bpmn:endEvent id="endSave" name="본문 저장·삭제 완료">
       <bpmn:incoming>flow_save_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:endEvent id="endReg" name="신규 수신(원천 복제) 완료">
+      <bpmn:incoming>flow_reg_end</bpmn:incoming>
     </bpmn:endEvent>
     <bpmn:endEvent id="endIssue" name="발행 완료">
       <bpmn:incoming>flow_issue_end</bpmn:incoming>
@@ -133,40 +120,35 @@ action=codes -&gt; codesTask (inspectionCertificate.codes) 발행 요청 고르�
     <bpmn:endEvent id="endReissue" name="재발행 완료">
       <bpmn:incoming>flow_reissue_end</bpmn:incoming>
     </bpmn:endEvent>
-    <bpmn:endEvent id="endCancel" name="보류 완료">
-      <bpmn:incoming>flow_cancel_end</bpmn:incoming>
+    <bpmn:endEvent id="endConfirm" name="진위 확인 완료">
+      <bpmn:incoming>flow_confirm_end</bpmn:incoming>
     </bpmn:endEvent>
-    <bpmn:endEvent id="endHistory" name="처리 이력 완료">
-      <bpmn:incoming>flow_history_end</bpmn:incoming>
-    </bpmn:endEvent>
-    <bpmn:endEvent id="endCodes" name="발행 요청 고르기 값 완료">
-      <bpmn:incoming>flow_codes_end</bpmn:incoming>
+    <bpmn:endEvent id="endReset" name="시연 초기화 완료">
+      <bpmn:incoming>flow_reset_end</bpmn:incoming>
     </bpmn:endEvent>
     <bpmn:sequenceFlow id="flow_to_gw" sourceRef="start" targetRef="actionGateway" />
     <bpmn:sequenceFlow id="flow_search" name="search" sourceRef="actionGateway" targetRef="searchTask" />
-    <bpmn:sequenceFlow id="flow_view" name="view" sourceRef="actionGateway" targetRef="viewTask" />
     <bpmn:sequenceFlow id="flow_save" name="save" sourceRef="actionGateway" targetRef="saveTask" />
+    <bpmn:sequenceFlow id="flow_reg" name="reg" sourceRef="actionGateway" targetRef="regTask" />
     <bpmn:sequenceFlow id="flow_issue" name="issue" sourceRef="actionGateway" targetRef="issueTask" />
     <bpmn:sequenceFlow id="flow_reissue" name="reissue" sourceRef="actionGateway" targetRef="reissueTask" />
-    <bpmn:sequenceFlow id="flow_cancel" name="cancel" sourceRef="actionGateway" targetRef="cancelTask" />
-    <bpmn:sequenceFlow id="flow_history" name="history" sourceRef="actionGateway" targetRef="historyTask" />
-    <bpmn:sequenceFlow id="flow_codes" name="codes" sourceRef="actionGateway" targetRef="codesTask" />
+    <bpmn:sequenceFlow id="flow_confirm" name="confirm" sourceRef="actionGateway" targetRef="confirmTask" />
+    <bpmn:sequenceFlow id="flow_reset" name="reset" sourceRef="actionGateway" targetRef="resetTask" />
     <bpmn:sequenceFlow id="flow_search_end" sourceRef="searchTask" targetRef="endSearch" />
-    <bpmn:sequenceFlow id="flow_view_end" sourceRef="viewTask" targetRef="endView" />
     <bpmn:sequenceFlow id="flow_save_end" sourceRef="saveTask" targetRef="endSave" />
+    <bpmn:sequenceFlow id="flow_reg_end" sourceRef="regTask" targetRef="endReg" />
     <bpmn:sequenceFlow id="flow_issue_end" sourceRef="issueTask" targetRef="endIssue" />
     <bpmn:sequenceFlow id="flow_reissue_end" sourceRef="reissueTask" targetRef="endReissue" />
-    <bpmn:sequenceFlow id="flow_cancel_end" sourceRef="cancelTask" targetRef="endCancel" />
-    <bpmn:sequenceFlow id="flow_history_end" sourceRef="historyTask" targetRef="endHistory" />
-    <bpmn:sequenceFlow id="flow_codes_end" sourceRef="codesTask" targetRef="endCodes" />
+    <bpmn:sequenceFlow id="flow_confirm_end" sourceRef="confirmTask" targetRef="endConfirm" />
+    <bpmn:sequenceFlow id="flow_reset_end" sourceRef="resetTask" targetRef="endReset" />
   </bpmn:process>
   <bpmndi:BPMNDiagram id="BPMNDiagram_1">
     <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="inspectionCertificate">
       <bpmndi:BPMNShape id="start_di" bpmnElement="start">
-        <dc:Bounds x="152" y="502" width="36" height="36" />
+        <dc:Bounds x="152" y="442" width="36" height="36" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="actionGateway_di" bpmnElement="actionGateway" isMarkerVisible="true">
-        <dc:Bounds x="245" y="495" width="50" height="50" />
+        <dc:Bounds x="245" y="435" width="50" height="50" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="searchTask_di" bpmnElement="searchTask">
         <dc:Bounds x="380" y="60" width="100" height="80" />
@@ -174,16 +156,16 @@ action=codes -&gt; codesTask (inspectionCertificate.codes) 발행 요청 고르�
       <bpmndi:BPMNShape id="endSearch_di" bpmnElement="endSearch">
         <dc:Bounds x="560" y="82" width="36" height="36" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="viewTask_di" bpmnElement="viewTask">
+      <bpmndi:BPMNShape id="saveTask_di" bpmnElement="saveTask">
         <dc:Bounds x="380" y="180" width="100" height="80" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="endView_di" bpmnElement="endView">
+      <bpmndi:BPMNShape id="endSave_di" bpmnElement="endSave">
         <dc:Bounds x="560" y="202" width="36" height="36" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="saveTask_di" bpmnElement="saveTask">
+      <bpmndi:BPMNShape id="regTask_di" bpmnElement="regTask">
         <dc:Bounds x="380" y="300" width="100" height="80" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="endSave_di" bpmnElement="endSave">
+      <bpmndi:BPMNShape id="endReg_di" bpmnElement="endReg">
         <dc:Bounds x="560" y="322" width="36" height="36" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="issueTask_di" bpmnElement="issueTask">
@@ -198,30 +180,24 @@ action=codes -&gt; codesTask (inspectionCertificate.codes) 발행 요청 고르�
       <bpmndi:BPMNShape id="endReissue_di" bpmnElement="endReissue">
         <dc:Bounds x="560" y="562" width="36" height="36" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="cancelTask_di" bpmnElement="cancelTask">
+      <bpmndi:BPMNShape id="confirmTask_di" bpmnElement="confirmTask">
         <dc:Bounds x="380" y="660" width="100" height="80" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="endCancel_di" bpmnElement="endCancel">
+      <bpmndi:BPMNShape id="endConfirm_di" bpmnElement="endConfirm">
         <dc:Bounds x="560" y="682" width="36" height="36" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="historyTask_di" bpmnElement="historyTask">
+      <bpmndi:BPMNShape id="resetTask_di" bpmnElement="resetTask">
         <dc:Bounds x="380" y="780" width="100" height="80" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="endHistory_di" bpmnElement="endHistory">
+      <bpmndi:BPMNShape id="endReset_di" bpmnElement="endReset">
         <dc:Bounds x="560" y="802" width="36" height="36" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="codesTask_di" bpmnElement="codesTask">
-        <dc:Bounds x="380" y="900" width="100" height="80" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="endCodes_di" bpmnElement="endCodes">
-        <dc:Bounds x="560" y="922" width="36" height="36" />
-      </bpmndi:BPMNShape>
       <bpmndi:BPMNEdge id="flow_to_gw_di" bpmnElement="flow_to_gw">
-        <di:waypoint x="188" y="520" />
-        <di:waypoint x="245" y="520" />
+        <di:waypoint x="188" y="460" />
+        <di:waypoint x="245" y="460" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="flow_search_di" bpmnElement="flow_search">
-        <di:waypoint x="270" y="495" />
+        <di:waypoint x="270" y="435" />
         <di:waypoint x="270" y="100" />
         <di:waypoint x="380" y="100" />
       </bpmndi:BPMNEdge>
@@ -229,26 +205,26 @@ action=codes -&gt; codesTask (inspectionCertificate.codes) 발행 요청 고르�
         <di:waypoint x="480" y="100" />
         <di:waypoint x="560" y="100" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="flow_view_di" bpmnElement="flow_view">
-        <di:waypoint x="270" y="495" />
+      <bpmndi:BPMNEdge id="flow_save_di" bpmnElement="flow_save">
+        <di:waypoint x="270" y="435" />
         <di:waypoint x="270" y="220" />
         <di:waypoint x="380" y="220" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="flow_view_end_di" bpmnElement="flow_view_end">
+      <bpmndi:BPMNEdge id="flow_save_end_di" bpmnElement="flow_save_end">
         <di:waypoint x="480" y="220" />
         <di:waypoint x="560" y="220" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="flow_save_di" bpmnElement="flow_save">
-        <di:waypoint x="270" y="495" />
+      <bpmndi:BPMNEdge id="flow_reg_di" bpmnElement="flow_reg">
+        <di:waypoint x="270" y="435" />
         <di:waypoint x="270" y="340" />
         <di:waypoint x="380" y="340" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="flow_save_end_di" bpmnElement="flow_save_end">
+      <bpmndi:BPMNEdge id="flow_reg_end_di" bpmnElement="flow_reg_end">
         <di:waypoint x="480" y="340" />
         <di:waypoint x="560" y="340" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="flow_issue_di" bpmnElement="flow_issue">
-        <di:waypoint x="270" y="495" />
+        <di:waypoint x="270" y="485" />
         <di:waypoint x="270" y="460" />
         <di:waypoint x="380" y="460" />
       </bpmndi:BPMNEdge>
@@ -257,7 +233,7 @@ action=codes -&gt; codesTask (inspectionCertificate.codes) 발행 요청 고르�
         <di:waypoint x="560" y="460" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="flow_reissue_di" bpmnElement="flow_reissue">
-        <di:waypoint x="270" y="545" />
+        <di:waypoint x="270" y="485" />
         <di:waypoint x="270" y="580" />
         <di:waypoint x="380" y="580" />
       </bpmndi:BPMNEdge>
@@ -265,32 +241,23 @@ action=codes -&gt; codesTask (inspectionCertificate.codes) 발행 요청 고르�
         <di:waypoint x="480" y="580" />
         <di:waypoint x="560" y="580" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="flow_cancel_di" bpmnElement="flow_cancel">
-        <di:waypoint x="270" y="545" />
+      <bpmndi:BPMNEdge id="flow_confirm_di" bpmnElement="flow_confirm">
+        <di:waypoint x="270" y="485" />
         <di:waypoint x="270" y="700" />
         <di:waypoint x="380" y="700" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="flow_cancel_end_di" bpmnElement="flow_cancel_end">
+      <bpmndi:BPMNEdge id="flow_confirm_end_di" bpmnElement="flow_confirm_end">
         <di:waypoint x="480" y="700" />
         <di:waypoint x="560" y="700" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="flow_history_di" bpmnElement="flow_history">
-        <di:waypoint x="270" y="545" />
+      <bpmndi:BPMNEdge id="flow_reset_di" bpmnElement="flow_reset">
+        <di:waypoint x="270" y="485" />
         <di:waypoint x="270" y="820" />
         <di:waypoint x="380" y="820" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="flow_history_end_di" bpmnElement="flow_history_end">
+      <bpmndi:BPMNEdge id="flow_reset_end_di" bpmnElement="flow_reset_end">
         <di:waypoint x="480" y="820" />
         <di:waypoint x="560" y="820" />
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="flow_codes_di" bpmnElement="flow_codes">
-        <di:waypoint x="270" y="545" />
-        <di:waypoint x="270" y="940" />
-        <di:waypoint x="380" y="940" />
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="flow_codes_end_di" bpmnElement="flow_codes_end">
-        <di:waypoint x="480" y="940" />
-        <di:waypoint x="560" y="940" />
       </bpmndi:BPMNEdge>
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>
