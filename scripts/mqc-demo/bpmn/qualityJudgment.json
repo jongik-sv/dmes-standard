@@ -1,0 +1,10 @@
+{ "id": "qualityJudgment", "name": "품질판정", "bean": "qualityJudgment",
+  "doc": "qualityJudgment — 코일 검사값을 기준과 비교해 시스템 판정을 제안하고(judge) 검사자가 합격·불합격·보류로 확정한다(confirm). 표 TB_MQC_COIL·COIL_INSP·COIL_JDG·COIL_JDG_HIST.",
+  "actions": [
+    { "action": "search", "name": "판정 목록 조회", "dto": "com.dongkuk.dmes.mqc.qjd.qualityJudgment.dto.QualityJudgmentSearchRequest" },
+    { "action": "view", "name": "코일 판정 상세", "dto": "com.dongkuk.dmes.mqc.qjd.qualityJudgment.dto.QualityJudgmentViewRequest" },
+    { "action": "judge", "name": "판정 계산", "dto": "com.dongkuk.dmes.mqc.qjd.qualityJudgment.dto.QualityJudgmentJudgeRequest" },
+    { "action": "confirm", "name": "판정 확정", "dto": "com.dongkuk.dmes.mqc.qjd.qualityJudgment.dto.QualityJudgmentConfirmRequest" },
+    { "action": "history", "name": "판정 이력", "dto": "com.dongkuk.dmes.mqc.qjd.qualityJudgment.dto.QualityJudgmentHistoryRequest" },
+    { "action": "codes", "name": "판정 기준·조회 칸 값", "dto": "com.dongkuk.dmes.mqc.qjd.qualityJudgment.dto.QualityJudgmentSearchRequest" }
+  ] }

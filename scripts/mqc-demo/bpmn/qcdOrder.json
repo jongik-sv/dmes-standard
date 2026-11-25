@@ -1,0 +1,6 @@
+{ "id": "qcdOrder", "name": "품질설계 공용 주문 조회", "bean": "qcdOrder",
+  "doc": "qcdOrder — OMS 에서 받은 주문 줄(TB_MQC_ORD) 조회. 품질설계결과·시뮬레이션이 함께 쓴다. 읽기 전용.",
+  "actions": [
+    { "action": "search", "name": "주문 목록 조회", "dto": "com.dongkuk.dmes.mqc.qcd.order.dto.QcdOrderSearchRequest" },
+    { "action": "view", "name": "주문 상세", "dto": "com.dongkuk.dmes.mqc.qcd.order.dto.QcdOrderViewRequest" }
+  ] }

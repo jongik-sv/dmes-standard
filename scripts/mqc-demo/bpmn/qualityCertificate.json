@@ -1,0 +1,12 @@
+{ "id": "qualityCertificate", "name": "품질보증서관리", "bean": "qualityCertificate",
+  "doc": "qualityCertificate — 주문·PO 단위 품질보증서. 발행 요청(save) → 초안 → 발행(issue) → 재발행(reissue) / 회수(cancel). 발행은 실린 코일이 모두 합격이어야 한다.",
+  "actions": [
+    { "action": "search", "name": "보증서 목록 조회", "dto": "com.dongkuk.dmes.mqc.qpr.qualityCertificate.dto.QualityCertificateSearchRequest" },
+    { "action": "view", "name": "보증서 상세", "dto": "com.dongkuk.dmes.mqc.qpr.qualityCertificate.dto.QualityCertificateKeyRequest" },
+    { "action": "save", "name": "발행 요청(초안 생성)", "dto": "com.dongkuk.dmes.mqc.qpr.qualityCertificate.dto.QualityCertificateSaveRequest" },
+    { "action": "issue", "name": "발행", "dto": "com.dongkuk.dmes.mqc.qpr.qualityCertificate.dto.QualityCertificateKeyRequest" },
+    { "action": "reissue", "name": "재발행", "dto": "com.dongkuk.dmes.mqc.qpr.qualityCertificate.dto.QualityCertificateKeyRequest" },
+    { "action": "cancel", "name": "회수", "dto": "com.dongkuk.dmes.mqc.qpr.qualityCertificate.dto.QualityCertificateKeyRequest" },
+    { "action": "history", "name": "처리 이력", "dto": "com.dongkuk.dmes.mqc.qpr.qualityCertificate.dto.QualityCertificateHistoryRequest" },
+    { "action": "codes", "name": "발행 요청 고르기 값", "dto": "com.dongkuk.dmes.mqc.qpr.qualityCertificate.dto.QualityCertificateSearchRequest" }
+  ] }

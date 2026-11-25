@@ -1,0 +1,10 @@
+{ "id": "designSimulation", "name": "품질설계 시뮬레이션", "bean": "designSimulation",
+  "doc": "designSimulation — 주문 하나를 품질설계 파이프라인 6단계로 돌려 기대값(pin)·단계 판정 기대·골든 스냅샷과 맞춰 보는 회귀 케이스. 표 TB_MQC_SIM_CASE.",
+  "actions": [
+    { "action": "search", "name": "케이스 목록 조회", "dto": "com.dongkuk.dmes.mqc.qcd.designSimulation.dto.DesignSimulationSearchRequest" },
+    { "action": "view", "name": "케이스 상세", "dto": "com.dongkuk.dmes.mqc.qcd.designSimulation.dto.DesignSimulationKeyRequest" },
+    { "action": "run", "name": "케이스 실행", "dto": "com.dongkuk.dmes.mqc.qcd.designSimulation.dto.DesignSimulationKeyRequest" },
+    { "action": "save", "name": "케이스 저장", "dto": "com.dongkuk.dmes.mqc.qcd.designSimulation.dto.DesignSimulationSaveRequest" },
+    { "action": "apply", "name": "골든 채택", "dto": "com.dongkuk.dmes.mqc.qcd.designSimulation.dto.DesignSimulationKeyRequest" },
+    { "action": "delete", "name": "케이스 삭제", "dto": "com.dongkuk.dmes.mqc.qcd.designSimulation.dto.DesignSimulationKeyRequest" }
+  ] }

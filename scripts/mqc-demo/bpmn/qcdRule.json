@@ -1,0 +1,8 @@
+{ "id": "qcdRule", "name": "품질설계 기준 공용(Maru 룰·코드)", "bean": "qcdRule",
+  "doc": "qcdRule — 품질설계 기준 화면들이 함께 쓰는 Maru(MDM) 룰 조회·판정·버전 이력·코드 항목. 룰 원본은 Maru, mqc 는 읽기와 평가만 한다.",
+  "actions": [
+    { "action": "search", "name": "룰 정의 조회", "dto": "com.dongkuk.dmes.mqc.qcd.rule.dto.QcdRuleSearchRequest" },
+    { "action": "judge", "name": "룰 판정", "dto": "com.dongkuk.dmes.mqc.qcd.rule.dto.QcdRuleJudgeRequest" },
+    { "action": "history", "name": "룰 버전 이력", "dto": "com.dongkuk.dmes.mqc.qcd.rule.dto.QcdRuleHistoryRequest" },
+    { "action": "codes", "name": "코드 항목 조회", "dto": "com.dongkuk.dmes.mqc.qcd.rule.dto.QcdCodeSearchRequest" }
+  ] }

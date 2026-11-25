@@ -1,0 +1,10 @@
+{ "id": "qualityDesignResult", "name": "품질설계결과", "bean": "qualityDesignResult",
+  "doc": "qualityDesignResult — 주문 줄마다 Maru 룰 파이프라인(입력 검증·주문정합성·주문단중·생산가부·품질사양·설계값)으로 설계값을 계산해 저장하고(calculate) 확정(confirm)·보류 토글(cancel)한다. 표 TB_MQC_ORD·DSN_REQ·DSN_RSLT·DSN_HIST.",
+  "actions": [
+    { "action": "search", "name": "의뢰 목록 조회", "dto": "com.dongkuk.dmes.mqc.qdr.qualityDesignResult.dto.QualityDesignResultSearchRequest" },
+    { "action": "view", "name": "설계결과 상세", "dto": "com.dongkuk.dmes.mqc.qdr.qualityDesignResult.dto.QualityDesignResultKeyRequest" },
+    { "action": "calculate", "name": "설계 계산", "dto": "com.dongkuk.dmes.mqc.qdr.qualityDesignResult.dto.QualityDesignResultKeyRequest" },
+    { "action": "confirm", "name": "설계 확정", "dto": "com.dongkuk.dmes.mqc.qdr.qualityDesignResult.dto.QualityDesignResultKeyRequest" },
+    { "action": "cancel", "name": "보류·보류 해제", "dto": "com.dongkuk.dmes.mqc.qdr.qualityDesignResult.dto.QualityDesignResultKeyRequest" },
+    { "action": "history", "name": "설계 이력", "dto": "com.dongkuk.dmes.mqc.qdr.qualityDesignResult.dto.QualityDesignResultKeyRequest" }
+  ] }

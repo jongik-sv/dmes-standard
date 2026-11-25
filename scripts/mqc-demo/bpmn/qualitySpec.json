@@ -1,0 +1,13 @@
+{ "id": "qualitySpec", "name": "품질사양 관리", "bean": "qualitySpec",
+  "doc": "qualitySpec — 고객 품질사양(조건 IF → 설계결과 THEN) 등록·확정·OMS 전송(시연 흉내)·이력, 항목 사전, 주문 적용 시뮬레이션. 표는 TB_MQC_QSPEC* (mqc V2).",
+  "actions": [
+    { "action": "search", "name": "사양 목록 조회", "dto": "com.dongkuk.dmes.mqc.qdm.qualitySpec.dto.QualitySpecSearchRequest" },
+    { "action": "view", "name": "사양 상세 조회", "dto": "com.dongkuk.dmes.mqc.qdm.qualitySpec.dto.QualitySpecViewRequest" },
+    { "action": "save", "name": "사양·항목 저장", "dto": "com.dongkuk.dmes.mqc.qdm.qualitySpec.dto.QualitySpecSaveRequest" },
+    { "action": "delete", "name": "사양·항목 삭제", "dto": "com.dongkuk.dmes.mqc.qdm.qualitySpec.dto.QualitySpecDeleteRequest" },
+    { "action": "confirm", "name": "사양 확정", "dto": "com.dongkuk.dmes.mqc.qdm.qualitySpec.dto.QualitySpecBatchRequest" },
+    { "action": "send", "name": "OMS 전송", "dto": "com.dongkuk.dmes.mqc.qdm.qualitySpec.dto.QualitySpecBatchRequest" },
+    { "action": "history", "name": "변경·전송 이력 조회", "dto": "com.dongkuk.dmes.mqc.qdm.qualitySpec.dto.QualitySpecHistoryRequest" },
+    { "action": "codes", "name": "항목 사전·기준 자료 조회", "dto": "com.dongkuk.dmes.mqc.qdm.qualitySpec.dto.QualitySpecCodesRequest" },
+    { "action": "run", "name": "주문 적용 시뮬레이션", "dto": "com.dongkuk.dmes.mqc.qdm.qualitySpec.dto.QualitySpecRunRequest" }
+  ] }
