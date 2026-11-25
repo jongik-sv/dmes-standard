@@ -1,0 +1,396 @@
+{
+ "screen": "specCode",
+ "rules": [
+  {
+   "ruleId": "QD_SPEC_THK_STD",
+   "name": "규격약호 두께관리기준",
+   "title": "두께관리기준(규격코드 → BMT/TCT)",
+   "hitPolicy": "FIRST",
+   "applyFrom": "2026-11-01 00:00:00",
+   "description": "AS-IS 규격약호 시트(캡쳐) — 규격코드 → 두께관리기준. mes-to-be spec-code.html 시드",
+   "note": "사용중(Y)만 실었다 — 제외: TK-006 BIS(상태 F, 두께관리기준 미확정 — AS-IS \"??\"). v1.001: TK-004 EN 두께관리기준 BMT → TCT(프로토타입 변경 이력, 박서연).",
+   "columns": [
+    {
+     "varName": "SPEC_ORG_CD",
+     "varKind": "COND",
+     "dataType": "STRING",
+     "dispType": "1",
+     "label": "규격코드"
+    },
+    {
+     "varName": "THK_STD_CD",
+     "varKind": "RESULT",
+     "dataType": "STRING",
+     "dispType": "Value",
+     "label": "두께관리기준",
+     "desc": "BMT 소지철 두께 · TCT 도금 포함 두께(QC_THK_STD)"
+    },
+    {
+     "varName": "RULE_KEY",
+     "varKind": "RESULT",
+     "dataType": "STRING",
+     "dispType": "Value",
+     "label": "룰 ID"
+    }
+   ],
+   "rows": [
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "SPEC_ORG_CD": {
+       "op": "EQ",
+       "left": "KS"
+      },
+      "THK_STD_CD": {
+       "val": "BMT"
+      },
+      "RULE_KEY": {
+       "val": "TK-001"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "SPEC_ORG_CD": {
+       "op": "EQ",
+       "left": "JIS"
+      },
+      "THK_STD_CD": {
+       "val": "BMT"
+      },
+      "RULE_KEY": {
+       "val": "TK-002"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "SPEC_ORG_CD": {
+       "op": "EQ",
+       "left": "ASTM"
+      },
+      "THK_STD_CD": {
+       "val": "TCT"
+      },
+      "RULE_KEY": {
+       "val": "TK-003"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "SPEC_ORG_CD": {
+       "op": "EQ",
+       "left": "EN"
+      },
+      "THK_STD_CD": {
+       "val": "BMT"
+      },
+      "RULE_KEY": {
+       "val": "TK-004"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "SPEC_ORG_CD": {
+       "op": "EQ",
+       "left": "AS"
+      },
+      "THK_STD_CD": {
+       "val": "BMT"
+      },
+      "RULE_KEY": {
+       "val": "TK-005"
+      }
+     }
+    }
+   ],
+   "cases": [
+    {
+     "name": "KS → BMT",
+     "input": {
+      "SPEC_ORG_CD": "KS"
+     },
+     "expect": {
+      "THK_STD_CD": "BMT",
+      "RULE_KEY": "TK-001"
+     },
+     "description": "spec-code.html 간편조회 예시"
+    },
+    {
+     "name": "ASTM → TCT",
+     "input": {
+      "SPEC_ORG_CD": "ASTM"
+     },
+     "expect": {
+      "THK_STD_CD": "TCT",
+      "RULE_KEY": "TK-003"
+     },
+     "description": "spec-code.html 간편조회 예시"
+    },
+    {
+     "name": "BIS 는 미정(F)이라 결과 없음",
+     "input": {
+      "SPEC_ORG_CD": "BIS"
+     },
+     "expect": {
+      "hit": null
+     },
+     "description": "spec-code.html 간편조회 예시"
+    }
+   ],
+   "revisions": [
+    {
+     "ver": "1.001",
+     "applyFrom": "2026-11-20 09:00:00",
+     "note": "TK-004 EN 두께관리기준 BMT → TCT(박서연)",
+     "patch": [
+      {
+       "seq": 4,
+       "cells": {
+        "THK_STD_CD": {
+         "val": "TCT"
+        }
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "ruleId": "QD_SPEC_BASE_GRADE",
+   "name": "규격약호 원판강종 매핑",
+   "title": "원판강종 매핑(규격코드 + 강종코드 → 원판강종)",
+   "hitPolicy": "FIRST",
+   "applyFrom": "2026-11-01 00:00:00",
+   "description": "AS-IS 규격약호 시트(캡쳐) — 규격코드 + 강종코드 → 원판강종코드. mes-to-be spec-code.html 시드",
+   "note": "첫 적중 적용.",
+   "columns": [
+    {
+     "varName": "SPEC_ORG_CD",
+     "varKind": "COND",
+     "dataType": "STRING",
+     "dispType": "1",
+     "label": "규격코드"
+    },
+    {
+     "varName": "STL_GRD_CD",
+     "varKind": "COND",
+     "dataType": "STRING",
+     "dispType": "1",
+     "label": "강종코드"
+    },
+    {
+     "varName": "BASE_STL_GRD_CD",
+     "varKind": "RESULT",
+     "dataType": "STRING",
+     "dispType": "Value",
+     "label": "원판강종코드"
+    },
+    {
+     "varName": "RULE_KEY",
+     "varKind": "RESULT",
+     "dataType": "STRING",
+     "dispType": "Value",
+     "label": "룰 ID"
+    }
+   ],
+   "rows": [
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "SPEC_ORG_CD": {
+       "op": "EQ",
+       "left": "KS"
+      },
+      "STL_GRD_CD": {
+       "op": "EQ",
+       "left": "CGCC"
+      },
+      "BASE_STL_GRD_CD": {
+       "val": "SGCC"
+      },
+      "RULE_KEY": {
+       "val": "MP-001"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "SPEC_ORG_CD": {
+       "op": "EQ",
+       "left": "KS"
+      },
+      "STL_GRD_CD": {
+       "op": "EQ",
+       "left": "CGCD1"
+      },
+      "BASE_STL_GRD_CD": {
+       "val": "SGCD1"
+      },
+      "RULE_KEY": {
+       "val": "MP-002"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "SPEC_ORG_CD": {
+       "op": "EQ",
+       "left": "KS"
+      },
+      "STL_GRD_CD": {
+       "op": "EQ",
+       "left": "CGCD2"
+      },
+      "BASE_STL_GRD_CD": {
+       "val": "SGCD2"
+      },
+      "RULE_KEY": {
+       "val": "MP-003"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "SPEC_ORG_CD": {
+       "op": "EQ",
+       "left": "KS"
+      },
+      "STL_GRD_CD": {
+       "op": "EQ",
+       "left": "CGCD3"
+      },
+      "BASE_STL_GRD_CD": {
+       "val": "SGCD3"
+      },
+      "RULE_KEY": {
+       "val": "MP-004"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "SPEC_ORG_CD": {
+       "op": "EQ",
+       "left": "KS"
+      },
+      "STL_GRD_CD": {
+       "op": "EQ",
+       "left": "CGC340(SGC245Y)"
+      },
+      "BASE_STL_GRD_CD": {
+       "val": "SGC340(SGC245Y)"
+      },
+      "RULE_KEY": {
+       "val": "MP-005"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "SPEC_ORG_CD": {
+       "op": "EQ",
+       "left": "KS"
+      },
+      "STL_GRD_CD": {
+       "op": "EQ",
+       "left": "CGC400(SGC295Y)"
+      },
+      "BASE_STL_GRD_CD": {
+       "val": "SGC400(SGC295Y)"
+      },
+      "RULE_KEY": {
+       "val": "MP-006"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "SPEC_ORG_CD": {
+       "op": "EQ",
+       "left": "KS"
+      },
+      "STL_GRD_CD": {
+       "op": "EQ",
+       "left": "CGC440(SGC335Y)"
+      },
+      "BASE_STL_GRD_CD": {
+       "val": "SGC440(SGC335Y)"
+      },
+      "RULE_KEY": {
+       "val": "MP-007"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "SPEC_ORG_CD": {
+       "op": "EQ",
+       "left": "KS"
+      },
+      "STL_GRD_CD": {
+       "op": "EQ",
+       "left": "CGC490(SGC365Y)"
+      },
+      "BASE_STL_GRD_CD": {
+       "val": "SGC490(SGC365Y)"
+      },
+      "RULE_KEY": {
+       "val": "MP-008"
+      }
+     }
+    }
+   ],
+   "cases": [
+    {
+     "name": "KS · CGCC → SGCC",
+     "input": {
+      "SPEC_ORG_CD": "KS",
+      "STL_GRD_CD": "CGCC"
+     },
+     "expect": {
+      "BASE_STL_GRD_CD": "SGCC",
+      "RULE_KEY": "MP-001"
+     },
+     "description": "spec-code.html 간편조회 예시"
+    },
+    {
+     "name": "KS · CGC340(SGC245Y) → SGC340(SGC245Y)",
+     "input": {
+      "SPEC_ORG_CD": "KS",
+      "STL_GRD_CD": "CGC340(SGC245Y)"
+     },
+     "expect": {
+      "BASE_STL_GRD_CD": "SGC340(SGC245Y)",
+      "RULE_KEY": "MP-005"
+     },
+     "description": "spec-code.html 간편조회 예시"
+    },
+    {
+     "name": "JIS · CGCC → 매핑 없음",
+     "input": {
+      "SPEC_ORG_CD": "JIS",
+      "STL_GRD_CD": "CGCC"
+     },
+     "expect": {
+      "hit": null
+     },
+     "description": "spec-code.html 간편조회 예시"
+    }
+   ]
+  }
+ ]
+}

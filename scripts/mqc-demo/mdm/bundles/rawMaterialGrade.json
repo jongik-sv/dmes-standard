@@ -1,0 +1,789 @@
+{
+ "screen": "rawMaterialGrade",
+ "rules": [
+  {
+   "ruleId": "QD_RAW_MATERIAL_GRADE",
+   "name": "원자재강종",
+   "title": "원자재강종(원판연계)",
+   "hitPolicy": "FIRST",
+   "applyFrom": "2026-11-01 00:00:00",
+   "description": "AS-IS 원자재강종 룰 시트를 원판연계(도금기준→칼라파생) 모델로 정리 — mes-to-be raw-material-grade.html 시드. 파생 룰의 재질·원료는 원판에서 풀어 넣었다.",
+   "note": "행 순서 = 순번(0 예외 먼저) → ID. 파생(DERIVED) 행의 재질·적정원료·차선원료는 원판 값을 풀어 넣었다(BASE_RULE_KEY 로 원판을 가리킨다). 사용중(Y)만 실었다 — 제외: RM-005(상태 F: 차선원료 고객사양 확인 필요 (AS-IS: \"고객사양으로??\")). v1.001: RM-006 두께범위 0.2≤t<2.2 → 0.2≤t<2.5(프로토타입 변경 이력), RM-007 재검토 필요.",
+   "columns": [
+    {
+     "varName": "PRD_NM_CD",
+     "varKind": "COND",
+     "dataType": "STRING",
+     "dispType": "1",
+     "label": "품명코드"
+    },
+    {
+     "varName": "SPC_AVR",
+     "varKind": "COND",
+     "dataType": "STRING",
+     "dispType": "1",
+     "label": "규격약호"
+    },
+    {
+     "varName": "ORD_USG_CD",
+     "varKind": "COND",
+     "dataType": "STRING",
+     "dispType": "1",
+     "label": "주문용도코드"
+    },
+    {
+     "varName": "THK",
+     "varKind": "COND",
+     "dataType": "NUMBER",
+     "dispType": "2",
+     "label": "두께",
+     "unit": "mm"
+    },
+    {
+     "varName": "MAT_CD",
+     "varKind": "RESULT",
+     "dataType": "STRING",
+     "dispType": "Value",
+     "label": "재질코드"
+    },
+    {
+     "varName": "RAW_MAT_PRI",
+     "varKind": "RESULT",
+     "dataType": "STRING",
+     "dispType": "Value",
+     "label": "적정원료"
+    },
+    {
+     "varName": "RAW_MAT_ALT",
+     "varKind": "RESULT",
+     "dataType": "STRING",
+     "dispType": "Value",
+     "label": "차선원료",
+     "desc": "쉼표 목록, 우선순위 순"
+    },
+    {
+     "varName": "RAW_GRADE_MSG",
+     "varKind": "RESULT",
+     "dataType": "STRING",
+     "dispType": "Value",
+     "label": "원자재강종 메시지"
+    },
+    {
+     "varName": "RULE_KEY",
+     "varKind": "RESULT",
+     "dataType": "STRING",
+     "dispType": "Value",
+     "label": "룰 ID",
+     "desc": "RM-nnn"
+    },
+    {
+     "varName": "RULE_KIND",
+     "varKind": "RESULT",
+     "dataType": "STRING",
+     "dispType": "Value",
+     "label": "기준유형",
+     "desc": "BASE 도금기준 · DERIVED 칼라파생 · STANDALONE 칼라전용(QC_RULE_KIND)"
+    },
+    {
+     "varName": "BASE_RULE_KEY",
+     "varKind": "RESULT",
+     "dataType": "STRING",
+     "dispType": "Value",
+     "label": "원판 룰 ID",
+     "desc": "DERIVED 일 때 상속받은 도금기준 룰"
+    },
+    {
+     "varName": "INHERIT_NOTE",
+     "varKind": "RESULT",
+     "dataType": "STRING",
+     "dispType": "Value",
+     "label": "출처",
+     "desc": "원판 상속 여부(재질·적정원료·차선원료)"
+    },
+    {
+     "varName": "LEGACY_TYPE",
+     "varKind": "RESULT",
+     "dataType": "STRING",
+     "dispType": "Value",
+     "label": "유형",
+     "desc": "1A0 일반 · 1B1 연관판단(QC_LEGACY_RULE_TYPE)"
+    },
+    {
+     "varName": "LEGACY_NO",
+     "varKind": "RESULT",
+     "dataType": "NUMBER",
+     "dispType": "Value",
+     "label": "순번",
+     "desc": "0 = 예외(먼저 평가)"
+    }
+   ],
+   "rows": [
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PRD_NM_CD": {
+       "op": "EQ",
+       "left": "3"
+      },
+      "SPC_AVR": {
+       "op": "EQ",
+       "left": "KS-3-CGCC"
+      },
+      "ORD_USG_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.35",
+       "right": "0.45"
+      },
+      "MAT_CD": {
+       "val": "BA"
+      },
+      "RAW_MAT_PRI": {
+       "val": "H32"
+      },
+      "RAW_MAT_ALT": {
+       "val": "H32,D32,G32"
+      },
+      "RAW_GRADE_MSG": {
+       "val": "-"
+      },
+      "RULE_KEY": {
+       "val": "RM-011"
+      },
+      "RULE_KIND": {
+       "val": "STANDALONE"
+      },
+      "BASE_RULE_KEY": {
+       "val": "-"
+      },
+      "INHERIT_NOTE": {
+       "val": "자체 기준"
+      },
+      "LEGACY_TYPE": {
+       "val": "1A0"
+      },
+      "LEGACY_NO": {
+       "val": "0"
+      }
+     },
+     "note": "예외(순번 0) · 예외(순번 0) — AS-IS 중복 2행을 1건으로 정리"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PRD_NM_CD": {
+       "op": "EQ",
+       "left": "3"
+      },
+      "SPC_AVR": {
+       "op": "EQ",
+       "left": "KS-3-CGCC"
+      },
+      "ORD_USG_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.45",
+       "right": "1.6"
+      },
+      "MAT_CD": {
+       "val": "BA"
+      },
+      "RAW_MAT_PRI": {
+       "val": "H36"
+      },
+      "RAW_MAT_ALT": {
+       "val": "H36,D36,G36"
+      },
+      "RAW_GRADE_MSG": {
+       "val": "-"
+      },
+      "RULE_KEY": {
+       "val": "RM-012"
+      },
+      "RULE_KIND": {
+       "val": "STANDALONE"
+      },
+      "BASE_RULE_KEY": {
+       "val": "-"
+      },
+      "INHERIT_NOTE": {
+       "val": "자체 기준"
+      },
+      "LEGACY_TYPE": {
+       "val": "1A0"
+      },
+      "LEGACY_NO": {
+       "val": "0"
+      }
+     },
+     "note": "예외(순번 0) · 예외(순번 0)"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PRD_NM_CD": {
+       "op": "EQ",
+       "left": "G"
+      },
+      "SPC_AVR": {
+       "op": "EQ",
+       "left": "KS-G-SGCC"
+      },
+      "ORD_USG_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.2",
+       "right": "3"
+      },
+      "MAT_CD": {
+       "val": "1A"
+      },
+      "RAW_MAT_PRI": {
+       "val": "H32"
+      },
+      "RAW_MAT_ALT": {
+       "val": "D32"
+      },
+      "RAW_GRADE_MSG": {
+       "val": "도금"
+      },
+      "RULE_KEY": {
+       "val": "RM-001"
+      },
+      "RULE_KIND": {
+       "val": "BASE"
+      },
+      "BASE_RULE_KEY": {
+       "val": "-"
+      },
+      "INHERIT_NOTE": {
+       "val": "자체 기준"
+      },
+      "LEGACY_TYPE": {
+       "val": "1A0"
+      },
+      "LEGACY_NO": {
+       "val": "1"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PRD_NM_CD": {
+       "op": "EQ",
+       "left": "3"
+      },
+      "SPC_AVR": {
+       "op": "EQ",
+       "left": "KS-3-CGCC"
+      },
+      "ORD_USG_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.2",
+       "right": "1.6"
+      },
+      "MAT_CD": {
+       "val": "1A"
+      },
+      "RAW_MAT_PRI": {
+       "val": "H32"
+      },
+      "RAW_MAT_ALT": {
+       "val": "D32,G32"
+      },
+      "RAW_GRADE_MSG": {
+       "val": "위 도금을 원판으로 사용"
+      },
+      "RULE_KEY": {
+       "val": "RM-002"
+      },
+      "RULE_KIND": {
+       "val": "DERIVED"
+      },
+      "BASE_RULE_KEY": {
+       "val": "RM-001"
+      },
+      "INHERIT_NOTE": {
+       "val": "원판 RM-001 상속 (재질·적정원료)"
+      },
+      "LEGACY_TYPE": {
+       "val": "1B1"
+      },
+      "LEGACY_NO": {
+       "val": "1"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PRD_NM_CD": {
+       "op": "EQ",
+       "left": "G"
+      },
+      "SPC_AVR": {
+       "op": "EQ",
+       "left": "KSG-SGCD1"
+      },
+      "ORD_USG_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.25",
+       "right": "2.5"
+      },
+      "MAT_CD": {
+       "val": "3A"
+      },
+      "RAW_MAT_PRI": {
+       "val": "H32"
+      },
+      "RAW_MAT_ALT": {
+       "val": "D32"
+      },
+      "RAW_GRADE_MSG": {
+       "val": "도금"
+      },
+      "RULE_KEY": {
+       "val": "RM-003"
+      },
+      "RULE_KIND": {
+       "val": "BASE"
+      },
+      "BASE_RULE_KEY": {
+       "val": "-"
+      },
+      "INHERIT_NOTE": {
+       "val": "자체 기준"
+      },
+      "LEGACY_TYPE": {
+       "val": "1A0"
+      },
+      "LEGACY_NO": {
+       "val": "1"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PRD_NM_CD": {
+       "op": "EQ",
+       "left": "3"
+      },
+      "SPC_AVR": {
+       "op": "EQ",
+       "left": "KS-3-CGCD-1"
+      },
+      "ORD_USG_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.25",
+       "right": "1.6"
+      },
+      "MAT_CD": {
+       "val": "3A"
+      },
+      "RAW_MAT_PRI": {
+       "val": "H32"
+      },
+      "RAW_MAT_ALT": {
+       "val": "D32,G32"
+      },
+      "RAW_GRADE_MSG": {
+       "val": "위 도금을 원판으로 사용"
+      },
+      "RULE_KEY": {
+       "val": "RM-004"
+      },
+      "RULE_KIND": {
+       "val": "DERIVED"
+      },
+      "BASE_RULE_KEY": {
+       "val": "RM-003"
+      },
+      "INHERIT_NOTE": {
+       "val": "원판 RM-003 상속 (재질·적정원료)"
+      },
+      "LEGACY_TYPE": {
+       "val": "1B1"
+      },
+      "LEGACY_NO": {
+       "val": "1"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PRD_NM_CD": {
+       "op": "EQ",
+       "left": "G"
+      },
+      "SPC_AVR": {
+       "op": "EQ",
+       "left": "KSG-SGCD2"
+      },
+      "ORD_USG_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.2",
+       "right": "2.2"
+      },
+      "MAT_CD": {
+       "val": "4B"
+      },
+      "RAW_MAT_PRI": {
+       "val": "H2J"
+      },
+      "RAW_MAT_ALT": {
+       "val": "-"
+      },
+      "RAW_GRADE_MSG": {
+       "val": "도금"
+      },
+      "RULE_KEY": {
+       "val": "RM-006"
+      },
+      "RULE_KIND": {
+       "val": "BASE"
+      },
+      "BASE_RULE_KEY": {
+       "val": "-"
+      },
+      "INHERIT_NOTE": {
+       "val": "자체 기준"
+      },
+      "LEGACY_TYPE": {
+       "val": "1A0"
+      },
+      "LEGACY_NO": {
+       "val": "1"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PRD_NM_CD": {
+       "op": "EQ",
+       "left": "3"
+      },
+      "SPC_AVR": {
+       "op": "EQ",
+       "left": "KS3-CGCD-2"
+      },
+      "ORD_USG_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.25",
+       "right": "1.6"
+      },
+      "MAT_CD": {
+       "val": "4B"
+      },
+      "RAW_MAT_PRI": {
+       "val": "H2J"
+      },
+      "RAW_MAT_ALT": {
+       "val": "G25"
+      },
+      "RAW_GRADE_MSG": {
+       "val": "-"
+      },
+      "RULE_KEY": {
+       "val": "RM-007"
+      },
+      "RULE_KIND": {
+       "val": "DERIVED"
+      },
+      "BASE_RULE_KEY": {
+       "val": "RM-006"
+      },
+      "INHERIT_NOTE": {
+       "val": "원판 RM-006 상속 (재질·적정원료)"
+      },
+      "LEGACY_TYPE": {
+       "val": "1B1"
+      },
+      "LEGACY_NO": {
+       "val": "1"
+      }
+     },
+     "note": "재검토 필요(원판 변경)"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PRD_NM_CD": {
+       "op": "EQ",
+       "left": "3"
+      },
+      "SPC_AVR": {
+       "op": "EQ",
+       "left": "KS3-CGCD-3"
+      },
+      "ORD_USG_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.35",
+       "right": "1.6"
+      },
+      "MAT_CD": {
+       "val": "5A"
+      },
+      "RAW_MAT_PRI": {
+       "val": "H7J"
+      },
+      "RAW_MAT_ALT": {
+       "val": "-"
+      },
+      "RAW_GRADE_MSG": {
+       "val": "-"
+      },
+      "RULE_KEY": {
+       "val": "RM-008"
+      },
+      "RULE_KIND": {
+       "val": "STANDALONE"
+      },
+      "BASE_RULE_KEY": {
+       "val": "-"
+      },
+      "INHERIT_NOTE": {
+       "val": "자체 기준"
+      },
+      "LEGACY_TYPE": {
+       "val": "1A0"
+      },
+      "LEGACY_NO": {
+       "val": "1"
+      }
+     },
+     "note": "원판(도금) 기준 미확인 — 연계 검토 대상"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PRD_NM_CD": {
+       "op": "EQ",
+       "left": "3"
+      },
+      "SPC_AVR": {
+       "op": "EQ",
+       "left": "KS3-CGCD-3"
+      },
+      "ORD_USG_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.38",
+       "right": "1.6"
+      },
+      "MAT_CD": {
+       "val": "5B"
+      },
+      "RAW_MAT_PRI": {
+       "val": "H7J"
+      },
+      "RAW_MAT_ALT": {
+       "val": "-"
+      },
+      "RAW_GRADE_MSG": {
+       "val": "-"
+      },
+      "RULE_KEY": {
+       "val": "RM-009"
+      },
+      "RULE_KIND": {
+       "val": "STANDALONE"
+      },
+      "BASE_RULE_KEY": {
+       "val": "-"
+      },
+      "INHERIT_NOTE": {
+       "val": "자체 기준"
+      },
+      "LEGACY_TYPE": {
+       "val": "1A0"
+      },
+      "LEGACY_NO": {
+       "val": "2"
+      }
+     },
+     "note": "원판(도금) 기준 미확인 — 연계 검토 대상"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PRD_NM_CD": {
+       "op": "EQ",
+       "left": "3"
+      },
+      "SPC_AVR": {
+       "op": "EQ",
+       "left": "KS3-CGCD-3"
+      },
+      "ORD_USG_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.49",
+       "right": "1"
+      },
+      "MAT_CD": {
+       "val": "8C"
+      },
+      "RAW_MAT_PRI": {
+       "val": "H8C"
+      },
+      "RAW_MAT_ALT": {
+       "val": "-"
+      },
+      "RAW_GRADE_MSG": {
+       "val": "수요가 A향 HS IF-Steel · YP 220~280MPa 관리(중요) · CGL F.ce Strip Temp. 780~800℃(Target 790℃) 관리 · 조도관리 제품: SPM 상향 170~180톤"
+      },
+      "RULE_KEY": {
+       "val": "RM-010"
+      },
+      "RULE_KIND": {
+       "val": "STANDALONE"
+      },
+      "BASE_RULE_KEY": {
+       "val": "-"
+      },
+      "INHERIT_NOTE": {
+       "val": "자체 기준"
+      },
+      "LEGACY_TYPE": {
+       "val": "1A0"
+      },
+      "LEGACY_NO": {
+       "val": "3"
+      }
+     },
+     "note": "원판(도금) 기준 미확인 — 연계 검토 대상"
+    }
+   ],
+   "cases": [
+    {
+     "name": "품명 3 · KS-3-CGCC · 두께 0.4 → 예외(순번 0) BA",
+     "input": {
+      "ORD_USG_CD": "",
+      "PRD_NM_CD": "3",
+      "SPC_AVR": "KS-3-CGCC",
+      "THK": "0.4"
+     },
+     "expect": {
+      "MAT_CD": "BA",
+      "RAW_MAT_PRI": "H32",
+      "RAW_MAT_ALT": "H32,D32,G32",
+      "RULE_KEY": "RM-011"
+     },
+     "description": "raw-material-grade.html 간편판정 예시"
+    },
+    {
+     "name": "품명 3 · KS-3-CGCC · 두께 1.0 → 예외 RM-012",
+     "input": {
+      "ORD_USG_CD": "",
+      "PRD_NM_CD": "3",
+      "SPC_AVR": "KS-3-CGCC",
+      "THK": "1.0"
+     },
+     "expect": {
+      "MAT_CD": "BA",
+      "RAW_MAT_PRI": "H36",
+      "RAW_MAT_ALT": "H36,D36,G36",
+      "RULE_KEY": "RM-012"
+     },
+     "description": "raw-material-grade.html 간편판정 예시"
+    },
+    {
+     "name": "품명 3 · KS-3-CGCC · 두께 0.3 → 칼라파생 RM-002(원판 RM-001 상속)",
+     "input": {
+      "ORD_USG_CD": "",
+      "PRD_NM_CD": "3",
+      "SPC_AVR": "KS-3-CGCC",
+      "THK": "0.3"
+     },
+     "expect": {
+      "MAT_CD": "1A",
+      "RAW_MAT_PRI": "H32",
+      "RAW_MAT_ALT": "D32,G32",
+      "RULE_KEY": "RM-002"
+     },
+     "description": "raw-material-grade.html 간편판정 예시"
+    },
+    {
+     "name": "품명 G · KS-G-SGCC · 두께 1.0 → 도금기준 RM-001",
+     "input": {
+      "ORD_USG_CD": "",
+      "PRD_NM_CD": "G",
+      "SPC_AVR": "KS-G-SGCC",
+      "THK": "1.0"
+     },
+     "expect": {
+      "MAT_CD": "1A",
+      "RAW_MAT_PRI": "H32",
+      "RAW_MAT_ALT": "D32",
+      "RULE_KEY": "RM-001"
+     },
+     "description": "raw-material-grade.html 간편판정 예시"
+    },
+    {
+     "name": "품명 3 · KS-3-CGC400 → 미완료(F) 룰은 판정 제외",
+     "input": {
+      "ORD_USG_CD": "",
+      "PRD_NM_CD": "3",
+      "SPC_AVR": "KS-3-CGC400",
+      "THK": "0.4"
+     },
+     "expect": {
+      "hit": null
+     },
+     "description": "raw-material-grade.html 간편판정 예시"
+    }
+   ],
+   "revisions": [
+    {
+     "ver": "1.001",
+     "applyFrom": "2026-11-20 09:00:00",
+     "note": "RM-006 두께범위 상한 2.2 → 2.5(박서연)",
+     "patch": [
+      {
+       "seq": 7,
+       "cells": {
+        "THK": {
+         "op": "<= 변수 <",
+         "left": "0.2",
+         "right": "2.5"
+        }
+       }
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

@@ -1,0 +1,10525 @@
+{
+ "screen": "lineWidthShrinkage",
+ "rules": [
+  {
+   "ruleId": "C10B1074",
+   "name": "PLTCM폭수축량",
+   "title": "PLTCM폭수축량",
+   "legacyIds": [
+    "C10B1074"
+   ],
+   "group": "PLTCM",
+   "groupLabel": "PLTCM",
+   "hitPolicy": "FIRST",
+   "applyFrom": "2012-06-12 19:04:25",
+   "description": "레거시 업무기준 C10B1074 PLTCM폭수축량 v1.0(유형 1B0, 시작 2012-06-12 19:04:25) 이관 — mes-to-be width_rule_seed.json",
+   "note": "행 순서 = 우선순위 → 레거시 순번 → ID. 첫 적중 적용, 없으면 폭감소량 0 으로 본다.",
+   "columns": [
+    {
+     "varName": "RAW_MAT_CD",
+     "varKind": "COND",
+     "dataType": "STRING",
+     "dispType": "1",
+     "label": "원자재코드",
+     "desc": "레거시 조건 이름 \"원자재코드\""
+    },
+    {
+     "varName": "THK",
+     "varKind": "COND",
+     "dataType": "NUMBER",
+     "dispType": "2",
+     "label": "PLTCM 출측두께",
+     "unit": "mm",
+     "desc": "레거시 조건 이름 \"PLTCM두께범위\""
+    },
+    {
+     "varName": "WID",
+     "varKind": "COND",
+     "dataType": "NUMBER",
+     "dispType": "2",
+     "label": "PLTCM 폭",
+     "unit": "mm",
+     "desc": "레거시 조건 이름 \"PLTCM폭범위\""
+    },
+    {
+     "varName": "WID_SHRINK_QTY",
+     "varKind": "RESULT",
+     "dataType": "NUMBER",
+     "dispType": "Value",
+     "label": "폭감소량",
+     "unit": "mm",
+     "desc": "진입 폭 − 폭감소량 = 출측 폭"
+    },
+    {
+     "varName": "RULE_KEY",
+     "varKind": "RESULT",
+     "dataType": "STRING",
+     "dispType": "Value",
+     "label": "룰 ID",
+     "desc": "프로토타입 룰 ID(WR-·WM-)"
+    },
+    {
+     "varName": "PRIO",
+     "varKind": "RESULT",
+     "dataType": "NUMBER",
+     "dispType": "Value",
+     "label": "우선순위",
+     "desc": "작을수록 먼저 평가(행 순서에 이미 반영)"
+    },
+    {
+     "varName": "LEGACY_NO",
+     "varKind": "RESULT",
+     "dataType": "NUMBER",
+     "dispType": "Value",
+     "label": "순번",
+     "desc": "레거시 순번(no). 0 = 예외"
+    },
+    {
+     "varName": "SRC_NOTE",
+     "varKind": "RESULT",
+     "dataType": "STRING",
+     "dispType": "Value",
+     "label": "원본 주의",
+     "desc": "NOT_CHECK 인데 비교값이 남은 원본 행 표시(판정 미사용)"
+    }
+   ],
+   "rows": [
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "RAW_MAT_CD": {
+       "op": "IN",
+       "list": [
+        "H32",
+        "M32",
+        "HAB",
+        "MAF",
+        "HB1"
+       ]
+      },
+      "THK": {
+       "op": "<= 변수 <=",
+       "left": "0.22",
+       "right": "0.249"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "550",
+       "right": "1010"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "2"
+      },
+      "RULE_KEY": {
+       "val": "WR-PLTCM-001"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "1"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.1 · 우선순위 1 · 원본 6행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "RAW_MAT_CD": {
+       "op": "IN",
+       "list": [
+        "H32",
+        "M32",
+        "HAB",
+        "MAF",
+        "HB1"
+       ]
+      },
+      "THK": {
+       "op": "<= 변수 <=",
+       "left": "0.25",
+       "right": "0.599"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "550",
+       "right": "1100.9"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "2"
+      },
+      "RULE_KEY": {
+       "val": "WR-PLTCM-002"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "2"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.2 · 우선순위 1 · 원본 7행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "RAW_MAT_CD": {
+       "op": "IN",
+       "list": [
+        "H32",
+        "M32",
+        "HAB",
+        "MAF",
+        "HB1"
+       ]
+      },
+      "THK": {
+       "op": "<= 변수 <=",
+       "left": "0.25",
+       "right": "0.599"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "1101",
+       "right": "1600"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "3"
+      },
+      "RULE_KEY": {
+       "val": "WR-PLTCM-003"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "3"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.3 · 우선순위 1 · 원본 8행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "RAW_MAT_CD": {
+       "op": "IN",
+       "list": [
+        "H32",
+        "M32",
+        "HAB",
+        "MAF",
+        "HB1"
+       ]
+      },
+      "THK": {
+       "op": "<= 변수 <=",
+       "left": "0.6",
+       "right": "0.999"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "550",
+       "right": "1100.9"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "2"
+      },
+      "RULE_KEY": {
+       "val": "WR-PLTCM-004"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "4"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.4 · 우선순위 1 · 원본 9행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "RAW_MAT_CD": {
+       "op": "IN",
+       "list": [
+        "H32",
+        "M32",
+        "HAB",
+        "MAF",
+        "HB1"
+       ]
+      },
+      "THK": {
+       "op": "<= 변수 <=",
+       "left": "1",
+       "right": "3.045"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "550",
+       "right": "1100.9"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "2"
+      },
+      "RULE_KEY": {
+       "val": "WR-PLTCM-005"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "5"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.5 · 우선순위 1 · 원본 10행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "RAW_MAT_CD": {
+       "op": "IN",
+       "list": [
+        "H32",
+        "M32",
+        "HAB",
+        "MAF",
+        "HB1"
+       ]
+      },
+      "THK": {
+       "op": "<= 변수 <=",
+       "left": "0.6",
+       "right": "0.999"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "1101",
+       "right": "1600"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "2"
+      },
+      "RULE_KEY": {
+       "val": "WR-PLTCM-006"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "6"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.6 · 우선순위 1 · 원본 11행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "RAW_MAT_CD": {
+       "op": "IN",
+       "list": [
+        "H32",
+        "M32",
+        "HAB",
+        "MAF",
+        "HB1"
+       ]
+      },
+      "THK": {
+       "op": "<= 변수 <=",
+       "left": "1",
+       "right": "3.06"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "1101",
+       "right": "1600"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "2"
+      },
+      "RULE_KEY": {
+       "val": "WR-PLTCM-007"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "7"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.7 · 우선순위 1 · 원본 12행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "RAW_MAT_CD": {
+       "op": "IN",
+       "list": [
+        "H35",
+        "H36"
+       ]
+      },
+      "THK": {
+       "op": "<= 변수 <=",
+       "left": "0.25",
+       "right": "0.699"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1000.9"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "2"
+      },
+      "RULE_KEY": {
+       "val": "WR-PLTCM-008"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "8"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.8 · 우선순위 1 · 원본 13행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "RAW_MAT_CD": {
+       "op": "IN",
+       "list": [
+        "H35",
+        "H36"
+       ]
+      },
+      "THK": {
+       "op": "<= 변수 <=",
+       "left": "0.25",
+       "right": "0.699"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "1001",
+       "right": "1600"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "2"
+      },
+      "RULE_KEY": {
+       "val": "WR-PLTCM-009"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "9"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.9 · 우선순위 1 · 원본 14행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "RAW_MAT_CD": {
+       "op": "IN",
+       "list": [
+        "H35",
+        "H36"
+       ]
+      },
+      "THK": {
+       "op": "<= 변수 <=",
+       "left": "0.7",
+       "right": "2.651"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1000.9"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "1"
+      },
+      "RULE_KEY": {
+       "val": "WR-PLTCM-010"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "10"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.10 · 우선순위 1 · 원본 15행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "RAW_MAT_CD": {
+       "op": "IN",
+       "list": [
+        "H35",
+        "H36"
+       ]
+      },
+      "THK": {
+       "op": "<= 변수 <=",
+       "left": "0.7",
+       "right": "3.045"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "1001",
+       "right": "1600"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "1"
+      },
+      "RULE_KEY": {
+       "val": "WR-PLTCM-011"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "11"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.11 · 우선순위 1 · 원본 16행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "RAW_MAT_CD": {
+       "op": "IN",
+       "list": [
+        "H70",
+        "H7A",
+        "H7B",
+        "HAC",
+        "HAE",
+        "H8C",
+        "H8D",
+        "HB3",
+        "H7J"
+       ]
+      },
+      "THK": {
+       "op": "<= 변수 <=",
+       "left": "0.25",
+       "right": "0.599"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1100.9"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "4"
+      },
+      "RULE_KEY": {
+       "val": "WR-PLTCM-012"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "12"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.12 · 우선순위 1 · 원본 17행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "RAW_MAT_CD": {
+       "op": "IN",
+       "list": [
+        "H70",
+        "H7A",
+        "H7B",
+        "HAC",
+        "HAE",
+        "H8C",
+        "H8D",
+        "HB3",
+        "H7J"
+       ]
+      },
+      "THK": {
+       "op": "<= 변수 <=",
+       "left": "0.25",
+       "right": "0.599"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "1101",
+       "right": "1600"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "5"
+      },
+      "RULE_KEY": {
+       "val": "WR-PLTCM-013"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "13"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.13 · 우선순위 1 · 원본 18행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "RAW_MAT_CD": {
+       "op": "IN",
+       "list": [
+        "H70",
+        "H7A",
+        "H7B",
+        "HAC",
+        "HAE",
+        "H8C",
+        "H8D",
+        "HB3",
+        "H7J"
+       ]
+      },
+      "THK": {
+       "op": "<= 변수 <=",
+       "left": "0.6",
+       "right": "2.521"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1100.9"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "3"
+      },
+      "RULE_KEY": {
+       "val": "WR-PLTCM-014"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "14"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.14 · 우선순위 1 · 원본 19행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "RAW_MAT_CD": {
+       "op": "IN",
+       "list": [
+        "H70",
+        "H7A",
+        "H7B",
+        "HAC",
+        "HAE",
+        "H8C",
+        "H8D",
+        "HB3",
+        "H7J"
+       ]
+      },
+      "THK": {
+       "op": "<= 변수 <=",
+       "left": "0.6",
+       "right": "2.651"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "1101",
+       "right": "1600"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "4"
+      },
+      "RULE_KEY": {
+       "val": "WR-PLTCM-015"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "15"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.15 · 우선순위 1 · 원본 20행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "RAW_MAT_CD": {
+       "op": "IN",
+       "list": [
+        "H25",
+        "H33",
+        "HB2",
+        "H3W",
+        "H2J"
+       ]
+      },
+      "THK": {
+       "op": "<= 변수 <=",
+       "left": "0.23",
+       "right": "0.599"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1100.9"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "4"
+      },
+      "RULE_KEY": {
+       "val": "WR-PLTCM-016"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "16"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.16 · 우선순위 1 · 원본 21행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "RAW_MAT_CD": {
+       "op": "IN",
+       "list": [
+        "H25",
+        "H33",
+        "HB2",
+        "H3W",
+        "H2J"
+       ]
+      },
+      "THK": {
+       "op": "<= 변수 <=",
+       "left": "0.25",
+       "right": "0.599"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "1101",
+       "right": "1600"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "5"
+      },
+      "RULE_KEY": {
+       "val": "WR-PLTCM-017"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "17"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.17 · 우선순위 1 · 원본 22행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "RAW_MAT_CD": {
+       "op": "IN",
+       "list": [
+        "H25",
+        "H33",
+        "HB2",
+        "H3W",
+        "H2J"
+       ]
+      },
+      "THK": {
+       "op": "<= 변수 <=",
+       "left": "0.6",
+       "right": "2.5"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1100.9"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "3"
+      },
+      "RULE_KEY": {
+       "val": "WR-PLTCM-018"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "18"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.18 · 우선순위 1 · 원본 23행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "RAW_MAT_CD": {
+       "op": "IN",
+       "list": [
+        "H25",
+        "H33",
+        "HB2",
+        "H3W",
+        "H2J"
+       ]
+      },
+      "THK": {
+       "op": "<= 변수 <=",
+       "left": "0.6",
+       "right": "2.851"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "1101",
+       "right": "1600"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "3"
+      },
+      "RULE_KEY": {
+       "val": "WR-PLTCM-019"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "19"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.19 · 우선순위 1 · 원본 24행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "RAW_MAT_CD": {
+       "op": "EQ",
+       "left": "H32"
+      },
+      "THK": {
+       "op": "EQ",
+       "left": "3.2"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1270"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "0"
+      },
+      "RULE_KEY": {
+       "val": "WR-PLTCM-020"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "20"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.20 · 우선순위 1 · 원본 25행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "RAW_MAT_CD": {
+       "op": "IN",
+       "list": [
+        "D32",
+        "D36",
+        "D37",
+        "D39"
+       ]
+      },
+      "THK": {
+       "op": "<= 변수 <=",
+       "left": "0.25",
+       "right": "2.5"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1300"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "0"
+      },
+      "RULE_KEY": {
+       "val": "WR-PLTCM-021"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "21"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.21 · 우선순위 1 · 원본 26행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "RAW_MAT_CD": {
+       "op": "EQ",
+       "left": "E32"
+      },
+      "THK": {
+       "op": "NA"
+      },
+      "WID": {
+       "op": "NA"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "0"
+      },
+      "RULE_KEY": {
+       "val": "WR-PLTCM-022"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "22"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.22 · 우선순위 1 · 원본 27행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "RAW_MAT_CD": {
+       "op": "EQ",
+       "left": "H53"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.9",
+       "right": "6.01"
+      },
+      "WID": {
+       "op": "<= 변수 <",
+       "left": "1100",
+       "right": "1350"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "0"
+      },
+      "RULE_KEY": {
+       "val": "WR-PLTCM-023"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "23"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.23 · 우선순위 1 · 원본 28행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "RAW_MAT_CD": {
+       "op": "EQ",
+       "left": "H32"
+      },
+      "THK": {
+       "op": "EQ",
+       "left": "3"
+      },
+      "WID": {
+       "op": "<= 변수 <",
+       "left": "600",
+       "right": "1270"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "0"
+      },
+      "RULE_KEY": {
+       "val": "WR-PLTCM-024"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "24"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.24 · 우선순위 1 · 원본 29행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "RAW_MAT_CD": {
+       "op": "IN",
+       "list": [
+        "H2A",
+        "H2B",
+        "H2C"
+       ]
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "1.57",
+       "right": "6.01"
+      },
+      "WID": {
+       "op": "<= 변수 <",
+       "left": "600",
+       "right": "1300"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "2"
+      },
+      "RULE_KEY": {
+       "val": "WR-PLTCM-025"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "25"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.25 · 우선순위 1 · 원본 30행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "RAW_MAT_CD": {
+       "op": "EQ",
+       "left": "H60"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "2.3",
+       "right": "6.01"
+      },
+      "WID": {
+       "op": "<= 변수 <",
+       "left": "600",
+       "right": "1271"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "2"
+      },
+      "RULE_KEY": {
+       "val": "WR-PLTCM-026"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "26"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.26 · 우선순위 1 · 원본 31행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "RAW_MAT_CD": {
+       "op": "IN",
+       "list": [
+        "N25",
+        "N32",
+        "N70"
+       ]
+      },
+      "THK": {
+       "op": "NA"
+      },
+      "WID": {
+       "op": "NA"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "0"
+      },
+      "RULE_KEY": {
+       "val": "WR-PLTCM-027"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "27"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.27 · 우선순위 1 · 원본 32행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "RAW_MAT_CD": {
+       "op": "EQ",
+       "left": "C7T"
+      },
+      "THK": {
+       "op": "NA"
+      },
+      "WID": {
+       "op": "NA"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "0"
+      },
+      "RULE_KEY": {
+       "val": "WR-PLTCM-028"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "28"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.28 · 우선순위 1 · 원본 33행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "RAW_MAT_CD": {
+       "op": "IN",
+       "list": [
+        "H37",
+        "H38",
+        "H39",
+        "H44",
+        "HAD",
+        "H51"
+       ]
+      },
+      "THK": {
+       "op": "<= 변수 <=",
+       "left": "0.25",
+       "right": "0.599"
+      },
+      "WID": {
+       "op": "NA"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "1"
+      },
+      "RULE_KEY": {
+       "val": "WR-PLTCM-029"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "29"
+      },
+      "SRC_NOTE": {
+       "val": "원본주의 PLTCM폭범위 600~1000 보존(판정 미사용)"
+      }
+     },
+     "note": "레거시 no.29 · 우선순위 1 · 원본 34행 · 원본주의 PLTCM폭범위 600~1000 보존(판정 미사용)"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "RAW_MAT_CD": {
+       "op": "IN",
+       "list": [
+        "H37",
+        "H38",
+        "H39",
+        "H44",
+        "HAD",
+        "H51"
+       ]
+      },
+      "THK": {
+       "op": "<= 변수 <=",
+       "left": "0.25",
+       "right": "0.599"
+      },
+      "WID": {
+       "op": "NA"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "1"
+      },
+      "RULE_KEY": {
+       "val": "WR-PLTCM-030"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "30"
+      },
+      "SRC_NOTE": {
+       "val": "원본주의 PLTCM폭범위 1001~1600 보존(판정 미사용)"
+      }
+     },
+     "note": "레거시 no.30 · 우선순위 1 · 원본 35행 · 원본주의 PLTCM폭범위 1001~1600 보존(판정 미사용)"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "RAW_MAT_CD": {
+       "op": "IN",
+       "list": [
+        "H37",
+        "H38",
+        "H39",
+        "H44",
+        "HAD",
+        "H51"
+       ]
+      },
+      "THK": {
+       "op": "<= 변수 <=",
+       "left": "0.6",
+       "right": "3.05"
+      },
+      "WID": {
+       "op": "NA"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "1"
+      },
+      "RULE_KEY": {
+       "val": "WR-PLTCM-031"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "31"
+      },
+      "SRC_NOTE": {
+       "val": "원본주의 PLTCM폭범위 600~1000 보존(판정 미사용)"
+      }
+     },
+     "note": "레거시 no.31 · 우선순위 1 · 원본 36행 · 원본주의 PLTCM폭범위 600~1000 보존(판정 미사용)"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "RAW_MAT_CD": {
+       "op": "IN",
+       "list": [
+        "H37",
+        "H38",
+        "H39",
+        "H44",
+        "HAD",
+        "H51"
+       ]
+      },
+      "THK": {
+       "op": "<= 변수 <=",
+       "left": "0.6",
+       "right": "3.05"
+      },
+      "WID": {
+       "op": "NA"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "1"
+      },
+      "RULE_KEY": {
+       "val": "WR-PLTCM-032"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "32"
+      },
+      "SRC_NOTE": {
+       "val": "원본주의 PLTCM폭범위 1001~1600 보존(판정 미사용)"
+      }
+     },
+     "note": "레거시 no.32 · 우선순위 1 · 원본 37행 · 원본주의 PLTCM폭범위 1001~1600 보존(판정 미사용)"
+    }
+   ],
+   "cases": [
+    {
+     "name": "H32 두께 0.23 폭 800 → 순번 1 수축 2",
+     "input": {
+      "RAW_MAT_CD": "H32",
+      "THK": "0.23",
+      "WID": "800"
+     },
+     "expect": {
+      "WID_SHRINK_QTY": "2",
+      "RULE_KEY": "WR-PLTCM-001"
+     },
+     "description": "mes-to-be tests/width-rule-seed.test.js 기대값"
+    },
+    {
+     "name": "H32 두께 0.249 경계 포함 → 순번 1",
+     "input": {
+      "RAW_MAT_CD": "H32",
+      "THK": "0.249",
+      "WID": "800"
+     },
+     "expect": {
+      "WID_SHRINK_QTY": "2",
+      "RULE_KEY": "WR-PLTCM-001"
+     },
+     "description": "mes-to-be tests/width-rule-seed.test.js 기대값"
+    },
+    {
+     "name": "H32 두께 0.3 폭 1100.9 → 수축 2",
+     "input": {
+      "RAW_MAT_CD": "H32",
+      "THK": "0.3",
+      "WID": "1100.9"
+     },
+     "expect": {
+      "WID_SHRINK_QTY": "2",
+      "RULE_KEY": "WR-PLTCM-002"
+     },
+     "description": "mes-to-be tests/width-rule-seed.test.js 기대값"
+    },
+    {
+     "name": "H32 두께 0.3 폭 1101 → 수축 3",
+     "input": {
+      "RAW_MAT_CD": "H32",
+      "THK": "0.3",
+      "WID": "1101"
+     },
+     "expect": {
+      "WID_SHRINK_QTY": "3",
+      "RULE_KEY": "WR-PLTCM-003"
+     },
+     "description": "mes-to-be tests/width-rule-seed.test.js 기대값"
+    },
+    {
+     "name": "E32 는 순번 22 수축 0",
+     "input": {
+      "RAW_MAT_CD": "E32",
+      "THK": "0.6",
+      "WID": "1000"
+     },
+     "expect": {
+      "WID_SHRINK_QTY": "0",
+      "RULE_KEY": "WR-PLTCM-022"
+     },
+     "description": "mes-to-be tests/width-rule-seed.test.js 기대값"
+    }
+   ]
+  },
+  {
+   "ruleId": "C10B1075",
+   "name": "CGL폭감소량",
+   "title": "CGL폭감소량",
+   "legacyIds": [
+    "C10B1075"
+   ],
+   "group": "CGL",
+   "groupLabel": "CGL(냉연도금)",
+   "hitPolicy": "FIRST",
+   "applyFrom": "2012-06-12 19:04:36",
+   "description": "레거시 업무기준 C10B1075 CGL폭감소량 v1.0(유형 1B0, 시작 2012-06-12 19:04:36) 이관 — mes-to-be width_rule_seed.json",
+   "note": "행 순서 = 우선순위 → 레거시 순번 → ID. 첫 적중 적용, 없으면 폭감소량 0 으로 본다.",
+   "columns": [
+    {
+     "varName": "PROC_CD",
+     "varKind": "COND",
+     "dataType": "STRING",
+     "dispType": "1",
+     "label": "공정(라인)코드",
+     "desc": "레거시 조건 이름 \"공정\""
+    },
+    {
+     "varName": "PRD_NM_CD",
+     "varKind": "COND",
+     "dataType": "STRING",
+     "dispType": "1",
+     "label": "품명코드",
+     "desc": "레거시 조건 이름 \"품명코드\""
+    },
+    {
+     "varName": "MAT_CD",
+     "varKind": "COND",
+     "dataType": "STRING",
+     "dispType": "1",
+     "label": "재질코드",
+     "desc": "레거시 조건 이름 \"재질코드\""
+    },
+    {
+     "varName": "RAW_MAT_CD",
+     "varKind": "COND",
+     "dataType": "STRING",
+     "dispType": "1",
+     "label": "원자재코드",
+     "desc": "레거시 조건 이름 \"원자재코드\""
+    },
+    {
+     "varName": "THK",
+     "varKind": "COND",
+     "dataType": "NUMBER",
+     "dispType": "2",
+     "label": "압연SET 두께",
+     "unit": "mm",
+     "desc": "레거시 조건 이름 \"PLTCM두께범위\""
+    },
+    {
+     "varName": "WID",
+     "varKind": "COND",
+     "dataType": "NUMBER",
+     "dispType": "2",
+     "label": "CGL 적용 폭",
+     "unit": "mm",
+     "desc": "레거시 조건 이름 \"제품폭범위\""
+    },
+    {
+     "varName": "WID_SHRINK_QTY",
+     "varKind": "RESULT",
+     "dataType": "NUMBER",
+     "dispType": "Value",
+     "label": "폭감소량",
+     "unit": "mm",
+     "desc": "진입 폭 − 폭감소량 = 출측 폭"
+    },
+    {
+     "varName": "RULE_KEY",
+     "varKind": "RESULT",
+     "dataType": "STRING",
+     "dispType": "Value",
+     "label": "룰 ID",
+     "desc": "프로토타입 룰 ID(WR-·WM-)"
+    },
+    {
+     "varName": "PRIO",
+     "varKind": "RESULT",
+     "dataType": "NUMBER",
+     "dispType": "Value",
+     "label": "우선순위",
+     "desc": "작을수록 먼저 평가(행 순서에 이미 반영)"
+    },
+    {
+     "varName": "LEGACY_NO",
+     "varKind": "RESULT",
+     "dataType": "NUMBER",
+     "dispType": "Value",
+     "label": "순번",
+     "desc": "레거시 순번(no). 0 = 예외"
+    },
+    {
+     "varName": "SRC_NOTE",
+     "varKind": "RESULT",
+     "dataType": "STRING",
+     "dispType": "Value",
+     "label": "원본 주의",
+     "desc": "NOT_CHECK 인데 비교값이 남은 원본 행 표시(판정 미사용)"
+    }
+   ],
+   "rows": [
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "84"
+      },
+      "PRD_NM_CD": {
+       "op": "EQ",
+       "left": "L"
+      },
+      "MAT_CD": {
+       "op": "EQ",
+       "left": "EA"
+      },
+      "RAW_MAT_CD": {
+       "op": "EQ",
+       "left": "H36"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.2",
+       "right": "0.801"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1270"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "0"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-001"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "1"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.1 · 우선순위 1 · 원본 6행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "84"
+      },
+      "PRD_NM_CD": {
+       "op": "EQ",
+       "left": "W"
+      },
+      "MAT_CD": {
+       "op": "NA"
+      },
+      "RAW_MAT_CD": {
+       "op": "EQ",
+       "left": "H36"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.2",
+       "right": "0.801"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1270"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "0"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-002"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "2"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.2 · 우선순위 1 · 원본 7행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "85"
+      },
+      "PRD_NM_CD": {
+       "op": "EQ",
+       "left": "L"
+      },
+      "MAT_CD": {
+       "op": "EQ",
+       "left": "EA"
+      },
+      "RAW_MAT_CD": {
+       "op": "EQ",
+       "left": "H36"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.35",
+       "right": "0.5"
+      },
+      "WID": {
+       "op": "<= 변수 <",
+       "left": "800",
+       "right": "1000"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "0"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-003"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "3"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.3 · 우선순위 1 · 원본 8행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "82"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "L",
+        "G",
+        "3",
+        "K",
+        "6",
+        "9",
+        "V",
+        "W"
+       ]
+      },
+      "MAT_CD": {
+       "op": "EQ",
+       "left": "1A"
+      },
+      "RAW_MAT_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.2",
+       "right": "0.35"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1270"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "4"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-004"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "4"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.4 · 우선순위 1 · 원본 9행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "82"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "L",
+        "G",
+        "3",
+        "K",
+        "6",
+        "9",
+        "V",
+        "W"
+       ]
+      },
+      "MAT_CD": {
+       "op": "EQ",
+       "left": "1A"
+      },
+      "RAW_MAT_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.35",
+       "right": "0.6"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "550",
+       "right": "1270"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "4"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-005"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "5"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.5 · 우선순위 1 · 원본 10행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "82"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "L",
+        "4",
+        "G",
+        "3",
+        "K",
+        "6",
+        "9",
+        "V",
+        "W"
+       ]
+      },
+      "MAT_CD": {
+       "op": "EQ",
+       "left": "1A"
+      },
+      "RAW_MAT_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.6",
+       "right": "0.8"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "550",
+       "right": "1270"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "3"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-006"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "6"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.6 · 우선순위 1 · 원본 11행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "82"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "L",
+        "4",
+        "G",
+        "3",
+        "K",
+        "6",
+        "9",
+        "V",
+        "W"
+       ]
+      },
+      "MAT_CD": {
+       "op": "EQ",
+       "left": "1A"
+      },
+      "RAW_MAT_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.8",
+       "right": "1.2"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1270"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "2"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-007"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "7"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.7 · 우선순위 1 · 원본 12행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "82"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "L",
+        "4",
+        "G",
+        "3",
+        "K",
+        "6",
+        "9",
+        "V",
+        "W"
+       ]
+      },
+      "MAT_CD": {
+       "op": "EQ",
+       "left": "1A"
+      },
+      "RAW_MAT_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "1.2",
+       "right": "2.6"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1270"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "2"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-008"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "8"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.8 · 우선순위 1 · 원본 13행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "82"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "L",
+        "4",
+        "G",
+        "3",
+        "K",
+        "6",
+        "9",
+        "V",
+        "W"
+       ]
+      },
+      "MAT_CD": {
+       "op": "IN",
+       "list": [
+        "3A",
+        "3B",
+        "3C",
+        "3D",
+        "3E"
+       ]
+      },
+      "RAW_MAT_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.2",
+       "right": "0.6"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1270"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "5"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-009"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "9"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.9 · 우선순위 1 · 원본 14행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "82"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "L",
+        "4",
+        "G",
+        "3",
+        "K",
+        "6",
+        "9",
+        "V",
+        "W"
+       ]
+      },
+      "MAT_CD": {
+       "op": "IN",
+       "list": [
+        "3A",
+        "3B",
+        "3C",
+        "3D",
+        "3E"
+       ]
+      },
+      "RAW_MAT_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.6",
+       "right": "1.2"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1270"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "3"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-010"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "10"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.10 · 우선순위 1 · 원본 15행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "82"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "L",
+        "4",
+        "G",
+        "3",
+        "K",
+        "6",
+        "9",
+        "V",
+        "W"
+       ]
+      },
+      "MAT_CD": {
+       "op": "IN",
+       "list": [
+        "3A",
+        "3B",
+        "3C",
+        "3D",
+        "3E"
+       ]
+      },
+      "RAW_MAT_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "1.2",
+       "right": "2.301"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1270"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "2"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-011"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "11"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.11 · 우선순위 1 · 원본 16행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "82"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "L",
+        "4",
+        "G",
+        "3",
+        "K",
+        "6",
+        "9",
+        "V",
+        "W"
+       ]
+      },
+      "MAT_CD": {
+       "op": "IN",
+       "list": [
+        "4A",
+        "4B",
+        "4C"
+       ]
+      },
+      "RAW_MAT_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.2",
+       "right": "0.6"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1270"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "5"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-012"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "12"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.12 · 우선순위 1 · 원본 17행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "82"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "L",
+        "4",
+        "G",
+        "3",
+        "K",
+        "6",
+        "9",
+        "V",
+        "W"
+       ]
+      },
+      "MAT_CD": {
+       "op": "IN",
+       "list": [
+        "4A",
+        "4B",
+        "4C"
+       ]
+      },
+      "RAW_MAT_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.6",
+       "right": "1.2"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1270"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "4"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-013"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "13"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.13 · 우선순위 1 · 원본 18행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "82"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "L",
+        "4",
+        "G",
+        "3",
+        "K",
+        "6",
+        "9",
+        "V",
+        "W"
+       ]
+      },
+      "MAT_CD": {
+       "op": "IN",
+       "list": [
+        "4A",
+        "4B",
+        "4C"
+       ]
+      },
+      "RAW_MAT_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "1.2",
+       "right": "2.301"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1270"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "3"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-014"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "14"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.14 · 우선순위 1 · 원본 19행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "82"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "L",
+        "4",
+        "G",
+        "3",
+        "K",
+        "6",
+        "9",
+        "V",
+        "W"
+       ]
+      },
+      "MAT_CD": {
+       "op": "IN",
+       "list": [
+        "5A",
+        "5B",
+        "8C"
+       ]
+      },
+      "RAW_MAT_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.2",
+       "right": "0.6"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1270"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "7"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-015"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "15"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.15 · 우선순위 1 · 원본 20행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "82"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "L",
+        "4",
+        "G",
+        "3",
+        "K",
+        "6",
+        "9",
+        "V",
+        "W"
+       ]
+      },
+      "MAT_CD": {
+       "op": "IN",
+       "list": [
+        "5A",
+        "5B",
+        "8C"
+       ]
+      },
+      "RAW_MAT_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.6",
+       "right": "2.301"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1270"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "5"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-016"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "16"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.16 · 우선순위 1 · 원본 21행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "82"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "L",
+        "4",
+        "G",
+        "3",
+        "K",
+        "6",
+        "9",
+        "V",
+        "W"
+       ]
+      },
+      "MAT_CD": {
+       "op": "IN",
+       "list": [
+        "CA",
+        "CB"
+       ]
+      },
+      "RAW_MAT_CD": {
+       "op": "IN",
+       "list": [
+        "H35",
+        "H36",
+        "H37",
+        "H39"
+       ]
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.2",
+       "right": "1.6"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1270"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "3"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-017"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "17"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.17 · 우선순위 1 · 원본 22행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "82"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "L",
+        "4",
+        "G",
+        "3",
+        "K",
+        "6",
+        "9",
+        "V",
+        "W"
+       ]
+      },
+      "MAT_CD": {
+       "op": "IN",
+       "list": [
+        "CA",
+        "CB"
+       ]
+      },
+      "RAW_MAT_CD": {
+       "op": "IN",
+       "list": [
+        "H35",
+        "H36",
+        "H37",
+        "H39"
+       ]
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "1.6",
+       "right": "2.301"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1270"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "1"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-018"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "18"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.18 · 우선순위 1 · 원본 23행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "82"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "L",
+        "4",
+        "G",
+        "3",
+        "K",
+        "6",
+        "9",
+        "V",
+        "W"
+       ]
+      },
+      "MAT_CD": {
+       "op": "IN",
+       "list": [
+        "CA",
+        "CB"
+       ]
+      },
+      "RAW_MAT_CD": {
+       "op": "IN",
+       "list": [
+        "H32",
+        "H36"
+       ]
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.2",
+       "right": "0.801"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1270"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "3"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-019"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "19"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.19 · 우선순위 1 · 원본 24행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "82"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "L",
+        "4",
+        "G",
+        "3",
+        "K",
+        "6",
+        "9",
+        "V",
+        "W"
+       ]
+      },
+      "MAT_CD": {
+       "op": "IN",
+       "list": [
+        "DA",
+        "DB",
+        "DC",
+        "DD"
+       ]
+      },
+      "RAW_MAT_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.2",
+       "right": "1.6"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1270"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "2"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-020"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "20"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.20 · 우선순위 1 · 원본 25행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "82"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "L",
+        "4",
+        "G",
+        "3",
+        "K",
+        "6",
+        "9",
+        "V",
+        "W"
+       ]
+      },
+      "MAT_CD": {
+       "op": "IN",
+       "list": [
+        "DA",
+        "DB",
+        "DC",
+        "DD"
+       ]
+      },
+      "RAW_MAT_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "1.6",
+       "right": "2.301"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1270"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "1"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-021"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "21"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.21 · 우선순위 1 · 원본 26행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "82"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "G",
+        "3",
+        "K",
+        "6",
+        "V"
+       ]
+      },
+      "MAT_CD": {
+       "op": "EQ",
+       "left": "AA"
+      },
+      "RAW_MAT_CD": {
+       "op": "IN",
+       "list": [
+        "H35",
+        "H36"
+       ]
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.2",
+       "right": "1.6"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1270"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "3"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-022"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "22"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.22 · 우선순위 1 · 원본 27행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "82"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "L",
+        "4",
+        "G",
+        "3",
+        "K",
+        "6",
+        "9",
+        "V",
+        "W"
+       ]
+      },
+      "MAT_CD": {
+       "op": "EQ",
+       "left": "AA"
+      },
+      "RAW_MAT_CD": {
+       "op": "IN",
+       "list": [
+        "H32",
+        "H36"
+       ]
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.2",
+       "right": "1.001"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1270"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "3"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-023"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "23"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.23 · 우선순위 1 · 원본 28행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "82"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "G",
+        "3",
+        "K",
+        "6",
+        "V"
+       ]
+      },
+      "MAT_CD": {
+       "op": "EQ",
+       "left": "AA"
+      },
+      "RAW_MAT_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "1.6",
+       "right": "2.301"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1270"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "1"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-024"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "24"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.24 · 우선순위 1 · 원본 29행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "82"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "L",
+        "4",
+        "G",
+        "3",
+        "K",
+        "6",
+        "9",
+        "V",
+        "W"
+       ]
+      },
+      "MAT_CD": {
+       "op": "EQ",
+       "left": "BA"
+      },
+      "RAW_MAT_CD": {
+       "op": "IN",
+       "list": [
+        "H35",
+        "H36"
+       ]
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.2",
+       "right": "1.601"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1270"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "3"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-025"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "25"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.25 · 우선순위 1 · 원본 30행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "82"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "L",
+        "4",
+        "G",
+        "3",
+        "K",
+        "6",
+        "9",
+        "V",
+        "W"
+       ]
+      },
+      "MAT_CD": {
+       "op": "EQ",
+       "left": "BA"
+      },
+      "RAW_MAT_CD": {
+       "op": "EQ",
+       "left": "H32"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.2",
+       "right": "1.001"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1270"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "3"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-026"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "26"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.26 · 우선순위 1 · 원본 31행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "82"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "L",
+        "4",
+        "G",
+        "3",
+        "K",
+        "6",
+        "9",
+        "V",
+        "W"
+       ]
+      },
+      "MAT_CD": {
+       "op": "EQ",
+       "left": "BA"
+      },
+      "RAW_MAT_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "1.6",
+       "right": "2.301"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1270"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "1"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-027"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "27"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.27 · 우선순위 1 · 원본 32행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "83"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "G",
+        "3",
+        "J",
+        "6",
+        "K",
+        "V"
+       ]
+      },
+      "MAT_CD": {
+       "op": "EQ",
+       "left": "1A"
+      },
+      "RAW_MAT_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.2",
+       "right": "0.601"
+      },
+      "WID": {
+       "op": "<= 변수 <",
+       "left": "550",
+       "right": "900"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "2"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-028"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "28"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.28 · 우선순위 1 · 원본 33행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "83"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "G",
+        "3",
+        "J",
+        "6",
+        "K",
+        "V"
+       ]
+      },
+      "MAT_CD": {
+       "op": "EQ",
+       "left": "1A"
+      },
+      "RAW_MAT_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.601",
+       "right": "2.6"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "550",
+       "right": "1270"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "2"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-029"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "29"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.29 · 우선순위 1 · 원본 34행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "83"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "G",
+        "3",
+        "J",
+        "6",
+        "K",
+        "V"
+       ]
+      },
+      "MAT_CD": {
+       "op": "IN",
+       "list": [
+        "3A",
+        "3B",
+        "3C",
+        "3D",
+        "3E"
+       ]
+      },
+      "RAW_MAT_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.2",
+       "right": "0.601"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1270"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "4"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-030"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "30"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.30 · 우선순위 1 · 원본 35행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "83"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "G",
+        "3",
+        "J",
+        "6",
+        "K",
+        "V"
+       ]
+      },
+      "MAT_CD": {
+       "op": "IN",
+       "list": [
+        "3A",
+        "3B",
+        "3C",
+        "3D",
+        "3E"
+       ]
+      },
+      "RAW_MAT_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.601",
+       "right": "1"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "900",
+       "right": "1270"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "4"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-031"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "31"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.31 · 우선순위 1 · 원본 36행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "83"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "G",
+        "3",
+        "J",
+        "6",
+        "K",
+        "V"
+       ]
+      },
+      "MAT_CD": {
+       "op": "IN",
+       "list": [
+        "3A",
+        "3B",
+        "3C",
+        "3D",
+        "3E"
+       ]
+      },
+      "RAW_MAT_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "1",
+       "right": "2.301"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1270"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "3"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-032"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "32"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.32 · 우선순위 1 · 원본 37행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "83"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "G",
+        "3",
+        "J",
+        "6",
+        "K",
+        "V"
+       ]
+      },
+      "MAT_CD": {
+       "op": "IN",
+       "list": [
+        "4A",
+        "4B",
+        "4C"
+       ]
+      },
+      "RAW_MAT_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.2",
+       "right": "0.601"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1270"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "4"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-033"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "33"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.33 · 우선순위 1 · 원본 38행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "83"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "G",
+        "J",
+        "6",
+        "K",
+        "V"
+       ]
+      },
+      "MAT_CD": {
+       "op": "IN",
+       "list": [
+        "4A",
+        "4B"
+       ]
+      },
+      "RAW_MAT_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.601",
+       "right": "1"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1270"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "3"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-034"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "34"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.34 · 우선순위 1 · 원본 39행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "83"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "G",
+        "3",
+        "J",
+        "6",
+        "K",
+        "V"
+       ]
+      },
+      "MAT_CD": {
+       "op": "IN",
+       "list": [
+        "4A",
+        "4B",
+        "4C"
+       ]
+      },
+      "RAW_MAT_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "1",
+       "right": "2.301"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1270"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "2"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-035"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "35"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.35 · 우선순위 1 · 원본 40행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "83"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "G",
+        "3",
+        "J",
+        "6",
+        "K",
+        "V"
+       ]
+      },
+      "MAT_CD": {
+       "op": "IN",
+       "list": [
+        "5A",
+        "5B",
+        "8C"
+       ]
+      },
+      "RAW_MAT_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.2",
+       "right": "0.601"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1270"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "5"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-036"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "36"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.36 · 우선순위 1 · 원본 41행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "83"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "G",
+        "3",
+        "J",
+        "6",
+        "K",
+        "V"
+       ]
+      },
+      "MAT_CD": {
+       "op": "IN",
+       "list": [
+        "5A",
+        "5B",
+        "8C"
+       ]
+      },
+      "RAW_MAT_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.601",
+       "right": "1"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1270"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "4"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-037"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "37"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.37 · 우선순위 1 · 원본 42행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "83"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "G",
+        "3",
+        "J",
+        "6",
+        "K",
+        "V"
+       ]
+      },
+      "MAT_CD": {
+       "op": "IN",
+       "list": [
+        "5A",
+        "5B",
+        "8C"
+       ]
+      },
+      "RAW_MAT_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "1",
+       "right": "2.301"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1270"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "3"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-038"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "38"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.38 · 우선순위 1 · 원본 43행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "83"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "G",
+        "3",
+        "J",
+        "6",
+        "K",
+        "V"
+       ]
+      },
+      "MAT_CD": {
+       "op": "EQ",
+       "left": "BA"
+      },
+      "RAW_MAT_CD": {
+       "op": "IN",
+       "list": [
+        "H35",
+        "H36",
+        "H37"
+       ]
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.2",
+       "right": "1.5"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1270"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "1"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-039"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "39"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.39 · 우선순위 1 · 원본 44행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "83"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "G",
+        "3",
+        "J",
+        "6",
+        "K",
+        "V"
+       ]
+      },
+      "MAT_CD": {
+       "op": "EQ",
+       "left": "BA"
+      },
+      "RAW_MAT_CD": {
+       "op": "EQ",
+       "left": "H32"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.2",
+       "right": "1.5"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1270"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "3"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-040"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "40"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.40 · 우선순위 1 · 원본 45행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "83"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "G",
+        "3",
+        "J",
+        "6",
+        "K",
+        "V"
+       ]
+      },
+      "MAT_CD": {
+       "op": "EQ",
+       "left": "BA"
+      },
+      "RAW_MAT_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "1.5",
+       "right": "2.301"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1270"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "1"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-041"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "41"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.41 · 우선순위 1 · 원본 46행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "83"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "G",
+        "3",
+        "J",
+        "6",
+        "K",
+        "V"
+       ]
+      },
+      "MAT_CD": {
+       "op": "EQ",
+       "left": "CA"
+      },
+      "RAW_MAT_CD": {
+       "op": "IN",
+       "list": [
+        "H35",
+        "H36",
+        "H37",
+        "H39"
+       ]
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.23",
+       "right": "1.2"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1270"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "1"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-042"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "42"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.42 · 우선순위 1 · 원본 47행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "83"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "G",
+        "3",
+        "J",
+        "6",
+        "K",
+        "V"
+       ]
+      },
+      "MAT_CD": {
+       "op": "EQ",
+       "left": "CA"
+      },
+      "RAW_MAT_CD": {
+       "op": "EQ",
+       "left": "H32"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.23",
+       "right": "1.201"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1270"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "2"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-043"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "43"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.43 · 우선순위 1 · 원본 48행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "83"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "G",
+        "3",
+        "J",
+        "6",
+        "K",
+        "V"
+       ]
+      },
+      "MAT_CD": {
+       "op": "EQ",
+       "left": "CA"
+      },
+      "RAW_MAT_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "1.2",
+       "right": "2.95"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "400",
+       "right": "1270"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "1"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-044"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "44"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.44 · 우선순위 1 · 원본 49행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "83"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "G",
+        "3",
+        "J",
+        "6",
+        "K",
+        "V"
+       ]
+      },
+      "MAT_CD": {
+       "op": "EQ",
+       "left": "DA"
+      },
+      "RAW_MAT_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.23",
+       "right": "1.2"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1270"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "1"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-045"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "45"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.45 · 우선순위 1 · 원본 50행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "83"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "G",
+        "3",
+        "J",
+        "6",
+        "K",
+        "V"
+       ]
+      },
+      "MAT_CD": {
+       "op": "EQ",
+       "left": "DA"
+      },
+      "RAW_MAT_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "1.2",
+       "right": "2.401"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1270"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "1"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-046"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "46"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.46 · 우선순위 1 · 원본 51행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "83"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "G",
+        "3",
+        "J",
+        "6",
+        "K",
+        "V"
+       ]
+      },
+      "MAT_CD": {
+       "op": "EQ",
+       "left": "DC"
+      },
+      "RAW_MAT_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.23",
+       "right": "1.2"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1270"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "1"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-047"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "47"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.47 · 우선순위 1 · 원본 52행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "83"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "G",
+        "3",
+        "J",
+        "6",
+        "K",
+        "V"
+       ]
+      },
+      "MAT_CD": {
+       "op": "EQ",
+       "left": "DC"
+      },
+      "RAW_MAT_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "1.2",
+       "right": "2.401"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1270"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "1"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-048"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "48"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.48 · 우선순위 1 · 원본 53행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "83"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "G",
+        "3",
+        "J",
+        "6",
+        "K",
+        "V"
+       ]
+      },
+      "MAT_CD": {
+       "op": "EQ",
+       "left": "EA"
+      },
+      "RAW_MAT_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.23",
+       "right": "1.2"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1270"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "2"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-049"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "49"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.49 · 우선순위 1 · 원본 54행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "83"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "G",
+        "3",
+        "J",
+        "6",
+        "K",
+        "V"
+       ]
+      },
+      "MAT_CD": {
+       "op": "EQ",
+       "left": "EA"
+      },
+      "RAW_MAT_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "1.2",
+       "right": "2.301"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1270"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "1"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-050"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "50"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.50 · 우선순위 1 · 원본 55행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "83"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "G",
+        "3",
+        "J",
+        "6",
+        "K",
+        "V"
+       ]
+      },
+      "MAT_CD": {
+       "op": "EQ",
+       "left": "AA"
+      },
+      "RAW_MAT_CD": {
+       "op": "IN",
+       "list": [
+        "H35",
+        "H36",
+        "H37"
+       ]
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.23",
+       "right": "1.5"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1270"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "1"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-051"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "51"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.51 · 우선순위 1 · 원본 56행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "83"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "G",
+        "3",
+        "J",
+        "6",
+        "K",
+        "V"
+       ]
+      },
+      "MAT_CD": {
+       "op": "EQ",
+       "left": "AA"
+      },
+      "RAW_MAT_CD": {
+       "op": "EQ",
+       "left": "H32"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.23",
+       "right": "1.501"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1270"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "3"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-052"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "52"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.52 · 우선순위 1 · 원본 57행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "83"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "G",
+        "3",
+        "J",
+        "6",
+        "K",
+        "V"
+       ]
+      },
+      "MAT_CD": {
+       "op": "EQ",
+       "left": "AA"
+      },
+      "RAW_MAT_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "1.5",
+       "right": "2.301"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1270"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "1"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-053"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "53"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.53 · 우선순위 1 · 원본 58행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "83"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "G",
+        "3",
+        "J",
+        "6",
+        "K",
+        "V"
+       ]
+      },
+      "MAT_CD": {
+       "op": "EQ",
+       "left": "CB"
+      },
+      "RAW_MAT_CD": {
+       "op": "IN",
+       "list": [
+        "H35",
+        "H36",
+        "H39"
+       ]
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.23",
+       "right": "1.2"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1270"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "1"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-054"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "54"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.54 · 우선순위 1 · 원본 59행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "83"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "G",
+        "3",
+        "J",
+        "6",
+        "K",
+        "V"
+       ]
+      },
+      "MAT_CD": {
+       "op": "EQ",
+       "left": "CB"
+      },
+      "RAW_MAT_CD": {
+       "op": "EQ",
+       "left": "H32"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.23",
+       "right": "1.201"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1270"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "3"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-055"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "55"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.55 · 우선순위 1 · 원본 60행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "83"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "G",
+        "3",
+        "J",
+        "6",
+        "K",
+        "V"
+       ]
+      },
+      "MAT_CD": {
+       "op": "EQ",
+       "left": "CB"
+      },
+      "RAW_MAT_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "1.2",
+       "right": "2.301"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "400",
+       "right": "1270"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "1"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-056"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "56"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.56 · 우선순위 1 · 원본 61행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "83"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "G",
+        "3",
+        "J",
+        "6",
+        "K",
+        "V"
+       ]
+      },
+      "MAT_CD": {
+       "op": "EQ",
+       "left": "DD"
+      },
+      "RAW_MAT_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.23",
+       "right": "1.2"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1270"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "1"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-057"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "57"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.57 · 우선순위 1 · 원본 62행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "83"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "G",
+        "3",
+        "J",
+        "6",
+        "K",
+        "V"
+       ]
+      },
+      "MAT_CD": {
+       "op": "EQ",
+       "left": "DD"
+      },
+      "RAW_MAT_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "1.2",
+       "right": "2.401"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1270"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "1"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-058"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "58"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.58 · 우선순위 1 · 원본 63행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "83"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "G",
+        "3",
+        "J",
+        "6",
+        "K",
+        "V"
+       ]
+      },
+      "MAT_CD": {
+       "op": "EQ",
+       "left": "EA"
+      },
+      "RAW_MAT_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.23",
+       "right": "1.2"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1270"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "2"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-059"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "59"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.59 · 우선순위 1 · 원본 64행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "83"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "G",
+        "3",
+        "J",
+        "6",
+        "K",
+        "V"
+       ]
+      },
+      "MAT_CD": {
+       "op": "EQ",
+       "left": "EA"
+      },
+      "RAW_MAT_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "1.2",
+       "right": "2.301"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1270"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "1"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-060"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "60"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.60 · 우선순위 1 · 원본 65행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "84"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "L",
+        "4",
+        "9",
+        "W"
+       ]
+      },
+      "MAT_CD": {
+       "op": "EQ",
+       "left": "1A"
+      },
+      "RAW_MAT_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.2",
+       "right": "1.201"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1270"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "2"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-061"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "61"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.61 · 우선순위 1 · 원본 66행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "84"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "L",
+        "4",
+        "9",
+        "W"
+       ]
+      },
+      "MAT_CD": {
+       "op": "IN",
+       "list": [
+        "3A",
+        "3B"
+       ]
+      },
+      "RAW_MAT_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.2",
+       "right": "0.6"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1270"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "3"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-062"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "62"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.62 · 우선순위 1 · 원본 67행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "84"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "L",
+        "4",
+        "9",
+        "W"
+       ]
+      },
+      "MAT_CD": {
+       "op": "IN",
+       "list": [
+        "3A",
+        "3B"
+       ]
+      },
+      "RAW_MAT_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.6",
+       "right": "0.801"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1270"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "2"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-063"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "63"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.63 · 우선순위 1 · 원본 68행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "84"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "L",
+        "4",
+        "9",
+        "W"
+       ]
+      },
+      "MAT_CD": {
+       "op": "IN",
+       "list": [
+        "4A",
+        "4B"
+       ]
+      },
+      "RAW_MAT_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.2",
+       "right": "0.6"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1270"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "3"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-064"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "64"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.64 · 우선순위 1 · 원본 69행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "84"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "L",
+        "4",
+        "9",
+        "W"
+       ]
+      },
+      "MAT_CD": {
+       "op": "IN",
+       "list": [
+        "4A",
+        "4B"
+       ]
+      },
+      "RAW_MAT_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.6",
+       "right": "1"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1270"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "2"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-065"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "65"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.65 · 우선순위 1 · 원본 70행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "84"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "L",
+        "4",
+        "9",
+        "W"
+       ]
+      },
+      "MAT_CD": {
+       "op": "IN",
+       "list": [
+        "5A",
+        "5B"
+       ]
+      },
+      "RAW_MAT_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.2",
+       "right": "0.6"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1270"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "4"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-066"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "66"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.66 · 우선순위 1 · 원본 71행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "84"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "L",
+        "4",
+        "9",
+        "W"
+       ]
+      },
+      "MAT_CD": {
+       "op": "IN",
+       "list": [
+        "5A",
+        "5B"
+       ]
+      },
+      "RAW_MAT_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.6",
+       "right": "0.831"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1270"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "3"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-067"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "67"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.67 · 우선순위 1 · 원본 72행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "84"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "4",
+        "9"
+       ]
+      },
+      "MAT_CD": {
+       "op": "IN",
+       "list": [
+        "CA",
+        "CB"
+       ]
+      },
+      "RAW_MAT_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.2",
+       "right": "0.6"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1270"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "2"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-068"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "68"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.68 · 우선순위 1 · 원본 73행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "84"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "L",
+        "4",
+        "9",
+        "W"
+       ]
+      },
+      "MAT_CD": {
+       "op": "IN",
+       "list": [
+        "CA",
+        "CB"
+       ]
+      },
+      "RAW_MAT_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.6",
+       "right": "1.201"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1270"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "1"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-069"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "69"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.69 · 우선순위 1 · 원본 74행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "84"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "L",
+        "4",
+        "9",
+        "W"
+       ]
+      },
+      "MAT_CD": {
+       "op": "IN",
+       "list": [
+        "DA",
+        "DB",
+        "DC",
+        "DD"
+       ]
+      },
+      "RAW_MAT_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.2",
+       "right": "0.6"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1270"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "1"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-070"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "70"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.70 · 우선순위 1 · 원본 75행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "84"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "L",
+        "4",
+        "9",
+        "W"
+       ]
+      },
+      "MAT_CD": {
+       "op": "IN",
+       "list": [
+        "DA",
+        "DB",
+        "DC",
+        "DD"
+       ]
+      },
+      "RAW_MAT_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.6",
+       "right": "1.201"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1270"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "1"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-071"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "71"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.71 · 우선순위 1 · 원본 76행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "84"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "L",
+        "4",
+        "9",
+        "W"
+       ]
+      },
+      "MAT_CD": {
+       "op": "EQ",
+       "left": "EA"
+      },
+      "RAW_MAT_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.2",
+       "right": "0.6"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1270"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "1"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-072"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "72"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.72 · 우선순위 1 · 원본 77행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "84"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "L",
+        "4",
+        "9",
+        "W"
+       ]
+      },
+      "MAT_CD": {
+       "op": "EQ",
+       "left": "EA"
+      },
+      "RAW_MAT_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.6",
+       "right": "1.201"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1270"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "1"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-073"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "73"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.73 · 우선순위 1 · 원본 78행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "84"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "L",
+        "4",
+        "9",
+        "W"
+       ]
+      },
+      "MAT_CD": {
+       "op": "EQ",
+       "left": "AA"
+      },
+      "RAW_MAT_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.2",
+       "right": "1.201"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1270"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "2"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-074"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "74"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.74 · 우선순위 1 · 원본 79행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "84"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "L",
+        "4",
+        "9",
+        "W"
+       ]
+      },
+      "MAT_CD": {
+       "op": "EQ",
+       "left": "BA"
+      },
+      "RAW_MAT_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.2",
+       "right": "1.201"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1270"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "1"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-075"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "75"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.75 · 우선순위 1 · 원본 80행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "85"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "G",
+        "3",
+        "J",
+        "6",
+        "K",
+        "V"
+       ]
+      },
+      "MAT_CD": {
+       "op": "EQ",
+       "left": "1A"
+      },
+      "RAW_MAT_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.2",
+       "right": "0.601"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "550",
+       "right": "900"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "2"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-076"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "76"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.76 · 우선순위 1 · 원본 81행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "85"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "G",
+        "3",
+        "J",
+        "6",
+        "K",
+        "V"
+       ]
+      },
+      "MAT_CD": {
+       "op": "EQ",
+       "left": "1A"
+      },
+      "RAW_MAT_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.2",
+       "right": "0.601"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "900",
+       "right": "1600"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "3"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-077"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "77"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.77 · 우선순위 1 · 원본 82행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "85"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "G",
+        "3",
+        "J",
+        "6",
+        "K",
+        "V"
+       ]
+      },
+      "MAT_CD": {
+       "op": "EQ",
+       "left": "1A"
+      },
+      "RAW_MAT_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.601",
+       "right": "3.2"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "550",
+       "right": "1600"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "2"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-078"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "78"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.78 · 우선순위 1 · 원본 83행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "85"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "G",
+        "3",
+        "J",
+        "6",
+        "K",
+        "V"
+       ]
+      },
+      "MAT_CD": {
+       "op": "IN",
+       "list": [
+        "3A",
+        "3B",
+        "3C",
+        "3D",
+        "3E"
+       ]
+      },
+      "RAW_MAT_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.2",
+       "right": "0.601"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1270"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "4"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-079"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "79"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.79 · 우선순위 1 · 원본 84행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "85"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "G",
+        "3",
+        "J",
+        "6",
+        "K",
+        "V"
+       ]
+      },
+      "MAT_CD": {
+       "op": "IN",
+       "list": [
+        "3A",
+        "3B",
+        "3C",
+        "3D",
+        "3E"
+       ]
+      },
+      "RAW_MAT_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.2",
+       "right": "0.601"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "1271",
+       "right": "1600"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "6"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-080"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "80"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.80 · 우선순위 1 · 원본 85행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "85"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "G",
+        "3",
+        "J",
+        "6",
+        "K",
+        "V"
+       ]
+      },
+      "MAT_CD": {
+       "op": "IN",
+       "list": [
+        "3A",
+        "3B",
+        "3C",
+        "3D",
+        "3E"
+       ]
+      },
+      "RAW_MAT_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.601",
+       "right": "1"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "900",
+       "right": "1270"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "4"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-081"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "81"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.81 · 우선순위 1 · 원본 86행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "85"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "G",
+        "3",
+        "J",
+        "6",
+        "K",
+        "V"
+       ]
+      },
+      "MAT_CD": {
+       "op": "IN",
+       "list": [
+        "3A",
+        "3B",
+        "3C",
+        "3D",
+        "3E"
+       ]
+      },
+      "RAW_MAT_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.601",
+       "right": "1"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "1271",
+       "right": "1600"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "5"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-082"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "82"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.82 · 우선순위 1 · 원본 87행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "85"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "G",
+        "3",
+        "J",
+        "6",
+        "K",
+        "V"
+       ]
+      },
+      "MAT_CD": {
+       "op": "IN",
+       "list": [
+        "3A",
+        "3B",
+        "3C",
+        "3D",
+        "3E"
+       ]
+      },
+      "RAW_MAT_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "1",
+       "right": "2.65"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1600"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "3"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-083"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "83"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.83 · 우선순위 1 · 원본 88행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "85"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "G",
+        "3",
+        "J",
+        "6",
+        "K",
+        "V"
+       ]
+      },
+      "MAT_CD": {
+       "op": "IN",
+       "list": [
+        "4A",
+        "4B",
+        "4C"
+       ]
+      },
+      "RAW_MAT_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.2",
+       "right": "0.601"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1270"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "4"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-084"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "84"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.84 · 우선순위 1 · 원본 89행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "85"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "G",
+        "3",
+        "J",
+        "6",
+        "K",
+        "V"
+       ]
+      },
+      "MAT_CD": {
+       "op": "IN",
+       "list": [
+        "4A",
+        "4B",
+        "4C"
+       ]
+      },
+      "RAW_MAT_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.2",
+       "right": "0.601"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "1271",
+       "right": "1600"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "5"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-085"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "85"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.85 · 우선순위 1 · 원본 90행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "85"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "G",
+        "J",
+        "6",
+        "K",
+        "V"
+       ]
+      },
+      "MAT_CD": {
+       "op": "IN",
+       "list": [
+        "4A",
+        "4B"
+       ]
+      },
+      "RAW_MAT_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.601",
+       "right": "1"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1270"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "3"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-086"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "86"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.86 · 우선순위 1 · 원본 91행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "85"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "G",
+        "J",
+        "6",
+        "K",
+        "V"
+       ]
+      },
+      "MAT_CD": {
+       "op": "IN",
+       "list": [
+        "4A",
+        "4B"
+       ]
+      },
+      "RAW_MAT_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.601",
+       "right": "1"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "1271",
+       "right": "1600"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "4"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-087"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "87"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.87 · 우선순위 1 · 원본 92행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "85"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "G",
+        "3",
+        "J",
+        "6",
+        "K",
+        "V"
+       ]
+      },
+      "MAT_CD": {
+       "op": "IN",
+       "list": [
+        "4A",
+        "4B",
+        "4C"
+       ]
+      },
+      "RAW_MAT_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "1",
+       "right": "2.851"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1270"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "2"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-088"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "88"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.88 · 우선순위 1 · 원본 93행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "85"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "G",
+        "3",
+        "J",
+        "6",
+        "K",
+        "V"
+       ]
+      },
+      "MAT_CD": {
+       "op": "IN",
+       "list": [
+        "4A",
+        "4B",
+        "4C"
+       ]
+      },
+      "RAW_MAT_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "1",
+       "right": "2.65"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "1271",
+       "right": "1600"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "3"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-089"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "89"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.89 · 우선순위 1 · 원본 94행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "85"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "G",
+        "3",
+        "J",
+        "6",
+        "K",
+        "V"
+       ]
+      },
+      "MAT_CD": {
+       "op": "IN",
+       "list": [
+        "5A",
+        "5B",
+        "8C"
+       ]
+      },
+      "RAW_MAT_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.2",
+       "right": "0.601"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1600"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "5"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-090"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "90"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.90 · 우선순위 1 · 원본 95행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "85"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "G",
+        "3",
+        "J",
+        "6",
+        "K",
+        "V"
+       ]
+      },
+      "MAT_CD": {
+       "op": "IN",
+       "list": [
+        "5A",
+        "5B",
+        "8C"
+       ]
+      },
+      "RAW_MAT_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.601",
+       "right": "1"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1600"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "4"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-091"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "91"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.91 · 우선순위 1 · 원본 96행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "85"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "G",
+        "3",
+        "J",
+        "6",
+        "K",
+        "V"
+       ]
+      },
+      "MAT_CD": {
+       "op": "IN",
+       "list": [
+        "5A",
+        "5B",
+        "8C"
+       ]
+      },
+      "RAW_MAT_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "1",
+       "right": "2.651"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1600"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "3"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-092"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "92"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.92 · 우선순위 1 · 원본 97행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "85"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "G",
+        "3",
+        "J",
+        "6",
+        "K",
+        "V"
+       ]
+      },
+      "MAT_CD": {
+       "op": "IN",
+       "list": [
+        "AA",
+        "BA"
+       ]
+      },
+      "RAW_MAT_CD": {
+       "op": "IN",
+       "list": [
+        "H35",
+        "H36",
+        "H39"
+       ]
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.2",
+       "right": "1.5"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1600"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "1"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-093"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "93"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.93 · 우선순위 1 · 원본 98행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "85"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "G",
+        "3",
+        "J",
+        "6",
+        "K",
+        "V"
+       ]
+      },
+      "MAT_CD": {
+       "op": "IN",
+       "list": [
+        "AA",
+        "BA"
+       ]
+      },
+      "RAW_MAT_CD": {
+       "op": "EQ",
+       "left": "H32"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.2",
+       "right": "1.501"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1600"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "3"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-094"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "94"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.94 · 우선순위 1 · 원본 99행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "85"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "G",
+        "3",
+        "J",
+        "6",
+        "K",
+        "V"
+       ]
+      },
+      "MAT_CD": {
+       "op": "IN",
+       "list": [
+        "AA",
+        "BA"
+       ]
+      },
+      "RAW_MAT_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "1.5",
+       "right": "3.01"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1600"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "1"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-095"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "95"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.95 · 우선순위 1 · 원본 100행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "85"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "G",
+        "3",
+        "J",
+        "6",
+        "K",
+        "V"
+       ]
+      },
+      "MAT_CD": {
+       "op": "IN",
+       "list": [
+        "CA",
+        "CB"
+       ]
+      },
+      "RAW_MAT_CD": {
+       "op": "IN",
+       "list": [
+        "H35",
+        "H36",
+        "H37",
+        "H39"
+       ]
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.2",
+       "right": "1.2"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1600"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "1"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-096"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "96"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.96 · 우선순위 1 · 원본 101행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "85"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "G",
+        "3",
+        "J",
+        "6",
+        "K",
+        "V"
+       ]
+      },
+      "MAT_CD": {
+       "op": "IN",
+       "list": [
+        "CA",
+        "CB"
+       ]
+      },
+      "RAW_MAT_CD": {
+       "op": "EQ",
+       "left": "H32"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.2",
+       "right": "1.201"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1600"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "3"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-097"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "97"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.97 · 우선순위 1 · 원본 102행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "85"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "G",
+        "3",
+        "J",
+        "6",
+        "K",
+        "V"
+       ]
+      },
+      "MAT_CD": {
+       "op": "IN",
+       "list": [
+        "CA",
+        "CB"
+       ]
+      },
+      "RAW_MAT_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "1.2",
+       "right": "3.01"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "400",
+       "right": "1600"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "1"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-098"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "98"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.98 · 우선순위 1 · 원본 103행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "85"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "G",
+        "3",
+        "J",
+        "6",
+        "K",
+        "V"
+       ]
+      },
+      "MAT_CD": {
+       "op": "IN",
+       "list": [
+        "DA",
+        "DC",
+        "DD"
+       ]
+      },
+      "RAW_MAT_CD": {
+       "op": "IN",
+       "list": [
+        "H35",
+        "H36",
+        "H39",
+        "H44"
+       ]
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.2",
+       "right": "1.2"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1600"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "1"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-099"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "99"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.99 · 우선순위 1 · 원본 104행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "85"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "G",
+        "3",
+        "J",
+        "6",
+        "K",
+        "V"
+       ]
+      },
+      "MAT_CD": {
+       "op": "IN",
+       "list": [
+        "DA",
+        "DC",
+        "DD"
+       ]
+      },
+      "RAW_MAT_CD": {
+       "op": "EQ",
+       "left": "H32"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.2",
+       "right": "1.201"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1600"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "3"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-100"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "100"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.100 · 우선순위 1 · 원본 105행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "85"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "G",
+        "3",
+        "J",
+        "6",
+        "K",
+        "V"
+       ]
+      },
+      "MAT_CD": {
+       "op": "IN",
+       "list": [
+        "DA",
+        "DC",
+        "DD"
+       ]
+      },
+      "RAW_MAT_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "1.2",
+       "right": "3.03"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1600"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "1"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-101"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "101"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.101 · 우선순위 1 · 원본 106행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "85"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "G",
+        "3",
+        "J",
+        "6",
+        "K",
+        "V"
+       ]
+      },
+      "MAT_CD": {
+       "op": "EQ",
+       "left": "EA"
+      },
+      "RAW_MAT_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.2",
+       "right": "1.2"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1600"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "2"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-102"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "102"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.102 · 우선순위 1 · 원본 107행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "85"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "G",
+        "3",
+        "J",
+        "6",
+        "K",
+        "V"
+       ]
+      },
+      "MAT_CD": {
+       "op": "EQ",
+       "left": "EA"
+      },
+      "RAW_MAT_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "1.2",
+       "right": "3.001"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1600"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "1"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-103"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "103"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.103 · 우선순위 1 · 원본 108행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "85"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "L",
+        "4",
+        "9",
+        "W"
+       ]
+      },
+      "MAT_CD": {
+       "op": "EQ",
+       "left": "1A"
+      },
+      "RAW_MAT_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.2",
+       "right": "0.8"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "800",
+       "right": "1600"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "3"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-104"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "104"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.104 · 우선순위 1 · 원본 109행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "85"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "L",
+        "4",
+        "9",
+        "W"
+       ]
+      },
+      "MAT_CD": {
+       "op": "EQ",
+       "left": "1A"
+      },
+      "RAW_MAT_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.8",
+       "right": "1.6"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1600"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "2"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-105"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "105"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.105 · 우선순위 1 · 원본 110행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "85"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "L",
+        "4",
+        "9",
+        "W"
+       ]
+      },
+      "MAT_CD": {
+       "op": "EQ",
+       "left": "1A"
+      },
+      "RAW_MAT_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "1.6",
+       "right": "3.01"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1600"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "1"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-106"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "106"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.106 · 우선순위 1 · 원본 111행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "85"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "L",
+        "4",
+        "9",
+        "W"
+       ]
+      },
+      "MAT_CD": {
+       "op": "IN",
+       "list": [
+        "3A",
+        "3B"
+       ]
+      },
+      "RAW_MAT_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.2",
+       "right": "0.6"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1600"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "4"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-107"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "107"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.107 · 우선순위 1 · 원본 112행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "85"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "L",
+        "4",
+        "9",
+        "W"
+       ]
+      },
+      "MAT_CD": {
+       "op": "IN",
+       "list": [
+        "3A",
+        "3B"
+       ]
+      },
+      "RAW_MAT_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.6",
+       "right": "1"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1600"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "2"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-108"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "108"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.108 · 우선순위 1 · 원본 113행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "85"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "L",
+        "4",
+        "9",
+        "W"
+       ]
+      },
+      "MAT_CD": {
+       "op": "IN",
+       "list": [
+        "3A",
+        "3B"
+       ]
+      },
+      "RAW_MAT_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "1",
+       "right": "2.65"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1600"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "1"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-109"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "109"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.109 · 우선순위 1 · 원본 114행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "85"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "L",
+        "4",
+        "9",
+        "W"
+       ]
+      },
+      "MAT_CD": {
+       "op": "IN",
+       "list": [
+        "4A",
+        "4B"
+       ]
+      },
+      "RAW_MAT_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.2",
+       "right": "0.6"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1600"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "5"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-110"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "110"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.110 · 우선순위 1 · 원본 115행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "85"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "L",
+        "4",
+        "9",
+        "W"
+       ]
+      },
+      "MAT_CD": {
+       "op": "IN",
+       "list": [
+        "4A",
+        "4B"
+       ]
+      },
+      "RAW_MAT_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.6",
+       "right": "1"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1600"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "3"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-111"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "111"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.111 · 우선순위 1 · 원본 116행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "85"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "L",
+        "4",
+        "9",
+        "W"
+       ]
+      },
+      "MAT_CD": {
+       "op": "IN",
+       "list": [
+        "4A",
+        "4B"
+       ]
+      },
+      "RAW_MAT_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "1",
+       "right": "2.501"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1600"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "2"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-112"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "112"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.112 · 우선순위 1 · 원본 117행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "85"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "L",
+        "4",
+        "9",
+        "W"
+       ]
+      },
+      "MAT_CD": {
+       "op": "IN",
+       "list": [
+        "5A",
+        "5B"
+       ]
+      },
+      "RAW_MAT_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.2",
+       "right": "0.6"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1600"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "6"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-113"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "113"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.113 · 우선순위 1 · 원본 118행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "85"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "L",
+        "4",
+        "9",
+        "W"
+       ]
+      },
+      "MAT_CD": {
+       "op": "IN",
+       "list": [
+        "5A",
+        "5B"
+       ]
+      },
+      "RAW_MAT_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.6",
+       "right": "1"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1600"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "4"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-114"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "114"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.114 · 우선순위 1 · 원본 119행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "85"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "L",
+        "4",
+        "9",
+        "W"
+       ]
+      },
+      "MAT_CD": {
+       "op": "IN",
+       "list": [
+        "5A",
+        "5B"
+       ]
+      },
+      "RAW_MAT_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "1",
+       "right": "2.501"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1600"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "3"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-115"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "115"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.115 · 우선순위 1 · 원본 120행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "85"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "L",
+        "4",
+        "9",
+        "W"
+       ]
+      },
+      "MAT_CD": {
+       "op": "IN",
+       "list": [
+        "CA",
+        "CB"
+       ]
+      },
+      "RAW_MAT_CD": {
+       "op": "IN",
+       "list": [
+        "H35",
+        "H36",
+        "H39"
+       ]
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.2",
+       "right": "0.751"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1600"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "1"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-116"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "116"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.116 · 우선순위 1 · 원본 121행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "85"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "L",
+        "4",
+        "9",
+        "W"
+       ]
+      },
+      "MAT_CD": {
+       "op": "IN",
+       "list": [
+        "CA",
+        "CB"
+       ]
+      },
+      "RAW_MAT_CD": {
+       "op": "EQ",
+       "left": "H32"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.2",
+       "right": "0.751"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1600"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "3"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-117"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "117"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.117 · 우선순위 1 · 원본 122행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "85"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "L",
+        "4",
+        "9",
+        "W"
+       ]
+      },
+      "MAT_CD": {
+       "op": "IN",
+       "list": [
+        "CA",
+        "CB"
+       ]
+      },
+      "RAW_MAT_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.751",
+       "right": "2.501"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1600"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "2"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-118"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "118"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.118 · 우선순위 1 · 원본 123행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "85"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "L",
+        "4",
+        "9",
+        "W"
+       ]
+      },
+      "MAT_CD": {
+       "op": "IN",
+       "list": [
+        "DA",
+        "DB",
+        "DC",
+        "DD"
+       ]
+      },
+      "RAW_MAT_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.2",
+       "right": "0.6"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1600"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "2"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-119"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "119"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.119 · 우선순위 1 · 원본 124행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "85"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "L",
+        "4",
+        "9",
+        "W"
+       ]
+      },
+      "MAT_CD": {
+       "op": "IN",
+       "list": [
+        "DA",
+        "DB",
+        "DC",
+        "DD"
+       ]
+      },
+      "RAW_MAT_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.6",
+       "right": "2.501"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1600"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "1"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-120"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "120"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.120 · 우선순위 1 · 원본 125행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "85"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "L",
+        "4",
+        "9",
+        "W"
+       ]
+      },
+      "MAT_CD": {
+       "op": "EQ",
+       "left": "EA"
+      },
+      "RAW_MAT_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.2",
+       "right": "0.6"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1600"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "2"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-121"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "121"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.121 · 우선순위 1 · 원본 126행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "85"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "L",
+        "4",
+        "9",
+        "W"
+       ]
+      },
+      "MAT_CD": {
+       "op": "EQ",
+       "left": "EA"
+      },
+      "RAW_MAT_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.6",
+       "right": "2.501"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1600"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "1"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-122"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "122"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.122 · 우선순위 1 · 원본 127행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "85"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "L",
+        "4",
+        "9",
+        "W"
+       ]
+      },
+      "MAT_CD": {
+       "op": "IN",
+       "list": [
+        "AA",
+        "BA"
+       ]
+      },
+      "RAW_MAT_CD": {
+       "op": "IN",
+       "list": [
+        "H35",
+        "H36",
+        "H39"
+       ]
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.2",
+       "right": "3.01"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1600"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "1"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-123"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "123"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.123 · 우선순위 1 · 원본 128행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "85"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "L",
+        "4",
+        "9",
+        "W"
+       ]
+      },
+      "MAT_CD": {
+       "op": "IN",
+       "list": [
+        "AA",
+        "BA"
+       ]
+      },
+      "RAW_MAT_CD": {
+       "op": "EQ",
+       "left": "H32"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.2",
+       "right": "0.6"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1600"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "3"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-124"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "124"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.124 · 우선순위 1 · 원본 129행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "85"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "L",
+        "4",
+        "9",
+        "W"
+       ]
+      },
+      "MAT_CD": {
+       "op": "IN",
+       "list": [
+        "AA",
+        "BA"
+       ]
+      },
+      "RAW_MAT_CD": {
+       "op": "EQ",
+       "left": "H32"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.6",
+       "right": "2.601"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1600"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "2"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-125"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "125"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.125 · 우선순위 1 · 원본 130행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "8O"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "G",
+        "3",
+        "L",
+        "4"
+       ]
+      },
+      "MAT_CD": {
+       "op": "EQ",
+       "left": "1A"
+      },
+      "RAW_MAT_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.31",
+       "right": "0.6"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "700",
+       "right": "1250"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "4"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-126"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "126"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.126 · 우선순위 1 · 원본 131행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "83"
+      },
+      "PRD_NM_CD": {
+       "op": "EQ",
+       "left": "3"
+      },
+      "MAT_CD": {
+       "op": "IN",
+       "list": [
+        "4A",
+        "4B",
+        "4C"
+       ]
+      },
+      "RAW_MAT_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.601",
+       "right": "1"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1270"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "5"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-127"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "127"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.127 · 우선순위 1 · 원본 132행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "85"
+      },
+      "PRD_NM_CD": {
+       "op": "EQ",
+       "left": "3"
+      },
+      "MAT_CD": {
+       "op": "IN",
+       "list": [
+        "4A",
+        "4B",
+        "4C"
+       ]
+      },
+      "RAW_MAT_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.601",
+       "right": "1"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1600"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "5"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-128"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "128"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.128 · 우선순위 1 · 원본 133행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "82"
+      },
+      "PRD_NM_CD": {
+       "op": "EQ",
+       "left": "4"
+      },
+      "MAT_CD": {
+       "op": "EQ",
+       "left": "1A"
+      },
+      "RAW_MAT_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.35",
+       "right": "0.6"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "550",
+       "right": "1270"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "3"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-129"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "129"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.129 · 우선순위 1 · 원본 134행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "82"
+      },
+      "PRD_NM_CD": {
+       "op": "EQ",
+       "left": "4"
+      },
+      "MAT_CD": {
+       "op": "EQ",
+       "left": "1A"
+      },
+      "RAW_MAT_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.2",
+       "right": "0.35"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1270"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "3"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-130"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "130"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.130 · 우선순위 1 · 원본 135행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "82"
+      },
+      "PRD_NM_CD": {
+       "op": "EQ",
+       "left": "V"
+      },
+      "MAT_CD": {
+       "op": "EQ",
+       "left": "EA"
+      },
+      "RAW_MAT_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "NA"
+      },
+      "WID": {
+       "op": "<= 변수 <",
+       "left": "800",
+       "right": "1251"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "2"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-131"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "131"
+      },
+      "SRC_NOTE": {
+       "val": "원본주의 PLTCM두께범위 0.8~1.2 보존(판정 미사용)"
+      }
+     },
+     "note": "레거시 no.131 · 우선순위 1 · 원본 136행 · 원본주의 PLTCM두께범위 0.8~1.2 보존(판정 미사용)"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "85"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "G",
+        "3",
+        "V",
+        "L"
+       ]
+      },
+      "MAT_CD": {
+       "op": "EQ",
+       "left": "EC"
+      },
+      "RAW_MAT_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <=",
+       "left": "0.8",
+       "right": "3"
+      },
+      "WID": {
+       "op": "<= 변수 <",
+       "left": "800",
+       "right": "1600"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "1"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-132"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "132"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.132 · 우선순위 1 · 원본 137행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "83"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "G",
+        "3",
+        "V"
+       ]
+      },
+      "MAT_CD": {
+       "op": "EQ",
+       "left": "EC"
+      },
+      "RAW_MAT_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <=",
+       "left": "0.8",
+       "right": "3"
+      },
+      "WID": {
+       "op": "<= 변수 <",
+       "left": "300",
+       "right": "1350"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "1"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-133"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "133"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.133 · 우선순위 1 · 원본 138행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "8O"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "G",
+        "3"
+       ]
+      },
+      "MAT_CD": {
+       "op": "EQ",
+       "left": "1A"
+      },
+      "RAW_MAT_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.6",
+       "right": "0.801"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "700",
+       "right": "1250"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "3"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-134"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "134"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.134 · 우선순위 1 · 원본 139행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "85"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "G",
+        "3",
+        "J",
+        "6",
+        "K",
+        "V"
+       ]
+      },
+      "MAT_CD": {
+       "op": "IN",
+       "list": [
+        "3A",
+        "3B",
+        "3C",
+        "3D",
+        "3E"
+       ]
+      },
+      "RAW_MAT_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.601",
+       "right": "1"
+      },
+      "WID": {
+       "op": "<= 변수 <",
+       "left": "600",
+       "right": "900"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "3"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-135"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "135"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.135 · 우선순위 1 · 원본 140행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "83"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "G",
+        "3",
+        "J",
+        "6",
+        "K",
+        "V"
+       ]
+      },
+      "MAT_CD": {
+       "op": "IN",
+       "list": [
+        "3A",
+        "3B",
+        "3C",
+        "3D",
+        "3E"
+       ]
+      },
+      "RAW_MAT_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.601",
+       "right": "1"
+      },
+      "WID": {
+       "op": "<= 변수 <",
+       "left": "600",
+       "right": "900"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "3"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-136"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "136"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.136 · 우선순위 1 · 원본 141행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "83"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "G",
+        "3",
+        "J",
+        "6",
+        "K",
+        "V"
+       ]
+      },
+      "MAT_CD": {
+       "op": "EQ",
+       "left": "1A"
+      },
+      "RAW_MAT_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.2",
+       "right": "0.601"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "900",
+       "right": "1270"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "3"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-137"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "137"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.137 · 우선순위 1 · 원본 142행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "84"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "L",
+        "W"
+       ]
+      },
+      "MAT_CD": {
+       "op": "IN",
+       "list": [
+        "CA",
+        "CB"
+       ]
+      },
+      "RAW_MAT_CD": {
+       "op": "EQ",
+       "left": "H32"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.2",
+       "right": "0.6"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1270"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "2"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-138"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "138"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.138 · 우선순위 1 · 원본 143행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "84"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "L",
+        "W"
+       ]
+      },
+      "MAT_CD": {
+       "op": "IN",
+       "list": [
+        "CA",
+        "CB"
+       ]
+      },
+      "RAW_MAT_CD": {
+       "op": "EQ",
+       "left": "H36"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.4",
+       "right": "0.6"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1270"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "0"
+      },
+      "RULE_KEY": {
+       "val": "WR-CGL-139"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "139"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.139 · 우선순위 1 · 원본 144행"
+    }
+   ],
+   "cases": [
+    {
+     "name": "84 L EA H36 0.5 1000 → 순번 1 수축 0",
+     "input": {
+      "PROC_CD": "84",
+      "PRD_NM_CD": "L",
+      "MAT_CD": "EA",
+      "RAW_MAT_CD": "H36",
+      "THK": "0.5",
+      "WID": "1000"
+     },
+     "expect": {
+      "WID_SHRINK_QTY": "0",
+      "RULE_KEY": "WR-CGL-001"
+     },
+     "description": "mes-to-be tests/width-rule-seed.test.js 기대값"
+    },
+    {
+     "name": "82 L 5A 0.3 1000 → 순번 15 수축 7",
+     "input": {
+      "PROC_CD": "82",
+      "PRD_NM_CD": "L",
+      "MAT_CD": "5A",
+      "RAW_MAT_CD": "",
+      "THK": "0.3",
+      "WID": "1000"
+     },
+     "expect": {
+      "WID_SHRINK_QTY": "7",
+      "RULE_KEY": "WR-CGL-015"
+     },
+     "description": "mes-to-be tests/width-rule-seed.test.js 기대값"
+    },
+    {
+     "name": "82 L 4A 0.4 1000 → 순번 12 수축 5",
+     "input": {
+      "PROC_CD": "82",
+      "PRD_NM_CD": "L",
+      "MAT_CD": "4A",
+      "RAW_MAT_CD": "",
+      "THK": "0.4",
+      "WID": "1000"
+     },
+     "expect": {
+      "WID_SHRINK_QTY": "5",
+      "RULE_KEY": "WR-CGL-012"
+     },
+     "description": "mes-to-be tests/width-rule-seed.test.js 기대값"
+    },
+    {
+     "name": "82 L CA H35 1.0 1000 → 순번 17 수축 3",
+     "input": {
+      "PROC_CD": "82",
+      "PRD_NM_CD": "L",
+      "MAT_CD": "CA",
+      "RAW_MAT_CD": "H35",
+      "THK": "1.0",
+      "WID": "1000"
+     },
+     "expect": {
+      "WID_SHRINK_QTY": "3",
+      "RULE_KEY": "WR-CGL-017"
+     },
+     "description": "mes-to-be tests/width-rule-seed.test.js 기대값"
+    },
+    {
+     "name": "82 L CA ZZZ → 적중 없음",
+     "input": {
+      "PROC_CD": "82",
+      "PRD_NM_CD": "L",
+      "MAT_CD": "CA",
+      "RAW_MAT_CD": "ZZZ",
+      "THK": "1.0",
+      "WID": "1000"
+     },
+     "expect": {
+      "hit": null
+     },
+     "description": "mes-to-be tests/width-rule-seed.test.js 기대값"
+    }
+   ]
+  },
+  {
+   "ruleId": "C10B1076",
+   "name": "EGL폭감소량",
+   "title": "EGL폭감소량",
+   "legacyIds": [
+    "C10B1076"
+   ],
+   "group": "EGL",
+   "groupLabel": "EGL(전해도금)",
+   "hitPolicy": "FIRST",
+   "applyFrom": "2012-06-12 19:04:39",
+   "description": "레거시 업무기준 C10B1076 EGL폭감소량 v1.0(유형 1B0, 시작 2012-06-12 19:04:39) 이관 — mes-to-be width_rule_seed.json",
+   "note": "행 순서 = 우선순위 → 레거시 순번 → ID. 첫 적중 적용, 없으면 폭감소량 0 으로 본다.",
+   "columns": [
+    {
+     "varName": "PROC_CD",
+     "varKind": "COND",
+     "dataType": "STRING",
+     "dispType": "1",
+     "label": "공정(라인)코드",
+     "desc": "레거시 조건 이름 \"공정\""
+    },
+    {
+     "varName": "PRD_NM_CD",
+     "varKind": "COND",
+     "dataType": "STRING",
+     "dispType": "1",
+     "label": "품명코드",
+     "desc": "레거시 조건 이름 \"품명\""
+    },
+    {
+     "varName": "MAT_CD",
+     "varKind": "COND",
+     "dataType": "STRING",
+     "dispType": "1",
+     "label": "재질코드",
+     "desc": "레거시 조건 이름 \"재질코드\""
+    },
+    {
+     "varName": "RAW_MAT_CD",
+     "varKind": "COND",
+     "dataType": "STRING",
+     "dispType": "1",
+     "label": "원자재코드",
+     "desc": "레거시 조건 이름 \"원자재코드\""
+    },
+    {
+     "varName": "THK",
+     "varKind": "COND",
+     "dataType": "NUMBER",
+     "dispType": "2",
+     "label": "압연SET 두께",
+     "unit": "mm",
+     "desc": "레거시 조건 이름 \"PLTCM두께범위\""
+    },
+    {
+     "varName": "WID",
+     "varKind": "COND",
+     "dataType": "NUMBER",
+     "dispType": "2",
+     "label": "EGL 적용 폭",
+     "unit": "mm",
+     "desc": "레거시 조건 이름 \"제품폭범위\""
+    },
+    {
+     "varName": "WID_SHRINK_QTY",
+     "varKind": "RESULT",
+     "dataType": "NUMBER",
+     "dispType": "Value",
+     "label": "폭감소량",
+     "unit": "mm",
+     "desc": "진입 폭 − 폭감소량 = 출측 폭"
+    },
+    {
+     "varName": "RULE_KEY",
+     "varKind": "RESULT",
+     "dataType": "STRING",
+     "dispType": "Value",
+     "label": "룰 ID",
+     "desc": "프로토타입 룰 ID(WR-·WM-)"
+    },
+    {
+     "varName": "PRIO",
+     "varKind": "RESULT",
+     "dataType": "NUMBER",
+     "dispType": "Value",
+     "label": "우선순위",
+     "desc": "작을수록 먼저 평가(행 순서에 이미 반영)"
+    },
+    {
+     "varName": "LEGACY_NO",
+     "varKind": "RESULT",
+     "dataType": "NUMBER",
+     "dispType": "Value",
+     "label": "순번",
+     "desc": "레거시 순번(no). 0 = 예외"
+    },
+    {
+     "varName": "SRC_NOTE",
+     "varKind": "RESULT",
+     "dataType": "STRING",
+     "dispType": "Value",
+     "label": "원본 주의",
+     "desc": "NOT_CHECK 인데 비교값이 남은 원본 행 표시(판정 미사용)"
+    }
+   ],
+   "rows": [
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "92"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "2",
+        "8"
+       ]
+      },
+      "MAT_CD": {
+       "op": "EQ",
+       "left": "5A"
+      },
+      "RAW_MAT_CD": {
+       "op": "IN",
+       "list": [
+        "H7J",
+        "H70",
+        "C70"
+       ]
+      },
+      "THK": {
+       "op": "<= 변수 <=",
+       "left": "0.6",
+       "right": "0.8"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "800",
+       "right": "950"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "4"
+      },
+      "RULE_KEY": {
+       "val": "WR-EGL-001"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "1"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.1 · 우선순위 1 · 원본 6행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "91"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "E",
+        "2",
+        "N",
+        "8"
+       ]
+      },
+      "MAT_CD": {
+       "op": "IN",
+       "list": [
+        "1A",
+        "1B",
+        "1C",
+        "3A",
+        "4A",
+        "5A",
+        "5B",
+        "5C",
+        "6A",
+        "CB",
+        "8C"
+       ]
+      },
+      "RAW_MAT_CD": {
+       "op": "NOT_IN",
+       "list": [
+        "N25",
+        "N32",
+        "N70"
+       ]
+      },
+      "THK": {
+       "op": "<= 변수 <=",
+       "left": "0.25",
+       "right": "1"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1600"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "2"
+      },
+      "RULE_KEY": {
+       "val": "WR-EGL-002"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "2"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.2 · 우선순위 1 · 원본 7행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "91"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "E",
+        "2",
+        "N",
+        "8"
+       ]
+      },
+      "MAT_CD": {
+       "op": "IN",
+       "list": [
+        "1A",
+        "1B",
+        "1C",
+        "3A",
+        "4A",
+        "5A",
+        "5B",
+        "5C",
+        "6A",
+        "CB",
+        "8C"
+       ]
+      },
+      "RAW_MAT_CD": {
+       "op": "NOT_IN",
+       "list": [
+        "N25",
+        "N32",
+        "N70"
+       ]
+      },
+      "THK": {
+       "op": "<= 변수 <=",
+       "left": "1.001",
+       "right": "2.4"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1600"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "2"
+      },
+      "RULE_KEY": {
+       "val": "WR-EGL-003"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "3"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.3 · 우선순위 1 · 원본 8행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "92"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "E",
+        "2",
+        "N",
+        "8"
+       ]
+      },
+      "MAT_CD": {
+       "op": "IN",
+       "list": [
+        "1A",
+        "1B",
+        "1C",
+        "3A",
+        "4A",
+        "5A",
+        "5B",
+        "5C",
+        "6A",
+        "CB",
+        "8C"
+       ]
+      },
+      "RAW_MAT_CD": {
+       "op": "NOT_IN",
+       "list": [
+        "N25",
+        "N32",
+        "N70"
+       ]
+      },
+      "THK": {
+       "op": "<= 변수 <=",
+       "left": "0.25",
+       "right": "1"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1600"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "2"
+      },
+      "RULE_KEY": {
+       "val": "WR-EGL-004"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "4"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.4 · 우선순위 1 · 원본 9행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "92"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "E",
+        "2",
+        "N",
+        "8"
+       ]
+      },
+      "MAT_CD": {
+       "op": "IN",
+       "list": [
+        "1A",
+        "1B",
+        "1C",
+        "3A",
+        "4A",
+        "5A",
+        "5B",
+        "5C",
+        "6A",
+        "CB",
+        "8C"
+       ]
+      },
+      "RAW_MAT_CD": {
+       "op": "NOT_IN",
+       "list": [
+        "N25",
+        "N32",
+        "N70"
+       ]
+      },
+      "THK": {
+       "op": "<= 변수 <=",
+       "left": "1.001",
+       "right": "2.4"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1600"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "2"
+      },
+      "RULE_KEY": {
+       "val": "WR-EGL-005"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "5"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.5 · 우선순위 1 · 원본 10행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "91"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "E",
+        "2",
+        "N",
+        "8"
+       ]
+      },
+      "MAT_CD": {
+       "op": "IN",
+       "list": [
+        "1A",
+        "1B",
+        "1C",
+        "3A",
+        "4A",
+        "5A",
+        "5B",
+        "5C",
+        "6A",
+        "8C"
+       ]
+      },
+      "RAW_MAT_CD": {
+       "op": "IN",
+       "list": [
+        "N25",
+        "N32",
+        "N70"
+       ]
+      },
+      "THK": {
+       "op": "<= 변수 <=",
+       "left": "0.25",
+       "right": "1"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1600"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "0"
+      },
+      "RULE_KEY": {
+       "val": "WR-EGL-006"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "6"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.6 · 우선순위 1 · 원본 11행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "91"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "E",
+        "2",
+        "N",
+        "8"
+       ]
+      },
+      "MAT_CD": {
+       "op": "IN",
+       "list": [
+        "1A",
+        "1B",
+        "1C",
+        "3A",
+        "4A",
+        "5A",
+        "5B",
+        "5C",
+        "6A",
+        "8C"
+       ]
+      },
+      "RAW_MAT_CD": {
+       "op": "IN",
+       "list": [
+        "N25",
+        "N32",
+        "N70"
+       ]
+      },
+      "THK": {
+       "op": "<= 변수 <=",
+       "left": "1.001",
+       "right": "2.4"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1600"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "0"
+      },
+      "RULE_KEY": {
+       "val": "WR-EGL-007"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "7"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.7 · 우선순위 1 · 원본 12행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "92"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "E",
+        "2",
+        "N",
+        "8"
+       ]
+      },
+      "MAT_CD": {
+       "op": "IN",
+       "list": [
+        "1A",
+        "1B",
+        "1C",
+        "3A",
+        "4A",
+        "5A",
+        "5B",
+        "5C",
+        "6A",
+        "8C"
+       ]
+      },
+      "RAW_MAT_CD": {
+       "op": "IN",
+       "list": [
+        "N25",
+        "N32",
+        "N70"
+       ]
+      },
+      "THK": {
+       "op": "<= 변수 <=",
+       "left": "0.25",
+       "right": "1"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1600"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "0"
+      },
+      "RULE_KEY": {
+       "val": "WR-EGL-008"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "8"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.8 · 우선순위 1 · 원본 13행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "92"
+      },
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "E",
+        "2",
+        "N",
+        "8"
+       ]
+      },
+      "MAT_CD": {
+       "op": "IN",
+       "list": [
+        "1A",
+        "1B",
+        "1C",
+        "3A",
+        "4A",
+        "5A",
+        "5B",
+        "5C",
+        "6A",
+        "8C"
+       ]
+      },
+      "RAW_MAT_CD": {
+       "op": "IN",
+       "list": [
+        "N25",
+        "N32",
+        "N70"
+       ]
+      },
+      "THK": {
+       "op": "<= 변수 <=",
+       "left": "1.001",
+       "right": "2.4"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1600"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "0"
+      },
+      "RULE_KEY": {
+       "val": "WR-EGL-009"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "9"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.9 · 우선순위 1 · 원본 14행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PROC_CD": {
+       "op": "EQ",
+       "left": "92"
+      },
+      "PRD_NM_CD": {
+       "op": "EQ",
+       "left": "E"
+      },
+      "MAT_CD": {
+       "op": "EQ",
+       "left": "8C"
+      },
+      "RAW_MAT_CD": {
+       "op": "EQ",
+       "left": "C8C"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.25",
+       "right": "2.4"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "600",
+       "right": "1600"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "0"
+      },
+      "RULE_KEY": {
+       "val": "WR-EGL-010"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "10"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.10 · 우선순위 1 · 원본 15행"
+    }
+   ],
+   "cases": [
+    {
+     "name": "92 2 5A H7J 0.7 900 → 순번 1 수축 4",
+     "input": {
+      "PROC_CD": "92",
+      "PRD_NM_CD": "2",
+      "MAT_CD": "5A",
+      "RAW_MAT_CD": "H7J",
+      "THK": "0.7",
+      "WID": "900"
+     },
+     "expect": {
+      "WID_SHRINK_QTY": "4",
+      "RULE_KEY": "WR-EGL-001"
+     },
+     "description": "mes-to-be tests/width-rule-seed.test.js 기대값"
+    },
+    {
+     "name": "91 E 1A N25 → NOT_IN 걸려 수축 0",
+     "input": {
+      "PROC_CD": "91",
+      "PRD_NM_CD": "E",
+      "MAT_CD": "1A",
+      "RAW_MAT_CD": "N25",
+      "THK": "0.5",
+      "WID": "1000"
+     },
+     "expect": {
+      "WID_SHRINK_QTY": "0",
+      "RULE_KEY": "WR-EGL-006"
+     },
+     "description": "mes-to-be tests/width-rule-seed.test.js 기대값"
+    },
+    {
+     "name": "91 E 1A H32 → 수축 2",
+     "input": {
+      "PROC_CD": "91",
+      "PRD_NM_CD": "E",
+      "MAT_CD": "1A",
+      "RAW_MAT_CD": "H32",
+      "THK": "0.5",
+      "WID": "1000"
+     },
+     "expect": {
+      "WID_SHRINK_QTY": "2",
+      "RULE_KEY": "WR-EGL-002"
+     },
+     "description": "mes-to-be tests/width-rule-seed.test.js 기대값"
+    }
+   ]
+  },
+  {
+   "ruleId": "C10B1077",
+   "name": "정전폭감소량",
+   "title": "정전폭감소량",
+   "legacyIds": [
+    "C10B1077"
+   ],
+   "group": "JZ",
+   "groupLabel": "정전(정전처리)",
+   "hitPolicy": "FIRST",
+   "applyFrom": "2012-06-12 19:04:41",
+   "description": "레거시 업무기준 C10B1077 정전폭감소량 v1.0(유형 1B0, 시작 2012-06-12 19:04:41) 이관 — mes-to-be width_rule_seed.json",
+   "note": "행 순서 = 우선순위 → 레거시 순번 → ID. 첫 적중 적용, 없으면 폭감소량 0 으로 본다.",
+   "columns": [
+    {
+     "varName": "PRD_NM_CD",
+     "varKind": "COND",
+     "dataType": "STRING",
+     "dispType": "1",
+     "label": "품명코드",
+     "desc": "레거시 조건 이름 \"품명코드\""
+    },
+    {
+     "varName": "MAT_CD",
+     "varKind": "COND",
+     "dataType": "STRING",
+     "dispType": "1",
+     "label": "재질코드",
+     "desc": "레거시 조건 이름 \"재질코드\""
+    },
+    {
+     "varName": "THK",
+     "varKind": "COND",
+     "dataType": "NUMBER",
+     "dispType": "2",
+     "label": "압연SET 두께",
+     "unit": "mm",
+     "desc": "레거시 조건 이름 \"PLTCM두께범위\""
+    },
+    {
+     "varName": "WID",
+     "varKind": "COND",
+     "dataType": "NUMBER",
+     "dispType": "2",
+     "label": "주문 폭",
+     "unit": "mm",
+     "desc": "레거시 조건 이름 \"제품폭범위\""
+    },
+    {
+     "varName": "WID_SHRINK_QTY",
+     "varKind": "RESULT",
+     "dataType": "NUMBER",
+     "dispType": "Value",
+     "label": "폭감소량",
+     "unit": "mm",
+     "desc": "진입 폭 − 폭감소량 = 출측 폭"
+    },
+    {
+     "varName": "RULE_KEY",
+     "varKind": "RESULT",
+     "dataType": "STRING",
+     "dispType": "Value",
+     "label": "룰 ID",
+     "desc": "프로토타입 룰 ID(WR-·WM-)"
+    },
+    {
+     "varName": "PRIO",
+     "varKind": "RESULT",
+     "dataType": "NUMBER",
+     "dispType": "Value",
+     "label": "우선순위",
+     "desc": "작을수록 먼저 평가(행 순서에 이미 반영)"
+    },
+    {
+     "varName": "LEGACY_NO",
+     "varKind": "RESULT",
+     "dataType": "NUMBER",
+     "dispType": "Value",
+     "label": "순번",
+     "desc": "레거시 순번(no). 0 = 예외"
+    },
+    {
+     "varName": "SRC_NOTE",
+     "varKind": "RESULT",
+     "dataType": "STRING",
+     "dispType": "Value",
+     "label": "원본 주의",
+     "desc": "NOT_CHECK 인데 비교값이 남은 원본 행 표시(판정 미사용)"
+    }
+   ],
+   "rows": [
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "A",
+        "B",
+        "C"
+       ]
+      },
+      "MAT_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <=",
+       "left": "0.2",
+       "right": "3.2"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "1",
+       "right": "1600"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "2"
+      },
+      "RULE_KEY": {
+       "val": "WR-JZ-001"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "1"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.1 · 우선순위 1 · 원본 6행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PRD_NM_CD": {
+       "op": "NA"
+      },
+      "MAT_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <=",
+       "left": "0.2",
+       "right": "3.2"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "1",
+       "right": "1600"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "0"
+      },
+      "RULE_KEY": {
+       "val": "WR-JZ-002"
+      },
+      "PRIO": {
+       "val": "2"
+      },
+      "LEGACY_NO": {
+       "val": "2"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.2 · 우선순위 2 · 원본 7행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PRD_NM_CD": {
+       "op": "NA"
+      },
+      "MAT_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <=",
+       "left": "3.201",
+       "right": "5"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "1",
+       "right": "1600"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "0"
+      },
+      "RULE_KEY": {
+       "val": "WR-JZ-003"
+      },
+      "PRIO": {
+       "val": "3"
+      },
+      "LEGACY_NO": {
+       "val": "3"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.3 · 우선순위 3 · 원본 8행"
+    }
+   ],
+   "cases": [
+    {
+     "name": "A 1.0 1000 → 수축 2",
+     "input": {
+      "PRD_NM_CD": "A",
+      "MAT_CD": "",
+      "THK": "1.0",
+      "WID": "1000"
+     },
+     "expect": {
+      "WID_SHRINK_QTY": "2",
+      "RULE_KEY": "WR-JZ-001"
+     },
+     "description": "mes-to-be tests/width-rule-seed.test.js 기대값"
+    },
+    {
+     "name": "A 3.2 경계 포함 → 수축 2",
+     "input": {
+      "PRD_NM_CD": "A",
+      "MAT_CD": "",
+      "THK": "3.2",
+      "WID": "1000"
+     },
+     "expect": {
+      "WID_SHRINK_QTY": "2",
+      "RULE_KEY": "WR-JZ-001"
+     },
+     "description": "mes-to-be tests/width-rule-seed.test.js 기대값"
+    },
+    {
+     "name": "A 3.3 → 수축 0",
+     "input": {
+      "PRD_NM_CD": "A",
+      "MAT_CD": "",
+      "THK": "3.3",
+      "WID": "1000"
+     },
+     "expect": {
+      "WID_SHRINK_QTY": "0",
+      "RULE_KEY": "WR-JZ-003"
+     },
+     "description": "mes-to-be tests/width-rule-seed.test.js 기대값"
+    }
+   ]
+  },
+  {
+   "ruleId": "C10B1078",
+   "name": "CCL폭감소량",
+   "title": "CCL폭감소량",
+   "legacyIds": [
+    "C10B1078"
+   ],
+   "group": "CCL",
+   "groupLabel": "CCL(칼라코팅)",
+   "hitPolicy": "FIRST",
+   "applyFrom": "2012-06-12 19:04:42",
+   "description": "레거시 업무기준 C10B1078 CCL폭감소량 v1.0(유형 1B0, 시작 2012-06-12 19:04:42) 이관 — mes-to-be width_rule_seed.json",
+   "note": "행 순서 = 우선순위 → 레거시 순번 → ID. 첫 적중 적용, 없으면 폭감소량 0 으로 본다.",
+   "columns": [
+    {
+     "varName": "PRD_NM_CD",
+     "varKind": "COND",
+     "dataType": "STRING",
+     "dispType": "1",
+     "label": "품명코드",
+     "desc": "레거시 조건 이름 \"품명코드\""
+    },
+    {
+     "varName": "MAT_CD",
+     "varKind": "COND",
+     "dataType": "STRING",
+     "dispType": "1",
+     "label": "재질코드",
+     "desc": "레거시 조건 이름 \"재질코드\""
+    },
+    {
+     "varName": "THK",
+     "varKind": "COND",
+     "dataType": "NUMBER",
+     "dispType": "2",
+     "label": "압연SET 두께",
+     "unit": "mm",
+     "desc": "레거시 조건 이름 \"PLTCM두께범위\""
+    },
+    {
+     "varName": "WID",
+     "varKind": "COND",
+     "dataType": "NUMBER",
+     "dispType": "2",
+     "label": "주문 폭",
+     "unit": "mm",
+     "desc": "레거시 조건 이름 \"제품폭범위\""
+    },
+    {
+     "varName": "WID_SHRINK_QTY",
+     "varKind": "RESULT",
+     "dataType": "NUMBER",
+     "dispType": "Value",
+     "label": "폭감소량",
+     "unit": "mm",
+     "desc": "진입 폭 − 폭감소량 = 출측 폭"
+    },
+    {
+     "varName": "RULE_KEY",
+     "varKind": "RESULT",
+     "dataType": "STRING",
+     "dispType": "Value",
+     "label": "룰 ID",
+     "desc": "프로토타입 룰 ID(WR-·WM-)"
+    },
+    {
+     "varName": "PRIO",
+     "varKind": "RESULT",
+     "dataType": "NUMBER",
+     "dispType": "Value",
+     "label": "우선순위",
+     "desc": "작을수록 먼저 평가(행 순서에 이미 반영)"
+    },
+    {
+     "varName": "LEGACY_NO",
+     "varKind": "RESULT",
+     "dataType": "NUMBER",
+     "dispType": "Value",
+     "label": "순번",
+     "desc": "레거시 순번(no). 0 = 예외"
+    },
+    {
+     "varName": "SRC_NOTE",
+     "varKind": "RESULT",
+     "dataType": "STRING",
+     "dispType": "Value",
+     "label": "원본 주의",
+     "desc": "NOT_CHECK 인데 비교값이 남은 원본 행 표시(판정 미사용)"
+    }
+   ],
+   "rows": [
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PRD_NM_CD": {
+       "op": "NA"
+      },
+      "MAT_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <=",
+       "left": "0.24",
+       "right": "3.01"
+      },
+      "WID": {
+       "op": "<= 변수 <=",
+       "left": "460",
+       "right": "1600"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "0"
+      },
+      "RULE_KEY": {
+       "val": "WR-CCL-001"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "1"
+      },
+      "SRC_NOTE": {
+       "val": "-"
+      }
+     },
+     "note": "레거시 no.1 · 우선순위 1 · 원본 6행"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PRD_NM_CD": {
+       "op": "EQ",
+       "left": "2"
+      },
+      "MAT_CD": {
+       "op": "EQ",
+       "left": "5A"
+      },
+      "THK": {
+       "op": "NA"
+      },
+      "WID": {
+       "op": "<= 변수 <",
+       "left": "480",
+       "right": "1600"
+      },
+      "WID_SHRINK_QTY": {
+       "val": "1"
+      },
+      "RULE_KEY": {
+       "val": "WR-CCL-002"
+      },
+      "PRIO": {
+       "val": "1"
+      },
+      "LEGACY_NO": {
+       "val": "2"
+      },
+      "SRC_NOTE": {
+       "val": "원본주의 PLTCM두께범위 0.24~0.8 보존(판정 미사용)"
+      }
+     },
+     "note": "레거시 no.2 · 우선순위 1 · 원본 7행 · 원본주의 PLTCM두께범위 0.24~0.8 보존(판정 미사용)"
+    }
+   ],
+   "cases": [
+    {
+     "name": "2 5A 0.5 1000 → 순번 1 수축 0",
+     "input": {
+      "PRD_NM_CD": "2",
+      "MAT_CD": "5A",
+      "THK": "0.5",
+      "WID": "1000"
+     },
+     "expect": {
+      "WID_SHRINK_QTY": "0",
+      "RULE_KEY": "WR-CCL-001"
+     },
+     "description": "mes-to-be tests/width-rule-seed.test.js 기대값"
+    },
+    {
+     "name": "자동: WR-CCL-002 조건을 채운 입력",
+     "input": {
+      "PRD_NM_CD": "2",
+      "MAT_CD": "5A",
+      "THK": "0",
+      "WID": "480"
+     },
+     "expect": {
+      "WID_SHRINK_QTY": "1",
+      "RULE_KEY": "WR-CCL-002"
+     },
+     "description": "행 조건을 채운 입력의 첫 적중(As-Is 판정 흉내로 기대값 계산)"
+    }
+   ]
+  }
+ ]
+}

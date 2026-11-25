@@ -1,0 +1,4837 @@
+{
+ "screen": "rollingThicknessSet",
+ "rules": [
+  {
+   "ruleId": "C10B2060",
+   "name": "압연두께Set치보정기준",
+   "title": "압연두께Set치보정기준",
+   "legacyIds": [
+    "C10B2060"
+   ],
+   "hitPolicy": "FIRST",
+   "applyFrom": "2012-05-11 12:48:58",
+   "description": "레거시 업무기준 C10B2060 압연두께Set치보정기준 v1.0(유형 1B0, 시작 2012-05-11 12:48:58) 이관 — mes-to-be rolling_thickness_set_seed.json",
+   "note": "행 순서 = 레거시 순번. 첫 적중 적용, 없으면 보정 0 (Set 두께 = 주문두께).",
+   "columns": [
+    {
+     "varName": "PRD_NM_CD",
+     "varKind": "COND",
+     "dataType": "STRING",
+     "dispType": "1",
+     "label": "품명코드"
+    },
+    {
+     "varName": "SPEC_ORG_CD",
+     "varKind": "COND",
+     "dataType": "STRING",
+     "dispType": "1",
+     "label": "규격기관"
+    },
+    {
+     "varName": "SPC_AVR",
+     "varKind": "COND",
+     "dataType": "STRING",
+     "dispType": "1",
+     "label": "규격약호"
+    },
+    {
+     "varName": "ORD_USG_CD",
+     "varKind": "COND",
+     "dataType": "STRING",
+     "dispType": "1",
+     "label": "주문용도"
+    },
+    {
+     "varName": "CUS_CD",
+     "varKind": "COND",
+     "dataType": "STRING",
+     "dispType": "1",
+     "label": "고객사"
+    },
+    {
+     "varName": "ORD_THK_TP",
+     "varKind": "COND",
+     "dataType": "STRING",
+     "dispType": "1",
+     "label": "주문두께구분"
+    },
+    {
+     "varName": "ORD_THK_MNG_CD",
+     "varKind": "COND",
+     "dataType": "STRING",
+     "dispType": "1",
+     "label": "두께관리코드"
+    },
+    {
+     "varName": "GW_ASG_CD",
+     "varKind": "COND",
+     "dataType": "STRING",
+     "dispType": "1",
+     "label": "도금량코드"
+    },
+    {
+     "varName": "THK",
+     "varKind": "COND",
+     "dataType": "NUMBER",
+     "dispType": "2",
+     "label": "주문두께",
+     "unit": "mm"
+    },
+    {
+     "varName": "WID",
+     "varKind": "COND",
+     "dataType": "NUMBER",
+     "dispType": "2",
+     "label": "주문폭",
+     "unit": "mm"
+    },
+    {
+     "varName": "THK_ADJ",
+     "varKind": "RESULT",
+     "dataType": "NUMBER",
+     "dispType": "Value",
+     "label": "두께보정치",
+     "unit": "mm",
+     "desc": "Set 두께 = 주문두께 + 보정치(음수 = 얇게)"
+    },
+    {
+     "varName": "THK_COR_UNT",
+     "varKind": "RESULT",
+     "dataType": "STRING",
+     "dispType": "Value",
+     "label": "두께보정단위",
+     "desc": "코드 QC_THK_COR_UNT(현재 모두 CRN)"
+    },
+    {
+     "varName": "RULE_KEY",
+     "varKind": "RESULT",
+     "dataType": "STRING",
+     "dispType": "Value",
+     "label": "룰 ID",
+     "desc": "프로토타입 룰 ID(TS-nnn)"
+    }
+   ],
+   "rows": [
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PRD_NM_CD": {
+       "op": "NA"
+      },
+      "SPEC_ORG_CD": {
+       "op": "NA"
+      },
+      "SPC_AVR": {
+       "op": "NA"
+      },
+      "ORD_USG_CD": {
+       "op": "NA"
+      },
+      "CUS_CD": {
+       "op": "NA"
+      },
+      "ORD_THK_TP": {
+       "op": "NA"
+      },
+      "ORD_THK_MNG_CD": {
+       "op": "EQ",
+       "left": "1"
+      },
+      "GW_ASG_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.1",
+       "right": "9.999"
+      },
+      "WID": {
+       "op": "NA"
+      },
+      "THK_ADJ": {
+       "val": "0"
+      },
+      "THK_COR_UNT": {
+       "val": "CRN"
+      },
+      "RULE_KEY": {
+       "val": "TS-001"
+      }
+     },
+     "note": "레거시 no.1 · 원본 6행 · 원문 0"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PRD_NM_CD": {
+       "op": "NA"
+      },
+      "SPEC_ORG_CD": {
+       "op": "NA"
+      },
+      "SPC_AVR": {
+       "op": "NA"
+      },
+      "ORD_USG_CD": {
+       "op": "NA"
+      },
+      "CUS_CD": {
+       "op": "NA"
+      },
+      "ORD_THK_TP": {
+       "op": "NA"
+      },
+      "ORD_THK_MNG_CD": {
+       "op": "EQ",
+       "left": "2"
+      },
+      "GW_ASG_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.1",
+       "right": "9.999"
+      },
+      "WID": {
+       "op": "NA"
+      },
+      "THK_ADJ": {
+       "val": "0"
+      },
+      "THK_COR_UNT": {
+       "val": "CRN"
+      },
+      "RULE_KEY": {
+       "val": "TS-002"
+      }
+     },
+     "note": "레거시 no.2 · 원본 7행 · 원문 0"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PRD_NM_CD": {
+       "op": "NA"
+      },
+      "SPEC_ORG_CD": {
+       "op": "NA"
+      },
+      "SPC_AVR": {
+       "op": "NA"
+      },
+      "ORD_USG_CD": {
+       "op": "NA"
+      },
+      "CUS_CD": {
+       "op": "NA"
+      },
+      "ORD_THK_TP": {
+       "op": "NA"
+      },
+      "ORD_THK_MNG_CD": {
+       "op": "EQ",
+       "left": "B"
+      },
+      "GW_ASG_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.1",
+       "right": "0.31"
+      },
+      "WID": {
+       "op": "NA"
+      },
+      "THK_ADJ": {
+       "val": "0"
+      },
+      "THK_COR_UNT": {
+       "val": "CRN"
+      },
+      "RULE_KEY": {
+       "val": "TS-003"
+      }
+     },
+     "note": "레거시 no.3 · 원본 8행 · 원문 0"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PRD_NM_CD": {
+       "op": "NA"
+      },
+      "SPEC_ORG_CD": {
+       "op": "NA"
+      },
+      "SPC_AVR": {
+       "op": "NA"
+      },
+      "ORD_USG_CD": {
+       "op": "NA"
+      },
+      "CUS_CD": {
+       "op": "NA"
+      },
+      "ORD_THK_TP": {
+       "op": "IN",
+       "list": [
+        "1",
+        "2"
+       ]
+      },
+      "ORD_THK_MNG_CD": {
+       "op": "EQ",
+       "left": "A"
+      },
+      "GW_ASG_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.1",
+       "right": "9.999"
+      },
+      "WID": {
+       "op": "NA"
+      },
+      "THK_ADJ": {
+       "val": "0.01"
+      },
+      "THK_COR_UNT": {
+       "val": "CRN"
+      },
+      "RULE_KEY": {
+       "val": "TS-004"
+      }
+     },
+     "note": "레거시 no.4 · 원본 9행 · 원문 0.01"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PRD_NM_CD": {
+       "op": "NA"
+      },
+      "SPEC_ORG_CD": {
+       "op": "NA"
+      },
+      "SPC_AVR": {
+       "op": "NA"
+      },
+      "ORD_USG_CD": {
+       "op": "NA"
+      },
+      "CUS_CD": {
+       "op": "NA"
+      },
+      "ORD_THK_TP": {
+       "op": "IN",
+       "list": [
+        "1",
+        "2"
+       ]
+      },
+      "ORD_THK_MNG_CD": {
+       "op": "EQ",
+       "left": "C"
+      },
+      "GW_ASG_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.1",
+       "right": "9.999"
+      },
+      "WID": {
+       "op": "NA"
+      },
+      "THK_ADJ": {
+       "val": "0.02"
+      },
+      "THK_COR_UNT": {
+       "val": "CRN"
+      },
+      "RULE_KEY": {
+       "val": "TS-005"
+      }
+     },
+     "note": "레거시 no.5 · 원본 10행 · 원문 0.02"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PRD_NM_CD": {
+       "op": "NA"
+      },
+      "SPEC_ORG_CD": {
+       "op": "NA"
+      },
+      "SPC_AVR": {
+       "op": "NA"
+      },
+      "ORD_USG_CD": {
+       "op": "NA"
+      },
+      "CUS_CD": {
+       "op": "NA"
+      },
+      "ORD_THK_TP": {
+       "op": "IN",
+       "list": [
+        "1",
+        "2"
+       ]
+      },
+      "ORD_THK_MNG_CD": {
+       "op": "EQ",
+       "left": "E"
+      },
+      "GW_ASG_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.1",
+       "right": "9.999"
+      },
+      "WID": {
+       "op": "NA"
+      },
+      "THK_ADJ": {
+       "val": "0.03"
+      },
+      "THK_COR_UNT": {
+       "val": "CRN"
+      },
+      "RULE_KEY": {
+       "val": "TS-006"
+      }
+     },
+     "note": "레거시 no.6 · 원본 11행 · 원문 0.03"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PRD_NM_CD": {
+       "op": "NA"
+      },
+      "SPEC_ORG_CD": {
+       "op": "NA"
+      },
+      "SPC_AVR": {
+       "op": "NA"
+      },
+      "ORD_USG_CD": {
+       "op": "NA"
+      },
+      "CUS_CD": {
+       "op": "NA"
+      },
+      "ORD_THK_TP": {
+       "op": "IN",
+       "list": [
+        "1",
+        "2"
+       ]
+      },
+      "ORD_THK_MNG_CD": {
+       "op": "EQ",
+       "left": "B"
+      },
+      "GW_ASG_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.31",
+       "right": "9.999"
+      },
+      "WID": {
+       "op": "NA"
+      },
+      "THK_ADJ": {
+       "val": "-0.01"
+      },
+      "THK_COR_UNT": {
+       "val": "CRN"
+      },
+      "RULE_KEY": {
+       "val": "TS-007"
+      }
+     },
+     "note": "레거시 no.7 · 원본 12행 · 원문 -0.01"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PRD_NM_CD": {
+       "op": "NOT_IN",
+       "list": [
+        "G",
+        "L",
+        "V",
+        "W"
+       ]
+      },
+      "SPEC_ORG_CD": {
+       "op": "NA"
+      },
+      "SPC_AVR": {
+       "op": "NA"
+      },
+      "ORD_USG_CD": {
+       "op": "NA"
+      },
+      "CUS_CD": {
+       "op": "NA"
+      },
+      "ORD_THK_TP": {
+       "op": "IN",
+       "list": [
+        "1",
+        "2"
+       ]
+      },
+      "ORD_THK_MNG_CD": {
+       "op": "EQ",
+       "left": "D"
+      },
+      "GW_ASG_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.32",
+       "right": "9.999"
+      },
+      "WID": {
+       "op": "NA"
+      },
+      "THK_ADJ": {
+       "val": "-0.02"
+      },
+      "THK_COR_UNT": {
+       "val": "CRN"
+      },
+      "RULE_KEY": {
+       "val": "TS-008"
+      }
+     },
+     "note": "레거시 no.8 · 원본 13행 · 원문 -0.02"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "4",
+        "9"
+       ]
+      },
+      "SPEC_ORG_CD": {
+       "op": "IN",
+       "list": [
+        "AM",
+        "EN"
+       ]
+      },
+      "SPC_AVR": {
+       "op": "NA"
+      },
+      "ORD_USG_CD": {
+       "op": "NA"
+      },
+      "CUS_CD": {
+       "op": "NA"
+      },
+      "ORD_THK_TP": {
+       "op": "IN",
+       "list": [
+        "1",
+        "2"
+       ]
+      },
+      "ORD_THK_MNG_CD": {
+       "op": "EQ",
+       "left": "Q"
+      },
+      "GW_ASG_CD": {
+       "op": "IN",
+       "list": [
+        "A",
+        "B",
+        "C"
+       ]
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.35",
+       "right": "0.39"
+      },
+      "WID": {
+       "op": "NA"
+      },
+      "THK_ADJ": {
+       "val": "-0.03"
+      },
+      "THK_COR_UNT": {
+       "val": "CRN"
+      },
+      "RULE_KEY": {
+       "val": "TS-009"
+      }
+     },
+     "note": "레거시 no.9 · 원본 14행 · 원문 -0.03"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "3",
+        "4",
+        "6",
+        "9"
+       ]
+      },
+      "SPEC_ORG_CD": {
+       "op": "IN",
+       "list": [
+        "AM",
+        "EN"
+       ]
+      },
+      "SPC_AVR": {
+       "op": "NA"
+      },
+      "ORD_USG_CD": {
+       "op": "NA"
+      },
+      "CUS_CD": {
+       "op": "NA"
+      },
+      "ORD_THK_TP": {
+       "op": "IN",
+       "list": [
+        "1",
+        "2"
+       ]
+      },
+      "ORD_THK_MNG_CD": {
+       "op": "EQ",
+       "left": "Q"
+      },
+      "GW_ASG_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.39",
+       "right": "9.999"
+      },
+      "WID": {
+       "op": "NA"
+      },
+      "THK_ADJ": {
+       "val": "-0.04"
+      },
+      "THK_COR_UNT": {
+       "val": "CRN"
+      },
+      "RULE_KEY": {
+       "val": "TS-010"
+      }
+     },
+     "note": "레거시 no.10 · 원본 15행 · 원문 -0.04"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "E",
+        "3",
+        "4",
+        "6",
+        "9"
+       ]
+      },
+      "SPEC_ORG_CD": {
+       "op": "NA"
+      },
+      "SPC_AVR": {
+       "op": "NA"
+      },
+      "ORD_USG_CD": {
+       "op": "NA"
+      },
+      "CUS_CD": {
+       "op": "NA"
+      },
+      "ORD_THK_TP": {
+       "op": "IN",
+       "list": [
+        "1",
+        "2"
+       ]
+      },
+      "ORD_THK_MNG_CD": {
+       "op": "IN",
+       "list": [
+        "F",
+        "H"
+       ]
+      },
+      "GW_ASG_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.35",
+       "right": "9.999"
+      },
+      "WID": {
+       "op": "NA"
+      },
+      "THK_ADJ": {
+       "val": "-0.03"
+      },
+      "THK_COR_UNT": {
+       "val": "CRN"
+      },
+      "RULE_KEY": {
+       "val": "TS-011"
+      }
+     },
+     "note": "레거시 no.11 · 원본 16행 · 원문 -0.03"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PRD_NM_CD": {
+       "op": "NA"
+      },
+      "SPEC_ORG_CD": {
+       "op": "NA"
+      },
+      "SPC_AVR": {
+       "op": "NA"
+      },
+      "ORD_USG_CD": {
+       "op": "NA"
+      },
+      "CUS_CD": {
+       "op": "NA"
+      },
+      "ORD_THK_TP": {
+       "op": "IN",
+       "list": [
+        "1",
+        "2"
+       ]
+      },
+      "ORD_THK_MNG_CD": {
+       "op": "EQ",
+       "left": "G"
+      },
+      "GW_ASG_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.1",
+       "right": "9.999"
+      },
+      "WID": {
+       "op": "NA"
+      },
+      "THK_ADJ": {
+       "val": "0.04"
+      },
+      "THK_COR_UNT": {
+       "val": "CRN"
+      },
+      "RULE_KEY": {
+       "val": "TS-012"
+      }
+     },
+     "note": "레거시 no.12 · 원본 17행 · 원문 0.04"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PRD_NM_CD": {
+       "op": "EQ",
+       "left": "3"
+      },
+      "SPEC_ORG_CD": {
+       "op": "EQ",
+       "left": "AM"
+      },
+      "SPC_AVR": {
+       "op": "NA"
+      },
+      "ORD_USG_CD": {
+       "op": "EQ",
+       "left": "G0198P"
+      },
+      "CUS_CD": {
+       "op": "EQ",
+       "left": "603022"
+      },
+      "ORD_THK_TP": {
+       "op": "EQ",
+       "left": "2"
+      },
+      "ORD_THK_MNG_CD": {
+       "op": "EQ",
+       "left": "Q"
+      },
+      "GW_ASG_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.6",
+       "right": "0.801"
+      },
+      "WID": {
+       "op": "NA"
+      },
+      "THK_ADJ": {
+       "val": "-0.04"
+      },
+      "THK_COR_UNT": {
+       "val": "CRN"
+      },
+      "RULE_KEY": {
+       "val": "TS-013"
+      }
+     },
+     "note": "레거시 no.13 · 원본 18행 · 원문 -0.04"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "3",
+        "6"
+       ]
+      },
+      "SPEC_ORG_CD": {
+       "op": "EQ",
+       "left": "KS"
+      },
+      "SPC_AVR": {
+       "op": "NA"
+      },
+      "ORD_USG_CD": {
+       "op": "EQ",
+       "left": "C11004"
+      },
+      "CUS_CD": {
+       "op": "NA"
+      },
+      "ORD_THK_TP": {
+       "op": "EQ",
+       "left": "1"
+      },
+      "ORD_THK_MNG_CD": {
+       "op": "EQ",
+       "left": "Q"
+      },
+      "GW_ASG_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.4",
+       "right": "0.501"
+      },
+      "WID": {
+       "op": "NA"
+      },
+      "THK_ADJ": {
+       "val": "-0.04"
+      },
+      "THK_COR_UNT": {
+       "val": "CRN"
+      },
+      "RULE_KEY": {
+       "val": "TS-014"
+      }
+     },
+     "note": "레거시 no.14 · 원본 19행 · 원문 -0.04"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PRD_NM_CD": {
+       "op": "EQ",
+       "left": "4"
+      },
+      "SPEC_ORG_CD": {
+       "op": "EQ",
+       "left": "KS"
+      },
+      "SPC_AVR": {
+       "op": "NA"
+      },
+      "ORD_USG_CD": {
+       "op": "EQ",
+       "left": "C11004"
+      },
+      "CUS_CD": {
+       "op": "NA"
+      },
+      "ORD_THK_TP": {
+       "op": "EQ",
+       "left": "1"
+      },
+      "ORD_THK_MNG_CD": {
+       "op": "EQ",
+       "left": "Q"
+      },
+      "GW_ASG_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "EQ",
+       "left": "0.35"
+      },
+      "WID": {
+       "op": "NA"
+      },
+      "THK_ADJ": {
+       "val": "-0.035"
+      },
+      "THK_COR_UNT": {
+       "val": "CRN"
+      },
+      "RULE_KEY": {
+       "val": "TS-015"
+      }
+     },
+     "note": "레거시 no.15 · 원본 20행 · 원문 -0.035"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PRD_NM_CD": {
+       "op": "EQ",
+       "left": "4"
+      },
+      "SPEC_ORG_CD": {
+       "op": "EQ",
+       "left": "KS"
+      },
+      "SPC_AVR": {
+       "op": "NA"
+      },
+      "ORD_USG_CD": {
+       "op": "EQ",
+       "left": "C11004"
+      },
+      "CUS_CD": {
+       "op": "NA"
+      },
+      "ORD_THK_TP": {
+       "op": "EQ",
+       "left": "1"
+      },
+      "ORD_THK_MNG_CD": {
+       "op": "EQ",
+       "left": "Q"
+      },
+      "GW_ASG_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.37",
+       "right": "0.801"
+      },
+      "WID": {
+       "op": "NA"
+      },
+      "THK_ADJ": {
+       "val": "-0.04"
+      },
+      "THK_COR_UNT": {
+       "val": "CRN"
+      },
+      "RULE_KEY": {
+       "val": "TS-016"
+      }
+     },
+     "note": "레거시 no.16 · 원본 21행 · 원문 -0.04"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PRD_NM_CD": {
+       "op": "EQ",
+       "left": "4"
+      },
+      "SPEC_ORG_CD": {
+       "op": "EQ",
+       "left": "KS"
+      },
+      "SPC_AVR": {
+       "op": "NA"
+      },
+      "ORD_USG_CD": {
+       "op": "EQ",
+       "left": "C11005"
+      },
+      "CUS_CD": {
+       "op": "NA"
+      },
+      "ORD_THK_TP": {
+       "op": "EQ",
+       "left": "1"
+      },
+      "ORD_THK_MNG_CD": {
+       "op": "EQ",
+       "left": "Q"
+      },
+      "GW_ASG_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.4",
+       "right": "0.801"
+      },
+      "WID": {
+       "op": "NA"
+      },
+      "THK_ADJ": {
+       "val": "-0.05"
+      },
+      "THK_COR_UNT": {
+       "val": "CRN"
+      },
+      "RULE_KEY": {
+       "val": "TS-017"
+      }
+     },
+     "note": "레거시 no.17 · 원본 22행 · 원문 -0.05"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PRD_NM_CD": {
+       "op": "EQ",
+       "left": "4"
+      },
+      "SPEC_ORG_CD": {
+       "op": "EQ",
+       "left": "KS"
+      },
+      "SPC_AVR": {
+       "op": "NA"
+      },
+      "ORD_USG_CD": {
+       "op": "IN",
+       "list": [
+        "C11006",
+        "Q11006"
+       ]
+      },
+      "CUS_CD": {
+       "op": "NA"
+      },
+      "ORD_THK_TP": {
+       "op": "EQ",
+       "left": "1"
+      },
+      "ORD_THK_MNG_CD": {
+       "op": "EQ",
+       "left": "Q"
+      },
+      "GW_ASG_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.35",
+       "right": "0.801"
+      },
+      "WID": {
+       "op": "NA"
+      },
+      "THK_ADJ": {
+       "val": "-0.06"
+      },
+      "THK_COR_UNT": {
+       "val": "CRN"
+      },
+      "RULE_KEY": {
+       "val": "TS-018"
+      }
+     },
+     "note": "레거시 no.18 · 원본 23행 · 원문 -0.06"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PRD_NM_CD": {
+       "op": "NA"
+      },
+      "SPEC_ORG_CD": {
+       "op": "NA"
+      },
+      "SPC_AVR": {
+       "op": "NA"
+      },
+      "ORD_USG_CD": {
+       "op": "NA"
+      },
+      "CUS_CD": {
+       "op": "NA"
+      },
+      "ORD_THK_TP": {
+       "op": "IN",
+       "list": [
+        "1",
+        "2"
+       ]
+      },
+      "ORD_THK_MNG_CD": {
+       "op": "EQ",
+       "left": "3"
+      },
+      "GW_ASG_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.1",
+       "right": "9.999"
+      },
+      "WID": {
+       "op": "NA"
+      },
+      "THK_ADJ": {
+       "val": "0.02"
+      },
+      "THK_COR_UNT": {
+       "val": "CRN"
+      },
+      "RULE_KEY": {
+       "val": "TS-019"
+      }
+     },
+     "note": "레거시 no.19 · 원본 24행 · 원문 0.02"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PRD_NM_CD": {
+       "op": "NA"
+      },
+      "SPEC_ORG_CD": {
+       "op": "NA"
+      },
+      "SPC_AVR": {
+       "op": "NA"
+      },
+      "ORD_USG_CD": {
+       "op": "NA"
+      },
+      "CUS_CD": {
+       "op": "NA"
+      },
+      "ORD_THK_TP": {
+       "op": "IN",
+       "list": [
+        "1",
+        "2"
+       ]
+      },
+      "ORD_THK_MNG_CD": {
+       "op": "EQ",
+       "left": "4"
+      },
+      "GW_ASG_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.1",
+       "right": "9.999"
+      },
+      "WID": {
+       "op": "NA"
+      },
+      "THK_ADJ": {
+       "val": "-0.02"
+      },
+      "THK_COR_UNT": {
+       "val": "CRN"
+      },
+      "RULE_KEY": {
+       "val": "TS-020"
+      }
+     },
+     "note": "레거시 no.20 · 원본 25행 · 원문 -0.02"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "3",
+        "6"
+       ]
+      },
+      "SPEC_ORG_CD": {
+       "op": "EQ",
+       "left": "KS"
+      },
+      "SPC_AVR": {
+       "op": "NA"
+      },
+      "ORD_USG_CD": {
+       "op": "EQ",
+       "left": "C11005"
+      },
+      "CUS_CD": {
+       "op": "NA"
+      },
+      "ORD_THK_TP": {
+       "op": "EQ",
+       "left": "1"
+      },
+      "ORD_THK_MNG_CD": {
+       "op": "EQ",
+       "left": "Q"
+      },
+      "GW_ASG_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.4",
+       "right": "0.501"
+      },
+      "WID": {
+       "op": "NA"
+      },
+      "THK_ADJ": {
+       "val": "-0.05"
+      },
+      "THK_COR_UNT": {
+       "val": "CRN"
+      },
+      "RULE_KEY": {
+       "val": "TS-021"
+      }
+     },
+     "note": "레거시 no.21 · 원본 26행 · 원문 -0.05"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "3",
+        "6"
+       ]
+      },
+      "SPEC_ORG_CD": {
+       "op": "EQ",
+       "left": "KS"
+      },
+      "SPC_AVR": {
+       "op": "NA"
+      },
+      "ORD_USG_CD": {
+       "op": "EQ",
+       "left": "C11006"
+      },
+      "CUS_CD": {
+       "op": "NA"
+      },
+      "ORD_THK_TP": {
+       "op": "EQ",
+       "left": "1"
+      },
+      "ORD_THK_MNG_CD": {
+       "op": "EQ",
+       "left": "Q"
+      },
+      "GW_ASG_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.4",
+       "right": "0.501"
+      },
+      "WID": {
+       "op": "NA"
+      },
+      "THK_ADJ": {
+       "val": "-0.06"
+      },
+      "THK_COR_UNT": {
+       "val": "CRN"
+      },
+      "RULE_KEY": {
+       "val": "TS-022"
+      }
+     },
+     "note": "레거시 no.22 · 원본 27행 · 원문 -0.06"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PRD_NM_CD": {
+       "op": "EQ",
+       "left": "4"
+      },
+      "SPEC_ORG_CD": {
+       "op": "NA"
+      },
+      "SPC_AVR": {
+       "op": "NA"
+      },
+      "ORD_USG_CD": {
+       "op": "EQ",
+       "left": "C11005"
+      },
+      "CUS_CD": {
+       "op": "NA"
+      },
+      "ORD_THK_TP": {
+       "op": "EQ",
+       "left": "1"
+      },
+      "ORD_THK_MNG_CD": {
+       "op": "EQ",
+       "left": "Q"
+      },
+      "GW_ASG_CD": {
+       "op": "IN",
+       "list": [
+        "X",
+        "Y",
+        "Z"
+       ]
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.3",
+       "right": "0.39"
+      },
+      "WID": {
+       "op": "NA"
+      },
+      "THK_ADJ": {
+       "val": "-0.05"
+      },
+      "THK_COR_UNT": {
+       "val": "CRN"
+      },
+      "RULE_KEY": {
+       "val": "TS-023"
+      }
+     },
+     "note": "레거시 no.23 · 원본 28행 · 원문 -0.05"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PRD_NM_CD": {
+       "op": "EQ",
+       "left": "4"
+      },
+      "SPEC_ORG_CD": {
+       "op": "NA"
+      },
+      "SPC_AVR": {
+       "op": "NA"
+      },
+      "ORD_USG_CD": {
+       "op": "EQ",
+       "left": "C11006"
+      },
+      "CUS_CD": {
+       "op": "NA"
+      },
+      "ORD_THK_TP": {
+       "op": "EQ",
+       "left": "1"
+      },
+      "ORD_THK_MNG_CD": {
+       "op": "EQ",
+       "left": "Q"
+      },
+      "GW_ASG_CD": {
+       "op": "IN",
+       "list": [
+        "X",
+        "Y",
+        "Z"
+       ]
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.3",
+       "right": "0.39"
+      },
+      "WID": {
+       "op": "NA"
+      },
+      "THK_ADJ": {
+       "val": "-0.06"
+      },
+      "THK_COR_UNT": {
+       "val": "CRN"
+      },
+      "RULE_KEY": {
+       "val": "TS-024"
+      }
+     },
+     "note": "레거시 no.24 · 원본 29행 · 원문 -0.06"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PRD_NM_CD": {
+       "op": "NA"
+      },
+      "SPEC_ORG_CD": {
+       "op": "NA"
+      },
+      "SPC_AVR": {
+       "op": "NA"
+      },
+      "ORD_USG_CD": {
+       "op": "NA"
+      },
+      "CUS_CD": {
+       "op": "NA"
+      },
+      "ORD_THK_TP": {
+       "op": "NA"
+      },
+      "ORD_THK_MNG_CD": {
+       "op": "EQ",
+       "left": "Q"
+      },
+      "GW_ASG_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.1",
+       "right": "0.35"
+      },
+      "WID": {
+       "op": "NA"
+      },
+      "THK_ADJ": {
+       "val": "0"
+      },
+      "THK_COR_UNT": {
+       "val": "CRN"
+      },
+      "RULE_KEY": {
+       "val": "TS-025"
+      }
+     },
+     "note": "레거시 no.25 · 원본 30행 · 원문 0"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PRD_NM_CD": {
+       "op": "NA"
+      },
+      "SPEC_ORG_CD": {
+       "op": "NA"
+      },
+      "SPC_AVR": {
+       "op": "EQ",
+       "left": "AM3-DDS(IF)"
+      },
+      "ORD_USG_CD": {
+       "op": "NA"
+      },
+      "CUS_CD": {
+       "op": "NA"
+      },
+      "ORD_THK_TP": {
+       "op": "IN",
+       "list": [
+        "1",
+        "2"
+       ]
+      },
+      "ORD_THK_MNG_CD": {
+       "op": "EQ",
+       "left": "B"
+      },
+      "GW_ASG_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.32",
+       "right": "0.501"
+      },
+      "WID": {
+       "op": "NA"
+      },
+      "THK_ADJ": {
+       "val": "-0.04"
+      },
+      "THK_COR_UNT": {
+       "val": "CRN"
+      },
+      "RULE_KEY": {
+       "val": "TS-026"
+      }
+     },
+     "note": "레거시 no.26 · 원본 31행 · 원문 -0.04"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PRD_NM_CD": {
+       "op": "EQ",
+       "left": "3"
+      },
+      "SPEC_ORG_CD": {
+       "op": "EQ",
+       "left": "KS"
+      },
+      "SPC_AVR": {
+       "op": "NA"
+      },
+      "ORD_USG_CD": {
+       "op": "NA"
+      },
+      "CUS_CD": {
+       "op": "EQ",
+       "left": "110197"
+      },
+      "ORD_THK_TP": {
+       "op": "EQ",
+       "left": "1"
+      },
+      "ORD_THK_MNG_CD": {
+       "op": "EQ",
+       "left": "Q"
+      },
+      "GW_ASG_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <=",
+       "left": "0.4",
+       "right": "0.501"
+      },
+      "WID": {
+       "op": "NA"
+      },
+      "THK_ADJ": {
+       "val": "-0.04"
+      },
+      "THK_COR_UNT": {
+       "val": "CRN"
+      },
+      "RULE_KEY": {
+       "val": "TS-027"
+      }
+     },
+     "note": "레거시 no.27 · 원본 32행 · 원문 -0.04"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PRD_NM_CD": {
+       "op": "EQ",
+       "left": "2"
+      },
+      "SPEC_ORG_CD": {
+       "op": "NA"
+      },
+      "SPC_AVR": {
+       "op": "NA"
+      },
+      "ORD_USG_CD": {
+       "op": "IN",
+       "list": [
+        "H0301P",
+        "H0392S"
+       ]
+      },
+      "CUS_CD": {
+       "op": "NA"
+      },
+      "ORD_THK_TP": {
+       "op": "IN",
+       "list": [
+        "1",
+        "2"
+       ]
+      },
+      "ORD_THK_MNG_CD": {
+       "op": "EQ",
+       "left": "F"
+      },
+      "GW_ASG_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.35",
+       "right": "9.999"
+      },
+      "WID": {
+       "op": "NA"
+      },
+      "THK_ADJ": {
+       "val": "-0.03"
+      },
+      "THK_COR_UNT": {
+       "val": "CRN"
+      },
+      "RULE_KEY": {
+       "val": "TS-028"
+      }
+     },
+     "note": "레거시 no.28 · 원본 33행 · 원문 -0.03"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PRD_NM_CD": {
+       "op": "EQ",
+       "left": "3"
+      },
+      "SPEC_ORG_CD": {
+       "op": "NA"
+      },
+      "SPC_AVR": {
+       "op": "NA"
+      },
+      "ORD_USG_CD": {
+       "op": "EQ",
+       "left": "G0698P"
+      },
+      "CUS_CD": {
+       "op": "NA"
+      },
+      "ORD_THK_TP": {
+       "op": "EQ",
+       "left": "1"
+      },
+      "ORD_THK_MNG_CD": {
+       "op": "EQ",
+       "left": "Q"
+      },
+      "GW_ASG_CD": {
+       "op": "EQ",
+       "left": "G"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "1",
+       "right": "1.01"
+      },
+      "WID": {
+       "op": "NA"
+      },
+      "THK_ADJ": {
+       "val": "-0.06"
+      },
+      "THK_COR_UNT": {
+       "val": "CRN"
+      },
+      "RULE_KEY": {
+       "val": "TS-029"
+      }
+     },
+     "note": "레거시 no.29 · 원본 34행 · 원문 -0.06"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PRD_NM_CD": {
+       "op": "EQ",
+       "left": "6"
+      },
+      "SPEC_ORG_CD": {
+       "op": "IN",
+       "list": [
+        "AM",
+        "EN"
+       ]
+      },
+      "SPC_AVR": {
+       "op": "NA"
+      },
+      "ORD_USG_CD": {
+       "op": "NA"
+      },
+      "CUS_CD": {
+       "op": "EQ",
+       "left": "604669"
+      },
+      "ORD_THK_TP": {
+       "op": "EQ",
+       "left": "2"
+      },
+      "ORD_THK_MNG_CD": {
+       "op": "EQ",
+       "left": "Q"
+      },
+      "GW_ASG_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.37",
+       "right": "9.999"
+      },
+      "WID": {
+       "op": "NA"
+      },
+      "THK_ADJ": {
+       "val": "-0.03"
+      },
+      "THK_COR_UNT": {
+       "val": "CRN"
+      },
+      "RULE_KEY": {
+       "val": "TS-030"
+      }
+     },
+     "note": "레거시 no.30 · 원본 35행 · 원문 -0.03"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PRD_NM_CD": {
+       "op": "EQ",
+       "left": "V"
+      },
+      "SPEC_ORG_CD": {
+       "op": "EQ",
+       "left": "KS"
+      },
+      "SPC_AVR": {
+       "op": "EQ",
+       "left": "KSV-SGMC400"
+      },
+      "ORD_USG_CD": {
+       "op": "EQ",
+       "left": "A04000"
+      },
+      "CUS_CD": {
+       "op": "IN",
+       "list": [
+        "110014",
+        "110196",
+        "110092",
+        "110112",
+        "115476"
+       ]
+      },
+      "ORD_THK_TP": {
+       "op": "EQ",
+       "left": "1"
+      },
+      "ORD_THK_MNG_CD": {
+       "op": "EQ",
+       "left": "Q"
+      },
+      "GW_ASG_CD": {
+       "op": "EQ",
+       "left": "H"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.75",
+       "right": "1.1"
+      },
+      "WID": {
+       "op": "NA"
+      },
+      "THK_ADJ": {
+       "val": "-0.07"
+      },
+      "THK_COR_UNT": {
+       "val": "CRN"
+      },
+      "RULE_KEY": {
+       "val": "TS-031"
+      }
+     },
+     "note": "레거시 no.31 · 원본 36행 · 원문 -0.07"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PRD_NM_CD": {
+       "op": "EQ",
+       "left": "L"
+      },
+      "SPEC_ORG_CD": {
+       "op": "EQ",
+       "left": "EN"
+      },
+      "SPC_AVR": {
+       "op": "NA"
+      },
+      "ORD_USG_CD": {
+       "op": "EQ",
+       "left": "C04000"
+      },
+      "CUS_CD": {
+       "op": "EQ",
+       "left": "205129"
+      },
+      "ORD_THK_TP": {
+       "op": "EQ",
+       "left": "2"
+      },
+      "ORD_THK_MNG_CD": {
+       "op": "EQ",
+       "left": "Q"
+      },
+      "GW_ASG_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.5",
+       "right": "1"
+      },
+      "WID": {
+       "op": "NA"
+      },
+      "THK_ADJ": {
+       "val": "-0.045"
+      },
+      "THK_COR_UNT": {
+       "val": "CRN"
+      },
+      "RULE_KEY": {
+       "val": "TS-032"
+      }
+     },
+     "note": "레거시 no.32 · 원본 37행 · 원문 -0.045"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PRD_NM_CD": {
+       "op": "EQ",
+       "left": "G"
+      },
+      "SPEC_ORG_CD": {
+       "op": "EQ",
+       "left": "KS"
+      },
+      "SPC_AVR": {
+       "op": "EQ",
+       "left": "KSG-SGCC"
+      },
+      "ORD_USG_CD": {
+       "op": "IN",
+       "list": [
+        "D04000",
+        "D05000"
+       ]
+      },
+      "CUS_CD": {
+       "op": "NA"
+      },
+      "ORD_THK_TP": {
+       "op": "EQ",
+       "left": "1"
+      },
+      "ORD_THK_MNG_CD": {
+       "op": "EQ",
+       "left": "Q"
+      },
+      "GW_ASG_CD": {
+       "op": "EQ",
+       "left": "S"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "1.5",
+       "right": "1.9"
+      },
+      "WID": {
+       "op": "NA"
+      },
+      "THK_ADJ": {
+       "val": "-0.07"
+      },
+      "THK_COR_UNT": {
+       "val": "CRN"
+      },
+      "RULE_KEY": {
+       "val": "TS-033"
+      }
+     },
+     "note": "레거시 no.33 · 원본 38행 · 원문 -0.070"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PRD_NM_CD": {
+       "op": "EQ",
+       "left": "G"
+      },
+      "SPEC_ORG_CD": {
+       "op": "EQ",
+       "left": "KS"
+      },
+      "SPC_AVR": {
+       "op": "EQ",
+       "left": "KSG-SGCC"
+      },
+      "ORD_USG_CD": {
+       "op": "IN",
+       "list": [
+        "D04000",
+        "D05000"
+       ]
+      },
+      "CUS_CD": {
+       "op": "NA"
+      },
+      "ORD_THK_TP": {
+       "op": "EQ",
+       "left": "1"
+      },
+      "ORD_THK_MNG_CD": {
+       "op": "EQ",
+       "left": "Q"
+      },
+      "GW_ASG_CD": {
+       "op": "EQ",
+       "left": "S"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "1.9",
+       "right": "2.4"
+      },
+      "WID": {
+       "op": "NA"
+      },
+      "THK_ADJ": {
+       "val": "-0.08"
+      },
+      "THK_COR_UNT": {
+       "val": "CRN"
+      },
+      "RULE_KEY": {
+       "val": "TS-034"
+      }
+     },
+     "note": "레거시 no.34 · 원본 39행 · 원문 -0.080"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PRD_NM_CD": {
+       "op": "EQ",
+       "left": "G"
+      },
+      "SPEC_ORG_CD": {
+       "op": "EQ",
+       "left": "KS"
+      },
+      "SPC_AVR": {
+       "op": "EQ",
+       "left": "KSG-SGC400"
+      },
+      "ORD_USG_CD": {
+       "op": "EQ",
+       "left": "D03000"
+      },
+      "CUS_CD": {
+       "op": "IN",
+       "list": [
+        "110168",
+        "110014"
+       ]
+      },
+      "ORD_THK_TP": {
+       "op": "EQ",
+       "left": "1"
+      },
+      "ORD_THK_MNG_CD": {
+       "op": "EQ",
+       "left": "Q"
+      },
+      "GW_ASG_CD": {
+       "op": "EQ",
+       "left": "W"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "1.1",
+       "right": "1.8"
+      },
+      "WID": {
+       "op": "NA"
+      },
+      "THK_ADJ": {
+       "val": "-0.04"
+      },
+      "THK_COR_UNT": {
+       "val": "CRN"
+      },
+      "RULE_KEY": {
+       "val": "TS-035"
+      }
+     },
+     "note": "레거시 no.35 · 원본 40행 · 원문 -0.04"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PRD_NM_CD": {
+       "op": "EQ",
+       "left": "G"
+      },
+      "SPEC_ORG_CD": {
+       "op": "EQ",
+       "left": "JS"
+      },
+      "SPC_AVR": {
+       "op": "EQ",
+       "left": "JSG-SGCC"
+      },
+      "ORD_USG_CD": {
+       "op": "EQ",
+       "left": "F11000"
+      },
+      "CUS_CD": {
+       "op": "EQ",
+       "left": "603637"
+      },
+      "ORD_THK_TP": {
+       "op": "EQ",
+       "left": "1"
+      },
+      "ORD_THK_MNG_CD": {
+       "op": "EQ",
+       "left": "Q"
+      },
+      "GW_ASG_CD": {
+       "op": "EQ",
+       "left": "M"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "1.6",
+       "right": "1.9"
+      },
+      "WID": {
+       "op": "NA"
+      },
+      "THK_ADJ": {
+       "val": "-0.05"
+      },
+      "THK_COR_UNT": {
+       "val": "CRN"
+      },
+      "RULE_KEY": {
+       "val": "TS-036"
+      }
+     },
+     "note": "레거시 no.36 · 원본 41행 · 원문 -0.05"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PRD_NM_CD": {
+       "op": "EQ",
+       "left": "G"
+      },
+      "SPEC_ORG_CD": {
+       "op": "EQ",
+       "left": "KS"
+      },
+      "SPC_AVR": {
+       "op": "EQ",
+       "left": "KSG-SGC570"
+      },
+      "ORD_USG_CD": {
+       "op": "IN",
+       "list": [
+        "C03000",
+        "A05000"
+       ]
+      },
+      "CUS_CD": {
+       "op": "IN",
+       "list": [
+        "112124",
+        "115022"
+       ]
+      },
+      "ORD_THK_TP": {
+       "op": "EQ",
+       "left": "1"
+      },
+      "ORD_THK_MNG_CD": {
+       "op": "EQ",
+       "left": "Q"
+      },
+      "GW_ASG_CD": {
+       "op": "EQ",
+       "left": "K"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "1",
+       "right": "2.301"
+      },
+      "WID": {
+       "op": "NA"
+      },
+      "THK_ADJ": {
+       "val": "-0.035"
+      },
+      "THK_COR_UNT": {
+       "val": "CRN"
+      },
+      "RULE_KEY": {
+       "val": "TS-037"
+      }
+     },
+     "note": "레거시 no.37 · 원본 42행 · 원문 -0.035"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PRD_NM_CD": {
+       "op": "EQ",
+       "left": "G"
+      },
+      "SPEC_ORG_CD": {
+       "op": "EQ",
+       "left": "KS"
+      },
+      "SPC_AVR": {
+       "op": "EQ",
+       "left": "KSG-SGCC"
+      },
+      "ORD_USG_CD": {
+       "op": "IN",
+       "list": [
+        "D04000",
+        "D05000"
+       ]
+      },
+      "CUS_CD": {
+       "op": "NA"
+      },
+      "ORD_THK_TP": {
+       "op": "EQ",
+       "left": "1"
+      },
+      "ORD_THK_MNG_CD": {
+       "op": "EQ",
+       "left": "Q"
+      },
+      "GW_ASG_CD": {
+       "op": "EQ",
+       "left": "S"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "2.4",
+       "right": "2.8"
+      },
+      "WID": {
+       "op": "NA"
+      },
+      "THK_ADJ": {
+       "val": "-0.09"
+      },
+      "THK_COR_UNT": {
+       "val": "CRN"
+      },
+      "RULE_KEY": {
+       "val": "TS-038"
+      }
+     },
+     "note": "레거시 no.38 · 원본 43행 · 원문 -0.090"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PRD_NM_CD": {
+       "op": "EQ",
+       "left": "G"
+      },
+      "SPEC_ORG_CD": {
+       "op": "EQ",
+       "left": "KS"
+      },
+      "SPC_AVR": {
+       "op": "EQ",
+       "left": "KSG-SGC570"
+      },
+      "ORD_USG_CD": {
+       "op": "EQ",
+       "left": "C03000"
+      },
+      "CUS_CD": {
+       "op": "EQ",
+       "left": "112124"
+      },
+      "ORD_THK_TP": {
+       "op": "EQ",
+       "left": "1"
+      },
+      "ORD_THK_MNG_CD": {
+       "op": "EQ",
+       "left": "Q"
+      },
+      "GW_ASG_CD": {
+       "op": "EQ",
+       "left": "H"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "1",
+       "right": "1.9"
+      },
+      "WID": {
+       "op": "NA"
+      },
+      "THK_ADJ": {
+       "val": "-0.025"
+      },
+      "THK_COR_UNT": {
+       "val": "CRN"
+      },
+      "RULE_KEY": {
+       "val": "TS-039"
+      }
+     },
+     "note": "레거시 no.39 · 원본 44행 · 원문 -0.025"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PRD_NM_CD": {
+       "op": "EQ",
+       "left": "G"
+      },
+      "SPEC_ORG_CD": {
+       "op": "EQ",
+       "left": "KS"
+      },
+      "SPC_AVR": {
+       "op": "EQ",
+       "left": "KSG-CR270LA"
+      },
+      "ORD_USG_CD": {
+       "op": "EQ",
+       "left": "J0302P"
+      },
+      "CUS_CD": {
+       "op": "EQ",
+       "left": "110724"
+      },
+      "ORD_THK_TP": {
+       "op": "EQ",
+       "left": "1"
+      },
+      "ORD_THK_MNG_CD": {
+       "op": "EQ",
+       "left": "Q"
+      },
+      "GW_ASG_CD": {
+       "op": "EQ",
+       "left": "G"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.8",
+       "right": "1.2"
+      },
+      "WID": {
+       "op": "NA"
+      },
+      "THK_ADJ": {
+       "val": "-0.045"
+      },
+      "THK_COR_UNT": {
+       "val": "CRN"
+      },
+      "RULE_KEY": {
+       "val": "TS-040"
+      }
+     },
+     "note": "레거시 no.40 · 원본 45행 · 원문 -0.045"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PRD_NM_CD": {
+       "op": "EQ",
+       "left": "V"
+      },
+      "SPEC_ORG_CD": {
+       "op": "EQ",
+       "left": "KS"
+      },
+      "SPC_AVR": {
+       "op": "EQ",
+       "left": "KSV-SGMC400"
+      },
+      "ORD_USG_CD": {
+       "op": "EQ",
+       "left": "A04000"
+      },
+      "CUS_CD": {
+       "op": "IN",
+       "list": [
+        "110014",
+        "110196",
+        "110092"
+       ]
+      },
+      "ORD_THK_TP": {
+       "op": "EQ",
+       "left": "1"
+      },
+      "ORD_THK_MNG_CD": {
+       "op": "EQ",
+       "left": "Q"
+      },
+      "GW_ASG_CD": {
+       "op": "EQ",
+       "left": "K"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.75",
+       "right": "1.1"
+      },
+      "WID": {
+       "op": "NA"
+      },
+      "THK_ADJ": {
+       "val": "-0.06"
+      },
+      "THK_COR_UNT": {
+       "val": "CRN"
+      },
+      "RULE_KEY": {
+       "val": "TS-041"
+      }
+     },
+     "note": "레거시 no.41 · 원본 46행 · 원문 -0.06"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PRD_NM_CD": {
+       "op": "EQ",
+       "left": "L"
+      },
+      "SPEC_ORG_CD": {
+       "op": "NA"
+      },
+      "SPC_AVR": {
+       "op": "NA"
+      },
+      "ORD_USG_CD": {
+       "op": "NA"
+      },
+      "CUS_CD": {
+       "op": "IN",
+       "list": [
+        "605379",
+        "604539",
+        "605267",
+        "605242",
+        "605186",
+        "605034",
+        "604166",
+        "604225",
+        "603843",
+        "605321",
+        "605625",
+        "604904",
+        "603558",
+        "604422",
+        "605247",
+        "604166",
+        "300581",
+        "300558",
+        "111313"
+       ]
+      },
+      "ORD_THK_TP": {
+       "op": "NA"
+      },
+      "ORD_THK_MNG_CD": {
+       "op": "EQ",
+       "left": "Q"
+      },
+      "GW_ASG_CD": {
+       "op": "IN",
+       "list": [
+        "F",
+        "G",
+        "H"
+       ]
+      },
+      "THK": {
+       "op": "NA"
+      },
+      "WID": {
+       "op": "NA"
+      },
+      "THK_ADJ": {
+       "val": "-0.04"
+      },
+      "THK_COR_UNT": {
+       "val": "CRN"
+      },
+      "RULE_KEY": {
+       "val": "TS-042"
+      }
+     },
+     "note": "레거시 no.42 · 원본 47행 · 원문 -0.04"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PRD_NM_CD": {
+       "op": "EQ",
+       "left": "L"
+      },
+      "SPEC_ORG_CD": {
+       "op": "NA"
+      },
+      "SPC_AVR": {
+       "op": "NA"
+      },
+      "ORD_USG_CD": {
+       "op": "NA"
+      },
+      "CUS_CD": {
+       "op": "EQ",
+       "left": "200088"
+      },
+      "ORD_THK_TP": {
+       "op": "NA"
+      },
+      "ORD_THK_MNG_CD": {
+       "op": "EQ",
+       "left": "Q"
+      },
+      "GW_ASG_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "NA"
+      },
+      "WID": {
+       "op": "NA"
+      },
+      "THK_ADJ": {
+       "val": "-0.015"
+      },
+      "THK_COR_UNT": {
+       "val": "CRN"
+      },
+      "RULE_KEY": {
+       "val": "TS-043"
+      }
+     },
+     "note": "레거시 no.43 · 원본 48행 · 원문 -0.015"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PRD_NM_CD": {
+       "op": "EQ",
+       "left": "L"
+      },
+      "SPEC_ORG_CD": {
+       "op": "NA"
+      },
+      "SPC_AVR": {
+       "op": "NA"
+      },
+      "ORD_USG_CD": {
+       "op": "NA"
+      },
+      "CUS_CD": {
+       "op": "EQ",
+       "left": "604571"
+      },
+      "ORD_THK_TP": {
+       "op": "NA"
+      },
+      "ORD_THK_MNG_CD": {
+       "op": "EQ",
+       "left": "Q"
+      },
+      "GW_ASG_CD": {
+       "op": "EQ",
+       "left": "L"
+      },
+      "THK": {
+       "op": "NA"
+      },
+      "WID": {
+       "op": "NA"
+      },
+      "THK_ADJ": {
+       "val": "0.055"
+      },
+      "THK_COR_UNT": {
+       "val": "CRN"
+      },
+      "RULE_KEY": {
+       "val": "TS-044"
+      }
+     },
+     "note": "레거시 no.44 · 원본 49행 · 원문 +0.055"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PRD_NM_CD": {
+       "op": "EQ",
+       "left": "G"
+      },
+      "SPEC_ORG_CD": {
+       "op": "EQ",
+       "left": "KS"
+      },
+      "SPC_AVR": {
+       "op": "EQ",
+       "left": "KSG-SGCC"
+      },
+      "ORD_USG_CD": {
+       "op": "NA"
+      },
+      "CUS_CD": {
+       "op": "EQ",
+       "left": "110545"
+      },
+      "ORD_THK_TP": {
+       "op": "EQ",
+       "left": "1"
+      },
+      "ORD_THK_MNG_CD": {
+       "op": "EQ",
+       "left": "Q"
+      },
+      "GW_ASG_CD": {
+       "op": "EQ",
+       "left": "W"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "1.1",
+       "right": "2"
+      },
+      "WID": {
+       "op": "NA"
+      },
+      "THK_ADJ": {
+       "val": "-0.045"
+      },
+      "THK_COR_UNT": {
+       "val": "CRN"
+      },
+      "RULE_KEY": {
+       "val": "TS-045"
+      }
+     },
+     "note": "레거시 no.45 · 원본 50행 · 원문 -0.045"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PRD_NM_CD": {
+       "op": "EQ",
+       "left": "V"
+      },
+      "SPEC_ORG_CD": {
+       "op": "EQ",
+       "left": "KS"
+      },
+      "SPC_AVR": {
+       "op": "EQ",
+       "left": "KSV-SGMC400"
+      },
+      "ORD_USG_CD": {
+       "op": "EQ",
+       "left": "B09000"
+      },
+      "CUS_CD": {
+       "op": "EQ",
+       "left": "110112"
+      },
+      "ORD_THK_TP": {
+       "op": "EQ",
+       "left": "1"
+      },
+      "ORD_THK_MNG_CD": {
+       "op": "EQ",
+       "left": "Q"
+      },
+      "GW_ASG_CD": {
+       "op": "EQ",
+       "left": "H"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.9",
+       "right": "1.1"
+      },
+      "WID": {
+       "op": "NA"
+      },
+      "THK_ADJ": {
+       "val": "-0.07"
+      },
+      "THK_COR_UNT": {
+       "val": "CRN"
+      },
+      "RULE_KEY": {
+       "val": "TS-046"
+      }
+     },
+     "note": "레거시 no.46 · 원본 51행 · 원문 -0.07"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PRD_NM_CD": {
+       "op": "EQ",
+       "left": "G"
+      },
+      "SPEC_ORG_CD": {
+       "op": "EQ",
+       "left": "KS"
+      },
+      "SPC_AVR": {
+       "op": "NA"
+      },
+      "ORD_USG_CD": {
+       "op": "EQ",
+       "left": "I03000"
+      },
+      "CUS_CD": {
+       "op": "EQ",
+       "left": "110443"
+      },
+      "ORD_THK_TP": {
+       "op": "EQ",
+       "left": "1"
+      },
+      "ORD_THK_MNG_CD": {
+       "op": "EQ",
+       "left": "Q"
+      },
+      "GW_ASG_CD": {
+       "op": "EQ",
+       "left": "G"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.33",
+       "right": "2.1"
+      },
+      "WID": {
+       "op": "NA"
+      },
+      "THK_ADJ": {
+       "val": "-0.035"
+      },
+      "THK_COR_UNT": {
+       "val": "CRN"
+      },
+      "RULE_KEY": {
+       "val": "TS-047"
+      }
+     },
+     "note": "레거시 no.47 · 원본 52행 · 원문 -0.035"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PRD_NM_CD": {
+       "op": "EQ",
+       "left": "L"
+      },
+      "SPEC_ORG_CD": {
+       "op": "EQ",
+       "left": "KS"
+      },
+      "SPC_AVR": {
+       "op": "EQ",
+       "left": "KSL-SGLCC"
+      },
+      "ORD_USG_CD": {
+       "op": "EQ",
+       "left": "F01000"
+      },
+      "CUS_CD": {
+       "op": "EQ",
+       "left": "110695"
+      },
+      "ORD_THK_TP": {
+       "op": "EQ",
+       "left": "1"
+      },
+      "ORD_THK_MNG_CD": {
+       "op": "EQ",
+       "left": "Q"
+      },
+      "GW_ASG_CD": {
+       "op": "EQ",
+       "left": "D"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.5",
+       "right": "0.601"
+      },
+      "WID": {
+       "op": "NA"
+      },
+      "THK_ADJ": {
+       "val": "-0.05"
+      },
+      "THK_COR_UNT": {
+       "val": "CRN"
+      },
+      "RULE_KEY": {
+       "val": "TS-048"
+      }
+     },
+     "note": "레거시 no.48 · 원본 53행 · 원문 -0.05"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PRD_NM_CD": {
+       "op": "EQ",
+       "left": "6"
+      },
+      "SPEC_ORG_CD": {
+       "op": "NA"
+      },
+      "SPC_AVR": {
+       "op": "NA"
+      },
+      "ORD_USG_CD": {
+       "op": "EQ",
+       "left": "G0691P"
+      },
+      "CUS_CD": {
+       "op": "IN",
+       "list": [
+        "300367",
+        "110092",
+        "110196"
+       ]
+      },
+      "ORD_THK_TP": {
+       "op": "NA"
+      },
+      "ORD_THK_MNG_CD": {
+       "op": "EQ",
+       "left": "Q"
+      },
+      "GW_ASG_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.7",
+       "right": "1.001"
+      },
+      "WID": {
+       "op": "NA"
+      },
+      "THK_ADJ": {
+       "val": "-0.06"
+      },
+      "THK_COR_UNT": {
+       "val": "CRN"
+      },
+      "RULE_KEY": {
+       "val": "TS-049"
+      }
+     },
+     "note": "레거시 no.49 · 원본 54행 · 원문 -0.06"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PRD_NM_CD": {
+       "op": "EQ",
+       "left": "3"
+      },
+      "SPEC_ORG_CD": {
+       "op": "NA"
+      },
+      "SPC_AVR": {
+       "op": "NA"
+      },
+      "ORD_USG_CD": {
+       "op": "EQ",
+       "left": "G0691P"
+      },
+      "CUS_CD": {
+       "op": "EQ",
+       "left": "300367"
+      },
+      "ORD_THK_TP": {
+       "op": "NA"
+      },
+      "ORD_THK_MNG_CD": {
+       "op": "EQ",
+       "left": "Q"
+      },
+      "GW_ASG_CD": {
+       "op": "EQ",
+       "left": "H"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.7",
+       "right": "1.001"
+      },
+      "WID": {
+       "op": "NA"
+      },
+      "THK_ADJ": {
+       "val": "-0.06"
+      },
+      "THK_COR_UNT": {
+       "val": "CRN"
+      },
+      "RULE_KEY": {
+       "val": "TS-050"
+      }
+     },
+     "note": "레거시 no.50 · 원본 55행 · 원문 -0.06"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PRD_NM_CD": {
+       "op": "EQ",
+       "left": "3"
+      },
+      "SPEC_ORG_CD": {
+       "op": "NA"
+      },
+      "SPC_AVR": {
+       "op": "NA"
+      },
+      "ORD_USG_CD": {
+       "op": "EQ",
+       "left": "G0691P"
+      },
+      "CUS_CD": {
+       "op": "EQ",
+       "left": "300367"
+      },
+      "ORD_THK_TP": {
+       "op": "NA"
+      },
+      "ORD_THK_MNG_CD": {
+       "op": "EQ",
+       "left": "Q"
+      },
+      "GW_ASG_CD": {
+       "op": "EQ",
+       "left": "G"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.7",
+       "right": "1.001"
+      },
+      "WID": {
+       "op": "NA"
+      },
+      "THK_ADJ": {
+       "val": "-0.04"
+      },
+      "THK_COR_UNT": {
+       "val": "CRN"
+      },
+      "RULE_KEY": {
+       "val": "TS-051"
+      }
+     },
+     "note": "레거시 no.51 · 원본 56행 · 원문 -0.04"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PRD_NM_CD": {
+       "op": "NOT_IN",
+       "list": [
+        "G",
+        "L",
+        "V",
+        "W"
+       ]
+      },
+      "SPEC_ORG_CD": {
+       "op": "NA"
+      },
+      "SPC_AVR": {
+       "op": "NA"
+      },
+      "ORD_USG_CD": {
+       "op": "NA"
+      },
+      "CUS_CD": {
+       "op": "NA"
+      },
+      "ORD_THK_TP": {
+       "op": "NA"
+      },
+      "ORD_THK_MNG_CD": {
+       "op": "EQ",
+       "left": "D"
+      },
+      "GW_ASG_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.1",
+       "right": "0.32"
+      },
+      "WID": {
+       "op": "NA"
+      },
+      "THK_ADJ": {
+       "val": "0"
+      },
+      "THK_COR_UNT": {
+       "val": "CRN"
+      },
+      "RULE_KEY": {
+       "val": "TS-052"
+      }
+     },
+     "note": "레거시 no.52 · 원본 57행 · 원문 0"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PRD_NM_CD": {
+       "op": "EQ",
+       "left": "L"
+      },
+      "SPEC_ORG_CD": {
+       "op": "EQ",
+       "left": "EN"
+      },
+      "SPC_AVR": {
+       "op": "IN",
+       "list": [
+        "ENL-S250GD",
+        "ENL-S350GD"
+       ]
+      },
+      "ORD_USG_CD": {
+       "op": "NA"
+      },
+      "CUS_CD": {
+       "op": "IN",
+       "list": [
+        "205129",
+        "110074"
+       ]
+      },
+      "ORD_THK_TP": {
+       "op": "EQ",
+       "left": "2"
+      },
+      "ORD_THK_MNG_CD": {
+       "op": "EQ",
+       "left": "F"
+      },
+      "GW_ASG_CD": {
+       "op": "EQ",
+       "left": "F"
+      },
+      "THK": {
+       "op": "NA"
+      },
+      "WID": {
+       "op": "NA"
+      },
+      "THK_ADJ": {
+       "val": "-0.03"
+      },
+      "THK_COR_UNT": {
+       "val": "CRN"
+      },
+      "RULE_KEY": {
+       "val": "TS-053"
+      }
+     },
+     "note": "레거시 no.53 · 원본 58행 · 원문 -0.03"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PRD_NM_CD": {
+       "op": "EQ",
+       "left": "V"
+      },
+      "SPEC_ORG_CD": {
+       "op": "EQ",
+       "left": "KS"
+      },
+      "SPC_AVR": {
+       "op": "EQ",
+       "left": "KSV-SGMC400"
+      },
+      "ORD_USG_CD": {
+       "op": "EQ",
+       "left": "C02000"
+      },
+      "CUS_CD": {
+       "op": "EQ",
+       "left": "110127"
+      },
+      "ORD_THK_TP": {
+       "op": "EQ",
+       "left": "1"
+      },
+      "ORD_THK_MNG_CD": {
+       "op": "EQ",
+       "left": "Q"
+      },
+      "GW_ASG_CD": {
+       "op": "EQ",
+       "left": "H"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.9",
+       "right": "1.1"
+      },
+      "WID": {
+       "op": "NA"
+      },
+      "THK_ADJ": {
+       "val": "-0.06"
+      },
+      "THK_COR_UNT": {
+       "val": "CRN"
+      },
+      "RULE_KEY": {
+       "val": "TS-054"
+      }
+     },
+     "note": "레거시 no.54 · 원본 59행 · 원문 -0.06"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PRD_NM_CD": {
+       "op": "EQ",
+       "left": "G"
+      },
+      "SPEC_ORG_CD": {
+       "op": "EQ",
+       "left": "KS"
+      },
+      "SPC_AVR": {
+       "op": "NA"
+      },
+      "ORD_USG_CD": {
+       "op": "EQ",
+       "left": "M%"
+      },
+      "CUS_CD": {
+       "op": "EQ",
+       "left": "110122"
+      },
+      "ORD_THK_TP": {
+       "op": "NA"
+      },
+      "ORD_THK_MNG_CD": {
+       "op": "EQ",
+       "left": "Q"
+      },
+      "GW_ASG_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.38",
+       "right": "0.85"
+      },
+      "WID": {
+       "op": "NA"
+      },
+      "THK_ADJ": {
+       "val": "-0.04"
+      },
+      "THK_COR_UNT": {
+       "val": "CRN"
+      },
+      "RULE_KEY": {
+       "val": "TS-055"
+      }
+     },
+     "note": "레거시 no.55 · 원본 60행 · 원문 -0.04"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PRD_NM_CD": {
+       "op": "EQ",
+       "left": "G"
+      },
+      "SPEC_ORG_CD": {
+       "op": "EQ",
+       "left": "KS"
+      },
+      "SPC_AVR": {
+       "op": "NA"
+      },
+      "ORD_USG_CD": {
+       "op": "EQ",
+       "left": "M%"
+      },
+      "CUS_CD": {
+       "op": "EQ",
+       "left": "114743"
+      },
+      "ORD_THK_TP": {
+       "op": "NA"
+      },
+      "ORD_THK_MNG_CD": {
+       "op": "EQ",
+       "left": "Q"
+      },
+      "GW_ASG_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "EQ",
+       "left": "0.47"
+      },
+      "WID": {
+       "op": "NA"
+      },
+      "THK_ADJ": {
+       "val": "-0.04"
+      },
+      "THK_COR_UNT": {
+       "val": "CRN"
+      },
+      "RULE_KEY": {
+       "val": "TS-056"
+      }
+     },
+     "note": "레거시 no.56 · 원본 61행 · 원문 -0.04"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PRD_NM_CD": {
+       "op": "EQ",
+       "left": "G"
+      },
+      "SPEC_ORG_CD": {
+       "op": "NA"
+      },
+      "SPC_AVR": {
+       "op": "EQ",
+       "left": "ENG-S450GD"
+      },
+      "ORD_USG_CD": {
+       "op": "NA"
+      },
+      "CUS_CD": {
+       "op": "EQ",
+       "left": "605619"
+      },
+      "ORD_THK_TP": {
+       "op": "NA"
+      },
+      "ORD_THK_MNG_CD": {
+       "op": "EQ",
+       "left": "Q"
+      },
+      "GW_ASG_CD": {
+       "op": "EQ",
+       "left": "P"
+      },
+      "THK": {
+       "op": "EQ",
+       "left": "2"
+      },
+      "WID": {
+       "op": "NA"
+      },
+      "THK_ADJ": {
+       "val": "0.065"
+      },
+      "THK_COR_UNT": {
+       "val": "CRN"
+      },
+      "RULE_KEY": {
+       "val": "TS-057"
+      }
+     },
+     "note": "레거시 no.57 · 원본 62행 · 원문 0.065"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PRD_NM_CD": {
+       "op": "EQ",
+       "left": "G"
+      },
+      "SPEC_ORG_CD": {
+       "op": "EQ",
+       "left": "JS"
+      },
+      "SPC_AVR": {
+       "op": "NA"
+      },
+      "ORD_USG_CD": {
+       "op": "NA"
+      },
+      "CUS_CD": {
+       "op": "IN",
+       "list": [
+        "603843",
+        "605321",
+        "604166"
+       ]
+      },
+      "ORD_THK_TP": {
+       "op": "EQ",
+       "left": "1"
+      },
+      "ORD_THK_MNG_CD": {
+       "op": "EQ",
+       "left": "Q"
+      },
+      "GW_ASG_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.4",
+       "right": "1.6"
+      },
+      "WID": {
+       "op": "NA"
+      },
+      "THK_ADJ": {
+       "val": "-0.04"
+      },
+      "THK_COR_UNT": {
+       "val": "CRN"
+      },
+      "RULE_KEY": {
+       "val": "TS-058"
+      }
+     },
+     "note": "레거시 no.58 · 원본 63행 · 원문 -0.04"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PRD_NM_CD": {
+       "op": "EQ",
+       "left": "L"
+      },
+      "SPEC_ORG_CD": {
+       "op": "EQ",
+       "left": "KS"
+      },
+      "SPC_AVR": {
+       "op": "NA"
+      },
+      "ORD_USG_CD": {
+       "op": "NA"
+      },
+      "CUS_CD": {
+       "op": "EQ",
+       "left": "110074"
+      },
+      "ORD_THK_TP": {
+       "op": "EQ",
+       "left": "1"
+      },
+      "ORD_THK_MNG_CD": {
+       "op": "EQ",
+       "left": "Q"
+      },
+      "GW_ASG_CD": {
+       "op": "EQ",
+       "left": "D"
+      },
+      "THK": {
+       "op": "NA"
+      },
+      "WID": {
+       "op": "NA"
+      },
+      "THK_ADJ": {
+       "val": "-0.045"
+      },
+      "THK_COR_UNT": {
+       "val": "CRN"
+      },
+      "RULE_KEY": {
+       "val": "TS-059"
+      }
+     },
+     "note": "레거시 no.59 · 원본 64행 · 원문 -0.045"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PRD_NM_CD": {
+       "op": "EQ",
+       "left": "G"
+      },
+      "SPEC_ORG_CD": {
+       "op": "EQ",
+       "left": "KS"
+      },
+      "SPC_AVR": {
+       "op": "EQ",
+       "left": "KSG-SGCC"
+      },
+      "ORD_USG_CD": {
+       "op": "NA"
+      },
+      "CUS_CD": {
+       "op": "EQ",
+       "left": "114717"
+      },
+      "ORD_THK_TP": {
+       "op": "EQ",
+       "left": "1"
+      },
+      "ORD_THK_MNG_CD": {
+       "op": "EQ",
+       "left": "Q"
+      },
+      "GW_ASG_CD": {
+       "op": "EQ",
+       "left": "K"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "1",
+       "right": "1.8"
+      },
+      "WID": {
+       "op": "NA"
+      },
+      "THK_ADJ": {
+       "val": "-0.055"
+      },
+      "THK_COR_UNT": {
+       "val": "CRN"
+      },
+      "RULE_KEY": {
+       "val": "TS-060"
+      }
+     },
+     "note": "레거시 no.60 · 원본 65행 · 원문 -0.055"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PRD_NM_CD": {
+       "op": "EQ",
+       "left": "G"
+      },
+      "SPEC_ORG_CD": {
+       "op": "EQ",
+       "left": "JS"
+      },
+      "SPC_AVR": {
+       "op": "NA"
+      },
+      "ORD_USG_CD": {
+       "op": "NA"
+      },
+      "CUS_CD": {
+       "op": "IN",
+       "list": [
+        "604166",
+        "604225"
+       ]
+      },
+      "ORD_THK_TP": {
+       "op": "EQ",
+       "left": "1"
+      },
+      "ORD_THK_MNG_CD": {
+       "op": "EQ",
+       "left": "Q"
+      },
+      "GW_ASG_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "1.6",
+       "right": "2.301"
+      },
+      "WID": {
+       "op": "NA"
+      },
+      "THK_ADJ": {
+       "val": "-0.05"
+      },
+      "THK_COR_UNT": {
+       "val": "CRN"
+      },
+      "RULE_KEY": {
+       "val": "TS-061"
+      }
+     },
+     "note": "레거시 no.61 · 원본 66행 · 원문 -0.05"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PRD_NM_CD": {
+       "op": "EQ",
+       "left": "V"
+      },
+      "SPEC_ORG_CD": {
+       "op": "EQ",
+       "left": "KS"
+      },
+      "SPC_AVR": {
+       "op": "EQ",
+       "left": "KSV-SGMCC"
+      },
+      "ORD_USG_CD": {
+       "op": "EQ",
+       "left": "B04000"
+      },
+      "CUS_CD": {
+       "op": "EQ",
+       "left": "110014"
+      },
+      "ORD_THK_TP": {
+       "op": "EQ",
+       "left": "1"
+      },
+      "ORD_THK_MNG_CD": {
+       "op": "EQ",
+       "left": "Q"
+      },
+      "GW_ASG_CD": {
+       "op": "EQ",
+       "left": "K"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.75",
+       "right": "1.01"
+      },
+      "WID": {
+       "op": "NA"
+      },
+      "THK_ADJ": {
+       "val": "-0.04"
+      },
+      "THK_COR_UNT": {
+       "val": "CRN"
+      },
+      "RULE_KEY": {
+       "val": "TS-062"
+      }
+     },
+     "note": "레거시 no.62 · 원본 67행 · 원문 -0.04"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PRD_NM_CD": {
+       "op": "EQ",
+       "left": "G"
+      },
+      "SPEC_ORG_CD": {
+       "op": "EQ",
+       "left": "JS"
+      },
+      "SPC_AVR": {
+       "op": "EQ",
+       "left": "JSG-SGCD2"
+      },
+      "ORD_USG_CD": {
+       "op": "EQ",
+       "left": "F11000"
+      },
+      "CUS_CD": {
+       "op": "EQ",
+       "left": "603637"
+      },
+      "ORD_THK_TP": {
+       "op": "EQ",
+       "left": "1"
+      },
+      "ORD_THK_MNG_CD": {
+       "op": "EQ",
+       "left": "Q"
+      },
+      "GW_ASG_CD": {
+       "op": "EQ",
+       "left": "M"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "1.6",
+       "right": "2"
+      },
+      "WID": {
+       "op": "NA"
+      },
+      "THK_ADJ": {
+       "val": "-0.04"
+      },
+      "THK_COR_UNT": {
+       "val": "CRN"
+      },
+      "RULE_KEY": {
+       "val": "TS-063"
+      }
+     },
+     "note": "레거시 no.63 · 원본 68행 · 원문 -0.04"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "G",
+        "V",
+        "L",
+        "W"
+       ]
+      },
+      "SPEC_ORG_CD": {
+       "op": "IN",
+       "list": [
+        "JS",
+        "KS"
+       ]
+      },
+      "SPC_AVR": {
+       "op": "NA"
+      },
+      "ORD_USG_CD": {
+       "op": "NA"
+      },
+      "CUS_CD": {
+       "op": "IN",
+       "list": [
+        "603843",
+        "605321",
+        "605186",
+        "604166",
+        "110127",
+        "300590"
+       ]
+      },
+      "ORD_THK_TP": {
+       "op": "IN",
+       "list": [
+        "1",
+        "2"
+       ]
+      },
+      "ORD_THK_MNG_CD": {
+       "op": "EQ",
+       "left": "H"
+      },
+      "GW_ASG_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.4",
+       "right": "9.999"
+      },
+      "WID": {
+       "op": "NA"
+      },
+      "THK_ADJ": {
+       "val": "-0.04"
+      },
+      "THK_COR_UNT": {
+       "val": "CRN"
+      },
+      "RULE_KEY": {
+       "val": "TS-064"
+      }
+     },
+     "note": "레거시 no.64 · 원본 69행 · 원문 -0.04"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "G",
+        "V",
+        "L",
+        "W"
+       ]
+      },
+      "SPEC_ORG_CD": {
+       "op": "EQ",
+       "left": "JS"
+      },
+      "SPC_AVR": {
+       "op": "NA"
+      },
+      "ORD_USG_CD": {
+       "op": "NA"
+      },
+      "CUS_CD": {
+       "op": "EQ",
+       "left": "1"
+      },
+      "ORD_THK_TP": {
+       "op": "IN",
+       "list": [
+        "1",
+        "2"
+       ]
+      },
+      "ORD_THK_MNG_CD": {
+       "op": "EQ",
+       "left": "J"
+      },
+      "GW_ASG_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.4",
+       "right": "9.999"
+      },
+      "WID": {
+       "op": "NA"
+      },
+      "THK_ADJ": {
+       "val": "0.05"
+      },
+      "THK_COR_UNT": {
+       "val": "CRN"
+      },
+      "RULE_KEY": {
+       "val": "TS-065"
+      }
+     },
+     "note": "레거시 no.65 · 원본 70행 · 원문 0.05"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "G",
+        "V",
+        "L",
+        "W"
+       ]
+      },
+      "SPEC_ORG_CD": {
+       "op": "IN",
+       "list": [
+        "JS",
+        "KS"
+       ]
+      },
+      "SPC_AVR": {
+       "op": "NA"
+      },
+      "ORD_USG_CD": {
+       "op": "NA"
+      },
+      "CUS_CD": {
+       "op": "IN",
+       "list": [
+        "603843",
+        "605321",
+        "605186",
+        "604166",
+        "110014",
+        "115022"
+       ]
+      },
+      "ORD_THK_TP": {
+       "op": "IN",
+       "list": [
+        "1",
+        "2"
+       ]
+      },
+      "ORD_THK_MNG_CD": {
+       "op": "EQ",
+       "left": "K"
+      },
+      "GW_ASG_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.4",
+       "right": "9.999"
+      },
+      "WID": {
+       "op": "NA"
+      },
+      "THK_ADJ": {
+       "val": "-0.05"
+      },
+      "THK_COR_UNT": {
+       "val": "CRN"
+      },
+      "RULE_KEY": {
+       "val": "TS-066"
+      }
+     },
+     "note": "레거시 no.66 · 원본 71행 · 원문 -0.05"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "G",
+        "V",
+        "L",
+        "W"
+       ]
+      },
+      "SPEC_ORG_CD": {
+       "op": "NA"
+      },
+      "SPC_AVR": {
+       "op": "NA"
+      },
+      "ORD_USG_CD": {
+       "op": "NA"
+      },
+      "CUS_CD": {
+       "op": "NA"
+      },
+      "ORD_THK_TP": {
+       "op": "IN",
+       "list": [
+        "1",
+        "2"
+       ]
+      },
+      "ORD_THK_MNG_CD": {
+       "op": "EQ",
+       "left": "F"
+      },
+      "GW_ASG_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.27",
+       "right": "9.999"
+      },
+      "WID": {
+       "op": "NA"
+      },
+      "THK_ADJ": {
+       "val": "-0.03"
+      },
+      "THK_COR_UNT": {
+       "val": "CRN"
+      },
+      "RULE_KEY": {
+       "val": "TS-067"
+      }
+     },
+     "note": "레거시 no.67 · 원본 72행 · 원문 -0.03"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "G",
+        "V",
+        "L",
+        "W"
+       ]
+      },
+      "SPEC_ORG_CD": {
+       "op": "NA"
+      },
+      "SPC_AVR": {
+       "op": "NA"
+      },
+      "ORD_USG_CD": {
+       "op": "NA"
+      },
+      "CUS_CD": {
+       "op": "NA"
+      },
+      "ORD_THK_TP": {
+       "op": "IN",
+       "list": [
+        "1",
+        "2"
+       ]
+      },
+      "ORD_THK_MNG_CD": {
+       "op": "EQ",
+       "left": "E"
+      },
+      "GW_ASG_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.1",
+       "right": "9.999"
+      },
+      "WID": {
+       "op": "NA"
+      },
+      "THK_ADJ": {
+       "val": "0.03"
+      },
+      "THK_COR_UNT": {
+       "val": "CRN"
+      },
+      "RULE_KEY": {
+       "val": "TS-068"
+      }
+     },
+     "note": "레거시 no.68 · 원본 73행 · 원문 0.03"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "G",
+        "L",
+        "V",
+        "W"
+       ]
+      },
+      "SPEC_ORG_CD": {
+       "op": "NA"
+      },
+      "SPC_AVR": {
+       "op": "NA"
+      },
+      "ORD_USG_CD": {
+       "op": "NA"
+      },
+      "CUS_CD": {
+       "op": "NA"
+      },
+      "ORD_THK_TP": {
+       "op": "IN",
+       "list": [
+        "1",
+        "2"
+       ]
+      },
+      "ORD_THK_MNG_CD": {
+       "op": "EQ",
+       "left": "D"
+      },
+      "GW_ASG_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.27",
+       "right": "9.999"
+      },
+      "WID": {
+       "op": "NA"
+      },
+      "THK_ADJ": {
+       "val": "-0.02"
+      },
+      "THK_COR_UNT": {
+       "val": "CRN"
+      },
+      "RULE_KEY": {
+       "val": "TS-069"
+      }
+     },
+     "note": "레거시 no.69 · 원본 74행 · 원문 -0.02"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "G",
+        "V"
+       ]
+      },
+      "SPEC_ORG_CD": {
+       "op": "NA"
+      },
+      "SPC_AVR": {
+       "op": "NA"
+      },
+      "ORD_USG_CD": {
+       "op": "NA"
+      },
+      "CUS_CD": {
+       "op": "NA"
+      },
+      "ORD_THK_TP": {
+       "op": "EQ",
+       "left": "2"
+      },
+      "ORD_THK_MNG_CD": {
+       "op": "EQ",
+       "left": "5"
+      },
+      "GW_ASG_CD": {
+       "op": "IN",
+       "list": [
+        "E",
+        "Z",
+        "F",
+        "G",
+        "X",
+        "H",
+        "J",
+        "K",
+        "Y",
+        "L",
+        "M"
+       ]
+      },
+      "THK": {
+       "op": "< 변수 <=",
+       "left": "0.5",
+       "right": "9.999"
+      },
+      "WID": {
+       "op": "NA"
+      },
+      "THK_ADJ": {
+       "val": "0"
+      },
+      "THK_COR_UNT": {
+       "val": "CRN"
+      },
+      "RULE_KEY": {
+       "val": "TS-070"
+      }
+     },
+     "note": "레거시 no.70 · 원본 75행 · 원문 0"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "G",
+        "V"
+       ]
+      },
+      "SPEC_ORG_CD": {
+       "op": "NA"
+      },
+      "SPC_AVR": {
+       "op": "NA"
+      },
+      "ORD_USG_CD": {
+       "op": "NA"
+      },
+      "CUS_CD": {
+       "op": "NA"
+      },
+      "ORD_THK_TP": {
+       "op": "EQ",
+       "left": "1"
+      },
+      "ORD_THK_MNG_CD": {
+       "op": "EQ",
+       "left": "6"
+      },
+      "GW_ASG_CD": {
+       "op": "IN",
+       "list": [
+        "E",
+        "Z",
+        "F",
+        "G",
+        "X",
+        "H",
+        "J",
+        "K",
+        "Y",
+        "L",
+        "M"
+       ]
+      },
+      "THK": {
+       "op": "< 변수 <=",
+       "left": "0.5",
+       "right": "9.999"
+      },
+      "WID": {
+       "op": "NA"
+      },
+      "THK_ADJ": {
+       "val": "0"
+      },
+      "THK_COR_UNT": {
+       "val": "CRN"
+      },
+      "RULE_KEY": {
+       "val": "TS-071"
+      }
+     },
+     "note": "레거시 no.71 · 원본 76행 · 원문 0"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "G",
+        "V"
+       ]
+      },
+      "SPEC_ORG_CD": {
+       "op": "NA"
+      },
+      "SPC_AVR": {
+       "op": "NA"
+      },
+      "ORD_USG_CD": {
+       "op": "NA"
+      },
+      "CUS_CD": {
+       "op": "NA"
+      },
+      "ORD_THK_TP": {
+       "op": "EQ",
+       "left": "2"
+      },
+      "ORD_THK_MNG_CD": {
+       "op": "EQ",
+       "left": "5"
+      },
+      "GW_ASG_CD": {
+       "op": "IN",
+       "list": [
+        "W",
+        "Q",
+        "N"
+       ]
+      },
+      "THK": {
+       "op": "< 변수 <=",
+       "left": "0.8",
+       "right": "9.999"
+      },
+      "WID": {
+       "op": "NA"
+      },
+      "THK_ADJ": {
+       "val": "0"
+      },
+      "THK_COR_UNT": {
+       "val": "CRN"
+      },
+      "RULE_KEY": {
+       "val": "TS-072"
+      }
+     },
+     "note": "레거시 no.72 · 원본 77행 · 원문 0"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "G",
+        "V"
+       ]
+      },
+      "SPEC_ORG_CD": {
+       "op": "NA"
+      },
+      "SPC_AVR": {
+       "op": "NA"
+      },
+      "ORD_USG_CD": {
+       "op": "NA"
+      },
+      "CUS_CD": {
+       "op": "NA"
+      },
+      "ORD_THK_TP": {
+       "op": "EQ",
+       "left": "1"
+      },
+      "ORD_THK_MNG_CD": {
+       "op": "EQ",
+       "left": "6"
+      },
+      "GW_ASG_CD": {
+       "op": "IN",
+       "list": [
+        "W",
+        "Q",
+        "N"
+       ]
+      },
+      "THK": {
+       "op": "< 변수 <=",
+       "left": "0.8",
+       "right": "9.999"
+      },
+      "WID": {
+       "op": "NA"
+      },
+      "THK_ADJ": {
+       "val": "0"
+      },
+      "THK_COR_UNT": {
+       "val": "CRN"
+      },
+      "RULE_KEY": {
+       "val": "TS-073"
+      }
+     },
+     "note": "레거시 no.73 · 원본 78행 · 원문 0"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "L",
+        "W"
+       ]
+      },
+      "SPEC_ORG_CD": {
+       "op": "NA"
+      },
+      "SPC_AVR": {
+       "op": "NA"
+      },
+      "ORD_USG_CD": {
+       "op": "NA"
+      },
+      "CUS_CD": {
+       "op": "NA"
+      },
+      "ORD_THK_TP": {
+       "op": "EQ",
+       "left": "2"
+      },
+      "ORD_THK_MNG_CD": {
+       "op": "EQ",
+       "left": "5"
+      },
+      "GW_ASG_CD": {
+       "op": "IN",
+       "list": [
+        "X",
+        "Y",
+        "Z",
+        "A",
+        "M",
+        "B",
+        "C",
+        "N",
+        "D",
+        "E",
+        "F"
+       ]
+      },
+      "THK": {
+       "op": "< 변수 <=",
+       "left": "0.5",
+       "right": "9.999"
+      },
+      "WID": {
+       "op": "NA"
+      },
+      "THK_ADJ": {
+       "val": "0"
+      },
+      "THK_COR_UNT": {
+       "val": "CRN"
+      },
+      "RULE_KEY": {
+       "val": "TS-074"
+      }
+     },
+     "note": "레거시 no.74 · 원본 79행 · 원문 0"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "L",
+        "W"
+       ]
+      },
+      "SPEC_ORG_CD": {
+       "op": "NA"
+      },
+      "SPC_AVR": {
+       "op": "NA"
+      },
+      "ORD_USG_CD": {
+       "op": "NA"
+      },
+      "CUS_CD": {
+       "op": "NA"
+      },
+      "ORD_THK_TP": {
+       "op": "EQ",
+       "left": "1"
+      },
+      "ORD_THK_MNG_CD": {
+       "op": "EQ",
+       "left": "6"
+      },
+      "GW_ASG_CD": {
+       "op": "IN",
+       "list": [
+        "X",
+        "Y",
+        "Z",
+        "A",
+        "M",
+        "B",
+        "C",
+        "N",
+        "D",
+        "E",
+        "F"
+       ]
+      },
+      "THK": {
+       "op": "<= 변수 <=",
+       "left": "0.5",
+       "right": "9.999"
+      },
+      "WID": {
+       "op": "NA"
+      },
+      "THK_ADJ": {
+       "val": "0"
+      },
+      "THK_COR_UNT": {
+       "val": "CRN"
+      },
+      "RULE_KEY": {
+       "val": "TS-075"
+      }
+     },
+     "note": "레거시 no.75 · 원본 80행 · 원문 0"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "L",
+        "W"
+       ]
+      },
+      "SPEC_ORG_CD": {
+       "op": "EQ",
+       "left": "AM"
+      },
+      "SPC_AVR": {
+       "op": "NA"
+      },
+      "ORD_USG_CD": {
+       "op": "NA"
+      },
+      "CUS_CD": {
+       "op": "NA"
+      },
+      "ORD_THK_TP": {
+       "op": "EQ",
+       "left": "2"
+      },
+      "ORD_THK_MNG_CD": {
+       "op": "EQ",
+       "left": "5"
+      },
+      "GW_ASG_CD": {
+       "op": "IN",
+       "list": [
+        "X",
+        "Y",
+        "Z",
+        "A",
+        "M",
+        "B",
+        "C",
+        "N",
+        "D",
+        "E",
+        "F"
+       ]
+      },
+      "THK": {
+       "op": "<= 변수 <=",
+       "left": "0.4",
+       "right": "9.999"
+      },
+      "WID": {
+       "op": "NA"
+      },
+      "THK_ADJ": {
+       "val": "0"
+      },
+      "THK_COR_UNT": {
+       "val": "CRN"
+      },
+      "RULE_KEY": {
+       "val": "TS-076"
+      }
+     },
+     "note": "레거시 no.76 · 원본 81행 · 원문 0"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "G",
+        "V"
+       ]
+      },
+      "SPEC_ORG_CD": {
+       "op": "EQ",
+       "left": "AM"
+      },
+      "SPC_AVR": {
+       "op": "NA"
+      },
+      "ORD_USG_CD": {
+       "op": "NA"
+      },
+      "CUS_CD": {
+       "op": "EQ",
+       "left": "110074"
+      },
+      "ORD_THK_TP": {
+       "op": "EQ",
+       "left": "2"
+      },
+      "ORD_THK_MNG_CD": {
+       "op": "EQ",
+       "left": "5"
+      },
+      "GW_ASG_CD": {
+       "op": "IN",
+       "list": [
+        "E",
+        "Z",
+        "F",
+        "G",
+        "X",
+        "H"
+       ]
+      },
+      "THK": {
+       "op": "<= 변수 <=",
+       "left": "0.3",
+       "right": "9.999"
+      },
+      "WID": {
+       "op": "NA"
+      },
+      "THK_ADJ": {
+       "val": "0"
+      },
+      "THK_COR_UNT": {
+       "val": "CRN"
+      },
+      "RULE_KEY": {
+       "val": "TS-077"
+      }
+     },
+     "note": "레거시 no.77 · 원본 82행 · 원문 0"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "G",
+        "V"
+       ]
+      },
+      "SPEC_ORG_CD": {
+       "op": "IN",
+       "list": [
+        "KS",
+        "JS"
+       ]
+      },
+      "SPC_AVR": {
+       "op": "NA"
+      },
+      "ORD_USG_CD": {
+       "op": "NA"
+      },
+      "CUS_CD": {
+       "op": "NA"
+      },
+      "ORD_THK_TP": {
+       "op": "EQ",
+       "left": "1"
+      },
+      "ORD_THK_MNG_CD": {
+       "op": "EQ",
+       "left": "6"
+      },
+      "GW_ASG_CD": {
+       "op": "IN",
+       "list": [
+        "E",
+        "Z",
+        "F",
+        "G"
+       ]
+      },
+      "THK": {
+       "op": "<= 변수 <=",
+       "left": "0.4",
+       "right": "0.5"
+      },
+      "WID": {
+       "op": "NA"
+      },
+      "THK_ADJ": {
+       "val": "0"
+      },
+      "THK_COR_UNT": {
+       "val": "CRN"
+      },
+      "RULE_KEY": {
+       "val": "TS-078"
+      }
+     },
+     "note": "레거시 no.78 · 원본 83행 · 원문 0"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PRD_NM_CD": {
+       "op": "EQ",
+       "left": "L"
+      },
+      "SPEC_ORG_CD": {
+       "op": "EQ",
+       "left": "AM"
+      },
+      "SPC_AVR": {
+       "op": "EQ",
+       "left": "AML-SS340-1"
+      },
+      "ORD_USG_CD": {
+       "op": "EQ",
+       "left": "D04000"
+      },
+      "CUS_CD": {
+       "op": "EQ",
+       "left": "604763"
+      },
+      "ORD_THK_TP": {
+       "op": "NA"
+      },
+      "ORD_THK_MNG_CD": {
+       "op": "EQ",
+       "left": "Q"
+      },
+      "GW_ASG_CD": {
+       "op": "EQ",
+       "left": "F"
+      },
+      "THK": {
+       "op": "EQ",
+       "left": "1.5"
+      },
+      "WID": {
+       "op": "NA"
+      },
+      "THK_ADJ": {
+       "val": "0.1"
+      },
+      "THK_COR_UNT": {
+       "val": "CRN"
+      },
+      "RULE_KEY": {
+       "val": "TS-079"
+      }
+     },
+     "note": "레거시 no.79 · 원본 84행 · 원문 +0.1"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PRD_NM_CD": {
+       "op": "IN",
+       "list": [
+        "L",
+        "W"
+       ]
+      },
+      "SPEC_ORG_CD": {
+       "op": "EQ",
+       "left": "AM"
+      },
+      "SPC_AVR": {
+       "op": "NA"
+      },
+      "ORD_USG_CD": {
+       "op": "NA"
+      },
+      "CUS_CD": {
+       "op": "NA"
+      },
+      "ORD_THK_TP": {
+       "op": "EQ",
+       "left": "1"
+      },
+      "ORD_THK_MNG_CD": {
+       "op": "EQ",
+       "left": "6"
+      },
+      "GW_ASG_CD": {
+       "op": "IN",
+       "list": [
+        "X",
+        "Y",
+        "Z",
+        "A",
+        "M",
+        "B",
+        "C",
+        "N",
+        "D",
+        "E",
+        "F"
+       ]
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.4",
+       "right": "9.999"
+      },
+      "WID": {
+       "op": "NA"
+      },
+      "THK_ADJ": {
+       "val": "0"
+      },
+      "THK_COR_UNT": {
+       "val": "CRN"
+      },
+      "RULE_KEY": {
+       "val": "TS-080"
+      }
+     },
+     "note": "레거시 no.80 · 원본 85행 · 원문 0"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PRD_NM_CD": {
+       "op": "EQ",
+       "left": "3"
+      },
+      "SPEC_ORG_CD": {
+       "op": "NA"
+      },
+      "SPC_AVR": {
+       "op": "EQ",
+       "left": "JS3-CGCC"
+      },
+      "ORD_USG_CD": {
+       "op": "EQ",
+       "left": "G0493P"
+      },
+      "CUS_CD": {
+       "op": "EQ",
+       "left": "604586"
+      },
+      "ORD_THK_TP": {
+       "op": "NA"
+      },
+      "ORD_THK_MNG_CD": {
+       "op": "EQ",
+       "left": "Q"
+      },
+      "GW_ASG_CD": {
+       "op": "IN",
+       "list": [
+        "E",
+        "Z"
+       ]
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.32",
+       "right": "0.401"
+      },
+      "WID": {
+       "op": "<= 변수 <",
+       "left": "600",
+       "right": "1401"
+      },
+      "THK_ADJ": {
+       "val": "-0.04"
+      },
+      "THK_COR_UNT": {
+       "val": "CRN"
+      },
+      "RULE_KEY": {
+       "val": "TS-081"
+      }
+     },
+     "note": "레거시 no.81 · 원본 86행 · 원문 -0.04"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PRD_NM_CD": {
+       "op": "EQ",
+       "left": "3"
+      },
+      "SPEC_ORG_CD": {
+       "op": "NA"
+      },
+      "SPC_AVR": {
+       "op": "EQ",
+       "left": "JS3-CGCD-1"
+      },
+      "ORD_USG_CD": {
+       "op": "EQ",
+       "left": "G0493P"
+      },
+      "CUS_CD": {
+       "op": "EQ",
+       "left": "604586"
+      },
+      "ORD_THK_TP": {
+       "op": "NA"
+      },
+      "ORD_THK_MNG_CD": {
+       "op": "EQ",
+       "left": "Q"
+      },
+      "GW_ASG_CD": {
+       "op": "IN",
+       "list": [
+        "E",
+        "Z"
+       ]
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.38",
+       "right": "0.401"
+      },
+      "WID": {
+       "op": "<= 변수 <",
+       "left": "600",
+       "right": "1401"
+      },
+      "THK_ADJ": {
+       "val": "-0.04"
+      },
+      "THK_COR_UNT": {
+       "val": "CRN"
+      },
+      "RULE_KEY": {
+       "val": "TS-082"
+      }
+     },
+     "note": "레거시 no.82 · 원본 87행 · 원문 -0.04"
+    }
+   ],
+   "cases": [
+    {
+     "name": "품명 4 · KS · C11004 · 두께구분 1 · 두께관리 Q · 0.45 → 순번 16 보정 −0.04",
+     "input": {
+      "PRD_NM_CD": "4",
+      "SPEC_ORG_CD": "KS",
+      "SPC_AVR": "",
+      "ORD_USG_CD": "C11004",
+      "CUS_CD": "",
+      "ORD_THK_TP": "1",
+      "ORD_THK_MNG_CD": "Q",
+      "GW_ASG_CD": "",
+      "THK": "0.45",
+      "WID": "1000"
+     },
+     "expect": {
+      "THK_ADJ": "-0.04",
+      "RULE_KEY": "TS-016"
+     },
+     "description": "rolling-thickness-set.html 간편판정 예시"
+    },
+    {
+     "name": "자동: TS-001 조건을 채운 입력",
+     "input": {
+      "PRD_NM_CD": "",
+      "SPEC_ORG_CD": "",
+      "SPC_AVR": "",
+      "ORD_USG_CD": "",
+      "CUS_CD": "",
+      "ORD_THK_TP": "",
+      "ORD_THK_MNG_CD": "1",
+      "GW_ASG_CD": "",
+      "THK": "0.1",
+      "WID": "0"
+     },
+     "expect": {
+      "THK_ADJ": "0",
+      "RULE_KEY": "TS-001"
+     },
+     "description": "행 조건을 채운 입력의 첫 적중(As-Is 판정 흉내로 기대값 계산)"
+    },
+    {
+     "name": "자동: TS-031 조건을 채운 입력",
+     "input": {
+      "PRD_NM_CD": "V",
+      "SPEC_ORG_CD": "KS",
+      "SPC_AVR": "KSV-SGMC400",
+      "ORD_USG_CD": "A04000",
+      "CUS_CD": "110014",
+      "ORD_THK_TP": "1",
+      "ORD_THK_MNG_CD": "Q",
+      "GW_ASG_CD": "H",
+      "THK": "0.75",
+      "WID": "0"
+     },
+     "expect": {
+      "THK_ADJ": "-0.07",
+      "RULE_KEY": "TS-031"
+     },
+     "description": "행 조건을 채운 입력의 첫 적중(As-Is 판정 흉내로 기대값 계산)"
+    },
+    {
+     "name": "자동: TS-061 조건을 채운 입력",
+     "input": {
+      "PRD_NM_CD": "G",
+      "SPEC_ORG_CD": "JS",
+      "SPC_AVR": "",
+      "ORD_USG_CD": "",
+      "CUS_CD": "604166",
+      "ORD_THK_TP": "1",
+      "ORD_THK_MNG_CD": "Q",
+      "GW_ASG_CD": "",
+      "THK": "1.6",
+      "WID": "0"
+     },
+     "expect": {
+      "THK_ADJ": "-0.05",
+      "RULE_KEY": "TS-061"
+     },
+     "description": "행 조건을 채운 입력의 첫 적중(As-Is 판정 흉내로 기대값 계산)"
+    },
+    {
+     "name": "자동: TS-082 조건을 채운 입력",
+     "input": {
+      "PRD_NM_CD": "3",
+      "SPEC_ORG_CD": "",
+      "SPC_AVR": "JS3-CGCD-1",
+      "ORD_USG_CD": "G0493P",
+      "CUS_CD": "604586",
+      "ORD_THK_TP": "",
+      "ORD_THK_MNG_CD": "Q",
+      "GW_ASG_CD": "E",
+      "THK": "0.38",
+      "WID": "600"
+     },
+     "expect": {
+      "THK_ADJ": "-0.04",
+      "RULE_KEY": "TS-082"
+     },
+     "description": "행 조건을 채운 입력의 첫 적중(As-Is 판정 흉내로 기대값 계산)"
+    }
+   ]
+  }
+ ]
+}

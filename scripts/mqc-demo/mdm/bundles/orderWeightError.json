@@ -1,0 +1,7154 @@
+{
+ "screen": "orderWeightError",
+ "rules": [
+  {
+   "ruleId": "QD_ORDER_WEIGHT_ERROR",
+   "name": "주문단중에러 기준",
+   "title": "주문단중에러 기준(단중 × 분할)",
+   "hitPolicy": "FIRST",
+   "applyFrom": "2026-11-01 00:00:00",
+   "description": "주문단중(15~35 MT, 0.5 간격) × 분할 수(2~10) 매트릭스 — mes-to-be order-weight-error.html. 허용 단중 4~5 MT/개.",
+   "note": "행 369개 = 단중 41단 × 분할 9열. 허용 단중 범위(Min 4·Max 5)는 코드 QC_ORD_WGT_LIMIT. v1.000 = 계산값, v1.001 = 수정값 2셀(단중 24.0 × 6분할 4.00 → 4.05, 단중 30.0 × 7분할 4.29 → 4.30).",
+   "columns": [
+    {
+     "varName": "ORD_UNT_WGT",
+     "varKind": "COND",
+     "dataType": "NUMBER",
+     "dispType": "2",
+     "label": "주문단중",
+     "unit": "MT"
+    },
+    {
+     "varName": "SPLIT_CNT",
+     "varKind": "COND",
+     "dataType": "NUMBER",
+     "dispType": "2",
+     "label": "분할 수",
+     "unit": "개"
+    },
+    {
+     "varName": "SPLIT_UNT_WGT",
+     "varKind": "RESULT",
+     "dataType": "NUMBER",
+     "dispType": "Value",
+     "label": "분할 단중",
+     "unit": "MT/개",
+     "desc": "주문단중 ÷ 분할 수(소수 둘째 자리 반올림), 수정값이 있으면 수정값"
+    },
+    {
+     "varName": "IN_RANGE_YN",
+     "varKind": "RESULT",
+     "dataType": "STRING",
+     "dispType": "Value",
+     "label": "허용범위",
+     "desc": "Y = 허용 단중 4~5 MT/개 안(생산 가능) · N = 범위 밖. 범위는 코드 QC_ORD_WGT_LIMIT"
+    }
+   ],
+   "rows": [
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "15"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "2"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "7.5"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "15"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "3"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "5"
+      },
+      "IN_RANGE_YN": {
+       "val": "Y"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "15"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "4"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "3.75"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "15"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "5"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "3"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "15"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "6"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "2.5"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "15"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "7"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "2.14"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "15"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "8"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "1.88"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "15"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "9"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "1.67"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "15"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "10"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "1.5"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "15.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "2"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "7.75"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "15.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "3"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "5.17"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "15.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "4"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "3.88"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "15.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "5"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "3.1"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "15.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "6"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "2.58"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "15.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "7"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "2.21"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "15.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "8"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "1.94"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "15.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "9"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "1.72"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "15.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "10"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "1.55"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "16"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "2"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "8"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "16"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "3"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "5.33"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "16"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "4"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "4"
+      },
+      "IN_RANGE_YN": {
+       "val": "Y"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "16"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "5"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "3.2"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "16"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "6"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "2.67"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "16"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "7"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "2.29"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "16"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "8"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "2"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "16"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "9"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "1.78"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "16"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "10"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "1.6"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "16.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "2"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "8.25"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "16.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "3"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "5.5"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "16.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "4"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "4.13"
+      },
+      "IN_RANGE_YN": {
+       "val": "Y"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "16.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "5"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "3.3"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "16.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "6"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "2.75"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "16.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "7"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "2.36"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "16.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "8"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "2.06"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "16.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "9"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "1.83"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "16.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "10"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "1.65"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "17"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "2"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "8.5"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "17"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "3"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "5.67"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "17"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "4"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "4.25"
+      },
+      "IN_RANGE_YN": {
+       "val": "Y"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "17"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "5"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "3.4"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "17"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "6"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "2.83"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "17"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "7"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "2.43"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "17"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "8"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "2.13"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "17"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "9"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "1.89"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "17"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "10"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "1.7"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "17.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "2"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "8.75"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "17.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "3"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "5.83"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "17.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "4"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "4.38"
+      },
+      "IN_RANGE_YN": {
+       "val": "Y"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "17.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "5"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "3.5"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "17.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "6"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "2.92"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "17.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "7"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "2.5"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "17.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "8"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "2.19"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "17.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "9"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "1.94"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "17.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "10"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "1.75"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "18"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "2"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "9"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "18"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "3"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "6"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "18"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "4"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "4.5"
+      },
+      "IN_RANGE_YN": {
+       "val": "Y"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "18"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "5"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "3.6"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "18"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "6"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "3"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "18"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "7"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "2.57"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "18"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "8"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "2.25"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "18"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "9"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "2"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "18"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "10"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "1.8"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "18.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "2"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "9.25"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "18.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "3"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "6.17"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "18.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "4"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "4.63"
+      },
+      "IN_RANGE_YN": {
+       "val": "Y"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "18.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "5"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "3.7"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "18.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "6"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "3.08"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "18.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "7"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "2.64"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "18.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "8"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "2.31"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "18.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "9"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "2.06"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "18.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "10"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "1.85"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "19"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "2"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "9.5"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "19"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "3"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "6.33"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "19"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "4"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "4.75"
+      },
+      "IN_RANGE_YN": {
+       "val": "Y"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "19"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "5"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "3.8"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "19"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "6"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "3.17"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "19"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "7"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "2.71"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "19"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "8"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "2.38"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "19"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "9"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "2.11"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "19"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "10"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "1.9"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "19.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "2"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "9.75"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "19.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "3"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "6.5"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "19.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "4"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "4.88"
+      },
+      "IN_RANGE_YN": {
+       "val": "Y"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "19.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "5"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "3.9"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "19.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "6"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "3.25"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "19.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "7"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "2.79"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "19.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "8"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "2.44"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "19.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "9"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "2.17"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "19.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "10"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "1.95"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "20"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "2"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "10"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "20"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "3"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "6.67"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "20"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "4"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "5"
+      },
+      "IN_RANGE_YN": {
+       "val": "Y"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "20"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "5"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "4"
+      },
+      "IN_RANGE_YN": {
+       "val": "Y"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "20"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "6"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "3.33"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "20"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "7"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "2.86"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "20"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "8"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "2.5"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "20"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "9"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "2.22"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "20"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "10"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "2"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "20.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "2"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "10.25"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "20.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "3"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "6.83"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "20.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "4"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "5.13"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "20.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "5"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "4.1"
+      },
+      "IN_RANGE_YN": {
+       "val": "Y"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "20.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "6"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "3.42"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "20.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "7"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "2.93"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "20.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "8"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "2.56"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "20.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "9"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "2.28"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "20.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "10"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "2.05"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "21"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "2"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "10.5"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "21"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "3"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "7"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "21"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "4"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "5.25"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "21"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "5"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "4.2"
+      },
+      "IN_RANGE_YN": {
+       "val": "Y"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "21"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "6"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "3.5"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "21"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "7"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "3"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "21"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "8"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "2.63"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "21"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "9"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "2.33"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "21"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "10"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "2.1"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "21.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "2"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "10.75"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "21.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "3"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "7.17"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "21.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "4"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "5.38"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "21.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "5"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "4.3"
+      },
+      "IN_RANGE_YN": {
+       "val": "Y"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "21.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "6"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "3.58"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "21.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "7"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "3.07"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "21.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "8"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "2.69"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "21.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "9"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "2.39"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "21.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "10"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "2.15"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "22"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "2"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "11"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "22"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "3"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "7.33"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "22"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "4"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "5.5"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "22"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "5"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "4.4"
+      },
+      "IN_RANGE_YN": {
+       "val": "Y"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "22"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "6"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "3.67"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "22"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "7"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "3.14"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "22"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "8"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "2.75"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "22"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "9"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "2.44"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "22"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "10"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "2.2"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "22.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "2"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "11.25"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "22.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "3"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "7.5"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "22.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "4"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "5.63"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "22.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "5"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "4.5"
+      },
+      "IN_RANGE_YN": {
+       "val": "Y"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "22.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "6"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "3.75"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "22.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "7"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "3.21"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "22.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "8"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "2.81"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "22.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "9"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "2.5"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "22.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "10"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "2.25"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "23"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "2"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "11.5"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "23"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "3"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "7.67"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "23"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "4"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "5.75"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "23"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "5"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "4.6"
+      },
+      "IN_RANGE_YN": {
+       "val": "Y"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "23"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "6"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "3.83"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "23"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "7"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "3.29"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "23"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "8"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "2.88"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "23"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "9"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "2.56"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "23"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "10"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "2.3"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "23.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "2"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "11.75"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "23.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "3"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "7.83"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "23.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "4"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "5.88"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "23.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "5"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "4.7"
+      },
+      "IN_RANGE_YN": {
+       "val": "Y"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "23.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "6"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "3.92"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "23.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "7"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "3.36"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "23.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "8"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "2.94"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "23.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "9"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "2.61"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "23.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "10"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "2.35"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "24"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "2"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "12"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "24"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "3"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "8"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "24"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "4"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "6"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "24"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "5"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "4.8"
+      },
+      "IN_RANGE_YN": {
+       "val": "Y"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "24"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "6"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "4"
+      },
+      "IN_RANGE_YN": {
+       "val": "Y"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "24"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "7"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "3.43"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "24"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "8"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "3"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "24"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "9"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "2.67"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "24"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "10"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "2.4"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "24.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "2"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "12.25"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "24.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "3"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "8.17"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "24.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "4"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "6.13"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "24.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "5"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "4.9"
+      },
+      "IN_RANGE_YN": {
+       "val": "Y"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "24.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "6"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "4.08"
+      },
+      "IN_RANGE_YN": {
+       "val": "Y"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "24.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "7"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "3.5"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "24.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "8"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "3.06"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "24.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "9"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "2.72"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "24.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "10"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "2.45"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "25"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "2"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "12.5"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "25"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "3"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "8.33"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "25"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "4"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "6.25"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "25"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "5"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "5"
+      },
+      "IN_RANGE_YN": {
+       "val": "Y"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "25"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "6"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "4.17"
+      },
+      "IN_RANGE_YN": {
+       "val": "Y"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "25"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "7"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "3.57"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "25"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "8"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "3.13"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "25"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "9"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "2.78"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "25"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "10"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "2.5"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "25.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "2"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "12.75"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "25.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "3"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "8.5"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "25.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "4"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "6.38"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "25.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "5"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "5.1"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "25.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "6"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "4.25"
+      },
+      "IN_RANGE_YN": {
+       "val": "Y"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "25.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "7"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "3.64"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "25.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "8"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "3.19"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "25.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "9"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "2.83"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "25.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "10"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "2.55"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "26"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "2"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "13"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "26"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "3"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "8.67"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "26"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "4"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "6.5"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "26"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "5"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "5.2"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "26"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "6"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "4.33"
+      },
+      "IN_RANGE_YN": {
+       "val": "Y"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "26"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "7"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "3.71"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "26"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "8"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "3.25"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "26"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "9"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "2.89"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "26"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "10"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "2.6"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "26.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "2"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "13.25"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "26.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "3"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "8.83"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "26.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "4"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "6.63"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "26.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "5"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "5.3"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "26.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "6"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "4.42"
+      },
+      "IN_RANGE_YN": {
+       "val": "Y"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "26.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "7"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "3.79"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "26.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "8"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "3.31"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "26.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "9"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "2.94"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "26.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "10"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "2.65"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "27"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "2"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "13.5"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "27"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "3"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "9"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "27"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "4"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "6.75"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "27"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "5"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "5.4"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "27"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "6"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "4.5"
+      },
+      "IN_RANGE_YN": {
+       "val": "Y"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "27"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "7"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "3.86"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "27"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "8"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "3.38"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "27"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "9"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "3"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "27"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "10"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "2.7"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "27.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "2"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "13.75"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "27.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "3"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "9.17"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "27.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "4"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "6.88"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "27.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "5"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "5.5"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "27.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "6"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "4.58"
+      },
+      "IN_RANGE_YN": {
+       "val": "Y"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "27.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "7"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "3.93"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "27.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "8"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "3.44"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "27.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "9"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "3.06"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "27.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "10"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "2.75"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "28"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "2"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "14"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "28"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "3"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "9.33"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "28"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "4"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "7"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "28"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "5"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "5.6"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "28"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "6"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "4.67"
+      },
+      "IN_RANGE_YN": {
+       "val": "Y"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "28"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "7"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "4"
+      },
+      "IN_RANGE_YN": {
+       "val": "Y"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "28"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "8"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "3.5"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "28"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "9"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "3.11"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "28"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "10"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "2.8"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "28.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "2"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "14.25"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "28.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "3"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "9.5"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "28.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "4"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "7.13"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "28.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "5"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "5.7"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "28.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "6"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "4.75"
+      },
+      "IN_RANGE_YN": {
+       "val": "Y"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "28.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "7"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "4.07"
+      },
+      "IN_RANGE_YN": {
+       "val": "Y"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "28.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "8"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "3.56"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "28.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "9"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "3.17"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "28.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "10"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "2.85"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "29"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "2"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "14.5"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "29"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "3"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "9.67"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "29"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "4"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "7.25"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "29"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "5"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "5.8"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "29"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "6"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "4.83"
+      },
+      "IN_RANGE_YN": {
+       "val": "Y"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "29"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "7"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "4.14"
+      },
+      "IN_RANGE_YN": {
+       "val": "Y"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "29"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "8"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "3.63"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "29"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "9"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "3.22"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "29"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "10"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "2.9"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "29.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "2"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "14.75"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "29.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "3"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "9.83"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "29.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "4"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "7.38"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "29.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "5"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "5.9"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "29.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "6"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "4.92"
+      },
+      "IN_RANGE_YN": {
+       "val": "Y"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "29.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "7"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "4.21"
+      },
+      "IN_RANGE_YN": {
+       "val": "Y"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "29.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "8"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "3.69"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "29.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "9"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "3.28"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "29.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "10"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "2.95"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "30"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "2"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "15"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "30"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "3"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "10"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "30"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "4"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "7.5"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "30"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "5"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "6"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "30"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "6"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "5"
+      },
+      "IN_RANGE_YN": {
+       "val": "Y"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "30"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "7"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "4.29"
+      },
+      "IN_RANGE_YN": {
+       "val": "Y"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "30"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "8"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "3.75"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "30"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "9"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "3.33"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "30"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "10"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "3"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "30.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "2"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "15.25"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "30.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "3"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "10.17"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "30.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "4"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "7.63"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "30.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "5"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "6.1"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "30.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "6"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "5.08"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "30.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "7"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "4.36"
+      },
+      "IN_RANGE_YN": {
+       "val": "Y"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "30.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "8"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "3.81"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "30.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "9"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "3.39"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "30.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "10"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "3.05"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "31"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "2"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "15.5"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "31"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "3"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "10.33"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "31"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "4"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "7.75"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "31"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "5"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "6.2"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "31"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "6"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "5.17"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "31"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "7"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "4.43"
+      },
+      "IN_RANGE_YN": {
+       "val": "Y"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "31"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "8"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "3.88"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "31"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "9"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "3.44"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "31"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "10"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "3.1"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "31.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "2"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "15.75"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "31.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "3"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "10.5"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "31.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "4"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "7.88"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "31.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "5"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "6.3"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "31.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "6"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "5.25"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "31.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "7"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "4.5"
+      },
+      "IN_RANGE_YN": {
+       "val": "Y"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "31.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "8"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "3.94"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "31.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "9"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "3.5"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "31.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "10"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "3.15"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "32"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "2"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "16"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "32"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "3"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "10.67"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "32"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "4"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "8"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "32"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "5"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "6.4"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "32"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "6"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "5.33"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "32"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "7"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "4.57"
+      },
+      "IN_RANGE_YN": {
+       "val": "Y"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "32"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "8"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "4"
+      },
+      "IN_RANGE_YN": {
+       "val": "Y"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "32"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "9"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "3.56"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "32"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "10"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "3.2"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "32.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "2"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "16.25"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "32.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "3"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "10.83"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "32.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "4"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "8.13"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "32.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "5"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "6.5"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "32.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "6"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "5.42"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "32.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "7"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "4.64"
+      },
+      "IN_RANGE_YN": {
+       "val": "Y"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "32.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "8"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "4.06"
+      },
+      "IN_RANGE_YN": {
+       "val": "Y"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "32.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "9"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "3.61"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "32.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "10"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "3.25"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "33"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "2"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "16.5"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "33"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "3"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "11"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "33"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "4"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "8.25"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "33"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "5"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "6.6"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "33"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "6"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "5.5"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "33"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "7"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "4.71"
+      },
+      "IN_RANGE_YN": {
+       "val": "Y"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "33"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "8"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "4.13"
+      },
+      "IN_RANGE_YN": {
+       "val": "Y"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "33"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "9"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "3.67"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "33"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "10"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "3.3"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "33.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "2"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "16.75"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "33.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "3"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "11.17"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "33.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "4"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "8.38"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "33.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "5"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "6.7"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "33.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "6"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "5.58"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "33.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "7"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "4.79"
+      },
+      "IN_RANGE_YN": {
+       "val": "Y"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "33.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "8"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "4.19"
+      },
+      "IN_RANGE_YN": {
+       "val": "Y"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "33.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "9"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "3.72"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "33.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "10"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "3.35"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "34"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "2"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "17"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "34"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "3"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "11.33"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "34"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "4"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "8.5"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "34"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "5"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "6.8"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "34"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "6"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "5.67"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "34"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "7"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "4.86"
+      },
+      "IN_RANGE_YN": {
+       "val": "Y"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "34"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "8"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "4.25"
+      },
+      "IN_RANGE_YN": {
+       "val": "Y"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "34"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "9"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "3.78"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "34"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "10"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "3.4"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "34.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "2"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "17.25"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "34.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "3"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "11.5"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "34.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "4"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "8.63"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "34.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "5"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "6.9"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "34.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "6"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "5.75"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "34.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "7"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "4.93"
+      },
+      "IN_RANGE_YN": {
+       "val": "Y"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "34.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "8"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "4.31"
+      },
+      "IN_RANGE_YN": {
+       "val": "Y"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "34.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "9"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "3.83"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "34.5"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "10"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "3.45"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "35"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "2"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "17.5"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "35"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "3"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "11.67"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "35"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "4"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "8.75"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "35"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "5"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "7"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "35"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "6"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "5.83"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "35"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "7"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "5"
+      },
+      "IN_RANGE_YN": {
+       "val": "Y"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "35"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "8"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "4.38"
+      },
+      "IN_RANGE_YN": {
+       "val": "Y"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "35"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "9"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "3.89"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "ORD_UNT_WGT": {
+       "op": "EQ",
+       "left": "35"
+      },
+      "SPLIT_CNT": {
+       "op": "EQ",
+       "left": "10"
+      },
+      "SPLIT_UNT_WGT": {
+       "val": "3.5"
+      },
+      "IN_RANGE_YN": {
+       "val": "N"
+      }
+     }
+    }
+   ],
+   "cases": [
+    {
+     "name": "단중 20 × 5분할 → 4.00 (범위 내)",
+     "input": {
+      "ORD_UNT_WGT": "20",
+      "SPLIT_CNT": "5"
+     },
+     "expect": {
+      "SPLIT_UNT_WGT": "4",
+      "IN_RANGE_YN": "Y"
+     },
+     "description": "단중 ÷ 분할 계산값"
+    },
+    {
+     "name": "단중 35 × 2분할 → 17.50 (범위 밖)",
+     "input": {
+      "ORD_UNT_WGT": "35",
+      "SPLIT_CNT": "2"
+     },
+     "expect": {
+      "SPLIT_UNT_WGT": "17.5",
+      "IN_RANGE_YN": "N"
+     },
+     "description": "단중 ÷ 분할 계산값"
+    },
+    {
+     "name": "단중 15 × 3분할 → 5.00 (범위 내)",
+     "input": {
+      "ORD_UNT_WGT": "15",
+      "SPLIT_CNT": "3"
+     },
+     "expect": {
+      "SPLIT_UNT_WGT": "5",
+      "IN_RANGE_YN": "Y"
+     },
+     "description": "단중 ÷ 분할 계산값"
+    },
+    {
+     "name": "단중 22.5 × 5분할 → 4.50 (범위 내)",
+     "input": {
+      "ORD_UNT_WGT": "22.5",
+      "SPLIT_CNT": "5"
+     },
+     "expect": {
+      "SPLIT_UNT_WGT": "4.5",
+      "IN_RANGE_YN": "Y"
+     },
+     "description": "단중 ÷ 분할 계산값"
+    },
+    {
+     "name": "단중 15.2 → 매트릭스 행 없음",
+     "input": {
+      "ORD_UNT_WGT": "15.2",
+      "SPLIT_CNT": "3"
+     },
+     "expect": {
+      "hit": null
+     },
+     "description": "행 단중은 0.5 간격 값만 있다"
+    }
+   ],
+   "revisions": [
+    {
+     "ver": "1.001",
+     "applyFrom": "2026-11-20 09:00:00",
+     "note": "셀 수정 단중 24.0 × 6분할 4.00 → 4.05, 단중 30.0 × 7분할 4.29 → 4.30",
+     "patch": [
+      {
+       "seq": 167,
+       "cells": {
+        "SPLIT_UNT_WGT": {
+         "val": "4.05"
+        },
+        "IN_RANGE_YN": {
+         "val": "Y"
+        }
+       }
+      },
+      {
+       "seq": 276,
+       "cells": {
+        "SPLIT_UNT_WGT": {
+         "val": "4.30"
+        },
+        "IN_RANGE_YN": {
+         "val": "Y"
+        }
+       }
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

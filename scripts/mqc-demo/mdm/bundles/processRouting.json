@@ -1,0 +1,245 @@
+{
+ "screen": "processRouting",
+ "rules": [
+  {
+   "ruleId": "QD_PROCESS_ROUTING",
+   "name": "공정라우팅",
+   "title": "공정라우팅(냉연도금공정)",
+   "hitPolicy": "FIRST",
+   "applyFrom": "2026-11-01 00:00:00",
+   "description": "공정라우팅모듈.xlsx(조건 8열·결과 1열) — mes-to-be process-routing.html 시드",
+   "note": "제품군은 체크 안 함으로 둘 수 없다. 첫 적중 적용.",
+   "columns": [
+    {
+     "varName": "PRD_NM_CD",
+     "varKind": "COND",
+     "dataType": "STRING",
+     "dispType": "1",
+     "label": "제품군"
+    },
+    {
+     "varName": "MAT_CD",
+     "varKind": "COND",
+     "dataType": "STRING",
+     "dispType": "1",
+     "label": "재질코드"
+    },
+    {
+     "varName": "EMBS_CD",
+     "varKind": "COND",
+     "dataType": "STRING",
+     "dispType": "1",
+     "label": "엠보스무늬"
+    },
+    {
+     "varName": "ORD_SPNL_TP",
+     "varKind": "COND",
+     "dataType": "STRING",
+     "dispType": "1",
+     "label": "Spangle구분"
+    },
+    {
+     "varName": "GW_ASG_CD",
+     "varKind": "COND",
+     "dataType": "STRING",
+     "dispType": "1",
+     "label": "도금량코드"
+    },
+    {
+     "varName": "ORD_SUR_HND_CD",
+     "varKind": "COND",
+     "dataType": "STRING",
+     "dispType": "1",
+     "label": "표면처리코드"
+    },
+    {
+     "varName": "THK",
+     "varKind": "COND",
+     "dataType": "NUMBER",
+     "dispType": "2",
+     "label": "주문두께",
+     "unit": "mm"
+    },
+    {
+     "varName": "WID",
+     "varKind": "COND",
+     "dataType": "NUMBER",
+     "dispType": "2",
+     "label": "주문폭",
+     "unit": "mm"
+    },
+    {
+     "varName": "ROUTE_CD",
+     "varKind": "RESULT",
+     "dataType": "STRING",
+     "dispType": "Value",
+     "label": "냉연도금공정",
+     "desc": "1P(PLTCM) → 83(CGL) → AX(CCL) 처럼 통과 공정을 잇는 코드"
+    },
+    {
+     "varName": "RULE_KEY",
+     "varKind": "RESULT",
+     "dataType": "STRING",
+     "dispType": "Value",
+     "label": "룰 ID"
+    }
+   ],
+   "rows": [
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PRD_NM_CD": {
+       "op": "EQ",
+       "left": "G"
+      },
+      "MAT_CD": {
+       "op": "NA"
+      },
+      "EMBS_CD": {
+       "op": "NA"
+      },
+      "ORD_SPNL_TP": {
+       "op": "NA"
+      },
+      "GW_ASG_CD": {
+       "op": "NA"
+      },
+      "ORD_SUR_HND_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.2",
+       "right": "2.5"
+      },
+      "WID": {
+       "op": "<= 변수 <",
+       "left": "600",
+       "right": "1600"
+      },
+      "ROUTE_CD": {
+       "val": "1P-83"
+      },
+      "RULE_KEY": {
+       "val": "PR-001"
+      }
+     },
+     "note": "공정라우팅모듈.xlsx"
+    },
+    {
+     "rowKind": "NORMAL",
+     "cells": {
+      "PRD_NM_CD": {
+       "op": "EQ",
+       "left": "3"
+      },
+      "MAT_CD": {
+       "op": "NA"
+      },
+      "EMBS_CD": {
+       "op": "NA"
+      },
+      "ORD_SPNL_TP": {
+       "op": "NA"
+      },
+      "GW_ASG_CD": {
+       "op": "NA"
+      },
+      "ORD_SUR_HND_CD": {
+       "op": "NA"
+      },
+      "THK": {
+       "op": "<= 변수 <",
+       "left": "0.3",
+       "right": "1.6"
+      },
+      "WID": {
+       "op": "<= 변수 <",
+       "left": "600",
+       "right": "1600"
+      },
+      "ROUTE_CD": {
+       "val": "1P-83-AX"
+      },
+      "RULE_KEY": {
+       "val": "PR-002"
+      }
+     },
+     "note": "공정라우팅모듈.xlsx"
+    }
+   ],
+   "cases": [
+    {
+     "name": "제품군 G · 두께 1.0 · 폭 1000 → 1P-83",
+     "input": {
+      "PRD_NM_CD": "G",
+      "MAT_CD": "",
+      "EMBS_CD": "",
+      "ORD_SPNL_TP": "",
+      "GW_ASG_CD": "",
+      "ORD_SUR_HND_CD": "",
+      "THK": "1.0",
+      "WID": "1000"
+     },
+     "expect": {
+      "ROUTE_CD": "1P-83",
+      "RULE_KEY": "PR-001"
+     },
+     "description": "process-routing.html 간편판정 예시"
+    },
+    {
+     "name": "제품군 3 · 두께 0.5 · 폭 1200 → 1P-83-AX",
+     "input": {
+      "PRD_NM_CD": "3",
+      "MAT_CD": "",
+      "EMBS_CD": "",
+      "ORD_SPNL_TP": "",
+      "GW_ASG_CD": "",
+      "ORD_SUR_HND_CD": "",
+      "THK": "0.5",
+      "WID": "1200"
+     },
+     "expect": {
+      "ROUTE_CD": "1P-83-AX",
+      "RULE_KEY": "PR-002"
+     },
+     "description": "process-routing.html 간편판정 예시"
+    },
+    {
+     "name": "제품군 3 · 두께 2.0 → 두께범위 밖이라 해당 없음",
+     "input": {
+      "PRD_NM_CD": "3",
+      "MAT_CD": "",
+      "EMBS_CD": "",
+      "ORD_SPNL_TP": "",
+      "GW_ASG_CD": "",
+      "ORD_SUR_HND_CD": "",
+      "THK": "2.0",
+      "WID": "1200"
+     },
+     "expect": {
+      "hit": null
+     },
+     "description": "process-routing.html 간편판정 예시"
+    },
+    {
+     "name": "제품군 G · 폭 1600 → 상한 미포함이라 해당 없음",
+     "input": {
+      "PRD_NM_CD": "G",
+      "MAT_CD": "",
+      "EMBS_CD": "",
+      "ORD_SPNL_TP": "",
+      "GW_ASG_CD": "",
+      "ORD_SUR_HND_CD": "",
+      "THK": "1.0",
+      "WID": "1600"
+     },
+     "expect": {
+      "hit": null
+     },
+     "description": "process-routing.html 간편판정 예시"
+    }
+   ]
+  }
+ ]
+}

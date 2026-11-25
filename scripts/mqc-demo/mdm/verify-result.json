@@ -1,0 +1,363 @@
+{
+ "rules": {
+  "C10B1073": {
+   "ver": "1.000",
+   "versions": [
+    "1.000"
+   ],
+   "rows": 33,
+   "hitPolicy": "FIRST",
+   "judged": 4,
+   "pass": 4
+  },
+  "C10B1079": {
+   "ver": "1.000",
+   "versions": [
+    "1.000"
+   ],
+   "rows": 26,
+   "hitPolicy": "FIRST",
+   "judged": 4,
+   "pass": 4
+  },
+  "C10B1074": {
+   "ver": "1.000",
+   "versions": [
+    "1.000"
+   ],
+   "rows": 32,
+   "hitPolicy": "FIRST",
+   "judged": 5,
+   "pass": 5
+  },
+  "C10B1075": {
+   "ver": "1.000",
+   "versions": [
+    "1.000"
+   ],
+   "rows": 139,
+   "hitPolicy": "FIRST",
+   "judged": 5,
+   "pass": 5
+  },
+  "C10B1076": {
+   "ver": "1.000",
+   "versions": [
+    "1.000"
+   ],
+   "rows": 10,
+   "hitPolicy": "FIRST",
+   "judged": 3,
+   "pass": 3
+  },
+  "C10B1077": {
+   "ver": "1.000",
+   "versions": [
+    "1.000"
+   ],
+   "rows": 3,
+   "hitPolicy": "FIRST",
+   "judged": 3,
+   "pass": 3
+  },
+  "C10B1078": {
+   "ver": "1.000",
+   "versions": [
+    "1.000"
+   ],
+   "rows": 2,
+   "hitPolicy": "FIRST",
+   "judged": 2,
+   "pass": 2
+  },
+  "QD_ORDER_CHECK": {
+   "ver": "1.000",
+   "versions": [
+    "1.000"
+   ],
+   "rows": 137,
+   "hitPolicy": "COLLECT",
+   "judged": 7,
+   "pass": 7
+  },
+  "QD_ORDER_WEIGHT_ERROR": {
+   "ver": "1.001",
+   "versions": [
+    "1.000",
+    "1.001"
+   ],
+   "rows": 369,
+   "hitPolicy": "FIRST",
+   "judged": 5,
+   "pass": 5
+  },
+  "QD_PROCESS_ROUTING": {
+   "ver": "1.000",
+   "versions": [
+    "1.000"
+   ],
+   "rows": 2,
+   "hitPolicy": "FIRST",
+   "judged": 4,
+   "pass": 4
+  },
+  "QD_FEAS_2CGL_GI": {
+   "ver": "1.000",
+   "versions": [
+    "1.000"
+   ],
+   "rows": 98,
+   "hitPolicy": "FIRST",
+   "judged": 3,
+   "pass": 3
+  },
+  "QD_FEAS_2CGL_GL": {
+   "ver": "1.000",
+   "versions": [
+    "1.000"
+   ],
+   "rows": 93,
+   "hitPolicy": "FIRST",
+   "judged": 3,
+   "pass": 3
+  },
+  "QD_FEAS_3CGL": {
+   "ver": "1.000",
+   "versions": [
+    "1.000"
+   ],
+   "rows": 226,
+   "hitPolicy": "FIRST",
+   "judged": 4,
+   "pass": 4
+  },
+  "QD_FEAS_4CGL": {
+   "ver": "1.000",
+   "versions": [
+    "1.000"
+   ],
+   "rows": 122,
+   "hitPolicy": "FIRST",
+   "judged": 4,
+   "pass": 4
+  },
+  "QD_FEAS_5CGL": {
+   "ver": "1.000",
+   "versions": [
+    "1.000"
+   ],
+   "rows": 240,
+   "hitPolicy": "FIRST",
+   "judged": 3,
+   "pass": 3
+  },
+  "QD_RAW_MATERIAL_GRADE": {
+   "ver": "1.001",
+   "versions": [
+    "1.000",
+    "1.001"
+   ],
+   "rows": 11,
+   "hitPolicy": "FIRST",
+   "judged": 5,
+   "pass": 5
+  },
+  "C10B2060": {
+   "ver": "1.000",
+   "versions": [
+    "1.000"
+   ],
+   "rows": 82,
+   "hitPolicy": "FIRST",
+   "judged": 5,
+   "pass": 5
+  },
+  "QD_SPEC_THK_STD": {
+   "ver": "1.001",
+   "versions": [
+    "1.000",
+    "1.001"
+   ],
+   "rows": 5,
+   "hitPolicy": "FIRST",
+   "judged": 3,
+   "pass": 3
+  },
+  "QD_SPEC_BASE_GRADE": {
+   "ver": "1.000",
+   "versions": [
+    "1.000"
+   ],
+   "rows": 8,
+   "hitPolicy": "FIRST",
+   "judged": 3,
+   "pass": 3
+  }
+ },
+ "codes": {
+  "QC_PRODUCT_TYPE": {
+   "ver": "1.000",
+   "items": 0
+  },
+  "QC_QUALITY_STATUS": {
+   "ver": "1.000",
+   "items": 0
+  },
+  "QC_USE_YN": {
+   "ver": "1.000",
+   "items": 0
+  },
+  "QC_ORD_THK_MNG_CD": {
+   "ver": "1.000",
+   "items": 0
+  },
+  "QC_THK_COR_UNT": {
+   "ver": "1.000",
+   "items": 0
+  },
+  "QC_PRD_NM_CD": {
+   "ver": "1.000",
+   "items": 0
+  },
+  "QC_SPEC_STATUS": {
+   "ver": "1.000",
+   "items": 0
+  },
+  "QC_DESIGN_STATUS": {
+   "ver": "1.000",
+   "items": 0
+  },
+  "QC_JUDGE_ITEM_RESULT": {
+   "ver": "1.000",
+   "items": 0
+  },
+  "QC_QCERT_STATUS": {
+   "ver": "1.000",
+   "items": 0
+  },
+  "QC_MTC_STATUS": {
+   "ver": "1.000",
+   "items": 0
+  },
+  "QC_TAG_STATUS": {
+   "ver": "1.000",
+   "items": 0
+  },
+  "QC_TAG_KIND": {
+   "ver": "1.000",
+   "items": 0
+  },
+  "QC_IF_DIR": {
+   "ver": "1.000",
+   "items": 0
+  },
+  "QC_IF_RESULT": {
+   "ver": "1.000",
+   "items": 0
+  },
+  "QC_FEAS_STATE": {
+   "ver": "1.000",
+   "items": 0
+  },
+  "QC_SIM_CASE_STATUS": {
+   "ver": "1.000",
+   "items": 0
+  },
+  "QC_CUSTOMER": {
+   "ver": "1.000",
+   "items": 0
+  },
+  "QC_SPEC_CD": {
+   "ver": "1.000",
+   "items": 0
+  },
+  "QC_MATL_CD": {
+   "ver": "1.000",
+   "items": 0
+  },
+  "QC_RAW_MATL_CD": {
+   "ver": "1.000",
+   "items": 0
+  },
+  "QC_RULE_KIND": {
+   "ver": "1.000",
+   "items": 0
+  },
+  "QC_LEGACY_RULE_TYPE": {
+   "ver": "1.000",
+   "items": 0
+  },
+  "QC_THK_STD": {
+   "ver": "1.000",
+   "items": 0
+  },
+  "QC_SPEC_ORG": {
+   "ver": "1.000",
+   "items": 0
+  },
+  "QC_GW_ASG_CD": {
+   "ver": "1.000",
+   "items": 0
+  },
+  "QC_ORD_USG_CD": {
+   "ver": "1.000",
+   "items": 0
+  },
+  "QC_LINE_PROC_CD": {
+   "ver": "1.000",
+   "items": 0
+  },
+  "QC_EDGE_TP": {
+   "ver": "1.000",
+   "items": 0
+  },
+  "QC_PRD_SHP": {
+   "ver": "1.000",
+   "items": 0
+  },
+  "QC_COAT_WAY": {
+   "ver": "1.000",
+   "items": 0
+  },
+  "QC_RESIN_TP": {
+   "ver": "1.000",
+   "items": 0
+  },
+  "QC_ORD_WGT_LIMIT": {
+   "ver": "1.000",
+   "items": 0
+  },
+  "QC_FEAS_SHEET": {
+   "ver": "1.000",
+   "items": 0
+  },
+  "QC_FEAS_MATL_GRP": {
+   "ver": "1.000",
+   "items": 0
+  },
+  "QC_OC_FIELD": {
+   "ver": "1.000",
+   "items": 0
+  },
+  "QC_OC_VALUE_LABEL": {
+   "ver": "1.000",
+   "items": 0
+  },
+  "QC_OC_ERR_CATEGORY": {
+   "ver": "1.000",
+   "items": 0
+  },
+  "QC_OC_ACTOR": {
+   "ver": "1.000",
+   "items": 0
+  },
+  "QC_COLOR_SUBMAT": {
+   "ver": "1.000",
+   "items": 0
+  },
+  "QC_COLOR_BOM": {
+   "ver": "1.000",
+   "items": 0
+  }
+ }
+}
