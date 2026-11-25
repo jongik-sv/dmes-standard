@@ -40,9 +40,7 @@ const SCREEN_CODES = {
   qualityDesignResult: ["QC_DESIGN_STATUS", "QC_PRD_NM_CD", "QC_MATL_CD", "QC_SPEC_CD", "QC_ORD_USG_CD", "QC_GW_ASG_CD", "QC_CUSTOMER", "QC_COLOR_BOM", "QC_EDGE_TP"],
   designSimulation: ["QC_SIM_CASE_STATUS", "QC_DESIGN_STATUS", "QC_PRD_NM_CD", "QC_CUSTOMER", "QC_FEAS_STATE", "QC_OC_FIELD"],
   qualityJudgment: ["QC_QUALITY_STATUS", "QC_JUDGE_ITEM_RESULT", "QC_PRD_NM_CD", "QC_SPEC_CD"],
-  qualityCertificate: ["QC_QCERT_STATUS", "QC_CUSTOMER", "QC_PRD_NM_CD"],
   inspectionCertificate: ["QC_MTC_STATUS", "QC_SPEC_CD"],
-  tagManagement: ["QC_TAG_STATUS", "QC_TAG_KIND", "QC_PRD_NM_CD"],
 };
 const codeIds = new Set(codes.map((c) => c.codeId));
 for (const [s, ids] of Object.entries(SCREEN_CODES)) for (const id of ids) if (!codeIds.has(id)) throw new Error(`${s}: 없는 코드 ${id}`);

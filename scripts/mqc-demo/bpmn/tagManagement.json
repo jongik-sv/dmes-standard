@@ -1,10 +1,8 @@
 { "id": "tagManagement", "name": "Tag관리", "bean": "tagManagement",
-  "doc": "tagManagement — 코일 단위 공정 Tag·출하 Tag. 대기 → 출력(issue) → 재발행(reissue) / 폐기(cancel). 출하 Tag 는 코일이 합격이어야 한다.",
+  "doc": "tagManagement — TAG 발행 규칙 편집 목업(계약 docs/mqc/demo/tag-contract.md). 편집은 화면이 하고 서버는 문서 본문(불투명한 JSON)·상태(적용본·초안·승인 대기)·승인 버전 기록·이력을 저장한다. 승인 대기 중 저장 거부, 승인 시 버전 올림, 시연 초기화.",
   "actions": [
-    { "action": "search", "name": "Tag 목록 조회", "dto": "com.dongkuk.dmes.mqc.qpr.tagManagement.dto.TagSearchRequest" },
-    { "action": "view", "name": "Tag 상세", "dto": "com.dongkuk.dmes.mqc.qpr.tagManagement.dto.TagKeyRequest" },
-    { "action": "issue", "name": "출력(발행)", "dto": "com.dongkuk.dmes.mqc.qpr.tagManagement.dto.TagKeyRequest" },
-    { "action": "reissue", "name": "재발행", "dto": "com.dongkuk.dmes.mqc.qpr.tagManagement.dto.TagReissueRequest" },
-    { "action": "cancel", "name": "폐기", "dto": "com.dongkuk.dmes.mqc.qpr.tagManagement.dto.TagKeyRequest" },
-    { "action": "history", "name": "처리 이력", "dto": "com.dongkuk.dmes.mqc.qpr.tagManagement.dto.TagHistoryRequest" }
+    { "action": "search", "name": "문서·버전·이력 조회", "dto": "com.dongkuk.dmes.mqc.qpr.tagManagement.dto.TagManagementRequest" },
+    { "action": "save", "name": "문서 저장(INIT·DRAFT·REQUEST·UNREQUEST·DISCARD)", "dto": "com.dongkuk.dmes.mqc.qpr.tagManagement.dto.TagManagementRequest" },
+    { "action": "approve", "name": "승인(버전 올림)", "dto": "com.dongkuk.dmes.mqc.qpr.tagManagement.dto.TagManagementRequest" },
+    { "action": "reset", "name": "시연 초기화", "dto": "com.dongkuk.dmes.mqc.qpr.tagManagement.dto.TagManagementRequest" }
   ] }

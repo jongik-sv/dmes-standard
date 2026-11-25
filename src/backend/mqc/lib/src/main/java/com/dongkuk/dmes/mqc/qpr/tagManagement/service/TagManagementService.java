@@ -1,255 +1,240 @@
 package com.dongkuk.dmes.mqc.qpr.tagManagement.service;
 
-import com.dongkuk.dmes.mqc.qjd.qualityJudgment.service.CoilLookup;
-import com.dongkuk.dmes.mqc.qjd.qualityJudgment.service.CoilSnapshot;
 import com.dongkuk.dmes.mqc.qjd.qualityJudgment.support.DemoSupport;
-import com.dongkuk.dmes.mqc.qpr.common.OutputHistories;
-import com.dongkuk.dmes.mqc.qpr.common.OutputHistory;
-import com.dongkuk.dmes.mqc.qpr.tagManagement.domain.CoilTag;
-import com.dongkuk.dmes.mqc.qpr.tagManagement.domain.TagKind;
-import com.dongkuk.dmes.mqc.qpr.tagManagement.domain.TagStatus;
-import com.dongkuk.dmes.mqc.qpr.tagManagement.dto.TagHistoryRequest;
-import com.dongkuk.dmes.mqc.qpr.tagManagement.dto.TagKeyRequest;
-import com.dongkuk.dmes.mqc.qpr.tagManagement.dto.TagReissueRequest;
-import com.dongkuk.dmes.mqc.qpr.tagManagement.dto.TagSearchRequest;
-import com.dongkuk.dmes.mqc.qpr.tagManagement.repository.CoilTagRepository;
+import com.dongkuk.dmes.mqc.qpr.tagManagement.domain.TagDoc;
+import com.dongkuk.dmes.mqc.qpr.tagManagement.domain.TagHistory;
+import com.dongkuk.dmes.mqc.qpr.tagManagement.domain.TagVersion;
+import com.dongkuk.dmes.mqc.qpr.tagManagement.dto.TagManagementRequest;
+import com.dongkuk.dmes.mqc.qpr.tagManagement.repository.TagDocRepository;
+import com.dongkuk.dmes.mqc.qpr.tagManagement.repository.TagHistoryRepository;
+import com.dongkuk.dmes.mqc.qpr.tagManagement.repository.TagVersionRepository;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.function.Supplier;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 /**
- * Tag관리(OASIS tagManagement, 화면 qpr/tagManagement). 코일 단위 공정 Tag·출하 Tag.
- * 대기 → 발행(issue, 출력) → 재발행(reissue, 사유·프린터·매수) / 폐기(cancel). 출하 Tag 는 코일이 합격이어야 발행·재발행한다.
- * 진입 빈이라 @Transactional 을 두지 않는다.
+ * Tag관리(OASIS tagManagement, 화면 qpr/tagManagement). 계약 = docs/mqc/demo/tag-contract.md.
+ * 시연 목업이다 — 문서 편집은 화면이 하고, 서버는 문서 본문(불투명한 JSON) 저장, 상태(적용본·초안·승인 대기),
+ * 승인 시 버전 올림과 버전 기록, 이력, 시연 초기화를 맡는다.
+ * 진입 빈이라 @Transactional 을 두지 않는다 — OASIS 가 서비스 단위 트랜잭션을 건다.
  */
 @Service("tagManagement")
 public class TagManagementService {
 
-    static final List<String> PRINTERS = List.of("PRT-CGL2-01", "PRT-CGL5-01", "PRT-CCL-02", "PRT-출하-01");
-    static final Map<String, String> REASONS = Map.of("DAMAGE", "훼손", "LOST", "분실", "CORRECT", "정보 정정");
+    static final String MSG_PENDING = "승인 대기 중에는 고칠 수 없습니다. 승인 요청을 먼저 취소하세요.";
+    static final String MSG_EXISTS = "이미 문서가 있습니다. 기본 문서는 문서가 없을 때만 만들 수 있습니다.";
+    static final String MSG_NO_DOC = "문서가 없습니다. 기본 문서를 먼저 만드세요.";
+    static final String MSG_NOT_PENDING = "승인 대기 중인 문서가 아닙니다.";
+    static final DateTimeFormatter TS = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss");
+    static final Set<String> SAVE_ACTS = Set.of(TagHistory.INIT, TagHistory.DRAFT, TagHistory.REQUEST, TagHistory.UNREQUEST,
+            TagHistory.DISCARD);
+    static final Set<String> COLLAPSE_ACTS = Set.of(TagHistory.DRAFT, TagHistory.REQUEST);
+    static final Duration COLLAPSE_WINDOW = Duration.ofMinutes(1);
+    static final int TEXT_MAX = 1000;
 
-    private final CoilTagRepository tags;
-    private final CoilLookup lookup;
-    private final OutputHistories histories;
+    private final TagDocRepository docs;
+    private final TagVersionRepository vers;
+    private final TagHistoryRepository hist;
     private final Clock clock;
+    private final Supplier<String> actor;
+    private final ObjectMapper json = new ObjectMapper();
 
     @Autowired
-    public TagManagementService(CoilTagRepository tags, CoilLookup lookup, OutputHistories histories) {
-        this(tags, lookup, histories, DemoSupport.systemClock());
+    public TagManagementService(TagDocRepository docs, TagVersionRepository vers, TagHistoryRepository hist) {
+        this(docs, vers, hist, DemoSupport.systemClock(), DemoSupport::actor);
     }
 
-    TagManagementService(CoilTagRepository tags, CoilLookup lookup, OutputHistories histories, Clock clock) {
-        this.tags = tags;
-        this.lookup = lookup;
-        this.histories = histories;
+    TagManagementService(TagDocRepository docs, TagVersionRepository vers, TagHistoryRepository hist, Clock clock,
+                              Supplier<String> actor) {
+        this.docs = docs;
+        this.vers = vers;
+        this.hist = hist;
         this.clock = clock;
+        this.actor = actor;
     }
 
-    /** Tag 목록. 기준일 = 발행일(대기 Tag 는 기간과 상관없이 보인다). 응답: rows[], totalCount, counts{WAIT,ISSUED,REISSUED,DISCARDED}. */
-    public Map<String, Object> search(TagSearchRequest req) {
-        LocalDateTime[] r = DemoSupport.range(req.getFromDt(), req.getToDt());
-        TagStatus statusFilter = DemoSupport.isBlank(req.getStatus()) ? null : TagStatus.of(req.getStatus());
-        if (!DemoSupport.isBlank(req.getStatus()) && statusFilter == null) throw DemoSupport.invalid("상태가 올바르지 않습니다: " + req.getStatus());
-        List<CoilTag> list = tags.findAllByOrderByTagNoDesc();
-        Map<String, CoilSnapshot> snaps = lookup.load(list.stream().map(CoilTag::getCoilNo).distinct().toList());
+    // ── OASIS action ─────────────────────────────────────
 
-        Map<String, Integer> counts = new LinkedHashMap<>();
-        for (TagStatus s : TagStatus.values()) counts.put(s.name(), 0);
-        List<Map<String, Object>> rows = new ArrayList<>();
-        for (CoilTag t : list) {
-            if (t.getIssueAt() != null && (t.getIssueAt().isBefore(r[0]) || !t.getIssueAt().isBefore(r[1]))) continue;
-            if (!DemoSupport.eq(req.getPrtId(), t.getPrtId())) continue;
-            Map<String, Object> row = rowView(t, snaps.get(t.getCoilNo()));
-            if (!DemoSupport.matches(req.getKeyword(), t.getTagNo(), t.getCoilNo(), (String) row.get("ordNo"), (String) row.get("cusNm"),
-                    (String) row.get("prdLabel"), t.getIssueBy())) continue;
-            counts.merge(t.getStatCd().name(), 1, Integer::sum);
-            if (statusFilter != null && t.getStatCd() != statusFilter) continue;
-            rows.add(row);
-        }
+    /**
+     * 현재 문서·버전 기록·이력. 응답: doc {ver, state, json, base, updatedAt, updatedBy} 또는 null,
+     * versions [{ver, memo, approvedAt, approvedBy}](ver 내림차순), hist [{at, act, msg, by}](최근 100건, 최근 먼저).
+     */
+    public Map<String, Object> search(TagManagementRequest req) {
         Map<String, Object> out = new LinkedHashMap<>();
-        out.put("rows", rows);
-        out.put("totalCount", rows.size());
-        out.put("counts", counts);
+        out.put("doc", docs.findById(TagDoc.MAIN).map(TagManagementService::docView).orElse(null));
+        List<Map<String, Object>> versions = new ArrayList<>();
+        for (TagVersion v : vers.findByDocIdOrderByDocVerDesc(TagDoc.MAIN)) versions.add(versionView(v));
+        out.put("versions", versions);
+        List<Map<String, Object>> events = new ArrayList<>();
+        for (TagHistory h : hist.findTop100ByOrderByActAtDescHistNoDesc()) events.add(histView(h));
+        out.put("hist", events);
         return out;
-    }
-
-    /** 상세 — tag(Tag 미리보기 칸 포함), actions{canIssue,canReissue,canCancel,blockReason}, history[]. */
-    public Map<String, Object> view(TagKeyRequest req) {
-        return detail(DemoSupport.required(req.getTagNo(), "Tag번호"));
     }
 
     /**
-     * 출력(하나 또는 선택 여러 개) — 대기 Tag 를 발행으로. 출하 Tag 는 코일이 합격이어야 한다. 하나라도 못 하면 아무것도 바꾸지 않는다.
-     * 응답: count, tagNos, (하나면) detail.
+     * 현재 문서 저장. INIT 은 문서가 없을 때만(적용본·v1 버전 기록도 같은 본문). DISCARD 는 본문을 적용본으로 되돌린다(json 무시).
+     * 승인 대기 중에는 UNREQUEST 만 받는다. 상태: INIT·DISCARD = APPLIED, REQUEST = PENDING, DRAFT·UNREQUEST = state(APPLIED·DRAFT, 비면 DRAFT).
+     * 응답: {ver, state, updatedAt}.
      */
-    public Map<String, Object> issue(TagKeyRequest req) {
-        List<String> keys = DemoSupport.isBlank(req.getTagNos())
-                ? List.of(DemoSupport.required(req.getTagNo(), "Tag번호"))
-                : DemoSupport.keys(req.getTagNos(), "Tag");
-        List<CoilTag> targets = new ArrayList<>();
-        List<String> errors = new ArrayList<>();
-        for (String k : keys) {
-            CoilTag t = tags.findById(k).orElseThrow(() -> DemoSupport.notFound("Tag", k));
-            if (t.getStatCd() != TagStatus.WAIT) {
-                errors.add(k + "(" + t.getStatCd().label() + " — 대기 Tag 만 출력, 발행된 Tag 는 재발행)");
-                continue;
+    public Map<String, Object> save(TagManagementRequest req) {
+        String act = DemoSupport.required(req.getAct(), "동작(act)").toUpperCase();
+        if (!SAVE_ACTS.contains(act)) throw DemoSupport.invalid("저장 동작(act)이 올바르지 않습니다: " + act);
+        String msg = text(req.getMsg(), "메시지(msg)");
+        LocalDateTime now = DemoSupport.now(clock);
+        String by = actor.get();
+        TagDoc doc = docs.findById(TagDoc.MAIN).orElse(null);
+
+        if (TagHistory.INIT.equals(act)) {
+            if (doc != null) throw DemoSupport.business(MSG_EXISTS);
+            String body = body(req.getJson(), true);
+            doc = TagDoc.init(TagDoc.MAIN, body, by, now);
+            docs.save(doc);
+            vers.save(TagVersion.of(TagDoc.MAIN, 1, body, msg == null ? "기본 문서" : msg, by, now));
+            record(TagHistory.INIT, msg == null ? "기본 문서 만들기 (v1)" : msg, by, now);
+            return saved(doc);
+        }
+
+        if (doc == null) throw DemoSupport.business(MSG_NO_DOC);
+        if (doc.isPending() && !TagHistory.UNREQUEST.equals(act)) throw DemoSupport.business(MSG_PENDING);
+        if (!doc.isPending() && TagHistory.UNREQUEST.equals(act)) throw DemoSupport.business(MSG_NOT_PENDING);
+
+        if (TagHistory.DISCARD.equals(act)) {
+            doc.write(doc.getBaseJson(), TagDoc.APPLIED, by, now);
+        } else {
+            String body = body(req.getJson(), false);
+            String state = TagHistory.REQUEST.equals(act) ? TagDoc.PENDING : editState(req.getState());
+            doc.write(body == null ? doc.getBodyJson() : body, state, by, now);
+        }
+        docs.save(doc);
+        record(act, msg, by, now);
+        return saved(doc);
+    }
+
+    /** 승인 — 승인 대기일 때만. ver + 1, 적용본 = 현재 본문, 상태 APPLIED, 버전 기록 1행. 응답: {ver, approvedAt}. */
+    public Map<String, Object> approve(TagManagementRequest req) {
+        TagDoc doc = docs.findById(TagDoc.MAIN).orElseThrow(() -> DemoSupport.business(MSG_NO_DOC));
+        if (!doc.isPending()) throw DemoSupport.business(MSG_NOT_PENDING);
+        String memo = text(req.getMemo(), "승인 메모(memo)");
+        LocalDateTime now = DemoSupport.now(clock);
+        String by = actor.get();
+        doc.approve(by, now);
+        docs.save(doc);
+        vers.save(TagVersion.of(TagDoc.MAIN, doc.getDocVer(), doc.getBodyJson(), memo, by, now));
+        record(TagHistory.APPROVE, "v" + doc.getDocVer() + " 승인" + (memo == null ? "" : " — " + memo), by, now);
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("ver", doc.getDocVer());
+        out.put("approvedAt", ts(now));
+        return out;
+    }
+
+    /** 시연 초기화 — 문서·버전·이력을 모두 지우고 RESET 이력 1행만 남긴다(화면이 기본 문서로 다시 INIT 한다). 응답: {ok: true}. */
+    public Map<String, Object> reset(TagManagementRequest req) {
+        hist.deleteAllInBatch();
+        vers.deleteAllInBatch();
+        docs.deleteAllInBatch();
+        record(TagHistory.RESET, "시연 초기화", actor.get(), DemoSupport.now(clock));
+        return Map.of("ok", true);
+    }
+
+    // ── 도우미 ───────────────────────────────────────────
+
+    /** 이력 1행. DRAFT·REQUEST 는 직전 행이 같은 사용자·같은 동작이고 1분 안이면 새 행 대신 그 행을 바꾼다. */
+    private void record(String act, String msg, String by, LocalDateTime at) {
+        if (COLLAPSE_ACTS.contains(act)) {
+            TagHistory last = hist.findFirstByOrderByActAtDescHistNoDesc().orElse(null);
+            if (last != null && act.equals(last.getActCd()) && Objects.equals(by, last.getActBy())
+                    && !last.getActAt().isBefore(at.minus(COLLAPSE_WINDOW))) {
+                last.touch(msg, at);
+                hist.save(last);
+                return;
             }
-            String block = blockReason(t, lookup.one(t.getCoilNo()).orElse(null));
-            if (block != null) errors.add(k + " — " + block);
-            targets.add(t);
         }
-        if (!errors.isEmpty()) throw DemoSupport.business("출력할 수 없습니다. " + String.join("; ", errors));
-        LocalDateTime now = DemoSupport.now(clock);
-        String by = DemoSupport.actor();
-        for (CoilTag t : targets) {
-            t.issue(by, now);
-            tags.save(t);
-            histories.record(OutputHistory.TAG, t.getTagNo(), t.getRissuCnt() + 1, OutputHistory.ISSUE, TagStatus.WAIT.name(),
-                    TagStatus.ISSUED.name(), null, by, now);
+        hist.save(TagHistory.of(TagDoc.MAIN, act, msg, by, at));
+    }
+
+    /** 본문 — JSON 객체 문자열. required 가 아니면 빈 값은 null(지금 본문 유지). */
+    private String body(String text, boolean required) {
+        if (DemoSupport.isBlank(text)) {
+            if (required) throw DemoSupport.invalid("본문(json)을 넣으세요.");
+            return null;
         }
-        Map<String, Object> out = new LinkedHashMap<>();
-        out.put("count", targets.size());
-        out.put("tagNos", keys);
-        if (keys.size() == 1) out.put("detail", detail(keys.get(0)));
-        return out;
-    }
-
-    /** 재발행 — 발행·재발행 Tag 만. Tag 번호 대신 코일 번호를 주면 그 코일의 가장 최근 발행 Tag 를 고른다. 응답은 view 와 같다. */
-    public Map<String, Object> reissue(TagReissueRequest req) {
-        CoilTag t = resolveForReissue(req);
-        String reasonCd = DemoSupport.required(req.getReasonCd(), "재발행 사유");
-        if (!REASONS.containsKey(reasonCd)) throw DemoSupport.invalid("재발행 사유가 올바르지 않습니다: " + reasonCd);
-        String prt = DemoSupport.trimToNull(req.getPrtId());
-        if (prt != null && !PRINTERS.contains(prt)) throw DemoSupport.invalid("프린터가 올바르지 않습니다: " + prt);
-        int copies = parseCopies(req.getCopies());
-        String note = DemoSupport.trimToNull(req.getNote());
-        if (note != null && note.length() > 500) throw DemoSupport.invalid("비고는 500자까지 입력합니다.");
-        if (t.getStatCd() != TagStatus.ISSUED && t.getStatCd() != TagStatus.REISSUED) {
-            throw DemoSupport.business("발행된 Tag 만 재발행합니다: " + t.getTagNo() + "(" + t.getStatCd().label() + ")");
-        }
-        String block = blockReason(t, lookup.one(t.getCoilNo()).orElse(null));
-        if (block != null) throw DemoSupport.business("재발행할 수 없습니다. " + block);
-        LocalDateTime now = DemoSupport.now(clock);
-        String by = DemoSupport.actor();
-        String before = t.getStatCd().name();
-        t.reissue(reasonCd, prt, copies, note, by, now);
-        tags.save(t);
-        String text = REASONS.get(reasonCd) + (note == null ? "" : " — " + note) + " (" + t.getPrtId() + ", " + copies + "매)";
-        histories.record(OutputHistory.TAG, t.getTagNo(), t.getRissuCnt() + 1, OutputHistory.REISSUE, before, TagStatus.REISSUED.name(), text, by, now);
-        return detail(t.getTagNo());
-    }
-
-    /** 폐기 — 대기·발행·재발행 Tag 를 폐기로. 사유 필수. 응답은 view 와 같다. */
-    public Map<String, Object> cancel(TagKeyRequest req) {
-        CoilTag t = find(req.getTagNo());
-        String reason = DemoSupport.required(req.getReason(), "폐기 사유");
-        if (reason.length() > 500) throw DemoSupport.invalid("사유는 500자까지 입력합니다.");
-        if (t.getStatCd() == TagStatus.DISCARDED) throw DemoSupport.business("이미 폐기한 Tag 입니다: " + t.getTagNo());
-        LocalDateTime now = DemoSupport.now(clock);
-        String by = DemoSupport.actor();
-        String before = t.getStatCd().name();
-        t.discard(reason);
-        tags.save(t);
-        histories.record(OutputHistory.TAG, t.getTagNo(), t.getRissuCnt() + 1, OutputHistory.CANCEL, before, TagStatus.DISCARDED.name(), reason, by, now);
-        return detail(t.getTagNo());
-    }
-
-    /** 처리 이력. tagNo 가 있으면 그 Tag, 없으면 처리일 기간. 응답: events[]. */
-    public Map<String, Object> history(TagHistoryRequest req) {
-        return Map.of("events", histories.list(OutputHistory.TAG, req.getTagNo(), req.getFromDt(), req.getToDt(),
-                TagStatus::labelOf, TagManagementService::actionName));
-    }
-
-    // ── 내부 ─────────────────────────────────────────────
-
-    static String actionName(String actCd) {
-        return switch (actCd) {
-            case OutputHistory.REQUEST -> "발행 대기 등록";
-            case OutputHistory.ISSUE -> "출력";
-            case OutputHistory.REISSUE -> "재발행";
-            case OutputHistory.CANCEL -> "폐기";
-            default -> actCd;
-        };
-    }
-
-    /** 출하 Tag 는 코일 합격이 조건이다. 공정 Tag 는 조건이 없다. */
-    static String blockReason(CoilTag t, CoilSnapshot s) {
-        if (t.getTagKnd() != TagKind.SHIP) return null;
-        if (s == null) return "코일을 찾을 수 없습니다: " + t.getCoilNo();
-        return s.passed() ? null : "출하 Tag 는 코일이 합격이어야 합니다(" + t.getCoilNo() + " " + s.status().label() + ")";
-    }
-
-    static int parseCopies(String copies) {
-        if (DemoSupport.isBlank(copies)) return 1;
+        String body = text.trim();
         try {
-            int n = Integer.parseInt(copies.trim());
-            if (n < 1 || n > 9) throw DemoSupport.invalid("매수는 1~9 이어야 합니다.");
-            return n;
-        } catch (NumberFormatException e) {
-            throw DemoSupport.invalid("매수는 숫자여야 합니다: " + copies);
+            JsonNode n = json.readTree(body);
+            if (n == null || !n.isObject()) throw DemoSupport.invalid("본문(json)은 JSON 객체여야 합니다.");
+        } catch (JsonProcessingException e) {
+            throw DemoSupport.invalid("본문(json)이 JSON 형식이 아닙니다.");
         }
+        return body;
     }
 
-    private CoilTag resolveForReissue(TagReissueRequest req) {
-        if (!DemoSupport.isBlank(req.getTagNo())) return find(req.getTagNo());
-        String coilNo = DemoSupport.required(req.getCoilNo(), "Tag번호 또는 코일번호");
-        return tags.findByCoilNoOrderByIssueAtDesc(coilNo).stream()
-                .filter(t -> t.getStatCd() == TagStatus.ISSUED || t.getStatCd() == TagStatus.REISSUED)
-                .findFirst()
-                .orElseThrow(() -> DemoSupport.business("코일 " + coilNo + " 에 발행된 Tag 가 없습니다."));
+    /** DRAFT·UNREQUEST 가 둘 수 있는 상태 — APPLIED 또는 DRAFT(비면 DRAFT). 승인 대기는 REQUEST 로만 간다. */
+    private static String editState(String state) {
+        String s = DemoSupport.trimToNull(state);
+        if (s == null) return TagDoc.DRAFT;
+        s = s.toUpperCase();
+        if (TagDoc.APPLIED.equals(s) || TagDoc.DRAFT.equals(s)) return s;
+        if (TagDoc.PENDING.equals(s)) throw DemoSupport.invalid("승인 대기 상태는 승인 요청(REQUEST)으로만 둘 수 있습니다.");
+        throw DemoSupport.invalid("상태(state)가 올바르지 않습니다: " + state);
     }
 
-    private CoilTag find(String tagNo) {
-        String no = DemoSupport.required(tagNo, "Tag번호");
-        return tags.findById(no).orElseThrow(() -> DemoSupport.notFound("Tag", no));
+    private static String text(String s, String label) {
+        String t = DemoSupport.trimToNull(s);
+        if (t != null && t.length() > TEXT_MAX) throw DemoSupport.invalid(label + "은(는) " + TEXT_MAX + "자까지 입력합니다.");
+        return t;
     }
 
-    private Map<String, Object> rowView(CoilTag t, CoilSnapshot s) {
-        Map<String, Object> r = new LinkedHashMap<>();
-        r.put("tagNo", t.getTagNo());
-        r.put("tagKnd", t.getTagKnd().name());
-        r.put("tagKndNm", t.getTagKnd().label());
-        r.put("coilNo", t.getCoilNo());
-        r.put("ordNo", s == null ? null : s.coil().getOrdNo());
-        r.put("cusNm", s == null ? null : s.coil().getCusNm());
-        r.put("prdLabel", s == null ? null : s.coil().prdLabel());
-        r.put("specCd", s == null ? null : s.coil().getSpecCd());
-        r.put("sizeText", s == null ? null : s.coil().sizeText());
-        r.put("wgt", s == null ? null : s.coil().getWgt());
-        r.put("heatNo", s == null ? null : s.coil().getHeatNo());
-        r.put("judgStatus", s == null ? null : s.status().name());
-        r.put("judgStatusNm", s == null ? null : s.status().label());
-        r.put("prtId", t.getPrtId());
-        r.put("status", t.getStatCd().name());
-        r.put("statusNm", t.getStatCd().label());
-        r.put("copyCnt", t.getCopyCnt());
-        r.put("rissuCnt", t.getRissuCnt());
-        r.put("rissuRsn", t.getRissuRsn());
-        r.put("rissuRsnNm", t.getRissuRsn() == null ? null : REASONS.getOrDefault(t.getRissuRsn(), t.getRissuRsn()));
-        r.put("issueBy", t.getIssueBy());
-        r.put("issueAt", DemoSupport.format(t.getIssueAt()));
-        r.put("note", t.getNote());
-        return r;
-    }
-
-    private Map<String, Object> detail(String tagNo) {
-        CoilTag t = tags.findById(tagNo).orElseThrow(() -> DemoSupport.notFound("Tag", tagNo));
-        CoilSnapshot s = lookup.one(t.getCoilNo()).orElse(null);
-        String block = blockReason(t, s);
-        Map<String, Object> actions = new LinkedHashMap<>();
-        actions.put("canIssue", t.getStatCd() == TagStatus.WAIT && block == null);
-        actions.put("canReissue", (t.getStatCd() == TagStatus.ISSUED || t.getStatCd() == TagStatus.REISSUED) && block == null);
-        actions.put("canCancel", t.getStatCd() != TagStatus.DISCARDED);
-        actions.put("blockReason", block);
+    private static Map<String, Object> saved(TagDoc d) {
         Map<String, Object> out = new LinkedHashMap<>();
-        out.put("tag", rowView(t, s));
-        out.put("actions", actions);
-        out.put("history", histories.list(OutputHistory.TAG, tagNo, null, null, TagStatus::labelOf, TagManagementService::actionName));
+        out.put("ver", d.getDocVer());
+        out.put("state", d.getStatCd());
+        out.put("updatedAt", ts(d.getUpdAt()));
         return out;
+    }
+
+    private static Map<String, Object> docView(TagDoc d) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("ver", d.getDocVer());
+        m.put("state", d.getStatCd());
+        m.put("json", d.getBodyJson());
+        m.put("base", d.getBaseJson());
+        m.put("updatedAt", ts(d.getUpdAt()));
+        m.put("updatedBy", d.getUpdBy());
+        return m;
+    }
+
+    private static Map<String, Object> versionView(TagVersion v) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("ver", v.getDocVer());
+        m.put("memo", v.getMemoTxt());
+        m.put("approvedAt", ts(v.getAprvAt()));
+        m.put("approvedBy", v.getAprvBy());
+        return m;
+    }
+
+    private static Map<String, Object> histView(TagHistory h) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("at", ts(h.getActAt()));
+        m.put("act", h.getActCd());
+        m.put("msg", h.getMsgTxt());
+        m.put("by", h.getActBy());
+        return m;
+    }
+
+    static String ts(LocalDateTime t) {
+        return t == null ? null : TS.format(t);
     }
 }
