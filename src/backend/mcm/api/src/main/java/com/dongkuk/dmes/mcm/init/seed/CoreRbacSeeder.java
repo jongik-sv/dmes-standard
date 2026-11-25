@@ -146,7 +146,10 @@ public final class CoreRbacSeeder extends SeedSupport {
                 // 2026-10-10 — 맞춤 레포트(services/cmq/userQueryMng.bpmn·cmq/userQuery.bpmn, 스펙 2026-10-10 §3).
                 //   search·get·save·delete·previewQuery·validate·searchUserList·searchDepts 는 위에 있다.
                 //   myList·getDef·run 은 일반 역할용 PERM_USRQ_USE 에도 같이 들어 있다(아래 insertIfAbsent).
-                "searchAssign", "saveAssign", "myList", "getDef", "run"
+                "searchAssign", "saveAssign", "myList", "getDef", "run",
+                // 2026-11-25 — mqc 품질관리 시연 화면(services/qcd·qjd·qpr). 판정·코드 조회·전송·발행·재발행.
+                //   이미 시드된 DB 는 ensurePermAllActions 가 덧붙인다.
+                "judge", "codes", "send", "issue", "reissue"
 
                 // ── 업무 모듈을 붙일 때 여기에 해당 모듈의 OASIS action 을 추가한다 ──────────────
                 // 본 목록은 PERM_ALL 의 PERMISSION_ACTION 이며, UserPermCache 가 콤마 분할해 PermKey

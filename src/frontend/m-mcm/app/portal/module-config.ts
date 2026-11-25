@@ -155,6 +155,13 @@ const PORTAL_MODULE_CONFIG: PortalModuleConfigEntry[] = [
     packageName: "@dk-oasis/m-mdm",
     loadPage: createStrictModuleLoader("mdm", sharedPortalPageLoader),
   },
+  {
+    // 2026-11-25 — mqc(품질관리) 모듈 포털 등재. 품질설계·품질판정·출력물관리 시연 화면.
+    //   화면 코드는 m-mqc 패키지의 pages/{group}/{leaf}/page.tsx 에 있고, codegen 이 등재한다.
+    moduleId: "mqc",
+    packageName: "@dk-oasis/m-mqc",
+    loadPage: createStrictModuleLoader("mqc", sharedPortalPageLoader),
+  },
   // 업무 모듈(mpn / mpp / mqc ...) 을 붙일 때 여기에 1개 항목씩 추가한다.
   // 대부분은 sharedPortalPageLoader(= PAGE_REGISTRY) 로 충분하다:
   //   { moduleId: "mpn", packageName: "@dk-oasis/m-mpn",

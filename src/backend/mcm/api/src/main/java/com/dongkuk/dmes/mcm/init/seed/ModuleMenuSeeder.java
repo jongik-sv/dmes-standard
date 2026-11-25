@@ -300,4 +300,73 @@ public final class ModuleMenuSeeder extends SeedSupport {
             log.info("[DataInitializer] 공지관리 폴더(lsh)를 공통관리(mcm) 아래로 옮김 — rows={}", n);
         }
     }
+
+    /**
+     * mqc 품질관리 시연 메뉴 시드 (2026-11-25, mes-to-be 프로토타입 이관).
+     *
+     * <p>폴더 mqc(품질관리) > qcd(품질설계) > qdm(모듈관리)·qdf(생산가부관리)·qdr(설계결과관리)·qdb(기준정보관리),
+     * mqc > qjd(품질판정), mqc > qpr(출력물관리). componentPath = {PARENT_MENU_ID}/{OBJECT_ID} 이므로 m-mqc 화면은
+     * {@code pages/{폴더}/{objectId}/page.tsx} 에 둔다. OBJECT SYSTEM_CODE=mqc → 권한키 {@code mqc/{objectId}/*}.
+     * 메뉴 없는 OBJECT 3개(qcdRule·qcdOrder·qcdMaster)는 여러 화면이 함께 부르는 공용 OASIS 서비스의 권한 대상이다.
+     * 모두 멱등이다. FULL_SEQ 는 부팅 끝 recomputeMenuFullSeq() 가 트리 위치 기준으로 다시 매긴다.
+     */
+    public void seedMqcMenus() {
+        // ── 폴더 ──
+        insertMpnFld("mqc", "00000007", "품질관리",     null,  7000000L);
+        insertMpnFld("qcd", "00000100", "품질설계",     "mqc", 7100000L);
+        insertMpnFld("qdm", "00000110", "모듈관리",     "qcd", 7110000L);
+        insertMpnFld("qdf", "00000120", "생산가부관리", "qcd", 7120000L);
+        insertMpnFld("qdr", "00000130", "설계결과관리", "qcd", 7130000L);
+        insertMpnFld("qdb", "00000150", "기준정보관리", "qcd", 7150000L);
+        insertMpnFld("qjd", "00000200", "품질판정",     "mqc", 7200000L);
+        insertMpnFld("qpr", "00000300", "출력물관리",   "mqc", 7300000L);
+
+        // ── 메뉴 leaf: {objectId, 이름, 부모 폴더, 순번, FULL_SEQ} ──
+        String[][] leaves = {
+                {"qualitySpec",           "품질사양 관리",        "qdm", "001", "7110100"},
+                {"rawMaterialGrade",      "원자재강종관리",       "qdm", "002", "7110200"},
+                {"specCode",              "규격약호관리",         "qdm", "003", "7110300"},
+                {"rollingThicknessSet",   "압연두께Set보정관리",  "qdm", "004", "7110400"},
+                {"processRouting",        "공정라우팅관리",       "qdm", "005", "7110500"},
+                {"lineWidthShrinkage",    "폭수축량관리",         "qdm", "006", "7110600"},
+                {"lineWidthMargin",       "폭마진량관리",         "qdm", "007", "7110700"},
+                {"orderWeightError",      "주문단중에러관리",     "qdf", "001", "7120100"},
+                {"orderConsistency",      "주문정합성관리",       "qdf", "002", "7120200"},
+                {"productionFeasibility", "생산가부관리",         "qdf", "003", "7120300"},
+                {"qualityDesignResult",   "품질설계결과",         "qdr", "001", "7130100"},
+                {"designSimulation",      "시뮬레이션",           "qcd", "140", "7140000"},
+                {"masterCode",            "마스터코드",           "qdb", "001", "7150100"},
+                {"colorSubmaterial",      "칼라부재료관리",       "qdb", "002", "7150200"},
+                {"colorBom",              "칼라BOM관리",          "qdb", "003", "7150300"},
+                {"qualityJudgment",       "품질판정",             "qjd", "001", "7200100"},
+                {"qualityCertificate",    "품질보증서관리",       "qpr", "001", "7300100"},
+                {"inspectionCertificate", "검사증명서관리",       "qpr", "002", "7300200"},
+                {"tagManagement",         "Tag관리",              "qpr", "003", "7300300"},
+        };
+        for (String[] l : leaves) {
+            insertMcmSecObjIfAbsent(l[0], l[1], "mqc");
+            insertMcmSecMenuIfAbsent(l[0], l[3], l[4], l[1], l[2], l[0]);
+            grantSysadmin(l[0]);
+        }
+        // ── 메뉴 없는 공용 서비스 OBJECT ──
+        String[][] shared = {
+                {"qcdRule",   "품질설계 기준 공용(Maru 룰·코드)"},
+                {"qcdOrder",  "품질설계 주문 공용"},
+                {"qcdMaster", "품질 기준정보 공용"},
+        };
+        for (String[] o : shared) {
+            insertMcmSecObjIfAbsent(o[0], o[1], "mqc");
+            grantSysadmin(o[0]);
+        }
+        log.info("[DataInitializer] mqc 메뉴 시드 — 폴더 8 + 메뉴 leaf {} + 공용 OBJECT {} (SYSTEM_CODE=mqc, SYSADMIN PERM_ALL)", leaves.length, shared.length);
+    }
+
+    private void grantSysadmin(String objectId) {
+        insertIfAbsentComposite(
+                "TB_MCM_SEC_ROLE_MAPPING",
+                new String[]{"ROLE_ID",  "OBJECT_ID", "PERMISSION_ID"},
+                new String[]{"SYSADMIN", objectId,    "PERM_ALL"},
+                "INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID" + AUDIT_COLS + ") " +
+                "VALUES ('SYSADMIN', '" + escapeSql(objectId) + "', 'PERM_ALL'" + AUDIT_VALS + ")");
+    }
 }

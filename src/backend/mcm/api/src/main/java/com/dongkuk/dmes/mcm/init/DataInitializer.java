@@ -186,6 +186,9 @@ public class DataInitializer implements ApplicationRunner {
         //   AUTH_ONLY 라 시드가 없다(seedNoticeMenus javadoc).
         moduleMenus.seedNoticeMenus();
 
+        // 2026-11-25 — mqc 품질관리 시연 메뉴(품질설계·품질판정·출력물관리). seedMqcMenus javadoc 참고.
+        moduleMenus.seedMqcMenus();
+
         // 2026-10-02 — MDM 캐시 관리(csa/mdmCacheMng) 화면과 MDM 메타 제공(mdm metaFeed) 강제 기록 권한. seedMdmCacheMenus javadoc 참고.
         mdmMenus.seedMdmCacheMenus();
 
