@@ -1,0 +1,231 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:modeler="http://camunda.org/schema/modeler/1.0" xmlns:camunda="http://camunda.org/schema/1.0/bpmn" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_tagManagement" targetNamespace="http://bpmn.io/schema/bpmn" exporter="bpmn-tool" exporterVersion="1.3.0" modeler:executionPlatform="Camunda Platform" modeler:executionPlatformVersion="7.15.0">
+  <bpmn:process id="tagManagement" name="Tag관리" isExecutable="true">
+    <bpmn:documentation>tagManagement — 코일 단위 공정 Tag·출하 Tag. 대기 → 출력(issue) → 재발행(reissue) / 폐기(cancel). 출하 Tag 는 코일이 합격이어야 한다.
+
+action=search -&gt; searchTask (tagManagement.search) Tag 목록 조회
+action=view -&gt; viewTask (tagManagement.view) Tag 상세
+action=issue -&gt; issueTask (tagManagement.issue) 출력(발행)
+action=reissue -&gt; reissueTask (tagManagement.reissue) 재발행
+action=cancel -&gt; cancelTask (tagManagement.cancel) 폐기
+action=history -&gt; historyTask (tagManagement.history) 처리 이력</bpmn:documentation>
+    <bpmn:startEvent id="start" name="시작">
+      <bpmn:outgoing>flow_to_gw</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:exclusiveGateway id="actionGateway" name="action 분기">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="input" value="action" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_to_gw</bpmn:incoming>
+      <bpmn:outgoing>flow_search</bpmn:outgoing>
+      <bpmn:outgoing>flow_view</bpmn:outgoing>
+      <bpmn:outgoing>flow_issue</bpmn:outgoing>
+      <bpmn:outgoing>flow_reissue</bpmn:outgoing>
+      <bpmn:outgoing>flow_cancel</bpmn:outgoing>
+      <bpmn:outgoing>flow_history</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="searchTask" name="Tag 목록 조회" camunda:class="tagManagement">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="search" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mqc.qpr.tagManagement.dto.TagSearchRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_search</bpmn:incoming>
+      <bpmn:outgoing>flow_search_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="viewTask" name="Tag 상세" camunda:class="tagManagement">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="view" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mqc.qpr.tagManagement.dto.TagKeyRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_view</bpmn:incoming>
+      <bpmn:outgoing>flow_view_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="issueTask" name="출력(발행)" camunda:class="tagManagement">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="issue" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mqc.qpr.tagManagement.dto.TagKeyRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_issue</bpmn:incoming>
+      <bpmn:outgoing>flow_issue_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="reissueTask" name="재발행" camunda:class="tagManagement">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="reissue" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mqc.qpr.tagManagement.dto.TagReissueRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_reissue</bpmn:incoming>
+      <bpmn:outgoing>flow_reissue_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="cancelTask" name="폐기" camunda:class="tagManagement">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="cancel" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mqc.qpr.tagManagement.dto.TagKeyRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_cancel</bpmn:incoming>
+      <bpmn:outgoing>flow_cancel_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="historyTask" name="처리 이력" camunda:class="tagManagement">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="history" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mqc.qpr.tagManagement.dto.TagHistoryRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_history</bpmn:incoming>
+      <bpmn:outgoing>flow_history_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="endSearch" name="Tag 목록 조회 완료">
+      <bpmn:incoming>flow_search_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:endEvent id="endView" name="Tag 상세 완료">
+      <bpmn:incoming>flow_view_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:endEvent id="endIssue" name="출력(발행) 완료">
+      <bpmn:incoming>flow_issue_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:endEvent id="endReissue" name="재발행 완료">
+      <bpmn:incoming>flow_reissue_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:endEvent id="endCancel" name="폐기 완료">
+      <bpmn:incoming>flow_cancel_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:endEvent id="endHistory" name="처리 이력 완료">
+      <bpmn:incoming>flow_history_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="flow_to_gw" sourceRef="start" targetRef="actionGateway" />
+    <bpmn:sequenceFlow id="flow_search" name="search" sourceRef="actionGateway" targetRef="searchTask" />
+    <bpmn:sequenceFlow id="flow_view" name="view" sourceRef="actionGateway" targetRef="viewTask" />
+    <bpmn:sequenceFlow id="flow_issue" name="issue" sourceRef="actionGateway" targetRef="issueTask" />
+    <bpmn:sequenceFlow id="flow_reissue" name="reissue" sourceRef="actionGateway" targetRef="reissueTask" />
+    <bpmn:sequenceFlow id="flow_cancel" name="cancel" sourceRef="actionGateway" targetRef="cancelTask" />
+    <bpmn:sequenceFlow id="flow_history" name="history" sourceRef="actionGateway" targetRef="historyTask" />
+    <bpmn:sequenceFlow id="flow_search_end" sourceRef="searchTask" targetRef="endSearch" />
+    <bpmn:sequenceFlow id="flow_view_end" sourceRef="viewTask" targetRef="endView" />
+    <bpmn:sequenceFlow id="flow_issue_end" sourceRef="issueTask" targetRef="endIssue" />
+    <bpmn:sequenceFlow id="flow_reissue_end" sourceRef="reissueTask" targetRef="endReissue" />
+    <bpmn:sequenceFlow id="flow_cancel_end" sourceRef="cancelTask" targetRef="endCancel" />
+    <bpmn:sequenceFlow id="flow_history_end" sourceRef="historyTask" targetRef="endHistory" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="tagManagement">
+      <bpmndi:BPMNShape id="start_di" bpmnElement="start">
+        <dc:Bounds x="152" y="382" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="actionGateway_di" bpmnElement="actionGateway" isMarkerVisible="true">
+        <dc:Bounds x="245" y="375" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="searchTask_di" bpmnElement="searchTask">
+        <dc:Bounds x="380" y="60" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endSearch_di" bpmnElement="endSearch">
+        <dc:Bounds x="560" y="82" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="viewTask_di" bpmnElement="viewTask">
+        <dc:Bounds x="380" y="180" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endView_di" bpmnElement="endView">
+        <dc:Bounds x="560" y="202" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="issueTask_di" bpmnElement="issueTask">
+        <dc:Bounds x="380" y="300" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endIssue_di" bpmnElement="endIssue">
+        <dc:Bounds x="560" y="322" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="reissueTask_di" bpmnElement="reissueTask">
+        <dc:Bounds x="380" y="420" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endReissue_di" bpmnElement="endReissue">
+        <dc:Bounds x="560" y="442" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="cancelTask_di" bpmnElement="cancelTask">
+        <dc:Bounds x="380" y="540" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endCancel_di" bpmnElement="endCancel">
+        <dc:Bounds x="560" y="562" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="historyTask_di" bpmnElement="historyTask">
+        <dc:Bounds x="380" y="660" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endHistory_di" bpmnElement="endHistory">
+        <dc:Bounds x="560" y="682" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="flow_to_gw_di" bpmnElement="flow_to_gw">
+        <di:waypoint x="188" y="400" />
+        <di:waypoint x="245" y="400" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_search_di" bpmnElement="flow_search">
+        <di:waypoint x="270" y="375" />
+        <di:waypoint x="270" y="100" />
+        <di:waypoint x="380" y="100" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_search_end_di" bpmnElement="flow_search_end">
+        <di:waypoint x="480" y="100" />
+        <di:waypoint x="560" y="100" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_view_di" bpmnElement="flow_view">
+        <di:waypoint x="270" y="375" />
+        <di:waypoint x="270" y="220" />
+        <di:waypoint x="380" y="220" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_view_end_di" bpmnElement="flow_view_end">
+        <di:waypoint x="480" y="220" />
+        <di:waypoint x="560" y="220" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_issue_di" bpmnElement="flow_issue">
+        <di:waypoint x="270" y="375" />
+        <di:waypoint x="270" y="340" />
+        <di:waypoint x="380" y="340" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_issue_end_di" bpmnElement="flow_issue_end">
+        <di:waypoint x="480" y="340" />
+        <di:waypoint x="560" y="340" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_reissue_di" bpmnElement="flow_reissue">
+        <di:waypoint x="270" y="425" />
+        <di:waypoint x="270" y="460" />
+        <di:waypoint x="380" y="460" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_reissue_end_di" bpmnElement="flow_reissue_end">
+        <di:waypoint x="480" y="460" />
+        <di:waypoint x="560" y="460" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_cancel_di" bpmnElement="flow_cancel">
+        <di:waypoint x="270" y="425" />
+        <di:waypoint x="270" y="580" />
+        <di:waypoint x="380" y="580" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_cancel_end_di" bpmnElement="flow_cancel_end">
+        <di:waypoint x="480" y="580" />
+        <di:waypoint x="560" y="580" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_history_di" bpmnElement="flow_history">
+        <di:waypoint x="270" y="425" />
+        <di:waypoint x="270" y="700" />
+        <di:waypoint x="380" y="700" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_history_end_di" bpmnElement="flow_history_end">
+        <di:waypoint x="480" y="700" />
+        <di:waypoint x="560" y="700" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

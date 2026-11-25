@@ -1,0 +1,231 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:modeler="http://camunda.org/schema/modeler/1.0" xmlns:camunda="http://camunda.org/schema/1.0/bpmn" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_qualityJudgment" targetNamespace="http://bpmn.io/schema/bpmn" exporter="bpmn-tool" exporterVersion="1.3.0" modeler:executionPlatform="Camunda Platform" modeler:executionPlatformVersion="7.15.0">
+  <bpmn:process id="qualityJudgment" name="품질판정" isExecutable="true">
+    <bpmn:documentation>qualityJudgment — 코일 검사값을 기준과 비교해 시스템 판정을 제안하고(judge) 검사자가 합격·불합격·보류로 확정한다(confirm). 표 TB_MQC_COIL·COIL_INSP·COIL_JDG·COIL_JDG_HIST.
+
+action=search -&gt; searchTask (qualityJudgment.search) 판정 목록 조회
+action=view -&gt; viewTask (qualityJudgment.view) 코일 판정 상세
+action=judge -&gt; judgeTask (qualityJudgment.judge) 판정 계산
+action=confirm -&gt; confirmTask (qualityJudgment.confirm) 판정 확정
+action=history -&gt; historyTask (qualityJudgment.history) 판정 이력
+action=codes -&gt; codesTask (qualityJudgment.codes) 판정 기준·조회 칸 값</bpmn:documentation>
+    <bpmn:startEvent id="start" name="시작">
+      <bpmn:outgoing>flow_to_gw</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:exclusiveGateway id="actionGateway" name="action 분기">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="input" value="action" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_to_gw</bpmn:incoming>
+      <bpmn:outgoing>flow_search</bpmn:outgoing>
+      <bpmn:outgoing>flow_view</bpmn:outgoing>
+      <bpmn:outgoing>flow_judge</bpmn:outgoing>
+      <bpmn:outgoing>flow_confirm</bpmn:outgoing>
+      <bpmn:outgoing>flow_history</bpmn:outgoing>
+      <bpmn:outgoing>flow_codes</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="searchTask" name="판정 목록 조회" camunda:class="qualityJudgment">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="search" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mqc.qjd.qualityJudgment.dto.QualityJudgmentSearchRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_search</bpmn:incoming>
+      <bpmn:outgoing>flow_search_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="viewTask" name="코일 판정 상세" camunda:class="qualityJudgment">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="view" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mqc.qjd.qualityJudgment.dto.QualityJudgmentViewRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_view</bpmn:incoming>
+      <bpmn:outgoing>flow_view_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="judgeTask" name="판정 계산" camunda:class="qualityJudgment">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="judge" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mqc.qjd.qualityJudgment.dto.QualityJudgmentJudgeRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_judge</bpmn:incoming>
+      <bpmn:outgoing>flow_judge_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="confirmTask" name="판정 확정" camunda:class="qualityJudgment">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="confirm" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mqc.qjd.qualityJudgment.dto.QualityJudgmentConfirmRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_confirm</bpmn:incoming>
+      <bpmn:outgoing>flow_confirm_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="historyTask" name="판정 이력" camunda:class="qualityJudgment">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="history" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mqc.qjd.qualityJudgment.dto.QualityJudgmentHistoryRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_history</bpmn:incoming>
+      <bpmn:outgoing>flow_history_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="codesTask" name="판정 기준·조회 칸 값" camunda:class="qualityJudgment">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="codes" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mqc.qjd.qualityJudgment.dto.QualityJudgmentSearchRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_codes</bpmn:incoming>
+      <bpmn:outgoing>flow_codes_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="endSearch" name="판정 목록 조회 완료">
+      <bpmn:incoming>flow_search_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:endEvent id="endView" name="코일 판정 상세 완료">
+      <bpmn:incoming>flow_view_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:endEvent id="endJudge" name="판정 계산 완료">
+      <bpmn:incoming>flow_judge_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:endEvent id="endConfirm" name="판정 확정 완료">
+      <bpmn:incoming>flow_confirm_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:endEvent id="endHistory" name="판정 이력 완료">
+      <bpmn:incoming>flow_history_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:endEvent id="endCodes" name="판정 기준·조회 칸 값 완료">
+      <bpmn:incoming>flow_codes_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="flow_to_gw" sourceRef="start" targetRef="actionGateway" />
+    <bpmn:sequenceFlow id="flow_search" name="search" sourceRef="actionGateway" targetRef="searchTask" />
+    <bpmn:sequenceFlow id="flow_view" name="view" sourceRef="actionGateway" targetRef="viewTask" />
+    <bpmn:sequenceFlow id="flow_judge" name="judge" sourceRef="actionGateway" targetRef="judgeTask" />
+    <bpmn:sequenceFlow id="flow_confirm" name="confirm" sourceRef="actionGateway" targetRef="confirmTask" />
+    <bpmn:sequenceFlow id="flow_history" name="history" sourceRef="actionGateway" targetRef="historyTask" />
+    <bpmn:sequenceFlow id="flow_codes" name="codes" sourceRef="actionGateway" targetRef="codesTask" />
+    <bpmn:sequenceFlow id="flow_search_end" sourceRef="searchTask" targetRef="endSearch" />
+    <bpmn:sequenceFlow id="flow_view_end" sourceRef="viewTask" targetRef="endView" />
+    <bpmn:sequenceFlow id="flow_judge_end" sourceRef="judgeTask" targetRef="endJudge" />
+    <bpmn:sequenceFlow id="flow_confirm_end" sourceRef="confirmTask" targetRef="endConfirm" />
+    <bpmn:sequenceFlow id="flow_history_end" sourceRef="historyTask" targetRef="endHistory" />
+    <bpmn:sequenceFlow id="flow_codes_end" sourceRef="codesTask" targetRef="endCodes" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="qualityJudgment">
+      <bpmndi:BPMNShape id="start_di" bpmnElement="start">
+        <dc:Bounds x="152" y="382" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="actionGateway_di" bpmnElement="actionGateway" isMarkerVisible="true">
+        <dc:Bounds x="245" y="375" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="searchTask_di" bpmnElement="searchTask">
+        <dc:Bounds x="380" y="60" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endSearch_di" bpmnElement="endSearch">
+        <dc:Bounds x="560" y="82" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="viewTask_di" bpmnElement="viewTask">
+        <dc:Bounds x="380" y="180" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endView_di" bpmnElement="endView">
+        <dc:Bounds x="560" y="202" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="judgeTask_di" bpmnElement="judgeTask">
+        <dc:Bounds x="380" y="300" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endJudge_di" bpmnElement="endJudge">
+        <dc:Bounds x="560" y="322" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="confirmTask_di" bpmnElement="confirmTask">
+        <dc:Bounds x="380" y="420" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endConfirm_di" bpmnElement="endConfirm">
+        <dc:Bounds x="560" y="442" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="historyTask_di" bpmnElement="historyTask">
+        <dc:Bounds x="380" y="540" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endHistory_di" bpmnElement="endHistory">
+        <dc:Bounds x="560" y="562" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="codesTask_di" bpmnElement="codesTask">
+        <dc:Bounds x="380" y="660" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endCodes_di" bpmnElement="endCodes">
+        <dc:Bounds x="560" y="682" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="flow_to_gw_di" bpmnElement="flow_to_gw">
+        <di:waypoint x="188" y="400" />
+        <di:waypoint x="245" y="400" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_search_di" bpmnElement="flow_search">
+        <di:waypoint x="270" y="375" />
+        <di:waypoint x="270" y="100" />
+        <di:waypoint x="380" y="100" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_search_end_di" bpmnElement="flow_search_end">
+        <di:waypoint x="480" y="100" />
+        <di:waypoint x="560" y="100" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_view_di" bpmnElement="flow_view">
+        <di:waypoint x="270" y="375" />
+        <di:waypoint x="270" y="220" />
+        <di:waypoint x="380" y="220" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_view_end_di" bpmnElement="flow_view_end">
+        <di:waypoint x="480" y="220" />
+        <di:waypoint x="560" y="220" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_judge_di" bpmnElement="flow_judge">
+        <di:waypoint x="270" y="375" />
+        <di:waypoint x="270" y="340" />
+        <di:waypoint x="380" y="340" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_judge_end_di" bpmnElement="flow_judge_end">
+        <di:waypoint x="480" y="340" />
+        <di:waypoint x="560" y="340" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_confirm_di" bpmnElement="flow_confirm">
+        <di:waypoint x="270" y="425" />
+        <di:waypoint x="270" y="460" />
+        <di:waypoint x="380" y="460" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_confirm_end_di" bpmnElement="flow_confirm_end">
+        <di:waypoint x="480" y="460" />
+        <di:waypoint x="560" y="460" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_history_di" bpmnElement="flow_history">
+        <di:waypoint x="270" y="425" />
+        <di:waypoint x="270" y="580" />
+        <di:waypoint x="380" y="580" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_history_end_di" bpmnElement="flow_history_end">
+        <di:waypoint x="480" y="580" />
+        <di:waypoint x="560" y="580" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_codes_di" bpmnElement="flow_codes">
+        <di:waypoint x="270" y="425" />
+        <di:waypoint x="270" y="700" />
+        <di:waypoint x="380" y="700" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_codes_end_di" bpmnElement="flow_codes_end">
+        <di:waypoint x="480" y="700" />
+        <di:waypoint x="560" y="700" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>
