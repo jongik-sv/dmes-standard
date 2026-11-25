@@ -1,0 +1,2110 @@
+{
+ "source": "MDM 8096 codeItemEdit/view, RELEASED 1.000, 2026-11-25 — qcdRule/codes 응답 모양(code·name·alterName·seq·lvl[5]·attrs[10])으로 옮김. QC_FEAS_MATL_GRP 는 앞 4건만.",
+ "codes": [
+  {
+   "codeId": "QC_COLOR_SUBMAT",
+   "ver": "1.000",
+   "items": [
+    {
+     "code": "PM-EP05",
+     "name": "에폭시 프라이머 5㎛",
+     "alterName": null,
+     "seq": 1,
+     "lvl": [
+      null,
+      null,
+      null,
+      null,
+      null
+     ],
+     "attrs": [
+      "프라이머",
+      "Epoxy",
+      "도료사 A",
+      null,
+      "황색 투명",
+      "5",
+      null,
+      "216~224",
+      null,
+      null
+     ]
+    },
+    {
+     "code": "PM-PU05",
+     "name": "우레탄 프라이머 5㎛",
+     "alterName": null,
+     "seq": 2,
+     "lvl": [
+      null,
+      null,
+      null,
+      null,
+      null
+     ],
+     "attrs": [
+      "프라이머",
+      "Polyurethane",
+      "도료사 B",
+      null,
+      "백색",
+      "5",
+      null,
+      "216~224",
+      null,
+      null
+     ]
+    },
+    {
+     "code": "PM-PE07",
+     "name": "폴리에스터 프라이머 7㎛",
+     "alterName": null,
+     "seq": 3,
+     "lvl": [
+      null,
+      null,
+      null,
+      null,
+      null
+     ],
+     "attrs": [
+      "프라이머",
+      "Polyester",
+      "도료사 C",
+      null,
+      "회색",
+      "7",
+      null,
+      "224~232",
+      null,
+      null
+     ]
+    },
+    {
+     "code": "TC-PE-9002",
+     "name": "PE 상도 회백색",
+     "alterName": null,
+     "seq": 4,
+     "lvl": [
+      null,
+      null,
+      null,
+      null,
+      null
+     ],
+     "attrs": [
+      "상도",
+      "Polyester",
+      "도료사 A",
+      "RAL9002",
+      "회백색",
+      "15",
+      "30",
+      "224~232",
+      null,
+      null
+     ]
+    },
+    {
+     "code": "TC-PE-7035",
+     "name": "PE 상도 라이트그레이",
+     "alterName": null,
+     "seq": 5,
+     "lvl": [
+      null,
+      null,
+      null,
+      null,
+      null
+     ],
+     "attrs": [
+      "상도",
+      "Polyester",
+      "도료사 A",
+      "RAL7035",
+      "라이트그레이",
+      "15",
+      "40",
+      "224~232",
+      null,
+      null
+     ]
+    },
+    {
+     "code": "TC-PE-5015",
+     "name": "PE 상도 스카이블루",
+     "alterName": null,
+     "seq": 6,
+     "lvl": [
+      null,
+      null,
+      null,
+      null,
+      null
+     ],
+     "attrs": [
+      "상도",
+      "Polyester",
+      "도료사 B",
+      "RAL5015",
+      "스카이블루",
+      "15",
+      "35",
+      "224~232",
+      null,
+      null
+     ]
+    },
+    {
+     "code": "TC-PE-9010",
+     "name": "PE 상도 퓨어화이트(가전)",
+     "alterName": null,
+     "seq": 7,
+     "lvl": [
+      null,
+      null,
+      null,
+      null,
+      null
+     ],
+     "attrs": [
+      "상도",
+      "Polyester",
+      "도료사 C",
+      "RAL9010",
+      "퓨어화이트",
+      "18",
+      "70",
+      "224~232",
+      null,
+      null
+     ]
+    },
+    {
+     "code": "TC-SMP-1015",
+     "name": "SMP 상도 라이트아이보리",
+     "alterName": null,
+     "seq": 8,
+     "lvl": [
+      null,
+      null,
+      null,
+      null,
+      null
+     ],
+     "attrs": [
+      "상도",
+      "Silicone Modified Polyester",
+      "도료사 B",
+      "RAL1015",
+      "라이트아이보리",
+      "20",
+      "30",
+      "232~241",
+      null,
+      null
+     ]
+    },
+    {
+     "code": "TC-HDP-7016",
+     "name": "HDP 상도 앤트러사이트그레이",
+     "alterName": null,
+     "seq": 9,
+     "lvl": [
+      null,
+      null,
+      null,
+      null,
+      null
+     ],
+     "attrs": [
+      "상도",
+      "High Durable Polyester",
+      "도료사 A",
+      "RAL7016",
+      "앤트러사이트그레이",
+      "20",
+      "25",
+      "232~241",
+      null,
+      null
+     ]
+    },
+    {
+     "code": "TC-PVDF-9006",
+     "name": "PVDF 상도 화이트알루미늄",
+     "alterName": null,
+     "seq": 10,
+     "lvl": [
+      null,
+      null,
+      null,
+      null,
+      null
+     ],
+     "attrs": [
+      "상도",
+      "PVDF",
+      "도료사 C",
+      "RAL9006",
+      "화이트알루미늄(메탈릭)",
+      "25",
+      "30",
+      "241~249",
+      null,
+      null
+     ]
+    },
+    {
+     "code": "TC-PE-6005",
+     "name": "PE 상도 모스그린",
+     "alterName": null,
+     "seq": 11,
+     "lvl": [
+      null,
+      null,
+      null,
+      null,
+      null
+     ],
+     "attrs": [
+      "상도",
+      "Polyester",
+      "도료사 B",
+      "RAL6005",
+      "모스그린",
+      "15",
+      "30",
+      "224~232",
+      null,
+      null
+     ]
+    },
+    {
+     "code": "BC-EP-GR07",
+     "name": "에폭시 백코트 회색",
+     "alterName": null,
+     "seq": 12,
+     "lvl": [
+      null,
+      null,
+      null,
+      null,
+      null
+     ],
+     "attrs": [
+      "백코트",
+      "Epoxy",
+      "도료사 A",
+      null,
+      "회색",
+      "7",
+      null,
+      "216~224",
+      null,
+      null
+     ]
+    },
+    {
+     "code": "BC-PE-WH07",
+     "name": "PE 백코트 백색",
+     "alterName": null,
+     "seq": 13,
+     "lvl": [
+      null,
+      null,
+      null,
+      null,
+      null
+     ],
+     "attrs": [
+      "백코트",
+      "Polyester",
+      "도료사 B",
+      null,
+      "백색",
+      "7",
+      null,
+      "224~232",
+      null,
+      null
+     ]
+    },
+    {
+     "code": "BC-PE-WH12",
+     "name": "PE 백코트 백색 12㎛(가전)",
+     "alterName": null,
+     "seq": 14,
+     "lvl": [
+      null,
+      null,
+      null,
+      null,
+      null
+     ],
+     "attrs": [
+      "백코트",
+      "Polyester",
+      "도료사 C",
+      null,
+      "백색",
+      "12",
+      null,
+      "224~232",
+      null,
+      null
+     ]
+    },
+    {
+     "code": "PF-PE50",
+     "name": "보호필름 PE 50㎛ 투명",
+     "alterName": null,
+     "seq": 15,
+     "lvl": [
+      null,
+      null,
+      null,
+      null,
+      null
+     ],
+     "attrs": [
+      "보호필름",
+      "PE",
+      "필름사 A",
+      null,
+      "투명",
+      "50",
+      null,
+      null,
+      null,
+      null
+     ]
+    },
+    {
+     "code": "PF-PE60BW",
+     "name": "보호필름 PE 60㎛ 흑백",
+     "alterName": null,
+     "seq": 16,
+     "lvl": [
+      null,
+      null,
+      null,
+      null,
+      null
+     ],
+     "attrs": [
+      "보호필름",
+      "PE",
+      "필름사 A",
+      null,
+      "흑백",
+      "60",
+      null,
+      null,
+      null,
+      null
+     ]
+    }
+   ]
+  },
+  {
+   "codeId": "QC_COLOR_BOM",
+   "ver": "1.000",
+   "items": [
+    {
+     "code": "S00001-FP",
+     "name": "표준 도장 BOM(PE 회백) · 전면 프라이머",
+     "alterName": null,
+     "seq": 1,
+     "lvl": [
+      "S00001",
+      null,
+      null,
+      null,
+      null
+     ],
+     "attrs": [
+      "표준 도장 BOM(PE 회백)",
+      "3",
+      "전면 프라이머",
+      "PM-EP05",
+      "에폭시 프라이머 5㎛",
+      "5",
+      "황색 투명",
+      null,
+      null,
+      null
+     ]
+    },
+    {
+     "code": "S00001-FT",
+     "name": "표준 도장 BOM(PE 회백) · 전면 상도",
+     "alterName": null,
+     "seq": 2,
+     "lvl": [
+      "S00001",
+      null,
+      null,
+      null,
+      null
+     ],
+     "attrs": [
+      "표준 도장 BOM(PE 회백)",
+      "3",
+      "전면 상도",
+      "TC-PE-9002",
+      "PE 상도 회백색",
+      "15",
+      "회백색",
+      "RAL9002",
+      null,
+      null
+     ]
+    },
+    {
+     "code": "S00001-BC",
+     "name": "표준 도장 BOM(PE 회백) · 후면 백코트",
+     "alterName": null,
+     "seq": 3,
+     "lvl": [
+      "S00001",
+      null,
+      null,
+      null,
+      null
+     ],
+     "attrs": [
+      "표준 도장 BOM(PE 회백)",
+      "3",
+      "후면 백코트",
+      "BC-EP-GR07",
+      "에폭시 백코트 회색",
+      "7",
+      "회색",
+      null,
+      null,
+      null
+     ]
+    },
+    {
+     "code": "A60041-FP",
+     "name": "건재 PE 라이트그레이 · 전면 프라이머",
+     "alterName": null,
+     "seq": 4,
+     "lvl": [
+      "A60041",
+      null,
+      null,
+      null,
+      null
+     ],
+     "attrs": [
+      "건재 PE 라이트그레이",
+      "3",
+      "전면 프라이머",
+      "PM-EP05",
+      "에폭시 프라이머 5㎛",
+      "5",
+      "황색 투명",
+      null,
+      null,
+      null
+     ]
+    },
+    {
+     "code": "A60041-FT",
+     "name": "건재 PE 라이트그레이 · 전면 상도",
+     "alterName": null,
+     "seq": 5,
+     "lvl": [
+      "A60041",
+      null,
+      null,
+      null,
+      null
+     ],
+     "attrs": [
+      "건재 PE 라이트그레이",
+      "3",
+      "전면 상도",
+      "TC-PE-7035",
+      "PE 상도 라이트그레이",
+      "15",
+      "라이트그레이",
+      "RAL7035",
+      null,
+      null
+     ]
+    },
+    {
+     "code": "A60041-BC",
+     "name": "건재 PE 라이트그레이 · 후면 백코트",
+     "alterName": null,
+     "seq": 6,
+     "lvl": [
+      "A60041",
+      null,
+      null,
+      null,
+      null
+     ],
+     "attrs": [
+      "건재 PE 라이트그레이",
+      "3",
+      "후면 백코트",
+      "BC-EP-GR07",
+      "에폭시 백코트 회색",
+      "7",
+      "회색",
+      null,
+      null,
+      null
+     ]
+    },
+    {
+     "code": "CB7-0001-FP",
+     "name": "CCUS PE 퓨어화이트 · 전면 프라이머",
+     "alterName": null,
+     "seq": 7,
+     "lvl": [
+      "CB7-0001",
+      null,
+      null,
+      null,
+      null
+     ],
+     "attrs": [
+      "CCUS PE 퓨어화이트",
+      "7",
+      "전면 프라이머",
+      "PM-PE07",
+      "폴리에스터 프라이머 7㎛",
+      "7",
+      "회색",
+      null,
+      null,
+      null
+     ]
+    },
+    {
+     "code": "CB7-0001-FT",
+     "name": "CCUS PE 퓨어화이트 · 전면 상도",
+     "alterName": null,
+     "seq": 8,
+     "lvl": [
+      "CB7-0001",
+      null,
+      null,
+      null,
+      null
+     ],
+     "attrs": [
+      "CCUS PE 퓨어화이트",
+      "7",
+      "전면 상도",
+      "TC-PE-9010",
+      "PE 상도 퓨어화이트(가전)",
+      "18",
+      "퓨어화이트",
+      "RAL9010",
+      null,
+      null
+     ]
+    },
+    {
+     "code": "CB7-0001-BC",
+     "name": "CCUS PE 퓨어화이트 · 후면 백코트",
+     "alterName": null,
+     "seq": 9,
+     "lvl": [
+      "CB7-0001",
+      null,
+      null,
+      null,
+      null
+     ],
+     "attrs": [
+      "CCUS PE 퓨어화이트",
+      "7",
+      "후면 백코트",
+      "BC-PE-WH07",
+      "PE 백코트 백색",
+      "7",
+      "백색",
+      null,
+      null,
+      null
+     ]
+    },
+    {
+     "code": "VL0001-FP",
+     "name": "가전 고광택 화이트(보호필름) · 전면 프라이머",
+     "alterName": null,
+     "seq": 10,
+     "lvl": [
+      "VL0001",
+      null,
+      null,
+      null,
+      null
+     ],
+     "attrs": [
+      "가전 고광택 화이트(보호필름)",
+      "4",
+      "전면 프라이머",
+      "PM-PU05",
+      "우레탄 프라이머 5㎛",
+      "5",
+      "백색",
+      null,
+      null,
+      null
+     ]
+    },
+    {
+     "code": "VL0001-FT",
+     "name": "가전 고광택 화이트(보호필름) · 전면 상도",
+     "alterName": null,
+     "seq": 11,
+     "lvl": [
+      "VL0001",
+      null,
+      null,
+      null,
+      null
+     ],
+     "attrs": [
+      "가전 고광택 화이트(보호필름)",
+      "4",
+      "전면 상도",
+      "TC-PE-9010",
+      "PE 상도 퓨어화이트(가전)",
+      "18",
+      "퓨어화이트",
+      "RAL9010",
+      null,
+      null
+     ]
+    },
+    {
+     "code": "VL0001-BC",
+     "name": "가전 고광택 화이트(보호필름) · 후면 백코트",
+     "alterName": null,
+     "seq": 12,
+     "lvl": [
+      "VL0001",
+      null,
+      null,
+      null,
+      null
+     ],
+     "attrs": [
+      "가전 고광택 화이트(보호필름)",
+      "4",
+      "후면 백코트",
+      "BC-PE-WH12",
+      "PE 백코트 백색 12㎛(가전)",
+      "12",
+      "백색",
+      null,
+      null,
+      null
+     ]
+    },
+    {
+     "code": "VL0001-PF",
+     "name": "가전 고광택 화이트(보호필름) · 보호필름",
+     "alterName": null,
+     "seq": 13,
+     "lvl": [
+      "VL0001",
+      null,
+      null,
+      null,
+      null
+     ],
+     "attrs": [
+      "가전 고광택 화이트(보호필름)",
+      "4",
+      "보호필름",
+      "PF-PE50",
+      "보호필름 PE 50㎛ 투명",
+      "50",
+      "투명",
+      null,
+      null,
+      null
+     ]
+    },
+    {
+     "code": "VP0001-FP",
+     "name": "지붕재 SMP 아이보리 · 전면 프라이머",
+     "alterName": null,
+     "seq": 14,
+     "lvl": [
+      "VP0001",
+      null,
+      null,
+      null,
+      null
+     ],
+     "attrs": [
+      "지붕재 SMP 아이보리",
+      "3",
+      "전면 프라이머",
+      "PM-EP05",
+      "에폭시 프라이머 5㎛",
+      "5",
+      "황색 투명",
+      null,
+      null,
+      null
+     ]
+    },
+    {
+     "code": "VP0001-FT",
+     "name": "지붕재 SMP 아이보리 · 전면 상도",
+     "alterName": null,
+     "seq": 15,
+     "lvl": [
+      "VP0001",
+      null,
+      null,
+      null,
+      null
+     ],
+     "attrs": [
+      "지붕재 SMP 아이보리",
+      "3",
+      "전면 상도",
+      "TC-SMP-1015",
+      "SMP 상도 라이트아이보리",
+      "20",
+      "라이트아이보리",
+      "RAL1015",
+      null,
+      null
+     ]
+    },
+    {
+     "code": "VP0001-BC",
+     "name": "지붕재 SMP 아이보리 · 후면 백코트",
+     "alterName": null,
+     "seq": 16,
+     "lvl": [
+      "VP0001",
+      null,
+      null,
+      null,
+      null
+     ],
+     "attrs": [
+      "지붕재 SMP 아이보리",
+      "3",
+      "후면 백코트",
+      "BC-EP-GR07",
+      "에폭시 백코트 회색",
+      "7",
+      "회색",
+      null,
+      null,
+      null
+     ]
+    },
+    {
+     "code": "VG001A-FP",
+     "name": "외장 HDP 앤트러사이트 · 전면 프라이머",
+     "alterName": null,
+     "seq": 17,
+     "lvl": [
+      "VG001A",
+      null,
+      null,
+      null,
+      null
+     ],
+     "attrs": [
+      "외장 HDP 앤트러사이트",
+      "4",
+      "전면 프라이머",
+      "PM-PU05",
+      "우레탄 프라이머 5㎛",
+      "5",
+      "백색",
+      null,
+      null,
+      null
+     ]
+    },
+    {
+     "code": "VG001A-FT",
+     "name": "외장 HDP 앤트러사이트 · 전면 상도",
+     "alterName": null,
+     "seq": 18,
+     "lvl": [
+      "VG001A",
+      null,
+      null,
+      null,
+      null
+     ],
+     "attrs": [
+      "외장 HDP 앤트러사이트",
+      "4",
+      "전면 상도",
+      "TC-HDP-7016",
+      "HDP 상도 앤트러사이트그레이",
+      "20",
+      "앤트러사이트그레이",
+      "RAL7016",
+      null,
+      null
+     ]
+    },
+    {
+     "code": "VG001A-BC",
+     "name": "외장 HDP 앤트러사이트 · 후면 백코트",
+     "alterName": null,
+     "seq": 19,
+     "lvl": [
+      "VG001A",
+      null,
+      null,
+      null,
+      null
+     ],
+     "attrs": [
+      "외장 HDP 앤트러사이트",
+      "4",
+      "후면 백코트",
+      "BC-EP-GR07",
+      "에폭시 백코트 회색",
+      "7",
+      "회색",
+      null,
+      null,
+      null
+     ]
+    },
+    {
+     "code": "VT002A-FP",
+     "name": "외장 PVDF 메탈릭 · 전면 프라이머",
+     "alterName": null,
+     "seq": 20,
+     "lvl": [
+      "VT002A",
+      null,
+      null,
+      null,
+      null
+     ],
+     "attrs": [
+      "외장 PVDF 메탈릭",
+      "4",
+      "전면 프라이머",
+      "PM-PU05",
+      "우레탄 프라이머 5㎛",
+      "5",
+      "백색",
+      null,
+      null,
+      null
+     ]
+    },
+    {
+     "code": "VT002A-FT",
+     "name": "외장 PVDF 메탈릭 · 전면 상도",
+     "alterName": null,
+     "seq": 21,
+     "lvl": [
+      "VT002A",
+      null,
+      null,
+      null,
+      null
+     ],
+     "attrs": [
+      "외장 PVDF 메탈릭",
+      "4",
+      "전면 상도",
+      "TC-PVDF-9006",
+      "PVDF 상도 화이트알루미늄",
+      "25",
+      "화이트알루미늄(메탈릭)",
+      "RAL9006",
+      null,
+      null
+     ]
+    },
+    {
+     "code": "VT002A-BC",
+     "name": "외장 PVDF 메탈릭 · 후면 백코트",
+     "alterName": null,
+     "seq": 22,
+     "lvl": [
+      "VT002A",
+      null,
+      null,
+      null,
+      null
+     ],
+     "attrs": [
+      "외장 PVDF 메탈릭",
+      "4",
+      "후면 백코트",
+      "BC-PE-WH07",
+      "PE 백코트 백색",
+      "7",
+      "백색",
+      null,
+      null,
+      null
+     ]
+    },
+    {
+     "code": "VT002A-PF",
+     "name": "외장 PVDF 메탈릭 · 보호필름",
+     "alterName": null,
+     "seq": 23,
+     "lvl": [
+      "VT002A",
+      null,
+      null,
+      null,
+      null
+     ],
+     "attrs": [
+      "외장 PVDF 메탈릭",
+      "4",
+      "보호필름",
+      "PF-PE60BW",
+      "보호필름 PE 60㎛ 흑백",
+      "60",
+      "흑백",
+      null,
+      null,
+      null
+     ]
+    },
+    {
+     "code": "US004L-FP",
+     "name": "건재 PE 스카이블루 · 전면 프라이머",
+     "alterName": null,
+     "seq": 24,
+     "lvl": [
+      "US004L",
+      null,
+      null,
+      null,
+      null
+     ],
+     "attrs": [
+      "건재 PE 스카이블루",
+      "3",
+      "전면 프라이머",
+      "PM-EP05",
+      "에폭시 프라이머 5㎛",
+      "5",
+      "황색 투명",
+      null,
+      null,
+      null
+     ]
+    },
+    {
+     "code": "US004L-FT",
+     "name": "건재 PE 스카이블루 · 전면 상도",
+     "alterName": null,
+     "seq": 25,
+     "lvl": [
+      "US004L",
+      null,
+      null,
+      null,
+      null
+     ],
+     "attrs": [
+      "건재 PE 스카이블루",
+      "3",
+      "전면 상도",
+      "TC-PE-5015",
+      "PE 상도 스카이블루",
+      "15",
+      "스카이블루",
+      "RAL5015",
+      null,
+      null
+     ]
+    },
+    {
+     "code": "US004L-BC",
+     "name": "건재 PE 스카이블루 · 후면 백코트",
+     "alterName": null,
+     "seq": 26,
+     "lvl": [
+      "US004L",
+      null,
+      null,
+      null,
+      null
+     ],
+     "attrs": [
+      "건재 PE 스카이블루",
+      "3",
+      "후면 백코트",
+      "BC-EP-GR07",
+      "에폭시 백코트 회색",
+      "7",
+      "회색",
+      null,
+      null,
+      null
+     ]
+    },
+    {
+     "code": "UT0C6S-FP",
+     "name": "건재 PE 모스그린 · 전면 프라이머",
+     "alterName": null,
+     "seq": 27,
+     "lvl": [
+      "UT0C6S",
+      null,
+      null,
+      null,
+      null
+     ],
+     "attrs": [
+      "건재 PE 모스그린",
+      "3",
+      "전면 프라이머",
+      "PM-EP05",
+      "에폭시 프라이머 5㎛",
+      "5",
+      "황색 투명",
+      null,
+      null,
+      null
+     ]
+    },
+    {
+     "code": "UT0C6S-FT",
+     "name": "건재 PE 모스그린 · 전면 상도",
+     "alterName": null,
+     "seq": 28,
+     "lvl": [
+      "UT0C6S",
+      null,
+      null,
+      null,
+      null
+     ],
+     "attrs": [
+      "건재 PE 모스그린",
+      "3",
+      "전면 상도",
+      "TC-PE-6005",
+      "PE 상도 모스그린",
+      "15",
+      "모스그린",
+      "RAL6005",
+      null,
+      null
+     ]
+    },
+    {
+     "code": "UT0C6S-BC",
+     "name": "건재 PE 모스그린 · 후면 백코트",
+     "alterName": null,
+     "seq": 29,
+     "lvl": [
+      "UT0C6S",
+      null,
+      null,
+      null,
+      null
+     ],
+     "attrs": [
+      "건재 PE 모스그린",
+      "3",
+      "후면 백코트",
+      "BC-EP-GR07",
+      "에폭시 백코트 회색",
+      "7",
+      "회색",
+      null,
+      null,
+      null
+     ]
+    },
+    {
+     "code": "K9060L-FP",
+     "name": "가전 PE 회백(보호필름) · 전면 프라이머",
+     "alterName": null,
+     "seq": 30,
+     "lvl": [
+      "K9060L",
+      null,
+      null,
+      null,
+      null
+     ],
+     "attrs": [
+      "가전 PE 회백(보호필름)",
+      "4",
+      "전면 프라이머",
+      "PM-PE07",
+      "폴리에스터 프라이머 7㎛",
+      "7",
+      "회색",
+      null,
+      null,
+      null
+     ]
+    },
+    {
+     "code": "K9060L-FT",
+     "name": "가전 PE 회백(보호필름) · 전면 상도",
+     "alterName": null,
+     "seq": 31,
+     "lvl": [
+      "K9060L",
+      null,
+      null,
+      null,
+      null
+     ],
+     "attrs": [
+      "가전 PE 회백(보호필름)",
+      "4",
+      "전면 상도",
+      "TC-PE-9002",
+      "PE 상도 회백색",
+      "15",
+      "회백색",
+      "RAL9002",
+      null,
+      null
+     ]
+    },
+    {
+     "code": "K9060L-BC",
+     "name": "가전 PE 회백(보호필름) · 후면 백코트",
+     "alterName": null,
+     "seq": 32,
+     "lvl": [
+      "K9060L",
+      null,
+      null,
+      null,
+      null
+     ],
+     "attrs": [
+      "가전 PE 회백(보호필름)",
+      "4",
+      "후면 백코트",
+      "BC-PE-WH12",
+      "PE 백코트 백색 12㎛(가전)",
+      "12",
+      "백색",
+      null,
+      null,
+      null
+     ]
+    },
+    {
+     "code": "K9060L-PF",
+     "name": "가전 PE 회백(보호필름) · 보호필름",
+     "alterName": null,
+     "seq": 33,
+     "lvl": [
+      "K9060L",
+      null,
+      null,
+      null,
+      null
+     ],
+     "attrs": [
+      "가전 PE 회백(보호필름)",
+      "4",
+      "보호필름",
+      "PF-PE50",
+      "보호필름 PE 50㎛ 투명",
+      "50",
+      "투명",
+      null,
+      null,
+      null
+     ]
+    }
+   ]
+  },
+  {
+   "codeId": "QC_PRD_NM_CD",
+   "ver": "1.000",
+   "items": [
+    {
+     "code": "1",
+     "name": "CCI",
+     "alterName": null,
+     "seq": 1,
+     "lvl": [
+      null,
+      null,
+      null,
+      null,
+      null
+     ],
+     "attrs": [
+      "SZ0000",
+      "공통",
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+     ]
+    },
+    {
+     "code": "2",
+     "name": "CCEI",
+     "alterName": null,
+     "seq": 2,
+     "lvl": [
+      null,
+      null,
+      null,
+      null,
+      null
+     ],
+     "attrs": [
+      "SZ0000",
+      "공통",
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+     ]
+    },
+    {
+     "code": "3",
+     "name": "CCGI",
+     "alterName": null,
+     "seq": 3,
+     "lvl": [
+      null,
+      null,
+      null,
+      null,
+      null
+     ],
+     "attrs": [
+      "SZ0000",
+      "공통",
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+     ]
+    },
+    {
+     "code": "4",
+     "name": "CCLI",
+     "alterName": null,
+     "seq": 4,
+     "lvl": [
+      null,
+      null,
+      null,
+      null,
+      null
+     ],
+     "attrs": [
+      "SZ0000",
+      "공통",
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+     ]
+    },
+    {
+     "code": "5",
+     "name": "CCAI",
+     "alterName": null,
+     "seq": 5,
+     "lvl": [
+      null,
+      null,
+      null,
+      null,
+      null
+     ],
+     "attrs": [
+      "SZ0000",
+      "공통",
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+     ]
+    },
+    {
+     "code": "6",
+     "name": "CCGX",
+     "alterName": null,
+     "seq": 6,
+     "lvl": [
+      null,
+      null,
+      null,
+      null,
+      null
+     ],
+     "attrs": [
+      "SZ0000",
+      "공통",
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+     ]
+    },
+    {
+     "code": "7",
+     "name": "CCUS",
+     "alterName": null,
+     "seq": 7,
+     "lvl": [
+      null,
+      null,
+      null,
+      null,
+      null
+     ],
+     "attrs": [
+      "SZ0000",
+      "공통",
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+     ]
+    },
+    {
+     "code": "8",
+     "name": "CCNI",
+     "alterName": null,
+     "seq": 8,
+     "lvl": [
+      null,
+      null,
+      null,
+      null,
+      null
+     ],
+     "attrs": [
+      "SZ0000",
+      "공통",
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+     ]
+    },
+    {
+     "code": "9",
+     "name": "CCLX",
+     "alterName": null,
+     "seq": 9,
+     "lvl": [
+      null,
+      null,
+      null,
+      null,
+      null
+     ],
+     "attrs": [
+      "SZ0000",
+      "공통",
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+     ]
+    },
+    {
+     "code": "A",
+     "name": "P/O Skin Pass",
+     "alterName": null,
+     "seq": 10,
+     "lvl": [
+      null,
+      null,
+      null,
+      null,
+      null
+     ],
+     "attrs": [
+      "SZ0000",
+      "공통",
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+     ]
+    },
+    {
+     "code": "B",
+     "name": "P/O No Skin Pass",
+     "alterName": null,
+     "seq": 11,
+     "lvl": [
+      null,
+      null,
+      null,
+      null,
+      null
+     ],
+     "attrs": [
+      "SZ0000",
+      "공통",
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+     ]
+    },
+    {
+     "code": "C",
+     "name": "CR",
+     "alterName": null,
+     "seq": 12,
+     "lvl": [
+      null,
+      null,
+      null,
+      null,
+      null
+     ],
+     "attrs": [
+      "SZ0000",
+      "공통",
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+     ]
+    },
+    {
+     "code": "D",
+     "name": "F/H",
+     "alterName": null,
+     "seq": 13,
+     "lvl": [
+      null,
+      null,
+      null,
+      null,
+      null
+     ],
+     "attrs": [
+      "SZ0000",
+      "공통",
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+     ]
+    },
+    {
+     "code": "E",
+     "name": "EGI",
+     "alterName": null,
+     "seq": 14,
+     "lvl": [
+      null,
+      null,
+      null,
+      null,
+      null
+     ],
+     "attrs": [
+      "SZ0000",
+      "공통",
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+     ]
+    },
+    {
+     "code": "G",
+     "name": "GI",
+     "alterName": null,
+     "seq": 15,
+     "lvl": [
+      null,
+      null,
+      null,
+      null,
+      null
+     ],
+     "attrs": [
+      "SZ0000",
+      "공통",
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+     ]
+    },
+    {
+     "code": "H",
+     "name": "Hot Coil",
+     "alterName": null,
+     "seq": 16,
+     "lvl": [
+      null,
+      null,
+      null,
+      null,
+      null
+     ],
+     "attrs": [
+      "SZ0000",
+      "공통",
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+     ]
+    },
+    {
+     "code": "J",
+     "name": "G/A",
+     "alterName": null,
+     "seq": 17,
+     "lvl": [
+      null,
+      null,
+      null,
+      null,
+      null
+     ],
+     "attrs": [
+      "SZ0000",
+      "공통",
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+     ]
+    },
+    {
+     "code": "K",
+     "name": "HGI",
+     "alterName": null,
+     "seq": 18,
+     "lvl": [
+      null,
+      null,
+      null,
+      null,
+      null
+     ],
+     "attrs": [
+      "SZ0000",
+      "공통",
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+     ]
+    },
+    {
+     "code": "L",
+     "name": "G/L",
+     "alterName": null,
+     "seq": 19,
+     "lvl": [
+      null,
+      null,
+      null,
+      null,
+      null
+     ],
+     "attrs": [
+      "SZ0000",
+      "공통",
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+     ]
+    },
+    {
+     "code": "M",
+     "name": "Mini Mill",
+     "alterName": null,
+     "seq": 20,
+     "lvl": [
+      null,
+      null,
+      null,
+      null,
+      null
+     ],
+     "attrs": [
+      "SZ0000",
+      "공통",
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+     ]
+    },
+    {
+     "code": "N",
+     "name": "ZnNi",
+     "alterName": null,
+     "seq": 21,
+     "lvl": [
+      null,
+      null,
+      null,
+      null,
+      null
+     ],
+     "attrs": [
+      "SZ0000",
+      "공통",
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+     ]
+    },
+    {
+     "code": "S",
+     "name": "SUS",
+     "alterName": null,
+     "seq": 22,
+     "lvl": [
+      null,
+      null,
+      null,
+      null,
+      null
+     ],
+     "attrs": [
+      "SZ0000",
+      "공통",
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+     ]
+    },
+    {
+     "code": "U",
+     "name": "Aluminum",
+     "alterName": null,
+     "seq": 23,
+     "lvl": [
+      null,
+      null,
+      null,
+      null,
+      null
+     ],
+     "attrs": [
+      "SZ0000",
+      "공통",
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+     ]
+    },
+    {
+     "code": "V",
+     "name": "GIX",
+     "alterName": null,
+     "seq": 24,
+     "lvl": [
+      null,
+      null,
+      null,
+      null,
+      null
+     ],
+     "attrs": [
+      "SZ0000",
+      "공통",
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+     ]
+    },
+    {
+     "code": "W",
+     "name": "GLX",
+     "alterName": null,
+     "seq": 25,
+     "lvl": [
+      null,
+      null,
+      null,
+      null,
+      null
+     ],
+     "attrs": [
+      "SZ0000",
+      "공통",
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+     ]
+    },
+    {
+     "code": "X",
+     "name": "HR SKELP",
+     "alterName": null,
+     "seq": 26,
+     "lvl": [
+      null,
+      null,
+      null,
+      null,
+      null
+     ],
+     "attrs": [
+      "SZ0000",
+      "공통",
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+     ]
+    },
+    {
+     "code": "Y",
+     "name": "포장재",
+     "alterName": null,
+     "seq": 27,
+     "lvl": [
+      null,
+      null,
+      null,
+      null,
+      null
+     ],
+     "attrs": [
+      "SZ0000",
+      "공통",
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+     ]
+    },
+    {
+     "code": "Z",
+     "name": "통판재",
+     "alterName": null,
+     "seq": 28,
+     "lvl": [
+      null,
+      null,
+      null,
+      null,
+      null
+     ],
+     "attrs": [
+      "SZ0000",
+      "공통",
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+     ]
+    }
+   ]
+  },
+  {
+   "codeId": "QC_USE_YN",
+   "ver": "1.000",
+   "items": [
+    {
+     "code": "Y",
+     "name": "사용",
+     "alterName": null,
+     "seq": 1,
+     "lvl": [
+      null,
+      null,
+      null,
+      null,
+      null
+     ],
+     "attrs": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+     ]
+    },
+    {
+     "code": "N",
+     "name": "미사용",
+     "alterName": null,
+     "seq": 2,
+     "lvl": [
+      null,
+      null,
+      null,
+      null,
+      null
+     ],
+     "attrs": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+     ]
+    }
+   ]
+  },
+  {
+   "codeId": "QC_FEAS_MATL_GRP",
+   "ver": "1.000",
+   "items": [
+    {
+     "code": "2CGL-GI-G1",
+     "name": "CQ, Gr-A, B(G250)",
+     "alterName": null,
+     "seq": 1,
+     "lvl": [
+      "2CGL-GI",
+      null,
+      null,
+      null,
+      null
+     ],
+     "attrs": [
+      "1A,AA,BA",
+      "재질코드(Material Code) = 1A, AA, BA",
+      "1260,1230,1150,1050,950,650↑",
+      "0.24,0.25,0.28,0.30,0.35,0.4,0.5,0.6,0.7,0.8,0.9,1,1.1,1.2,1.3,1.4,1.5,1.6,1.7,1.8,1.9,2,2.1,2.2",
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+     ]
+    },
+    {
+     "code": "2CGL-GI-G2",
+     "name": "Full-Ann (DQ, DDQ, IF Steel)",
+     "alterName": null,
+     "seq": 2,
+     "lvl": [
+      "2CGL-GI",
+      null,
+      null,
+      null,
+      null
+     ],
+     "attrs": [
+      "3A,3B,4A,4B,5A,5B",
+      "재질코드(Material Code) = 3A, 3B, 4A, 4B, 5A, 5B",
+      "1260,1230,1150,1050,950,650↑",
+      "0.24,0.25,0.28,0.30,0.35,0.4,0.5,0.6,0.7,0.8,0.9,1,1.1,1.2,1.3,1.4,1.5,1.6,1.7,1.8,1.9,2,2.1,2.2",
+      "※ 폭 수축량 불균일(폭 미달/초과 가능성 높음)",
+      null,
+      null,
+      null,
+      null,
+      null
+     ]
+    },
+    {
+     "code": "2CGL-GI-G3",
+     "name": "Gr-C(G300), D(G350)",
+     "alterName": null,
+     "seq": 3,
+     "lvl": [
+      "2CGL-GI",
+      null,
+      null,
+      null,
+      null
+     ],
+     "attrs": [
+      "CA,CB,DA,DB,DC,DD",
+      "재질코드(Material Code) = CA, CB, DA, DB, DC, DD",
+      "1260,1230,1150,1050,950,650↑",
+      "0.24,0.25,0.28,0.30,0.35,0.4,0.5,0.6,0.7,0.8,0.9,1,1.1,1.2,1.3,1.4,1.5,1.6,1.7,1.8,1.9,2,2.1,2.2",
+      "※ 특수강종 : SAE1022材 적용 제품(SGC490, G450, S350GD, Gr-55) Trial 필요 - 물성 불안정",
+      null,
+      null,
+      null,
+      null,
+      null
+     ]
+    },
+    {
+     "code": "2CGL-GI-G4",
+     "name": "Gr-E(G550)",
+     "alterName": null,
+     "seq": 4,
+     "lvl": [
+      "2CGL-GI",
+      null,
+      null,
+      null,
+      null
+     ],
+     "attrs": [
+      "EA",
+      "재질코드(Material Code) = EA",
+      "1260,1230,1150,1050,950,650↑",
+      "0.24,0.25,0.28,0.30,0.35,0.4,0.5,0.6,0.7,0.8,0.9,1,1.1,1.2,1.3,1.4,1.5,1.6,1.7,1.8,1.9,2,2.1,2.2",
+      null,
+      "PL-TCM 형상 제어 애로\n(급준도 관리 제품 협의 후 진행)",
+      null,
+      null,
+      null,
+      null
+     ]
+    }
+   ]
+  }
+ ]
+}
