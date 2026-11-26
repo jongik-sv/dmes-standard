@@ -7,7 +7,7 @@
 import { useMemo, useRef } from "react";
 import { Button } from "@dk-oasis/shared/form";
 import { AgDataGrid, type GridColumn } from "@dk-oasis/shared/grid";
-import { resultLabel } from "../change-view";
+import { isFailedResult, resultBadgeCss, resultLabel } from "../change-view";
 import type { TestCaseRow, TestResultRow } from "../types";
 import { uiCols } from "@/ui-meta";
 
@@ -34,17 +34,33 @@ export function DomainTestCaseGrid({ cases, results, readOnly, showVars, onChang
     return cases.map((c, i) => {
       const r = own.get(i);
       return { ROW_KEY: i + 1, VALUE: c.VALUE, EXPECT: String(c.EXPECT), VARS: c.VARS, MEMO: c.MEMO,
-        RESULT_TEXT: r ? resultLabel(r.RESULT) : "-", RESULT_MESSAGE: r?.MESSAGE ?? "" };
+        RESULT_TEXT: r ? resultLabel(r.RESULT) : "-", RESULT: r?.RESULT ?? "", RESULT_MESSAGE: r?.MESSAGE ?? "" };
     });
   }, [cases, results]);
   const columns = useMemo<GridColumn[]>(() => uiCols([
+    // 케이스 번호 — 검사 목록 메시지의 "케이스 N" 과 같은 번호(1부터)다
+    { key: ROW_KEY, header: "No", width: 50, align: "center" },
     { key: "VALUE", header: "입력", width: 140, editable: !readOnly },
     { key: "EXPECT", header: "기대", width: 70, editable: !readOnly, cellEditor: "select", cellEditorValues: ["true", "false"] },
     { key: "VARS", header: "변수(JSON)", width: 140, editable: !readOnly, hide: !showVars },
     { key: "MEMO", header: "메모", width: 140, editable: !readOnly, hideable: true },
     {
-      key: "RESULT_TEXT", header: "결과", width: 70, tooltip: false,
-      render: (v, r) => <span title={String(r.RESULT_MESSAGE ?? "") || undefined}>{String(v ?? "")}</span>,
+      // 룰 화면 테스트 케이스와 같은 모양 — 결과 배지(실패는 붉게) 뒤에 메시지. 실패 메시지는 붉은 글자다.
+      key: "RESULT_TEXT", header: "결과", width: 260, tooltip: false,
+      render: (v, r) => {
+        if (!r.RESULT) return <span style={{ color: "var(--color-text-muted)" }}>-</span>;
+        const failed = isFailedResult(String(r.RESULT));
+        const message = String(r.RESULT_MESSAGE ?? "");
+        return (
+          <>
+            <span data-testid={`case-badge-${String(r.ROW_KEY)}`} style={resultBadgeCss(String(r.RESULT))}>{String(v ?? "")}</span>
+            {message && (
+              <span data-testid={`case-message-${String(r.ROW_KEY)}`}
+                style={{ color: failed ? "var(--color-danger)" : "var(--color-text-muted)" }}> {message}</span>
+            )}
+          </>
+        );
+      },
     },
     {
       key: "DELETE", header: "", width: 60, tooltip: false, hide: readOnly,

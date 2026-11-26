@@ -13,7 +13,7 @@ import { DmesUiProvider } from "@dk-oasis/shared/ui-provider";
 import { HANDOVER_AVAILABLE, HANDOVER_PENDING_TEXT, takeMdmPageParams } from "@/shell";
 
 import RuleEditPage from "../../../pages/dme/ruleEdit/page";
-import { RULE_EDIT_GROUPS } from "../../../pages/dme/ruleEdit/cards";
+import { RULE_EDIT_CARDS } from "../../../pages/dme/ruleEdit/cards";
 import { RULE_EDIT_TARGET_EVENT, RULE_EDIT_TARGET_KEY } from "../../../src/dme/rule-handoff";
 import { clearDebugPrefill } from "../../../pages/dme/ruleEdit/value-test/debug-prefill";
 import type { RuleEditView } from "../../../pages/dme/ruleEdit/types";
@@ -50,7 +50,27 @@ async function render() {
 }
 
 function byTestId<T extends Element>(id: string): T | null {
-  return container.querySelector(`[data-testid="${id}"]`) as T | null;
+  // 팝업은 포털로 body 에 그려지므로 문서 전체에서 찾는다.
+  return document.querySelector(`[data-testid="${id}"]`) as T | null;
+}
+
+async function clickTestId(id: string) {
+  await act(async () => {
+    byTestId<HTMLElement>(id)!.click();
+  });
+  await flush();
+}
+
+/** 열린 팝업의 맨 아래 [닫기]. */
+async function closePopup(testId: string) {
+  const dialog = byTestId<HTMLElement>(testId)!.closest<HTMLElement>('[role="dialog"]')!;
+  const closeBtn = Array.from(dialog.querySelectorAll("button")).filter((b) => b.textContent === "닫기").at(-1)!;
+  await act(async () => {
+    closeBtn.click();
+    // Mantine 의 닫힘 전환(200ms)이 끝나야 내용이 내려간다.
+    await new Promise((resolve) => setTimeout(resolve, 300));
+  });
+  await flush();
 }
 
 function params(action: string): Record<string, unknown> | undefined {
@@ -262,49 +282,60 @@ describe("RuleEditPage", () => {
     expect(text).toContain("BASE_SPD_LKP");
   });
 
-  // 카드 틀(CardFrame)·카드 묶음(CardGroup) 특성 — e2e(dme.user.ts)가 rule-group-{id}·-toggle·-body 와 rule-card-* 를 쓴다.
-  // 접어도 본문을 내리지 않는다(hidden): 카드가 내려가면 dirty 알림·값 테스트 결과가 사라진다. 묶음 본문은 16칸 격자다.
-  it("카드는 rule-card-* 틀에 담기고, 묶음은 접어도 본문을 내리지 않고 숨기며 본문은 16칸 격자다", async () => {
-    const GROUP_TITLE = RULE_EDIT_GROUPS.valueTests.title;
+  // 2026-11-04 — 본문에는 의사결정표·활용처만 두고, 열 설정과 테스트는 표 머리 버튼으로 여는 팝업이다.
+  it("본문은 표와 활용처 카드만 그리고, 테스트 카드는 팝업을 열어야 보인다", async () => {
+    expect(RULE_EDIT_CARDS.map((c) => c.id)).toEqual(["table", "usage"]);
     await openByHandoff();
-    for (const id of ["rule-card-value-test", "rule-card-test-result", "rule-card-test-cases", "rule-card-usage"]) {
-      const card = byTestId<HTMLElement>(id);
-      expect(card, id).not.toBeNull();
-      expect(card!.tagName).toBe("SECTION");
-      expect(card!.querySelector(":scope > header")).not.toBeNull();
+    const usage = byTestId<HTMLElement>("rule-card-usage")!;
+    expect(usage.tagName).toBe("SECTION");
+    expect(usage.querySelector(":scope > header > span")!.textContent).toBe("활용처");
+    expect(byTestId("rule-tests-popup")).toBeNull();
+    expect(byTestId("rule-card-value-test")).toBeNull();
+    expect(byTestId("rule-section-columns")).toBeNull();
+
+    await clickTestId("dt-open-tests");
+    for (const id of ["rule-tests-popup", "rule-card-value-test", "rule-card-test-result", "rule-card-test-cases"]) {
+      expect(byTestId(id), id).not.toBeNull();
     }
-    expect(byTestId("rule-card-usage")!.querySelector(":scope > header > span")!.textContent).toBe("⑧ 활용처");
+    // 처음 탭은 값 테스트이고, 케이스 탭은 숨겨 둔다(값 테스트 대상을 쓰므로 내리지 않는다).
+    expect(byTestId<HTMLElement>("rule-tests-value")!.hidden).toBe(false);
+    expect(byTestId<HTMLElement>("rule-tests-cases")!.hidden).toBe(true);
 
-    const group = byTestId<HTMLElement>("rule-group-valueTests")!;
-    const toggle = byTestId<HTMLButtonElement>("rule-group-valueTests-toggle")!;
-    const body = byTestId<HTMLElement>("rule-group-valueTests-body")!;
-    expect(group).not.toBeNull();
-    expect(toggle.parentElement).toBe(group);
-    expect(body.parentElement).toBe(group);
-    expect(toggle.getAttribute("type")).toBe("button");
-    expect(toggle.getAttribute("aria-expanded")).toBe("true");
-    expect(toggle.getAttribute("aria-label")).toBe(`${GROUP_TITLE} 접기`);
-    expect(toggle.textContent).toBe(GROUP_TITLE);
-    expect(body.hidden).toBe(false);
-    const grid = body.firstElementChild as HTMLElement;
-    expect(grid.getAttribute("style")).toContain("repeat(16, minmax(0, 1fr))");
-    expect(body.querySelector('[data-testid="rule-card-value-test"]')).not.toBeNull();
-    expect(body.querySelector('[data-testid="rule-card-test-cases"]')).not.toBeNull();
+    await closePopup("rule-tests-popup");
+    expect(byTestId("rule-tests-popup")).toBeNull();
+  });
 
+  it("테스트 팝업을 닫았다 열어도 입력한 값이 남고, 룰이 바뀌면 비운다", async () => {
+    await openByHandoff();
+    await clickTestId("dt-open-tests");
+    await typeInto(byTestId<HTMLInputElement>("vt-case-name")!, "이어 쓸 이름");
+    await closePopup("rule-tests-popup");
+    await clickTestId("dt-open-tests");
+    expect(byTestId<HTMLInputElement>("vt-case-name")!.value).toBe("이어 쓸 이름");
+    await closePopup("rule-tests-popup");
+
+    const base = draftView("e2e_mdm_steward");
+    view = { ...base, rule: { ...base.rule, maruRuleId: "OTHER_RULE" } };
     await act(async () => {
-      toggle.click();
+      window.dispatchEvent(new CustomEvent(RULE_EDIT_TARGET_EVENT, { detail: { ruleId: "OTHER_RULE", at: Date.now() } }));
     });
-    expect(toggle.getAttribute("aria-expanded")).toBe("false");
-    expect(toggle.getAttribute("aria-label")).toBe(`${GROUP_TITLE} 펼치기`);
-    expect(byTestId<HTMLElement>("rule-group-valueTests-body")!.hidden).toBe(true);
-    // 숨기기만 하고 내리지 않는다.
-    expect(byTestId("rule-card-value-test")).not.toBeNull();
-    expect(byTestId("rule-card-test-cases")).not.toBeNull();
+    await flush();
+    await clickTestId("dt-open-tests");
+    expect(byTestId<HTMLInputElement>("vt-case-name")!.value).toBe("");
+  });
 
+  it("열 설정 버튼은 팝업을 열고, 닫아도 초안이 남으면 버튼에 알린다", async () => {
+    await openByHandoff();
+    expect(byTestId("dt-open-columns")!.textContent).toBe("열 설정");
+    await clickTestId("dt-open-columns");
+    const popup = byTestId<HTMLElement>("rule-section-columns")!;
+    expect(popup).not.toBeNull();
     await act(async () => {
-      toggle.click();
+      findButton(popup, "조건 열 추가")!.click();
     });
-    expect(toggle.getAttribute("aria-expanded")).toBe("true");
-    expect(byTestId<HTMLElement>("rule-group-valueTests-body")!.hidden).toBe(false);
+    await flush();
+    await closePopup("rule-section-columns");
+    expect(byTestId("rule-section-columns")).toBeNull();
+    expect(byTestId("dt-open-columns")!.textContent).toBe("열 설정 · 초안 있음");
   });
 });

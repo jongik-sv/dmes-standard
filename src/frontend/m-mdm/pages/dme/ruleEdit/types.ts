@@ -264,7 +264,7 @@ export interface ValueTestResult {
   skippedRows?: number[];
   contract?: { always: string[]; rows: Array<{ rowId: number; required: string[]; optional: string[] }> };
   cases?: ValueTestCaseResult[];
-  /** 요청 `judge` 일 때만 — 저장 전 케이스(수정 팝업) 판정. caseId·caseName 은 null. */
+  /** 요청 `judge` 일 때만 — 저장 전 케이스(상세) 판정. caseId·caseName 은 null. */
   draftCase?: DraftCaseResult;
 }
 

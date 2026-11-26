@@ -1,7 +1,7 @@
 /*
  * 작성자: Agent
  * 작성일: 2026-09-24
- * 내용: domainMng (도메인 관리) OASIS 서비스 — search / view / validate / execute / save 5 action
+ * 내용: domainMng (도메인 관리) OASIS 서비스 — search / view / validate / execute / save / delete 6 action
  */
 package com.dongkuk.dmes.mdm.dma.domainMng.service;
 
@@ -17,13 +17,17 @@ import com.dongkuk.dmes.mdm.contract.common.MdmErrorCode;
 import com.dongkuk.dmes.mdm.contract.dictionary.MdmDomainImpact;
 import com.dongkuk.dmes.mdm.contract.dictionary.MdmDomainImpactLookup;
 import com.dongkuk.dmes.mdm.contract.dictionary.MdmDomainReference;
+import com.dongkuk.dmes.mdm.dma.domainMng.dto.DomainDeleteRequest;
 import com.dongkuk.dmes.mdm.dma.domainMng.dto.DomainDraftRequest;
 import com.dongkuk.dmes.mdm.dma.domainMng.dto.DomainMngSearchRequest;
 import com.dongkuk.dmes.mdm.dma.domainMng.dto.DomainMngViewRequest;
 import com.dongkuk.dmes.mdm.dma.domainMng.dto.DomainPreviewRequest;
+import com.dongkuk.dmes.mdm.entity.MdmColumn;
 import com.dongkuk.dmes.mdm.entity.MdmDomain;
+import com.dongkuk.dmes.mdm.entity.MdmRuleVar;
 import com.dongkuk.dmes.mdm.repository.MdmDomainRepository;
 import com.dongkuk.dmes.mdm.repository.MdmUnitRepository;
+import jakarta.persistence.EntityManager;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.EnumSet;
@@ -38,16 +42,20 @@ import java.util.Set;
 import java.util.regex.Pattern;
 import kr.dongkuk.maru.mdm.engine.expr.FunctionSets.Slot;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * 도메인 관리({@code domainMng}) OASIS 진입 서비스(TSK-04-03 design.md §3.1).
  *
  * <p>정본: 기능설계서 {@code docs/mdm/screens/domainMng/domainMng_기능설계서.md}, 구현 설계 {@code docs/mdm/tasks/TSK-04-03/design.md}.
- * BPMN {@code services/dma/domainMng.bpmn} 의 {@code actionGateway} 5 분기와 1:1 이다. 쓰기는 {@code save} 만 한다(불변 I16).
+ * BPMN {@code services/dma/domainMng.bpmn} 의 {@code actionGateway} 6 분기와 1:1 이다. 쓰기는 {@code save}·{@code delete} 만 한다(불변 I16).
  *
  * <p>부모 연결·교체·제거(D-132)는 따로 액션을 두지 않고 {@code validate}(경고 미리보기) → {@code save}(확인 후 쓰기)로 한다.
  * 액션 이름은 RBAC 키라 {@code MdmActions} 어휘 안에서만 고르고, 두 단계 흐름·하위 재검사·동시 수정 검사·롤백이 이미 거기 있다.
  * 부모가 없어지면 {@link DomainUnlinkMaterializer} 가 상속받던 값을 초안에 복사한 뒤 같은 검사를 돈다.
+ *
+ * <p>{@code delete} 는 컬럼·룰 변수를 JPA 로 고쳐야 해서 {@link TransactionTemplate}(REQUIRED)으로 감싼다(MetaRevisionRecorder 와 같은 방식).
  *
  * <p><b>{@code @Transactional} 을 붙이지 않는다.</b> 붙이면 CGLIB 프록시가 파라미터 이름을 잃어 OASIS 바인딩이
  * {@code ParameterName must not be null} 로 죽는다. 트랜잭션은 OASIS action 한 건이다 — {@code save} 가 하위 재검사에서
@@ -75,13 +83,16 @@ public class DomainMngService {
     private final MdmDomainRepository domainRepository;
     private final MdmUnitRepository unitRepository;
     private final MetaRevisionRecorder recorder;
+    private final EntityManager entityManager;
+    private final TransactionTemplate tx;
 
     public DomainMngService(DomainTreeReader reader, DomainChainAssembler assembler, DomainRuleChecker checker,
                             DomainTestCaseRunner runner, DomainChangeClassifier classifier,
                             DomainUnlinkMaterializer materializer, DomainExpressionCompiler compiler,
                             DomainImpactQueries queries,
                             MdmDomainImpactLookup impactLookup, MdmDomainRepository domainRepository,
-                            MdmUnitRepository unitRepository, MetaRevisionRecorder recorder) {
+                            MdmUnitRepository unitRepository, MetaRevisionRecorder recorder,
+                            EntityManager entityManager, PlatformTransactionManager transactionManager) {
         this.reader = reader;
         this.assembler = assembler;
         this.checker = checker;
@@ -94,6 +105,8 @@ public class DomainMngService {
         this.domainRepository = domainRepository;
         this.unitRepository = unitRepository;
         this.recorder = recorder;
+        this.entityManager = entityManager;
+        this.tx = new TransactionTemplate(transactionManager);
     }
 
     // ────────────────────────────────────────────────────────────────
@@ -195,7 +208,7 @@ public class DomainMngService {
     public Map<String, Object> execute(DomainPreviewRequest request, List<Map<String, Object>> vars) {
         DomainDraft draft = new DomainDraft(request.getDomainId(), null, null, DomainDraft.norm(request.getStdName()),
                 request.getParentDomainId(), DomainDraft.norm(request.getDomainKind()), DomainDraft.norm(request.getDataType()),
-                null, request.getScale(), null, DomainDraft.norm(request.getMaruCodeId()), DomainDraft.norm(request.getCateId()),
+                request.getLength(), request.getScale(), null, DomainDraft.norm(request.getMaruCodeId()), DomainDraft.norm(request.getCateId()),
                 DomainDraft.norm(request.getStdRule()), DomainDraft.norm(request.getBizRule()), null, List.of(), List.of());
         List<DomainIssue> compile = new ArrayList<>();
         compile.addAll(compiler.check(draft.stdRule(), Slot.DOMAIN_STD, "STD_RULE"));
@@ -278,6 +291,181 @@ public class DomainMngService {
     }
 
     // ────────────────────────────────────────────────────────────────
+    // action: delete — 하위 도메인은 지우는 도메인의 부모로 올리고(값 흡수), 참조는 부모로 옮기거나(없으면) 비운 뒤 행을 지운다
+    // ────────────────────────────────────────────────────────────────
+
+    /**
+     * 도메인 1행 삭제. 한 OASIS action 트랜잭션에서 다음을 한다. 중간에 던지면 전부 되돌린다.
+     *
+     * <ol>
+     *   <li>동시 수정 검사(D5).</li>
+     *   <li>직속 하위 도메인을 지우는 도메인의 부모로 올린다. 지우는 도메인의 자기 값을 하위에 흡수해 유효 정의를 지킨다
+     *       ({@link DomainUnlinkMaterializer#absorb}). 쓰기 전에 메모리 스냅샷으로 하위마다 저장 검사·테스트 케이스를 돌려, 삭제 전에는 없던
+     *       오류가 생기면 거부한다. 삭제 전에도 있던 오류는 막지 않고 {@code preexistingIssues} 로 돌려준다.</li>
+     *   <li>참조 컬럼({@code TB_MDM_COLUMN})과 룰 변수({@code TB_MDM_RULE_VAR})의 {@code DOMAIN_ID} 를 지우는 도메인의 부모로 옮긴다.
+     *       부모가 없으면 비운다. 룰 변수는 타입을 잃지 않게 {@code DATA_TYPE} 이 비어 있으면 지우는 도메인의 유효 데이터 타입을 넣는다.</li>
+     *   <li>메타 변경 기록 — 쓰기 전에 지우는 도메인·하위·참조 컬럼·전문을 펼친다(쓰고 나면 참조가 사라져 펼칠 수 없다). 룰 변수를 옮긴 룰도 기록한다.</li>
+     * </ol>
+     */
+    public Map<String, Object> delete(DomainDeleteRequest request) {
+        // REQUIRED — OASIS action 트랜잭션에 합류하고, 없으면(서비스 직접 호출 시험) 스스로 연다. 던지면 전부 되돌린다.
+        return tx.execute(status -> deleteInTx(request));
+    }
+
+    private Map<String, Object> deleteInTx(DomainDeleteRequest request) {
+        if (request == null || request.getDomainId() == null) {
+            throw DomainRejections.notFound(null);
+        }
+        Long id = request.getDomainId();
+        MdmDomain entity = domainRepository.findById(id).orElseThrow(() -> DomainRejections.notFound(id));
+        if (!Objects.equals(request.getVer(), entity.getVersion())) {
+            throw MdmErrors.of(MdmErrorCode.ROW_VERSION_CONFLICT);
+        }
+        DomainTreeSnapshot snapshot = reader.load();
+        DomainNode removed = snapshot.find(id).orElseThrow(() -> DomainRejections.notFound(id));
+        Long newParent = removed.parentDomainId();
+        EffectiveDomainView removedView = effective(snapshot, id);
+
+        // 1 하위 도메인 — 흡수한 초안을 메모리 스냅샷에 얹고 검사한다(쓰기 없음)
+        List<DomainNode> children = snapshot.children(id);
+        List<DomainDraft> drafts = new ArrayList<>();
+        DomainTreeSnapshot memory = snapshot;
+        for (DomainNode child : children) {
+            DomainDraft draft = materializer.absorb(child, removed).draft();
+            drafts.add(draft);
+            memory = memory.withDraft(draft.toNode(compiler.ast(draft.stdRule()), compiler.ast(draft.bizRule()), child.ver()));
+        }
+        // 삭제 전에도 있던 오류(예: 코드 참조 없는 CODE 트리의 R09)는 삭제가 만든 것이 아니므로 막지 않는다.
+        // 흡수로 유효 정의가 같아서, 삭제 뒤에 새로 생긴 오류만 거부한다. 기존 오류는 결과의 preexistingIssues 로 알린다.
+        List<DomainIssue> baseline = new ArrayList<>();
+        for (DomainNode child : children) {
+            baseline.addAll(childIssues(asIs(child), snapshot));
+        }
+        Set<String> known = new HashSet<>();
+        for (DomainIssue i : baseline) {
+            if (i.isError()) {
+                known.add(issueKey(i));
+            }
+        }
+        List<DomainIssue> issues = new ArrayList<>();
+        for (DomainDraft draft : drafts) {
+            issues.addAll(childIssues(draft, memory));
+        }
+        List<DomainIssue> preexisting = issues.stream().filter(i -> i.isError() && known.contains(issueKey(i))).toList();
+        issues.removeAll(preexisting);
+        if (issues.stream().anyMatch(DomainIssue::isError)) {
+            throw DomainRejections.reject(issues);
+        }
+
+        // 2 메타 변경 기록 — 참조가 남아 있을 때 펼친다(같은 트랜잭션이라 아래에서 던지면 남지 않는다)
+        recorder.domain(id, true);
+
+        // 3 하위 도메인 쓰기
+        List<Long> moved = new ArrayList<>();
+        for (DomainDraft draft : drafts) {
+            MdmDomain child = domainRepository.findById(draft.domainId()).orElseThrow(() -> DomainRejections.notFound(draft.domainId()));
+            apply(child, draft);
+            domainRepository.saveAndFlush(child);
+            moved.add(child.getDomainId());
+        }
+
+        // 4 참조 컬럼·룰 변수 옮기기
+        List<MdmColumn> columns = entityManager
+                .createQuery("select c from MdmColumn c where c.domainId = :id", MdmColumn.class)
+                .setParameter("id", id).getResultList();
+        for (MdmColumn c : columns) {
+            c.setDomainId(newParent);
+        }
+        List<MdmRuleVar> vars = entityManager
+                .createQuery("select v from MdmRuleVar v where v.domainId = :id", MdmRuleVar.class)
+                .setParameter("id", id).getResultList();
+        Set<String> rules = new LinkedHashSet<>();
+        String fallbackType = removedView == null ? removed.dataType() : removedView.dataType();
+        for (MdmRuleVar v : vars) {
+            v.setDomainId(newParent);
+            if (newParent == null && (v.getDataType() == null || v.getDataType().isBlank())) {
+                v.setDataType(fallbackType);
+            }
+            rules.add(v.getMaruRuleId());
+        }
+        entityManager.flush();
+
+        // 5 행 삭제 → 쓰고 난 DB 기준 하위 재검사(쓰기 전 검사와 같은 결과여야 한다. 다르면 되돌린다)
+        domainRepository.delete(entity);
+        domainRepository.flush();
+        DomainTreeSnapshot written = reader.load();
+        List<DomainIssue> after = new ArrayList<>();
+        for (Long childId : moved) {
+            after.addAll(checker.descendantLengthIssues(written, childId));
+            after.addAll(runDescendants(written, childId).issues());
+        }
+        after.removeIf(i -> i.isError() && known.contains(issueKey(i)));
+        if (after.stream().anyMatch(DomainIssue::isError)) {
+            throw DomainRejections.reject(after);
+        }
+        for (String ruleId : rules) {
+            recorder.rule(ruleId);
+        }
+        issues.addAll(after);
+
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("domainId", id);
+        out.put("newParentDomainId", newParent);
+        out.put("movedDomainIds", moved);
+        out.put("movedColumnCount", columns.size());
+        out.put("movedRuleVarCount", vars.size());
+        out.put("warnings", issues.stream().filter(i -> !i.isError()).map(DomainIssue::toRow).toList());
+        out.put("preexistingIssues", preexisting.stream().map(DomainIssue::toRow).toList());
+        return out;
+    }
+
+    /** 저장된 하위 행 그대로의 초안 — 삭제 전 기준 검사용. */
+    private static DomainDraft asIs(DomainNode n) {
+        return new DomainDraft(n.domainId(), n.ver(), n.domainName(), n.stdName(), n.parentDomainId(), n.domainKind(),
+                n.dataType(), n.length(), n.scale(), n.unitCode(), n.maruCodeId(), n.cateId(), n.stdRule(), n.bizRule(),
+                n.description(), DomainTestCases.fromJson(n.testCasesJson()), DomainTestCases.examplesFromJson(n.examplesJson()));
+    }
+
+    /** 삭제 전·후 오류 비교 키 — 메시지는 부모 값이 들어가 달라지므로 코드·칸·대상만 본다. */
+    private static String issueKey(DomainIssue i) {
+        return i.code() + "|" + i.field() + "|" + i.itemKey();
+    }
+
+    /** 삭제로 올리는 하위 1건 검사 — 저장 검사 + 결과 타입 + 자기 테스트 케이스 + 그 아래 길이·테스트 케이스(메모리 스냅샷 기준). */
+    private List<DomainIssue> childIssues(DomainDraft draft, DomainTreeSnapshot memory) {
+        List<DomainIssue> issues = new ArrayList<>();
+        for (DomainIssue i : checker.check(draft, memory, facts())) {
+            issues.add(i.itemKey() == null ? DomainIssue.of(i.code(), i.field(), String.valueOf(draft.domainId()),
+                    "하위 도메인 " + draft.domainName() + "(" + draft.domainId() + ") " + nullToEmpty(i.message())) : i);
+        }
+        issues.addAll(runner.checkResultTypes(draft));
+        EffectiveDomainView view = effective(memory, draft.domainId());
+        if (view != null) {
+            for (int i = 0; i < draft.testCases().size(); i++) {
+                DomainTestCase c = draft.testCases().get(i);
+                DomainTestCaseRunner.CaseResult r = runner.run(view, column(draft.stdName()), c);
+                if (r.result().equals("MISMATCH") || r.result().equals("ERROR")) {
+                    issues.add(DomainIssue.of(DomainIssueCode.R08, "TEST_CASES", String.valueOf(draft.domainId()),
+                            "하위 도메인 " + draft.domainName() + "(" + draft.domainId() + ") 케이스 " + (i + 1) + " 입력 " + shown(c.value())
+                                    + " 기대 " + c.expect() + " → " + r.result()));
+                }
+            }
+        }
+        issues.addAll(checker.descendantLengthIssues(memory, draft.domainId()));
+        issues.addAll(runDescendants(memory, draft.domainId()).issues());
+        return issues;
+    }
+
+    /** 메시지 속 입력값 — 빈 값은 보이지 않으므로 "(빈 값)" 으로 쓴다. */
+    private static String shown(String value) {
+        return value == null || value.isEmpty() ? "(빈 값)" : value;
+    }
+
+    private static String nullToEmpty(String s) {
+        return s == null ? "" : s;
+    }
+
+    // ────────────────────────────────────────────────────────────────
     // 내부
     // ────────────────────────────────────────────────────────────────
 
@@ -320,9 +508,10 @@ public class DomainMngService {
                 DomainTestCase c = draft.testCases().get(i);
                 DomainTestCaseRunner.CaseResult r = runner.run(view, column(draft.stdName()), c);
                 results.add(resultRow(draft.domainId(), draft.domainName(), true, i, c, r));
-                if (r.result().equals("MISMATCH") || r.result().equals("ERROR")) {
+                // 행 모양 오류(S06, 예: 빈 입력)는 검사기가 이미 알렸다 — 같은 케이스를 R08 로 두 번 알리지 않는다
+                if (c.problem() == null && (r.result().equals("MISMATCH") || r.result().equals("ERROR"))) {
                     issues.add(DomainIssue.of(DomainIssueCode.R08, "TEST_CASES", String.valueOf(i),
-                            "입력 " + c.value() + " 기대 " + c.expect() + " → " + r.result() + " " + r.message()));
+                            "케이스 " + (i + 1) + " 입력 " + shown(c.value()) + " 기대 " + c.expect() + " → " + r.result() + " " + r.message()));
                 }
                 undecided |= r.result().equals("UNDECIDED");
             }
@@ -385,7 +574,7 @@ public class DomainMngService {
                 results.add(resultRow(id, n.domainName(), false, i, c, r));
                 if (r.result().equals("MISMATCH") || r.result().equals("ERROR")) {
                     issues.add(DomainIssue.of(DomainIssueCode.R08, "TEST_CASES", String.valueOf(id),
-                            "하위 도메인 " + n.domainName() + "(" + id + ") 케이스 " + i + " 입력 " + c.value()
+                            "하위 도메인 " + n.domainName() + "(" + id + ") 케이스 " + (i + 1) + " 입력 " + shown(c.value())
                                     + " 기대 " + c.expect() + " → " + r.result()));
                 }
                 undecided |= r.result().equals("UNDECIDED");

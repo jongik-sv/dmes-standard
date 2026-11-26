@@ -4,7 +4,7 @@
     <bpmn:documentation>domainMng — 도메인 관리 (To-Be only 신규 화면).
 정본: docs/mdm/screens/domainMng/domainMng_기능설계서.md, docs/mdm/tasks/TSK-04-03/design.md §3.1
 
-action=search|view|validate|execute|save -&gt; {action}Task (domainMngService.{action}). 쓰기는 save 만.</bpmn:documentation>
+action=search|view|validate|execute|save|delete -&gt; {action}Task (domainMngService.{action}). 쓰기는 save·delete 만.</bpmn:documentation>
     <bpmn:startEvent id="start" name="시작">
       <bpmn:outgoing>flow_to_gw</bpmn:outgoing>
     </bpmn:startEvent>
@@ -20,6 +20,7 @@ action=search|view|validate|execute|save -&gt; {action}Task (domainMngService.{a
       <bpmn:outgoing>flow_validate</bpmn:outgoing>
       <bpmn:outgoing>flow_execute</bpmn:outgoing>
       <bpmn:outgoing>flow_save</bpmn:outgoing>
+      <bpmn:outgoing>flow_delete</bpmn:outgoing>
     </bpmn:exclusiveGateway>
     <bpmn:serviceTask id="searchTask" name="도메인 트리 조회" camunda:class="domainMngService">
       <bpmn:documentation>기능설계서 §3 S-001·S-002 — 일치 행과 그 조상을 DFS 순서로. 응답 result.domains.</bpmn:documentation>
@@ -107,6 +108,23 @@ action=search|view|validate|execute|save -&gt; {action}Task (domainMngService.{a
     <bpmn:sequenceFlow id="flow_execute_end" sourceRef="executeTask" targetRef="end_execute" />
     <bpmn:sequenceFlow id="flow_save" name="save" sourceRef="actionGateway" targetRef="saveTask" />
     <bpmn:sequenceFlow id="flow_save_end" sourceRef="saveTask" targetRef="end_save" />
+    <bpmn:serviceTask id="deleteTask" name="도메인 삭제" camunda:class="domainMngService">
+      <bpmn:documentation>기능설계서 B-009 — 하위 도메인은 지우는 도메인의 부모로 올리고(자기 값 흡수로 유효 정의 유지), 참조 컬럼·룰 변수는 부모로 옮기거나 부모가 없으면 비운 뒤 TB_MDM_DOMAIN 1행 삭제. 하위 재검사 실패 시 예외로 전체 롤백.</bpmn:documentation>
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="delete" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mdm.dma.domainMng.dto.DomainDeleteRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_delete</bpmn:incoming>
+      <bpmn:outgoing>flow_delete_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="end_delete" name="도메인 삭제 완료">
+      <bpmn:incoming>flow_delete_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="flow_delete" name="delete" sourceRef="actionGateway" targetRef="deleteTask" />
+    <bpmn:sequenceFlow id="flow_delete_end" sourceRef="deleteTask" targetRef="end_delete" />
   </bpmn:process>
   <bpmndi:BPMNDiagram id="BPMNDiagram_1">
     <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="domainMng">
@@ -209,6 +227,25 @@ action=search|view|validate|execute|save -&gt; {action}Task (domainMngService.{a
         <di:waypoint x="500" y="880" />
         <di:waypoint x="600" y="880" />
       </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="deleteTask_di" bpmnElement="deleteTask">
+        <dc:Bounds x="400" y="1020" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="end_delete_di" bpmnElement="end_delete">
+        <dc:Bounds x="600" y="1042" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="flow_delete_di" bpmnElement="flow_delete">
+        <di:waypoint x="270" y="545" />
+        <di:waypoint x="270" y="1060" />
+        <di:waypoint x="400" y="1060" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="315" y="528" width="48" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_delete_end_di" bpmnElement="flow_delete_end">
+        <di:waypoint x="500" y="1060" />
+        <di:waypoint x="600" y="1060" />
+      </bpmndi:BPMNEdge>
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>
 </bpmn:definitions>
+

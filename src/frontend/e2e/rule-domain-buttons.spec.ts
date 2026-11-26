@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { DEFAULT_BASE_URL as BASE, T, loginByApi } from "./support/common";
+import { revealGridColumn } from "./support/mdm-e2e";
 
 /**
  * 룰 화면 열 설정 — 도메인 칸에 붙은 찾기·해제 버튼(TSK-08-03 §2.1).
@@ -18,6 +19,13 @@ const VER = "2.000";
 
 /** 편집기가 떴는지 — ag-grid 는 편집 칸에 input/select 을 넣는다(editText 헬퍼와 같은 기준). */
 const editors = (page: Page) => page.locator('[data-testid="col-table"] .ag-cell input, [data-testid="col-table"] .ag-cell select');
+
+/** 열 설정 팝업을 연다. 이미 열려 있으면 그대로 둔다. */
+async function openColumns(page: Page) {
+  const section = page.getByTestId("rule-section-columns");
+  if (!(await section.isVisible())) await page.getByTestId("dt-open-columns").click();
+  await expect(section).toBeVisible({ timeout: T.UI });
+}
 
 test("도메인 찾기·해제 버튼은 도메인 칸 안에 있고(글자 왼쪽·버튼 오른쪽), 눌러도 편집이 같이 열리지 않는다", async ({
   page,
@@ -53,7 +61,7 @@ test("도메인 찾기·해제 버튼은 도메인 칸 안에 있고(글자 왼�
   await expect(page.getByTestId("rule-edit-current")).toHaveText(RULE, { timeout: T.UI });
 
   // DRAFT 버전을 고르고(RELEASED 면 읽기 전용이라 버튼이 죽는다), 없으면 선점한다
-  await page.getByTestId(`rule-ver-row-${VER}`).click();
+  await page.getByTestId("rule-ver-select").selectOption(VER);
   await page.waitForTimeout(2500);
   const claim = page.getByTestId("rule-card-versions").getByRole("button", { name: "선점", exact: true });
   if (await claim.count()) {
@@ -61,12 +69,13 @@ test("도메인 찾기·해제 버튼은 도메인 칸 안에 있고(글자 왼�
     await page.waitForTimeout(2500);
   }
 
-  const toggle = page.getByTestId("rule-section-columns-toggle");
-  if ((await toggle.getAttribute("aria-expanded")) === "false") await toggle.click();
+  await openColumns(page);
   const grid = page.getByTestId("col-table");
   await expect(grid).toBeVisible({ timeout: T.LONG });
   await expect(page.getByTestId("col-readonly")).toHaveCount(0);
   await page.waitForTimeout(1200);
+  // 팝업은 본문보다 좁아 도메인 열이 아직 안 그려졌을 수 있다(열 가상화).
+  await revealGridColumn(grid, "domain");
 
   // 1) 버튼이 도메인 칸(ag-cell col-id="domain") 안에 있다 — 별도 버튼 컬럼이 아니다
   const place = await page.evaluate(() => {

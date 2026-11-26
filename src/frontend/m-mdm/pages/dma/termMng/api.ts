@@ -92,6 +92,12 @@ export async function deleteTerm(termId: number): Promise<void> {
   await callAction<Record<string, unknown>>("delete", { termId });
 }
 
+/** 추천 개수(1~100). 비우면 서버 설정(기본 5)을 쓴다. */
+export interface RecommendCounts {
+  stage1TopN?: number;
+  stage2TopN?: number;
+}
+
 /** action=compare(method=recommend) — A-RECO. 디바운스 취소를 위해 signal 을 그대로 전달한다. */
 export async function recommend(
   termId: number | null,
@@ -99,8 +105,13 @@ export async function recommend(
   definition: string,
   engName: string,
   signal?: AbortSignal,
+  counts?: RecommendCounts,
 ): Promise<RecommendPayload> {
-  return callAction<RecommendPayload>("compare", { termId, termName, definition, engName }, signal);
+  return callAction<RecommendPayload>(
+    "compare",
+    { termId, termName, definition, engName, stage1TopN: counts?.stage1TopN, stage2TopN: counts?.stage2TopN },
+    signal,
+  );
 }
 
 /** action=execute(method=reencodeBatch) — 관리자 전용, 청크 폴링(D6). */

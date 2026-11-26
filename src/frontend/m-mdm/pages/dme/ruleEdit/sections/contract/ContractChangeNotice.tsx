@@ -46,9 +46,10 @@ export function ContractChangeNotice({ view, editable, canDo }: RuleEditCardProp
         </p>
       ))}
       {pending.length > 0 && (
-        <p data-testid="contract-pending" style={{ ...line, color: "var(--color-text-secondary)" }}>
-          아직 파싱하지 못한 식 {pending.length}개가 있어 RELEASED 대비 입력 계약 비교가 빠질 수 있습니다: {pending.join(" / ")}
-        </p>
+        <details data-testid="contract-pending" style={{ ...line, color: "var(--color-text-secondary)" }}>
+          <summary style={{ cursor: "pointer" }}>아직 파싱하지 못한 식 {pending.length}개가 있어 RELEASED 대비 입력 계약 비교가 빠질 수 있습니다.</summary>
+          {pending.join(" / ")}
+        </details>
       )}
     </div>
   );

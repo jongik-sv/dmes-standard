@@ -2,7 +2,7 @@
 
 /**
  * 카드 ③ 의사결정표(TSK-08-02 design §6.7.4). 적중 정책(D-133 — 여기서 고르고 표 저장과 함께 저장), 3줄 머리 그리드(shared `AgDataGrid` 열 그룹·행 드래그, D8),
- * 행 추가·기본 행 추가·행 복사·표 저장·되돌리기, 검사 요약, 행 선택 강조.
+ * 행 추가·기본 행 추가·행 복사·표 저장·되돌리기, 검사 요약, 행 선택 강조. 머리의 [열 설정]·[테스트] 는 각 팝업을 연다.
  *
  * 편집은 서버 판정 `editable`(DECISION 만)일 때만 켠다(I7). 편집할 때마다 evalex `analyzeRule` 로 즉시 검사하고(I13 — Worker 에서
  * 돌려 큰 표에서도 입력이 멈추지 않는다, use-rule-analysis),
@@ -36,7 +36,17 @@ import type { HitPolicy } from "@/evalex";
 import type { HitPolicyCode, RuleEditView, RuleIssueView } from "../types";
 import { runShownOnTable, testMarksOf } from "../value-test/test-marks";
 import { mapRowIds, sameIssues, serverOnlyIssues, splitIssues } from "./analysis";
-import { ROW_LABEL_FIELD, TEST_HIT_ROW_CLASS, buildTableColumns, createDisplayRowCache, displayRows, forgetDisplayRow, markTokenOf, parseField } from "./columns";
+import {
+  ROW_LABEL_FIELD,
+  TEST_HIT_ROW_CLASS,
+  buildTableColumns,
+  createDisplayRowCache,
+  createRowClassMemo,
+  displayRows,
+  forgetDisplayRow,
+  parseField,
+  rowClassDropToken,
+} from "./columns";
 import { diffTable } from "./diff";
 import {
   initTableState,
@@ -57,6 +67,7 @@ const HIT_POLICIES: Array<{ value: HitPolicyCode; label: string; desc: string }>
   { value: "ANY", label: "ANY", desc: "맞는 행이 여럿이어도 결과가 모두 같아야 한다." },
 ];
 const HIT_POLICY_OPTIONS = HIT_POLICIES.map((p) => ({ value: p.value, label: p.label }));
+const NO_ISSUES: RuleIssueView[] = [];
 
 /** 그리드 표시 행의 드래그 가능 여부 — 모듈 수준 함수라 렌더마다 바뀌지 않는다. */
 function isDraggableDisplayRow(row: Record<string, unknown>): boolean {
@@ -145,17 +156,18 @@ function useExpandedHeight(gridBox: RefObject<HTMLDivElement | null>, expanded: 
 }
 
 export function DecisionTableCard(props: DecisionTableCardProps) {
-  const { view, runWrite, setDirty, canDo, busy, extraSections = [] } = props;
+  const { view, runWrite, setDirty, canDo, busy, openTests, extraSections = [] } = props;
   const [state, dispatch] = useReducer(tableReducer, view, initTableState);
   const [serverCheck, setServerCheck] = useState<ServerCheck | null>(null);
   // 열 설정 섹션과 나누는 상태 — 초안이 dirty 면 표 저장을 막고(불변 13), 열 머리를 누르면 열 설정 표의 그 줄을 하이라이트한다(design §6).
   const [colDirty, setColDirty] = useState(false);
   const [highlightVarId, setHighlightVarId] = useState<number | null>(null);
-  const [revealSeq, setRevealSeq] = useState(0);
+  const [columnsOpen, setColumnsOpen] = useState(false);
   const [saveRejected, setSaveRejected] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(false);
-  // 검사 영역과 그 안의 표 단위 검사는 접을 수 있다. 접혀도 제목 줄의 오류·경고 개수와 일치 배지는 보인다.
-  const [checkOpen, setCheckOpen] = useState(true);
+  // 검사 영역과 그 안의 표 단위 검사는 접을 수 있다. 접혀도 제목 줄의 오류·경고 개수·첫 항목과 일치 배지는 보인다.
+  // 사용자가 정하기 전(null)에는 오류가 있을 때만 펼친다 — 경고만으로 표 아래를 차지하지 않게.
+  const [checkOpen, setCheckOpen] = useState<boolean | null>(null);
   const [tableCheckOpen, setTableCheckOpen] = useState(true);
   const gridBoxRef = useRef<HTMLDivElement>(null);
   const expandedHeight = useExpandedHeight(gridBoxRef, expanded);
@@ -185,8 +197,8 @@ export function DecisionTableCard(props: DecisionTableCardProps) {
     [tableVars, tableRows, loadedRows, hitPolicy, loadedHit, storedRows, loadedStored],
   );
   const columnShared = useMemo(
-    () => ({ colDirty, setColDirty, highlightVarId, setHighlightVarId, tableDirty: dirty, revealSeq }),
-    [colDirty, highlightVarId, dirty, revealSeq],
+    () => ({ colDirty, setColDirty, highlightVarId, setHighlightVarId, tableDirty: dirty, columnsOpen, setColumnsOpen }),
+    [colDirty, highlightVarId, dirty, columnsOpen],
   );
   const saveBlocked = tableSaveBlocked(colDirty);
   // view 를 다시 불러오면 useRuleEdit 가 dirty 목록을 비우므로, 편집이 남아 있으면 다시 알린다.
@@ -214,7 +226,8 @@ export function DecisionTableCard(props: DecisionTableCardProps) {
   );
   const analysis = useRuleAnalysis(analysisInput);
   const js = analysis.result;
-  const shown = dirty && js ? js.issues : (view.issues ?? []);
+  // 서버 검사가 없을 때 빈 배열은 고정 값을 쓴다 — 렌더마다 새 배열이면 아래 표시 행 계산이 매번 다시 돈다.
+  const shown = dirty && js ? js.issues : (view.issues ?? NO_ISSUES);
   const split = useMemo(() => splitIssues(shown), [shown]);
   const diff = useMemo(() => diffTable(selected?.baseVer != null ? view.baseRows : null, state.rows), [selected?.baseVer, view.baseRows, state.rows]);
 
@@ -268,8 +281,9 @@ export function DecisionTableCard(props: DecisionTableCardProps) {
   );
   // 행 고르기는 표시 행(data)에 싣지 않는다 — 고른 행은 highlightedRowKey 가 이전·새 행만 다시 그린다(고를 때마다 표 전체를 그리면 느리다).
   // 그 두 행을 다시 그릴 때 조건 칸 강조(cell-emphasis)도 selectedRowRef 로 다시 판정된다.
-  // 토큰은 행별 조각을 표시 행 객체마다 기억해 이어 붙인다(바뀐 행만 직렬화, 글자는 표 전체 직렬화와 같다).
-  const markToken = useMemo(() => markTokenOf(data), [data]);
+  // 칸 강조가 바뀐 행은 새 표시 행 객체라 그리드가 그 행 칸만 다시 그린다. 표 전체 다시 그리기(토큰)는 행 클래스가 빠질 때만 한다(rowClassDropToken).
+  const rowClassMemo = useMemo(() => createRowClassMemo(), [gridKey]);
+  const rowClassToken = useMemo(() => rowClassDropToken(rowClassMemo, data), [rowClassMemo, data]);
   // 어느 칸을 눌러도, ↑/↓ 로 포커스 칸을 옮겨도 그 행을 고른다(읽기 전용 표는 그리드 컨테이너 ↑/↓ 가 onRowClick 을 부른다).
   const handleRowClick = useCallback((row: Record<string, unknown>) => {
     const rowId = Number(row.rowId);
@@ -334,7 +348,7 @@ export function DecisionTableCard(props: DecisionTableCardProps) {
 
   return (
     <CardFrame
-      title="③ 의사결정표"
+      title="의사결정표"
       testId="rule-card-table"
       right={
         <span style={{ display: "inline-flex", alignItems: "center", gap: "var(--spacing-xs)", fontWeight: 400 }}>
@@ -342,6 +356,14 @@ export function DecisionTableCard(props: DecisionTableCardProps) {
             <span data-testid="dt-dirty" style={badgeStyle("warning")}>
               저장 안 한 변경
             </span>
+          )}
+          <Button size="sm" data-testid="dt-open-columns" onClick={() => setColumnsOpen(true)}>
+            {colDirty ? "열 설정 · 초안 있음" : "열 설정"}
+          </Button>
+          {openTests && (
+            <Button size="sm" data-testid="dt-open-tests" onClick={openTests}>
+              테스트
+            </Button>
           )}
           <Button
             size="sm"
@@ -394,8 +416,8 @@ export function DecisionTableCard(props: DecisionTableCardProps) {
               <Button
                 data-testid="dt-hit-policy-show-columns"
                 onClick={() => {
-                  setRevealSeq((n) => n + 1);
                   setHighlightVarId(Number(hitConflicts[0].key.slice(1)));
+                  setColumnsOpen(true);
                 }}
               >
                 열 설정 보기
@@ -428,7 +450,7 @@ export function DecisionTableCard(props: DecisionTableCardProps) {
           onFocusedRowChange={handleRowClick}
           editArrowNavigation
           getRowClassExtra={rowClassOf}
-          rowClassRefreshToken={markToken}
+          rowClassRefreshToken={rowClassToken}
           emptyMessage="행이 없습니다."
           ariaLabel="의사결정표"
         />
@@ -484,13 +506,18 @@ export function DecisionTableCard(props: DecisionTableCardProps) {
       <SectionFrame
         testId="dt-check"
         title={`검사(${dirty ? "화면" : "서버"})`}
-        open={checkOpen}
+        open={checkOpen ?? errors > 0}
         onOpenChange={setCheckOpen}
         headerExtra={
           <>
             <span data-testid="dt-check-count">
               오류 {errors} · 경고 {warnings}
             </span>
+            {shown[0]?.message && (
+              <span data-testid="dt-check-first" style={{ color: "var(--color-text-secondary)" }}>
+                {shown[0].message}
+              </span>
+            )}
             {dirty && analysis.pending && (
               <span data-testid="dt-check-pending" style={{ color: "var(--color-text-secondary)" }}>
                 검사 중…

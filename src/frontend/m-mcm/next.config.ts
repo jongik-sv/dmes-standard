@@ -14,6 +14,8 @@ const nextConfig: NextConfig = {
   // 16.3 부터 next dev 가 AI 에이전트를 감지하면 m-mcm/AGENTS.md·CLAUDE.md 를 만들어 작업 트리를 더럽힌다.
   // 이 저장소의 에이전트 지침은 루트 CLAUDE.md·RULE.md 가 정본이라 끈다.
   agentRules: false,
+  // 다른 PC 에서 IP 로 접속할 때 dev 리소스(/_next/hmr 등) 차단을 푼다. 예: DEV_ALLOWED_ORIGINS=10.170.10.30
+  allowedDevOrigins: process.env.DEV_ALLOWED_ORIGINS?.split(",").map((s) => s.trim()).filter(Boolean),
   experimental: {
     // proxy.ts 가 도는 요청은 Next 가 본문을 이 크기까지 메모리에 복제해 라우트로 넘기고, 넘는 부분은 잘라 버린다
     // (next/dist/server/body-streams.js cloneBodyStream · next-server.js runMiddleware finalize). 값은 전역 하나뿐이라

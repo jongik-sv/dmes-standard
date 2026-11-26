@@ -34,6 +34,8 @@ import java.util.Objects;
 import java.util.regex.Pattern;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.jpa.domain.Specification;
@@ -63,7 +65,10 @@ public class TermMngService {
     /** 부분 일치 점수 = CONTAIN_BASE + CONTAIN_SPAN × 짧은쪽 길이 ÷ 긴쪽 길이 (0.7 초과 ~ 0.9 미만). */
     private static final double CONTAIN_BASE = 0.7d;
     private static final double CONTAIN_SPAN = 0.2d;
-    private static final int TOP_N = 5;
+    /** 1차·2차 추천 개수를 지정하지 않았을 때의 값(단계마다 이 건수까지). */
+    public static final int DEFAULT_TOP_N = 5;
+    /** 추천 개수 상한 — 화면 그리드와 응답 크기를 지킨다. */
+    public static final int MAX_TOP_N = 100;
     private static final int DEFAULT_CHUNK_SIZE = 500;
 
     private final MdmTermRepository termRepository;
@@ -71,14 +76,51 @@ public class TermMngService {
     private final TermRecommendationCache cache;
     private final TermEmbeddingEncoder encoder;
     private final TermWriter writer;
+    /**
+     * 2차(임베딩) 후보의 최소 코사인 유사도. 이 값보다 낮은 후보는 버린다. 설정 키 {@code mdm.embedding.min-score}.
+     * 코사인 범위가 -1~1 이라 기본값 {@link #NO_MIN_STAGE2_SCORE}(-1)은 거르지 않는다(상위 {@link #stage2TopN} 건만 남긴다).
+     */
+    private final double minStage2Score;
+    /** 1차(이름) 추천 최대 건수. 설정 키 {@code mdm.recommend.stage1-top-n}. */
+    private final int stage1TopN;
+    /** 2차(의미) 추천 최대 건수. 설정 키 {@code mdm.recommend.stage2-top-n}. */
+    private final int stage2TopN;
+
+    /** 2차 최소 유사도를 지정하지 않았을 때의 값 — 코사인 하한이라 모든 후보가 통과한다. */
+    public static final double NO_MIN_STAGE2_SCORE = -1.0d;
 
     public TermMngService(MdmTermRepository termRepository, TermEmbeddingRepository embeddingRepository,
             TermRecommendationCache cache, TermEmbeddingEncoder encoder, TermWriter writer) {
+        this(termRepository, embeddingRepository, cache, encoder, writer,
+                NO_MIN_STAGE2_SCORE, DEFAULT_TOP_N, DEFAULT_TOP_N);
+    }
+
+    @Autowired
+    public TermMngService(MdmTermRepository termRepository, TermEmbeddingRepository embeddingRepository,
+            TermRecommendationCache cache, TermEmbeddingEncoder encoder, TermWriter writer,
+            @Value("${mdm.embedding.min-score:-1}") double minStage2Score,
+            @Value("${mdm.recommend.stage1-top-n:5}") int stage1TopN,
+            @Value("${mdm.recommend.stage2-top-n:5}") int stage2TopN) {
+        if (Double.isNaN(minStage2Score) || minStage2Score < -1.0d || minStage2Score > 1.0d) {
+            throw new IllegalStateException(
+                    "mdm.embedding.min-score 는 -1 이상 1 이하여야 한다(코사인 유사도) — 현재 값: " + minStage2Score);
+        }
+        requireTopN("mdm.recommend.stage1-top-n", stage1TopN);
+        requireTopN("mdm.recommend.stage2-top-n", stage2TopN);
         this.termRepository = termRepository;
         this.embeddingRepository = embeddingRepository;
         this.cache = cache;
         this.encoder = encoder;
         this.writer = writer;
+        this.minStage2Score = minStage2Score;
+        this.stage1TopN = stage1TopN;
+        this.stage2TopN = stage2TopN;
+    }
+
+    private static void requireTopN(String key, int value) {
+        if (value < 1 || value > MAX_TOP_N) {
+            throw new IllegalStateException(key + " 는 1 이상 " + MAX_TOP_N + " 이하여야 한다 — 현재 값: " + value);
+        }
     }
 
     // ────────────────────────────────────────────────────────────────
@@ -258,15 +300,20 @@ public class TermMngService {
         String definition = request != null ? trimToNull(request.getDefinition()) : null;
         String engName = request != null ? trimToNull(request.getEngName()) : null;
         Long selfId = request != null ? request.getTermId() : null;
+        // 요청에 값이 오면 그 값을, 비면 서버 설정을 쓴다.
+        int topN1 = requestTopN(request != null ? request.getStage1TopN() : null, stage1TopN, "1차(이름) 추천 개수");
+        int topN2 = requestTopN(request != null ? request.getStage2TopN() : null, stage2TopN, "2차(의미) 추천 개수");
+        double minScore = requestMinScore(request != null ? request.getMinScore() : null);
 
         List<RecommendCandidate> stage1 = termName != null && termName.length() >= 2
-                ? recommendStage1(termName, selfId)
+                ? recommendStage1(termName, selfId, topN1)
                 : List.of();
 
         boolean stage2Enabled = encoder.isEnabled();
         List<RecommendCandidate> stage2 = stage2Enabled
                 ? recommendStage2(TermWriter.buildEncodingInput(termName == null ? "" : termName,
-                        definition == null ? "" : definition, engName == null ? "" : engName), selfId)
+                        definition == null ? "" : definition, engName == null ? "" : engName), selfId,
+                        topN2, minScore)
                 : List.of();
 
         List<RecommendCandidate> combined = new ArrayList<>(stage1.size() + stage2.size());
@@ -279,7 +326,27 @@ public class TermMngService {
         return out;
     }
 
-    private List<RecommendCandidate> recommendStage1(String query, Long selfId) {
+    private static int requestTopN(Integer requested, int serverDefault, String label) {
+        if (requested == null) {
+            return serverDefault;
+        }
+        if (requested < 1 || requested > MAX_TOP_N) {
+            throw new BusinessException(ErrorCode.INVALID_VALUE, label + "는 1~" + MAX_TOP_N + " 사이여야 합니다.");
+        }
+        return requested;
+    }
+
+    private double requestMinScore(Double requested) {
+        if (requested == null) {
+            return minStage2Score;
+        }
+        if (requested.isNaN() || requested < -1.0d || requested > 1.0d) {
+            throw new BusinessException(ErrorCode.INVALID_VALUE, "최소 유사도는 -1~1 사이여야 합니다.");
+        }
+        return requested;
+    }
+
+    private List<RecommendCandidate> recommendStage1(String query, Long selfId, int limit) {
         String queryUpper = query.toUpperCase(Locale.ROOT);
         List<RecommendCandidate> scored = new ArrayList<>();
         for (CachedTerm c : cache.values()) {
@@ -315,7 +382,7 @@ public class TermMngService {
                         bestText, best, "1"));
             }
         }
-        return topN(scored);
+        return topN(scored, limit);
     }
 
     private static double scoreText(String candidateText, String queryUpper, String query) {
@@ -344,7 +411,7 @@ public class TermMngService {
         return 1.0d - ((double) distance / maxLen);
     }
 
-    private List<RecommendCandidate> recommendStage2(String queryInput, Long selfId) {
+    private List<RecommendCandidate> recommendStage2(String queryInput, Long selfId, int limit, double minScore) {
         float[] queryVector = encoder.encode(queryInput);
         List<RecommendCandidate> scored = new ArrayList<>();
         for (CachedTerm c : cache.values()) {
@@ -352,17 +419,20 @@ public class TermMngService {
                 continue;
             }
             double cosine = dot(queryVector, c.embedding());
+            if (cosine < minScore) {
+                continue;
+            }
             scored.add(new RecommendCandidate(c.termId(), c.termName(), c.senseNo(), c.engName(), c.systems(),
                     c.termName(), cosine, "2"));
         }
-        return topN(scored);
+        return topN(scored, limit);
     }
 
-    private static List<RecommendCandidate> topN(List<RecommendCandidate> scored) {
+    private static List<RecommendCandidate> topN(List<RecommendCandidate> scored, int limit) {
         return scored.stream()
                 .sorted(Comparator.comparingDouble(RecommendCandidate::getScore).reversed()
                         .thenComparing(RecommendCandidate::getTermId))
-                .limit(TOP_N)
+                .limit(limit)
                 .toList();
     }
 

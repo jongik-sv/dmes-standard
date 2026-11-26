@@ -731,6 +731,49 @@ describe("DecisionTableCard 렌더", () => {
     expect(rowEl(2)).toBe(untouched);
   });
 
+  // 2026-11-06 깜박임 — 칸 강조(검사 오류·경고·바뀐 칸)가 바뀔 때마다 표 전체를 redrawRows 하던 것을 없앴다.
+  // 행 추가·되돌리기에서 즉시 검사 결과(ALL_NA_ROW)가 바뀌어도 있던 행의 행 요소는 그대로 남아야 한다.
+  it("행 추가·되돌리기·행 복사로 검사 표시가 바뀌어도 있던 행은 다시 만들지 않는다", async () => {
+    await renderCard(draftView("e2e_mdm_steward"));
+    const rowEl = (rowId: number | string) => container.querySelector(`.ag-center-cols-container .ag-row[row-id='${rowId}']`);
+    const kept = [1, 2, 3, 4].map((id) => rowEl(id));
+    kept.forEach((el, i) => expect(el, `행 ${i + 1}`).toBeTruthy());
+    await act(async () => {
+      findButton(container, "행 추가").click();
+    });
+    await flush();
+    expect(visibleText(container)).toContain("ALL_NA_ROW");
+    const added = rowEl(-1);
+    expect(added?.classList.contains("ag-row-inserted")).toBe(true);
+    // 새 행의 검사 표시(행 단위 ALL_NA_ROW → 검사 칸 "오류 1")는 그 행을 처음 그릴 때 붙는다.
+    expect(added?.querySelector("[col-id='check']")?.textContent).toContain("오류");
+    [1, 2, 3, 4].forEach((id, i) => expect(rowEl(id), `행 ${id}`).toBe(kept[i]));
+    await act(async () => {
+      findButton(container, "되돌리기").click();
+    });
+    await flush();
+    expect(rowEl(-1)).toBeNull();
+    [1, 2, 3, 4].forEach((id, i) => expect(rowEl(id), `행 ${id}`).toBe(kept[i]));
+    // 행 1 을 복사하면 같은 조건의 새 행이 생겨 원본 행 1 에도 겹침 표시(칸 강조·검사 칸)가 새로 붙는다 — 있던 행의 표시가 바뀌어도 행 요소는 그대로다.
+    // 행 고르기는 이전·새 행을 다시 그리므로(위 시험) 고른 뒤의 행 요소를 기준으로 삼는다.
+    await act(async () => (container.querySelector("[data-testid='dt-row-1']") as HTMLButtonElement).click());
+    await flush();
+    const picked = [1, 2, 3, 4].map((id) => rowEl(id));
+    const marksOf = (rowId: number) => {
+      const el = rowEl(rowId);
+      const cls = [...(el?.querySelectorAll(".cell-warning, .cell-light-pink") ?? [])].length;
+      return `${el?.querySelector("[col-id='check']")?.textContent ?? ""}#${cls}`;
+    };
+    const row1Before = marksOf(1);
+    await act(async () => findButton(container, "행 복사").click());
+    await flush();
+    expect(container.querySelectorAll(".ag-center-cols-container .ag-row-inserted")).toHaveLength(1);
+    expect(marksOf(1)).not.toBe(row1Before);
+    // 복사하면 새 행을 고르므로 행 1 은 강조가 빠지며 다시 그려진다. 고르기에 끼지 않은 행 2·3·기본 행 4 는 그대로다
+    // (전에는 칸 강조가 바뀌어 토큰이 바뀌면 표 전체를 다시 그려 이 행들도 새 요소였다).
+    [2, 3, 4].forEach((id) => expect(rowEl(id), `행 ${id}`).toBe(picked[id - 1]));
+  });
+
   it("산출 룰은 행 추가 버튼 없이 안내를 보인다", async () => {
     await renderCard(draftView("e2e_mdm_steward", "e2e_mdm_steward", { rule: { ...draftView(null).rule, ruleKind: "DERIVE" } }));
     expect(() => findButton(container, "행 추가")).toThrow();

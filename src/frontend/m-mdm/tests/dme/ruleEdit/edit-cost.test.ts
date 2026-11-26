@@ -5,7 +5,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 
 import { splitIssues } from "../../../pages/dme/ruleEdit/decision-table/analysis";
-import { createDisplayRowCache, displayRows, forgetDisplayRow, markTokenOf } from "../../../pages/dme/ruleEdit/decision-table/columns";
+import { createDisplayRowCache, createRowClassMemo, displayRows, forgetDisplayRow, rowClassDropToken } from "../../../pages/dme/ruleEdit/decision-table/columns";
 import { diffTable } from "../../../pages/dme/ruleEdit/decision-table/diff";
 import { gridRowsFromStored, resequence, type GridRow } from "../../../pages/dme/ruleEdit/decision-table/grid-model";
 import {
@@ -230,14 +230,14 @@ describe("룰 편집 1회 비용(결정적 수치)", () => {
     ]);
   });
 
-  it("⑤ 표시 행 — 칸 하나를 고치면 그 행 표시 객체만 새로 만들고 markToken 은 바뀐 행만 직렬화한다", () => {
+  it("⑤ 표시 행 — 칸 하나를 고치면 그 행 표시 객체만 새로 만들고, 칸 강조만 바뀌면 표 전체 다시 그리기 토큰은 그대로다", () => {
     const view = bigView();
     let s = initTableState(view);
     const cache = createDisplayRowCache();
+    const memo = createRowClassMemo();
     const marks = (rows: GridRow[]) => ({ diff: diffTable(view.baseRows, rows), split: splitIssues([]), serverShown: false });
     const d0 = displayRows(s.rows, s.vars, marks(s.rows), cache);
-    const t0 = markTokenOf(d0);
-    expect(t0).toBe(JSON.stringify(d0.map((r) => [r.rowKey, r.__mk, r.__added, r.__hit])));
+    const t0 = rowClassDropToken(memo, d0);
 
     s = editCell(s, 5, "77");
     const mk = marks(s.rows);
@@ -245,15 +245,15 @@ describe("룰 편집 1회 비용(결정적 수치)", () => {
     const m = costOf(() => displayRows(s.rows, s.vars, mk, cache));
     expect(m.value).toEqual(before.value);
     const newObjs = m.value.filter((r, i) => r !== d0[i]).length;
-    const oldTok = costOf(() => JSON.stringify(m.value.map((r) => [r.rowKey, r.__mk, r.__added, r.__hit])));
-    const tok = costOf(() => markTokenOf(m.value));
-    expect(tok.value).toBe(oldTok.value);
-    expect(tok.value).not.toBe(t0); // 바뀐 칸 강조(c)가 켜졌다
+    const tok = costOf(() => rowClassDropToken(memo, m.value));
+    // 바뀐 칸 강조(c)가 켜졌지만 행 클래스는 그대로다 — 그 행 칸만 다시 그리고 표 전체는 다시 그리지 않는다(2026-11-06 깜박임).
+    expect(m.value.find((r) => r.rowId === 5)?.__mk).not.toEqual(d0.find((r) => r.rowId === 5)?.__mk);
+    expect(tok.value).toBe(t0);
     report.push(
-      `⑤ 표시 행 편집 1회: 새 객체 ${newObjs}/${m.value.length} (캐시 없으면 ${before.value.filter((r, i) => r !== d0[i]).length}), markToken 직렬화 ${tok.stringifyChars}자 (전체 ${oldTok.stringifyChars}자)`,
+      `⑤ 표시 행 편집 1회: 새 객체 ${newObjs}/${m.value.length} (캐시 없으면 ${before.value.filter((r, i) => r !== d0[i]).length}), 행 클래스 토큰 직렬화 ${tok.stringifyCalls}회`,
     );
     expect(newObjs).toBe(1);
-    expect(tok.stringifyCalls).toBe(1);
+    expect(tok.stringifyCalls).toBe(0);
 
     // 그리드가 표시 객체를 직접 고친 행(onCellValueChanged)은 잊으면 다시 만든다.
     const edited = m.value[0];
@@ -269,6 +269,22 @@ describe("룰 편집 1회 비용(결정적 수치)", () => {
     const withIssue = displayRows(s.rows, s.vars, { ...mk, split }, cache);
     expect(withIssue.filter((r, i) => r !== again[i]).map((r) => r.rowId)).toEqual([7]);
     expect(withIssue).toEqual(displayRows(s.rows, s.vars, { ...mk, split }));
+  });
+
+  it("⑥ 행 클래스 토큰 — 있던 행이 새 행·적중 행 표시를 잃을 때만 오른다", () => {
+    const memo = createRowClassMemo();
+    const row = (key: string, added = false, hit = false) => ({ rowKey: key, __added: added, __hit: hit });
+    const t0 = rowClassDropToken(memo, [row("1"), row("2")]);
+    // 새 행이 붙거나(클래스는 그 행을 처음 그릴 때 붙는다) 있던 행에 적중이 켜지면(ag-grid 가 더한다) 그대로다.
+    expect(rowClassDropToken(memo, [row("1"), row("2"), row("-1", true)])).toBe(t0);
+    expect(rowClassDropToken(memo, [row("1", false, true), row("2"), row("-1", true)])).toBe(t0);
+    // 행을 지우거나 순서를 바꿔도 그대로다.
+    expect(rowClassDropToken(memo, [row("-1", true), row("1", false, true)])).toBe(t0);
+    // 적중이 꺼지면(ag-grid 는 행 클래스를 떼지 않는다) 오른다.
+    const t1 = rowClassDropToken(memo, [row("-1", true), row("1")]);
+    expect(t1).toBe(t0 + 1);
+    // 새 행 표시가 꺼져도 오른다.
+    expect(rowClassDropToken(memo, [row("-1"), row("1")])).toBe(t1 + 1);
   });
 });
 

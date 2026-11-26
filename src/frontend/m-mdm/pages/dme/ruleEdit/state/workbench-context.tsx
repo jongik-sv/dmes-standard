@@ -9,7 +9,7 @@
  * 표 내용이 바뀔 때마다 rev 가 오른다. BODY 결과 뒤 rev 가 바뀌면 결과를 지우고 `testRunCleared` 로 안내한다(I33, `testRunAfterTableChange`).
  * Provider 는 `page.tsx` 가 카드 목록을 감싸 둔다. Provider 밖(카드 단독 렌더 테스트)에서는 아무것도 나누지 않는 기본값을 쓴다.
  */
-import { createContext, useCallback, useContext, useMemo, useReducer, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useReducer, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
 
 import { sameVer } from "@/shell/version-format";
 
@@ -35,7 +35,7 @@ export interface ValueTestInput {
   inputJson: string;
   /**
    * 지금 대상 정의의 입력 줄(계약 이름 순서). 테스트 케이스 입력 JSON 에 없는 키를
-   * null 로 채우고(룰에 컬럼이 새로 들어오면 케이스에도 빈 칸으로 보여야 해서), 케이스 수정 팝업의 입력 폼 줄을 만든다.
+   * null 로 채우고(룰에 컬럼이 새로 들어오면 케이스에도 빈 칸으로 보여야 해서), 케이스 상세의 입력 줄을 만든다.
    * 계약 계산이 실패해 입력 줄이 없으면 빈 배열이다.
    */
   fields: InputFieldInfo[];
@@ -141,7 +141,24 @@ const NOOP: RuleWorkbench = {
 
 const RuleWorkbenchContext = createContext<RuleWorkbench>(NOOP);
 
+/** 팝업이 닫혀 카드가 내려가도 남겨 둘 입력(`useKeptState`). Provider 는 룰 화면이 떠 있는 동안 산다. */
+const KeptStateContext = createContext<Map<string, unknown> | null>(null);
+
+/**
+ * `useState` 와 같게 쓰되, 값을 Provider 에도 적어 두어 카드가 다시 마운트되면 이어받는다. shared `Modal` 은 닫으면 내용을 내리므로,
+ * 테스트 팝업의 입력은 여기에 둔다. Provider 밖(카드 단독 렌더 테스트)에서는 그냥 `useState` 다.
+ */
+export function useKeptState<T>(key: string, initial: T): [T, Dispatch<SetStateAction<T>>] {
+  const store = useContext(KeptStateContext);
+  const [value, setValue] = useState<T>(() => (store?.has(key) ? (store.get(key) as T) : initial));
+  useEffect(() => {
+    store?.set(key, value);
+  }, [store, key, value]);
+  return [value, setValue];
+}
+
 export function RuleWorkbenchProvider({ children }: { children: ReactNode }) {
+  const kept = useRef(new Map<string, unknown>()).current;
   const [state, dispatch] = useReducer(workbenchReducer, INITIAL_WORKBENCH);
   const publishTableDraft = useCallback((draft: Omit<TableDraft, "rev">) => dispatch({ type: "publishTable", draft }), []);
   const setTestRun = useCallback((run: TestRunView | null) => dispatch({ type: "setTestRun", run }), []);
@@ -169,7 +186,11 @@ export function RuleWorkbenchProvider({ children }: { children: ReactNode }) {
     }),
     [state, publishTableDraft, setTestRun, setColDirty, valueTestInput, publishValueTestInput, caseLoad, loadCase],
   );
-  return <RuleWorkbenchContext.Provider value={value}>{children}</RuleWorkbenchContext.Provider>;
+  return (
+    <KeptStateContext.Provider value={kept}>
+      <RuleWorkbenchContext.Provider value={value}>{children}</RuleWorkbenchContext.Provider>
+    </KeptStateContext.Provider>
+  );
 }
 
 export function useRuleWorkbench(): RuleWorkbench {

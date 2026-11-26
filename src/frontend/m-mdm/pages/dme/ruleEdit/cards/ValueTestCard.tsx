@@ -23,7 +23,7 @@ import type { RuleEditCardProps } from "../cards";
 import { canParseOnServer } from "../expr/parse-expr";
 import { useServerAsts } from "../expr/useServerAsts";
 import { contractSourceOfView, exprSlotsOf, type AstByText, type ContractSource } from "../sections/contract/contract-view";
-import { useRuleWorkbench } from "../state/workbench-context";
+import { useKeptState, useRuleWorkbench } from "../state/workbench-context";
 import { expectedFromResult } from "../value-test/case-model";
 import { bodyTable, defaultRowIdOf, prepareRun, resolveTarget, targetKey, targetOptions, useTargetView } from "../value-test/run-request";
 import { claimDebugPrefill, useDebugPrefill } from "../value-test/debug-prefill";
@@ -105,30 +105,34 @@ export function ValueTestCard({ view, editable, canDo, busy, runWrite }: RuleEdi
   const ruleId = view.rule.maruRuleId;
 
   const options = useMemo(() => targetOptions(view, editable), [view, editable]);
-  const [pickedKey, setPickedKey] = useState<string | null>(null);
+  const [pickedKey, setPickedKey] = useKeptState<string | null>("valueTest:picked", null);
   const option = resolveTarget(options, pickedKey, view);
   const choice = option?.choice ?? null;
   const { def, error: defError } = useTargetView(view, choice);
 
-  // 입력 칸 — 룰이 바뀌면 비운다(대상만 바꾸면 같은 이름의 값은 남긴다).
-  const [values, setValues] = useState<Record<string, string>>({});
-  const [keySent, setKeySent] = useState<Record<string, boolean>>({});
-  const [caseName, setCaseName] = useState("");
+  // 입력 칸 — 룰이 바뀌면 비운다(대상만 바꾸면 같은 이름의 값은 남긴다). 팝업을 닫았다 열어도 이어 쓰게 공유 상태에 둔다.
+  const [values, setValues] = useKeptState<Record<string, string>>("valueTest:values", {});
+  const [keySent, setKeySent] = useKeptState<Record<string, boolean>>("valueTest:keySent", {});
+  const [caseName, setCaseName] = useKeptState("valueTest:caseName", "");
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [lastRun, setLastRun] = useState<{ key: string; inputJson: string } | null>(null);
-  const [prefilled, setPrefilled] = useState(false);
-  const ruleRef = useRef(ruleId);
+  const [lastRun, setLastRun] = useKeptState<{ key: string; inputJson: string } | null>("valueTest:lastRun", null);
+  const [prefilled, setPrefilled] = useKeptState("valueTest:prefilled", false);
+  // 입력의 주인 룰도 함께 둔다 — 팝업이 닫힌 사이 룰이 바뀌었으면 다시 열 때 지난 룰의 입력을 비운다.
+  const [inputRule, setInputRule] = useKeptState("valueTest:rule", ruleId);
+  const ruleRef = useRef(inputRule);
   useEffect(() => {
     if (ruleRef.current === ruleId) return;
     ruleRef.current = ruleId;
+    setInputRule(ruleId);
     setValues({});
     setKeySent({});
+    setCaseName("");
     setPickedKey(null);
     setError(null);
     setLastRun(null);
     setPrefilled(false);
-  }, [ruleId]);
+  }, [ruleId, setInputRule, setValues, setKeySent, setCaseName, setPickedKey, setLastRun, setPrefilled]);
 
   // 계약 원본은 편집본(BODY) 대상일 때만 표 카드가 올린 표(행·적중 정책)에 기댄다. tableDraft 객체 자체에 기대면 저장된 버전 대상이거나
   // 다른 룰·버전의 표가 올라와도, dirty 만 바뀌어도 계약(행 수 × 변수)을 다시 계산한다 — 실제로 읽는 행 배열·적중 정책만 기준으로 삼는다.
@@ -177,7 +181,7 @@ export function ValueTestCard({ view, editable, canDo, busy, runWrite }: RuleEdi
 
   // 테스트 케이스 카드(⑥)의 "모두 실행" 이 같은 대상·입력을 쓴다.
   // 입력 줄 요약도 같이 실어 ⑥ 가 저장된 케이스 입력에 없는 키를 null 로 채우고(룰에 컬럼이 새로 들어온 경우)
-  // 케이스 수정 팝업의 입력 폼 줄을 만들 수 있게 한다.
+  // 케이스 상세의 입력 줄을 만들 수 있게 한다.
   const fieldInfos = useMemo(
     () => fields.map((f) => ({ name: f.name, label: f.label, typeBadge: f.typeBadge, contractBadge: f.contractBadge })),
     [fields],
@@ -203,7 +207,7 @@ export function ValueTestCard({ view, editable, canDo, busy, runWrite }: RuleEdi
     } catch (e) {
       setError(`케이스 입력을 읽지 못했습니다: ${e instanceof Error ? e.message : String(e)}`);
     }
-  }, [caseLoad, ruleId]);
+  }, [caseLoad, ruleId, setValues, setKeySent, setPrefilled]);
 
   // 룰 세트 디버깅 값 채우기 — 한 채우기(seq)에서 한 이름은 한 번만 채운다. 그래서 사용자가 고친 값이나 표 편집으로 다시 계산된 칸은
   // 덮지 않고, 식 AST 가 늦게 와 새로 생긴 칸만 채운다. 값 없는 이동(null)은 칸을 그대로 두고 알림만 감춘다.
@@ -227,7 +231,7 @@ export function ValueTestCard({ view, editable, canDo, busy, runWrite }: RuleEdi
     setValues((prev) => ({ ...prev, ...filled.values }));
     setKeySent((prev) => ({ ...prev, ...filled.keySent }));
     if (filled.matched > 0) setPrefilled(true);
-  }, [prefill, ruleId, def, fields]);
+  }, [prefill, ruleId, def, fields, setValues, setKeySent, setPrefilled]);
 
   const handleRun = useCallback(async () => {
     if (!choice) return;
@@ -243,7 +247,7 @@ export function ValueTestCard({ view, editable, canDo, busy, runWrite }: RuleEdi
     } finally {
       setRunning(false);
     }
-  }, [choice, view, tableDraft, inputJson, setTestRun]);
+  }, [choice, view, tableDraft, inputJson, setTestRun, setLastRun]);
 
   const handleSaveCase = useCallback(async () => {
     if (!choice) return;
@@ -259,13 +263,13 @@ export function ValueTestCard({ view, editable, canDo, busy, runWrite }: RuleEdi
     const expected = same && def ? expectedFromResult(run.result, def.vars, defaultRowIdOf(rows)) : null;
     const saved = await runWrite(() => saveTestCase(ruleId, { caseName: caseName.trim(), inputJson, expectedJson: expected }));
     if (saved) setCaseName("");
-  }, [choice, workbench.testRun, ruleId, lastRun, inputJson, view, tableDraft, def, runWrite, caseName]);
+  }, [choice, workbench.testRun, ruleId, lastRun, inputJson, view, tableDraft, def, runWrite, caseName, setCaseName]);
 
   const canRun = canDo("execute") && !running && !busy && !!choice && !!def && !fieldsResult?.failure;
   const canSaveCase = canDo("save") && !busy && !running && !!choice && !!def && caseName.trim() !== "" && view.rule.sourceKind === "MDM";
 
   return (
-    <CardFrame title="④ 값 테스트" testId="rule-card-value-test" right={<span style={badgeStyle("info")}>값 테스트 API</span>}>
+    <CardFrame title="값 테스트" testId="rule-card-value-test">
       <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "var(--spacing-sm)" }}>
         <span>대상</span>
         <Select
@@ -305,9 +309,10 @@ export function ValueTestCard({ view, editable, canDo, busy, runWrite }: RuleEdi
         </p>
       )}
       {fieldsResult && fieldsResult.pending.length > 0 && (
-        <p data-testid="vt-pending" style={{ color: "var(--color-text-secondary)" }}>
-          아직 파싱하지 못한 식이 읽는 변수는 입력 칸에 없을 수 있습니다: {fieldsResult.pending.join(" / ")}
-        </p>
+        <details data-testid="vt-pending" style={{ margin: "var(--spacing-xs) 0", color: "var(--color-text-secondary)" }}>
+          <summary style={{ cursor: "pointer" }}>아직 파싱하지 못한 식 {fieldsResult.pending.length}개가 읽는 변수는 입력 칸에 없을 수 있습니다.</summary>
+          {fieldsResult.pending.join(" / ")}
+        </details>
       )}
       {fieldsResult && !fieldsResult.failure && fields.length === 0 && (
         <p data-testid="vt-no-input" style={{ color: "var(--color-text-muted)" }}>
@@ -317,7 +322,7 @@ export function ValueTestCard({ view, editable, canDo, busy, runWrite }: RuleEdi
 
       {/* 입력 변수가 없으면 숨기되(display:none) 그리드는 늘 마운트해 룰을 바꿀 때 다시 만들지 않는다 */}
       <div style={{ paddingTop: "var(--spacing-xs)", display: fields.length > 0 ? undefined : "none" }}>
-        <AgDataGrid gridId="valueTestInput"
+        <AgDataGrid gridId="modal-valueTestInput"
           columns={columns}
           data={rows as unknown as Record<string, unknown>[]}
           rowKey="name"

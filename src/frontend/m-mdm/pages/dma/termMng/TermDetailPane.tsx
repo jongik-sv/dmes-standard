@@ -41,6 +41,18 @@ const RECO_COLUMNS_BASE: GridColumn[] = [
 /** D-002(표기)가 2자 이상이어야 1차 추천을 실행한다(I18). */
 const MIN_RECOMMEND_LENGTH = 2;
 
+/** 추천 개수 입력 범위(서버 검사와 같다). 처음 값은 서버 기본값과 같은 5. */
+const RECO_COUNT_MIN = 1;
+const RECO_COUNT_MAX = 100;
+const RECO_COUNT_DEFAULT = "5";
+
+/** 입력 칸 글을 추천 개수로 바꾼다. 범위 밖이거나 정수가 아니면 보내지 않는다(서버 설정을 쓴다). */
+export function parseRecoCount(text: string): number | undefined {
+  if (!/^\d+$/.test(text.trim())) return undefined;
+  const n = Number(text.trim());
+  return n >= RECO_COUNT_MIN && n <= RECO_COUNT_MAX ? n : undefined;
+}
+
 type TextField = Exclude<keyof TermForm, "termId">;
 
 /** 상세 표 한 줄. `name` 은 칸이 바인딩한 폼 키 — 라벨 툴팁이 MDM 컬럼 사전에서 찾는다(`meta={false}` 면 끈다). */
@@ -71,6 +83,11 @@ export const TermDetailPane = memo(function TermDetailPane({ ref, busy }: { ref:
   const [form, setForm] = useState<TermForm | null>(null);
   const [candidates, setCandidates] = useState<RecommendCandidate[]>([]);
   const [stage2Enabled, setStage2Enabled] = useState(false);
+  // 추천 개수 입력 칸 글. 고른 행이 바뀌어도 그대로 둔다.
+  const [stage1Count, setStage1Count] = useState(RECO_COUNT_DEFAULT);
+  const [stage2Count, setStage2Count] = useState(RECO_COUNT_DEFAULT);
+  const stage1TopN = parseRecoCount(stage1Count);
+  const stage2TopN = parseRecoCount(stage2Count);
 
   useImperativeHandle(
     ref,
@@ -98,7 +115,10 @@ export const TermDetailPane = memo(function TermDetailPane({ ref, busy }: { ref:
         return;
       }
       try {
-        const payload = await recommend(form.termId, form.termName, form.definition, form.engName, signal);
+        const payload = await recommend(form.termId, form.termName, form.definition, form.engName, signal, {
+          stage1TopN,
+          stage2TopN,
+        });
         setCandidates(payload.candidates ?? []);
         setStage2Enabled(!!payload.stage2Enabled);
       } catch (e) {
@@ -106,7 +126,7 @@ export const TermDetailPane = memo(function TermDetailPane({ ref, busy }: { ref:
         // 추천 실패는 조용히 무시한다 — 화면 핵심 흐름(저장)을 막지 않는다.
       }
     },
-    [form?.termName, form?.definition, form?.engName, form?.termId],
+    [form?.termName, form?.definition, form?.engName, form?.termId, stage1TopN, stage2TopN],
     300,
   );
 
@@ -199,24 +219,92 @@ export const TermDetailPane = memo(function TermDetailPane({ ref, busy }: { ref:
         )}
       </ContentPanel>
 
-      <RecoPanel rows={recoRows} columns={recoColumns} stage2Enabled={stage2Enabled} />
+      <RecoPanel
+        rows={recoRows}
+        columns={recoColumns}
+        stage2Enabled={stage2Enabled}
+        stage1Count={stage1Count}
+        stage2Count={stage2Count}
+        onStage1CountChange={setStage1Count}
+        onStage2CountChange={setStage2Count}
+      />
     </>
   );
 });
+
+/** 추천 개수 입력 칸 하나(라벨 + 숫자 칸). 범위 밖 값이면 칸을 오류 모양으로 보이고 서버 설정을 쓴다. */
+function RecoCountField({
+  label,
+  value,
+  disabled,
+  testId,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  disabled?: boolean;
+  testId: string;
+  onChange: (v: string) => void;
+}) {
+  const invalid = value.trim() !== "" && parseRecoCount(value) === undefined;
+  return (
+    <label style={{ display: "inline-flex", alignItems: "center", gap: "var(--spacing-xs)" }}>
+      <span>{label}</span>
+      <Input
+        type="number"
+        data-testid={testId}
+        aria-label={`${label} 추천 개수`}
+        aria-invalid={invalid}
+        title={`${RECO_COUNT_MIN}~${RECO_COUNT_MAX}. 비우면 서버 설정(5)을 씁니다.`}
+        className={invalid ? "form-error" : undefined}
+        min={RECO_COUNT_MIN}
+        max={RECO_COUNT_MAX}
+        step={1}
+        value={value}
+        disabled={disabled}
+        style={{ width: 64 }}
+        onChange={onChange}
+      />
+    </label>
+  );
+}
 
 /** 유사어 추천 그리드 — 상세 칸 입력 중에는 props 가 그대로라 다시 그리지 않는다(R12). */
 const RecoPanel = memo(function RecoPanel({
   rows,
   columns,
   stage2Enabled,
+  stage1Count,
+  stage2Count,
+  onStage1CountChange,
+  onStage2CountChange,
 }: {
   rows: Record<string, unknown>[];
   columns: GridColumn[];
   stage2Enabled: boolean;
+  stage1Count: string;
+  stage2Count: string;
+  onStage1CountChange: (v: string) => void;
+  onStage2CountChange: (v: string) => void;
 }) {
   return (
     <ContentPanel height={300}>
-      <GridPanel title={`유사어 추천${stage2Enabled ? "" : " (1차 이름 비교만, 임베딩 인코더 꺼짐)"}`} count={rows.length}>
+      <GridPanel
+        title={`유사어 추천${stage2Enabled ? "" : " (1차 이름 비교만, 임베딩 인코더 꺼짐)"}`}
+        count={rows.length}
+        headerExtra={
+          <>
+            <RecoCountField label="1차 이름" value={stage1Count} testId="reco-count-stage1" onChange={onStage1CountChange} />
+            <RecoCountField
+              label="2차 의미"
+              value={stage2Count}
+              disabled={!stage2Enabled}
+              testId="reco-count-stage2"
+              onChange={onStage2CountChange}
+            />
+          </>
+        }
+      >
         <AgDataGrid gridId="similarReco"
           ariaLabel="유사어 추천"
           columnSizing="fit"

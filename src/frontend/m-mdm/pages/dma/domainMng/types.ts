@@ -135,6 +135,18 @@ export interface SaveResult {
   rerunDomainIds?: number[];
 }
 
+/** B-009 삭제 결과 — 하위 도메인은 newParentDomainId 아래로(null 이면 최상위로) 올라가고, 참조 컬럼·룰 변수도 그리로 옮겨진다(null 이면 비움). */
+export interface DeleteResult {
+  domainId?: number;
+  newParentDomainId?: number | null;
+  movedDomainIds?: number[];
+  movedColumnCount?: number;
+  movedRuleVarCount?: number;
+  warnings?: IssueRow[];
+  /** 삭제 전에도 있던 오류(삭제를 막지 않는다). 예: 코드 참조 없는 CODE 트리의 R09. */
+  preexistingIssues?: IssueRow[];
+}
+
 export interface SearchResult {
   domains?: DomainRow[];
 }
@@ -163,6 +175,7 @@ export interface PreviewRequest {
   parentDomainId?: number | null;
   domainKind?: string | null;
   dataType?: string | null;
+  length?: number | null;
   scale?: number | null;
   stdName?: string | null;
   maruCodeId?: string | null;

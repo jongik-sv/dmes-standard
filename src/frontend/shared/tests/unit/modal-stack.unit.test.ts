@@ -2,7 +2,7 @@
 
 import { act, createElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { Modal } from "../../src/components/modal";
+import { MessageModal, Modal } from "../../src/components/modal";
 import { isTopModal, pushModal, removeModal, resetModalStack } from "../../src/components/modal-stack";
 import { renderWithMantine, rerender, type Rendered } from "./mantine-test-utils";
 
@@ -103,10 +103,10 @@ describe("겹친 Modal", () => {
     expect(only).toHaveBeenCalledTimes(1);
   });
 
-  it("closeOnClickOutside=false 면 오버레이를 눌러도 닫히지 않고, 기본값은 닫는다", () => {
+  it("기본값은 오버레이를 눌러도 닫히지 않고, closeOnClickOutside=true 면 닫는다", () => {
     const keep = vi.fn();
     rendered = renderWithMantine(
-      createElement(Modal, { open: true, onClose: keep, title: "유지", closeOnClickOutside: false }, createElement("span", null, "본문")),
+      createElement(Modal, { open: true, onClose: keep, title: "유지" }, createElement("span", null, "본문")),
     );
     clickOutside();
     expect(keep).not.toHaveBeenCalled();
@@ -115,9 +115,18 @@ describe("겹친 Modal", () => {
 
     const close = vi.fn();
     rendered = renderWithMantine(
-      createElement(Modal, { open: true, onClose: close, title: "닫힘" }, createElement("span", null, "본문")),
+      createElement(Modal, { open: true, onClose: close, title: "닫힘", closeOnClickOutside: true }, createElement("span", null, "본문")),
     );
     clickOutside();
     expect(close).toHaveBeenCalledTimes(1);
+  });
+
+  it("알림·확인 창(MessageModal)도 오버레이를 눌러도 닫히지 않는다", () => {
+    const close = vi.fn();
+    rendered = renderWithMantine(
+      createElement(MessageModal, { open: true, onClose: close, alertType: "confirm", message: "지울까요?" }),
+    );
+    clickOutside();
+    expect(close).not.toHaveBeenCalled();
   });
 });

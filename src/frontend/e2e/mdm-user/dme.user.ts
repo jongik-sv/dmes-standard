@@ -40,6 +40,9 @@ import { fillDateTime } from "../support/mdm-e2e";
  * 화면: 룰(ruleMng) · 룰 화면(ruleEdit — 헤더·버전·의사결정표·열 설정·피벗·입력 계약·값 테스트·테스트 케이스·활용처) ·
  * 버전 확정(ruleConfirm) · 룰 세트(ruleSetMng) · 룰 세트 편집(ruleSetEdit).
  *
+ * 2026-11-04 룰 화면 본문은 의사결정표·활용처만 둔다. 열 설정과 테스트는 표 카드 머리 버튼으로 여는 팝업이다.
+ * 팝업은 뒤 화면 클릭을 막으므로 표를 만지거나 메뉴로 옮기기 전에 닫는다.
+ *
  * 담당자(stw)가 화면만으로 룰과 룰 세트의 일생을 다룬다. 장마다 serial 로 한 페이지를 공유하고, 첫 단계에서 자기 룰을
  * 화면으로 새로 만든다(장 하나만 따로 돌려도 되게 — 룰 행 잠금이 장 사이로 이어지지 않게 장 단위로 끊는다).
  *   A 룰 등록·조회 → 룰 화면(헤더 수정·찾기·해제/선점·두 사용자 잠금) → 열 설정(초안 거부·도메인 찾기·열 추가·순서·적용)
@@ -256,11 +259,46 @@ async function newColKeys(page: Page): Promise<string[]> {
   return ids.filter((i) => /^n\d+$/.test(i));
 }
 
-/** 열 설정 섹션을 펼친다 — 처음에는 접혀 있다(2026-10-01). 이미 펼쳐져 있으면 그대로 둔다. */
+/** 팝업 아래쪽 [닫기]를 누른다. inner 가 든 창으로 좁힌다. 머리줄 X 도 이름이 같아 아래쪽 줄로 더 좁힌다. */
+async function closePopupOf(page: Page, inner: Locator) {
+  await page.getByRole("dialog").filter({ has: inner }).locator(".cm-modal-footer").getByRole("button", { name: "닫기", exact: true }).click();
+}
+
+/** 열 설정 팝업을 연다. 이미 열려 있으면 그대로 둔다. */
 async function openColumns(page: Page) {
-  const toggle = tid(page, "rule-section-columns-toggle");
-  if ((await toggle.getAttribute("aria-expanded")) === "false") await toggle.click();
-  await expect(tid(page, "rule-section-columns-body")).toBeVisible();
+  const section = tid(page, "rule-section-columns");
+  if (!(await section.isVisible())) await tid(page, "dt-open-columns").click();
+  await expect(section).toBeVisible({ timeout: T.UI });
+}
+
+/** 열 설정 팝업을 닫는다. 이미 닫혀 있으면 그대로 둔다. 초안은 닫아도 남는다. */
+async function closeColumns(page: Page) {
+  const section = tid(page, "rule-section-columns");
+  if (await section.isVisible()) await closePopupOf(page, section);
+  await expect(section).toHaveCount(0, { timeout: T.UI });
+}
+
+/** 열 설정 적용이 성공하면 팝업이 닫히고 초안 표시가 사라진다. */
+async function expectColumnsApplied(page: Page) {
+  await expect(tid(page, "rule-section-columns")).toHaveCount(0, { timeout: T.LONG });
+  await expect(tid(page, "dt-open-columns")).toHaveText("열 설정");
+}
+
+/** 테스트 팝업을 열고 탭을 고른다. 이미 열려 있으면 탭만 맞춘다. 두 탭은 함께 마운트되고 안 보이는 쪽은 숨겨진다. */
+async function openTests(page: Page, tab: "value" | "cases") {
+  const popup = tid(page, "rule-tests-popup");
+  if (!(await popup.isVisible())) await tid(page, "dt-open-tests").click();
+  await expect(popup).toBeVisible({ timeout: T.UI });
+  const panel = tid(page, `rule-tests-${tab}`);
+  if (!(await panel.isVisible())) await popup.getByRole("tab", { name: tab === "value" ? /^값 테스트$/ : /^테스트 케이스 \d+$/ }).click();
+  await expect(panel).toBeVisible();
+}
+
+/** 테스트 팝업을 닫는다. 이미 닫혀 있으면 그대로 둔다. 입력과 결과는 닫아도 남는다. */
+async function closeTests(page: Page) {
+  const popup = tid(page, "rule-tests-popup");
+  if (await popup.isVisible()) await closePopupOf(page, popup);
+  await expect(popup).toHaveCount(0, { timeout: T.UI });
 }
 
 /** [조건 열 추가]·[결과 열 추가]를 누르고 새로 생긴 열의 키를 돌려준다. */
@@ -305,6 +343,17 @@ const dtEdit = (page: Page, rowId: number, field: string, value: string) => grid
 const dtOp = (page: Page, rowId: number, field: string, op: string) => gridSelect(dtGrid(page), dtCell(page, rowId, field), op);
 const dtRows = (page: Page) => dtGrid(page).locator('[data-testid^="dt-row-"]');
 const tableButton = (page: Page, name: string) => cardButton(page, "rule-card-table", name);
+
+/**
+ * 검사 영역을 펼친다. 사용자가 정하기 전에는 오류가 있을 때만 펼쳐진다(`checkOpen ?? errors > 0`).
+ * 표를 고치기 전에 부른다. 그래야 펼침이 사용자 선택으로 남아, 오류가 사라져도 다시 접히지 않는다.
+ * 행 목록이 비면 높이가 0 이라 보임 대신 aria-expanded 로 확인한다.
+ */
+async function openCheck(page: Page) {
+  const toggle = tid(page, "dt-check-toggle");
+  if ((await toggle.getAttribute("aria-expanded")) === "false") await toggle.click();
+  await expect(toggle).toHaveAttribute("aria-expanded", "true");
+}
 
 /** 표의 행 ID 목록(보이는 순서). */
 async function dtRowIds(page: Page): Promise<number[]> {
@@ -353,11 +402,26 @@ async function dtEqual(page: Page, rowId: number, varId: number, value: string) 
 // 값 테스트·테스트 케이스
 const vtCard = (page: Page) => tid(page, "rule-card-value-test");
 const tcCard = (page: Page) => tid(page, "rule-card-test-cases");
+/** 케이스 목록 표. 카드 안에 상세 표 둘이 더 있어 목록으로 좁힌다. */
+const caseList = (page: Page) => tcCard(page).locator('[aria-label="테스트 케이스 목록"]');
 /** 케이스 표(AgDataGrid)의 행들. */
-const caseRows = (page: Page) => gridRows(tcCard(page));
+const caseRows = (page: Page) => gridRows(caseList(page));
 /** 케이스 줄 — 이름 칸이 name 으로 시작하고 복사본("(복사)")이 아닌 줄(설명은 이름 뒤에 " · " 로 붙는다). */
 const caseRow = (page: Page, name: string) =>
   caseRows(page).filter({ has: page.locator('.ag-cell[col-id="name"]', { hasText: new RegExp(`^\\s*${escapeRe(name)}(?! \\(복사\\))`) }) });
+/**
+ * 행을 눌러 오른쪽 상세를 연다. 체크는 바뀌지 않는다. 입력·기대 JSON 은 목록에 없고 상세에서 보고 고친다.
+ * 저장 안 한 변경이 있으면 확인창이 먼저 뜨므로, 변경이 없을 때만 부른다.
+ */
+async function showCase(page: Page, name: string) {
+  await caseRow(page, name).locator('.ag-cell[col-id="name"]').click();
+  await expect(tid(page, "tc-edit-name")).toHaveValue(name);
+}
+/** 케이스 상세 표(입력·기대)의 값 칸 — 행 키는 변수명이다. 한 번 누르면 편집기가 열리고 Enter 로 확정한다. */
+const detailValue = (page: Page, kind: "input" | "expected", name: string) =>
+  gridRowById(tid(page, `tc-form-${kind}`), name).locator('.ag-cell[col-id="value"]');
+/** 저장 안 한 변경이 있을 때 다른 행을 누르면 뜨는 확인창. */
+const discardAsk = (page: Page) => page.getByRole("dialog").filter({ hasText: "저장하지 않은 변경이 있습니다" });
 /** 케이스 표에서 names 줄만 체크한다(행 맨 앞 체크 칸). 카드 ⑥ 머리글 버튼은 체크한 케이스를 대상으로 한다. */
 async function pickCases(page: Page, ...names: string[]) {
   // 체크 칸은 00-setup 선례처럼 .ag-selection-checkbox 를 누른다(상태는 그 안 input 으로 읽는다).
@@ -448,7 +512,7 @@ async function buildEqualRule(page: Page, r: EqualRule) {
   await addColumn(page, { kind: "RESULT", disp: "Value", ...r.result });
   await expect(tid(page, "col-reject-count")).toHaveText("거부 0건");
   await tid(page, "col-apply").click();
-  await expect(tid(page, "col-dirty")).toHaveCount(0, { timeout: T.LONG });
+  await expectColumnsApplied(page);
   const condId = await varIdOf(page, r.cond.label);
   const resId = await varIdOf(page, r.result.label);
 
@@ -723,15 +787,18 @@ test.describe("A 룰 등록·편집·확정", () => {
 
   // ─────────── ruleEdit — 룰 화면(내용 편집, 버전 1 DRAFT)·ruleMng 상세(① 헤더·② 버전, D-105) ───────────
 
-  test("TC-DME-EDT-01 룰 화면 배치 — 내용 카드 ③~⑧ 이 보이고 열이 없는 새 룰은 표·열 설정이 비어 있다", async () => {
+  test("TC-DME-EDT-01 룰 화면 배치 — 본문에 표·활용처 카드가 보이고 팝업으로 연 열 설정·테스트와 함께 열이 없는 새 룰은 비어 있다", async () => {
     await openRule(page, RULE);
     await resetClicks(page);
     await expect(breadcrumb(page)).toContainText("마루 MDM > 업무기준 > 룰 화면");
     // D-105: ① 헤더·② 버전 카드는 룰 상세(ruleMng)로 옮겨 갔다 — 여기는 내용 편집 카드만 있다.
-    for (const c of ["rule-card-table", "rule-card-value-test", "rule-card-test-result", "rule-card-test-cases", "rule-card-usage"]) {
+    for (const c of ["rule-card-table", "rule-card-usage"]) {
       await expect(tid(page, c), c).toBeVisible();
     }
-    for (const c of ["rule-card-header", "rule-card-versions"]) await expect(tid(page, c), c).toHaveCount(0);
+    // 열 설정과 테스트 카드는 팝업을 열어야 그려진다(2026-11-04).
+    for (const c of ["rule-card-header", "rule-card-versions", "rule-section-columns", "rule-tests-popup", "rule-card-value-test", "rule-card-test-result", "rule-card-test-cases"]) {
+      await expect(tid(page, c), c).toHaveCount(0);
+    }
     await expect(tid(page, "rule-edit-current")).toHaveText(RULE);
     await expect(tid(page, "rule-ver-select")).toHaveValue("1.000");
     await expect(topbar(page)).toContainText("편집 중(나)");
@@ -739,9 +806,16 @@ test.describe("A 룰 등록·편집·확정", () => {
     await expect(dtGrid(page)).toContainText("행이 없습니다.");
     await openColumns(page);
     await expect(colTable(page)).toContainText("열이 없습니다.");
+    await closeColumns(page);
     await expect(tid(page, "contract-notice")).toHaveCount(0); // 최초 버전이라 RELEASED 대비 변경 알림이 없다
+    await openTests(page, "value");
+    await expect(vtCard(page)).toBeVisible();
+    await expect(tid(page, "rule-card-test-result")).toBeVisible();
     await expect(tid(page, "vt-result-empty")).toBeVisible();
+    await openTests(page, "cases");
+    await expect(tcCard(page)).toBeVisible();
     await expect(tid(page, "tc-empty")).toHaveText("테스트 케이스가 없습니다");
+    await closeTests(page);
     await expect(tid(page, "rule-card-usage")).toContainText("이 룰을 담은 룰 세트가 없습니다.");
     await expect(tid(page, "rule-card-usage")).toContainText("E2E 품질 판정 화면");
     await layout.layout(page, "ruleEdit 빈 룰");
@@ -842,6 +916,7 @@ test.describe("A 룰 등록·편집·확정", () => {
       await openColumns(p2);
       await expect(tid(p2, "col-readonly")).toBeVisible();
       await snap(p2, "dme-ruleEdit-04-locked-by-other");
+      await closeColumns(p2);
 
       // stw 해제 → stw2 가 다시 골라 선점 → stw 화면은 잠김 → stw2 해제 → stw 선점.
       await go(page, "ruleMng");
@@ -880,8 +955,15 @@ test.describe("A 룰 등록·편집·확정", () => {
     await expect(tid(page, "col-dirty")).toHaveText("열 설정 초안(저장 안 함)");
     await expect(tid(page, `col-check-${key}`)).toContainText("조건 변수은(는) 필수입니다");
     await expect(tid(page, "col-reject-count")).toHaveText("거부 1건");
+    // 팝업을 닫아도 초안은 남고, 표 저장과 값 테스트가 그것을 안다.
+    await closeColumns(page);
+    await expect(tid(page, "dt-open-columns")).toHaveText("열 설정 · 초안 있음");
     await expect(tid(page, "dt-col-block")).toContainText("열 설정 초안이 있어 표를 저장할 수 없습니다");
+    await openTests(page, "value");
     await expect(tid(page, "vt-col-draft")).toContainText("열 설정 초안은 반영하지 않습니다");
+    await closeTests(page);
+    await openColumns(page);
+    await expect(tid(page, "col-dirty")).toBeVisible();
 
     // 거부가 있으면 적용해도 아무것도 반영되지 않는다.
     await tid(page, "col-apply").click();
@@ -903,6 +985,8 @@ test.describe("A 룰 등록·편집·확정", () => {
     await tid(page, "col-discard").click();
     await expect(tid(page, "col-dirty")).toHaveCount(0);
     await expect(colTable(page)).toContainText("열이 없습니다.");
+    await closeColumns(page);
+    await expect(tid(page, "dt-open-columns")).toHaveText("열 설정");
     await expect(tid(page, "dt-col-block")).toHaveCount(0);
     watcher.assertClean("ruleEdit");
   });
@@ -943,7 +1027,7 @@ test.describe("A 룰 등록·편집·확정", () => {
     await snap(page, "dme-ruleEdit-COL-02-draft");
 
     await tid(page, "col-apply").click();
-    await expect(tid(page, "col-dirty")).toHaveCount(0, { timeout: T.LONG });
+    await expectColumnsApplied(page);
     await expect(tid(page, "rule-edit-notice")).toContainText(`새 열 ${THK}`);
     vThk = await varIdOf(page, "두께");
     vSurf = await varIdOf(page, "표면");
@@ -956,14 +1040,18 @@ test.describe("A 룰 등록·편집·확정", () => {
       await expect(dtGrid(page).locator(".ag-header-cell-text").filter({ hasText: new RegExp(`^${h}$`) }).first(), h).toBeVisible();
     }
     // 적용한 열은 발급된 var_id 키로 다시 그려진다.
+    await openColumns(page);
+    await expect(tid(page, "col-dirty")).toHaveCount(0);
     await expect(tid(page, `col-name-v${vThk}`)).toHaveText(THK);
     await expect(tid(page, `col-name-v${vSurf}`)).toHaveText(SURF);
+    await closeColumns(page);
     watcher.assertClean("ruleEdit");
   });
 
   // ─────────── 의사결정표 ───────────
 
   test("TC-DME-DT-01 조건이 전부 - 인 행은 즉시 검사에 오류로 보이고 저장이 거부되며, [되돌리기]로 원래대로 돌아온다", async () => {
+    await openCheck(page);
     await tid(page, "dt-hit-policy").selectOption("UNIQUE");
     await expect(tid(page, "rule-card-table")).toContainText("맞는 행이 하나뿐이어야 한다");
     const id = await addRowBy(page, () => tableButton(page, "행 추가").click());
@@ -1051,6 +1139,7 @@ test.describe("A 룰 등록·편집·확정", () => {
   });
 
   test("TC-DME-DT-03 수정(U)·삭제(D) — 행을 고르면 적중 조건 칸이 강조되고, UNIQUE 겹침은 거부되며, 늘린 행을 ✕로 지워 저장한다", async () => {
+    await openCheck(page);
     const ids = await dtRowIds(page);
     // 행 선택 강조 — 1행의 - 가 아닌 조건 칸(두께 OP·표면 값)만.
     await tid(page, `dt-row-${ids[0]}`).click();
@@ -1100,17 +1189,20 @@ test.describe("A 룰 등록·편집·확정", () => {
   // V13__drop_rule_var_axis.sql). 화면 스펙 mdm-ruleEdit C2 도 같은 근거로 지웠다(54ecd830).
 
   test("TC-DME-CTR-01 입력 계약 — 조건 변수는 ④ 값 테스트 입력 표에 보이고, 최초 버전이라 RELEASED 대비 변경 알림은 없다", async () => {
-    await expect(tid(page, `vt-field-${THK}`)).toBeVisible({ timeout: T.LONG });
-    await expect(tid(page, `vt-field-${SURF}`)).toBeVisible();
     await expect(tid(page, "contract-notice")).toHaveCount(0);
     await layout.layout(page, "ruleEdit 입력 계약");
+    await openTests(page, "value");
+    await expect(tid(page, `vt-field-${THK}`)).toBeVisible({ timeout: T.LONG });
+    await expect(tid(page, `vt-field-${SURF}`)).toBeVisible();
     await snap(page, "dme-ruleEdit-CTR-01-contract");
+    await closeTests(page);
     watcher.assertClean("ruleEdit");
   });
 
   // ─────────── 값 테스트·테스트 케이스 ───────────
 
   test("TC-DME-VT-01 값 테스트 — 편집본·저장된 버전으로 돌려 적중 행을 칠하고, 키를 빼면 판정 오류, 어느 행도 안 맞으면 기본 행이다", async () => {
+    await openTests(page, "value");
     await expect(tid(page, "vt-target")).toHaveValue("BODY");
     await expect(tid(page, "vt-mode")).toContainText("본문 정의");
     await vtInput(page, THK, "2.0");
@@ -1121,10 +1213,15 @@ test.describe("A 룰 등록·편집·확정", () => {
     const ids = await dtRowIds(page);
     await expect(tid(page, "vt-result-hits")).toContainText(`row_id ${ids[0]}`);
     await expect(tid(page, "vt-result-on-table")).toBeVisible();
-    await expect(tid(page, "dt-test-shown")).toContainText("편집본");
-    await expect(gridRowById(dtGrid(page), String(ids[0]))).toHaveClass(/ag-row-test-hit/);
     await tid(page, "rule-card-test-result").scrollIntoViewIfNeeded();
     await snap(page, "dme-ruleEdit-VT-01-body");
+    // 팝업을 닫아도 표에 칠한 결과는 남고, 다시 열면 입력도 남아 있다.
+    await closeTests(page);
+    await expect(tid(page, "dt-test-shown")).toContainText("편집본");
+    await expect(gridRowById(dtGrid(page), String(ids[0]))).toHaveClass(/ag-row-test-hit/);
+    await openTests(page, "value");
+    await expect(vtValueCell(page, THK)).toHaveText("2.0");
+    await expect(vtValueCell(page, SURF)).toHaveText("A");
 
     // 저장된 버전 1 로 돌려도 같다.
     await tid(page, "vt-target").selectOption({ label: "버전 v1.000 · DRAFT" });
@@ -1154,26 +1251,34 @@ test.describe("A 룰 등록·편집·확정", () => {
     await vtRun(page);
     await expect(resultValue(page, GRD)).toHaveText(/^\s*"?C"?\s*$/);
     await expect(tid(page, "vt-result-hits")).toContainText("어느 행도 참이 아니어서 기본 행");
+    await closeTests(page);
     await layout.layout(page, "ruleEdit 값 테스트 결과");
     watcher.assertClean("ruleEdit");
   });
 
-  test("TC-DME-TC-01 테스트 케이스 CRUD — 저장·모두 실행·불러오기·수정(취소·오류·기대값 틀림)·기대값 갱신·삭제", async () => {
-    // 등록: 방금 돌린 결과(5.0·B → C)가 기대값으로 실린다.
+  test("TC-DME-TC-01 테스트 케이스 CRUD — 저장·모두 실행·불러오기·수정(되돌리기·다른 행 확인·오류·기대값 틀림)·기대값 갱신·삭제", async () => {
+    // 등록: 방금 돌린 결과(5.0·B → C)가 기대값으로 실린다. 입력은 값 탭, 케이스 표는 케이스 탭에 있다.
+    await openTests(page, "value");
     await expect(vtCard(page).getByRole("button", { name: "케이스로 저장", exact: true })).toBeDisabled();
     await tid(page, "vt-case-name").fill(CASE_C);
     await vtCard(page).getByRole("button", { name: "케이스로 저장", exact: true }).click();
+    await expect(tid(page, "vt-case-name")).toHaveValue("", { timeout: T.LONG });
+    await openTests(page, "cases");
     await expect(caseRow(page, CASE_C)).toBeVisible({ timeout: T.LONG });
-    await expect(caseRow(page, CASE_C)).toContainText(`"${GRD}"`);
-    await expect(tid(page, "vt-case-name")).toHaveValue("");
+    await showCase(page, CASE_C);
+    await expect(detailValue(page, "expected", GRD)).toHaveText("C");
+    await openTests(page, "value");
     await vtInput(page, THK, "2.0");
     await vtInput(page, SURF, "A");
     await vtRun(page);
     await tid(page, "vt-case-name").fill(CASE_A);
     await vtCard(page).getByRole("button", { name: "케이스로 저장", exact: true }).click();
-    await expect(caseRow(page, CASE_A)).toBeVisible({ timeout: T.LONG });
+    await expect(tid(page, "vt-case-name")).toHaveValue("", { timeout: T.LONG });
     await tid(page, "vt-case-name").fill(CASE_DEL);
     await vtCard(page).getByRole("button", { name: "케이스로 저장", exact: true }).click();
+    await expect(tid(page, "vt-case-name")).toHaveValue("", { timeout: T.LONG });
+    await openTests(page, "cases");
+    await expect(caseRow(page, CASE_A)).toBeVisible({ timeout: T.LONG });
     await expect(caseRow(page, CASE_DEL)).toBeVisible({ timeout: T.LONG });
     await expect(tid(page, "tc-empty")).toHaveCount(0);
 
@@ -1196,44 +1301,67 @@ test.describe("A 룰 등록·편집·확정", () => {
     await expect(caseRow(page, CASE_C).locator('[data-testid^="tc-badge-"]')).toHaveText(/통과/, { timeout: T.LONG });
     await expect(caseRow(page, CASE_A).locator('[data-testid^="tc-badge-"]')).toHaveCount(0);
 
-    // 불러오기 — 케이스 입력이 값 테스트 칸에 채워진다.
+    // 불러오기 — 케이스 입력이 값 테스트 칸에 채워지고 값 탭으로 옮겨 간다.
+    await openTests(page, "value");
     await vtInput(page, THK, "");
     await vtInput(page, SURF, "");
+    await openTests(page, "cases");
     await pickCases(page, CASE_C);
     await tid(page, "tc-load").click();
+    await expect(tid(page, "rule-tests-value")).toBeVisible();
     await expect(vtValueCell(page, SURF)).toHaveText("B");
     await expect(vtValueCell(page, THK)).toHaveText(/^5(\.0)?$/);
 
-    // 수정: 팝업은 폼 탭으로 열린다. [값 테스트 입력으로 바꾸기] 후 [취소] 하면 아무것도 바뀌지 않는다.
-    await pickCases(page, CASE_A);
-    await tid(page, "tc-edit").click();
-    await expect(tid(page, "tc-edit-modal")).toBeVisible();
-    await expect(tid(page, "tc-edit-name")).toHaveValue(CASE_A);
-    await tid(page, "tc-edit-use-input").click();
-    await expect(tid(page, `tc-form-in-${SURF}`)).toHaveValue("B");
-    await snapModal(page, "dme-ruleEdit-TC-01-edit-modal");
-    await modal(page).getByRole("button", { name: "취소", exact: true }).click();
-    await expect(tid(page, "tc-edit-modal")).toHaveCount(0);
-    await expect(caseRow(page, CASE_A)).toContainText(`"${SURF}":"A"`);
+    // 수정: 행을 누르면 상세가 표 탭으로 열린다. 고치기 전에는 [저장]이 꺼져 있다.
+    await openTests(page, "cases");
+    await showCase(page, CASE_A);
+    await expect(tid(page, "tc-edit-save")).toBeDisabled();
+    // 값 칸을 고치면 [저장]이 켜지고, [되돌리기] 하면 아무것도 바뀌지 않는다.
+    await gridText(tid(page, "tc-form-input"), detailValue(page, "input", SURF), "Q");
+    await expect(detailValue(page, "input", SURF)).toHaveText("Q");
+    await expect(tid(page, "tc-edit-save")).toBeEnabled();
+    await tid(page, "tc-edit-revert").click();
+    await expect(detailValue(page, "input", SURF)).toHaveText("A");
+    await expect(tid(page, "tc-edit-save")).toBeDisabled();
 
-    // 수정: JSON 탭에서 입력 JSON 이 깨지면 팝업 안 오류로 막힌다.
-    await pickCases(page, CASE_C);
-    await tid(page, "tc-edit").click();
+    // [값 테스트 입력으로 바꾸기] 뒤 다른 행을 누르면 확인창이 뜬다. [취소]면 고치던 케이스에 남는다.
+    await tid(page, "tc-edit-use-input").click();
+    await expect(detailValue(page, "input", SURF)).toHaveText("B");
+    await snapModal(page, "dme-ruleEdit-TC-01-edit-detail");
+    const otherRow = caseRow(page, CASE_C).locator('.ag-cell[col-id="name"]');
+    await otherRow.click();
+    await expect(discardAsk(page)).toBeVisible();
+    await discardAsk(page).getByRole("button", { name: "취소", exact: true }).click();
+    await expect(discardAsk(page)).toHaveCount(0);
+    await expect(tid(page, "tc-edit-name")).toHaveValue(CASE_A);
+    await expect(detailValue(page, "input", SURF)).toHaveText("B");
+    // [확인]이면 변경을 버리고 옮겨 간다. 돌아와도 저장된 값이다.
+    await otherRow.click();
+    await discardAsk(page).getByRole("button", { name: "확인", exact: true }).click();
+    await expect(discardAsk(page)).toHaveCount(0);
+    await expect(tid(page, "tc-edit-name")).toHaveValue(CASE_C);
+    await showCase(page, CASE_A);
+    await expect(detailValue(page, "input", SURF)).toHaveText("A");
+
+    // 수정: JSON 탭에서 입력 JSON 이 깨지면 상세 안 오류로 막힌다.
+    await showCase(page, CASE_C);
     await tid(page, "tc-edit-tab-json").click();
     await tid(page, "tc-edit-input").fill("{");
     await tid(page, "tc-edit-save").click();
     await expect(tid(page, "tc-edit-error")).toBeVisible();
-    await expect(tid(page, "tc-edit-modal")).toBeVisible();
-    // 수정(U): 이름·설명·틀린 기대값으로 저장하면 모두 실행에서 실패로 보인다.
+    // 수정(U): 이름·설명·틀린 기대값으로 저장하면 모두 실행에서 실패로 보인다. 저장해도 상세는 닫히지 않는다.
     await tid(page, "tc-edit-input").fill(`{"${THK}": 5.0, "${SURF}": "B"}`);
     await tid(page, "tc-edit-name").fill(`${CASE_C}(수정)`);
     await tid(page, "tc-edit-desc").fill("기대값을 일부러 틀리게 둔다");
     await tid(page, "tc-edit-expected").fill(`{"${GRD}": "Z"}`);
     await tid(page, "tc-edit-save").click();
-    await expect(tid(page, "tc-edit-modal")).toHaveCount(0, { timeout: T.UI });
+    await expect(tid(page, "tc-edit-save")).toBeDisabled({ timeout: T.UI });
+    await expect(tid(page, "tc-detail")).toBeVisible();
+    await expect(tid(page, "tc-edit-error")).toHaveCount(0);
     const edited = caseRow(page, `${CASE_C}(수정)`);
     await expect(edited).toContainText("기대값을 일부러 틀리게 둔다");
-    await expect(edited).toContainText('"Z"');
+    await showCase(page, `${CASE_C}(수정)`);
+    await expect(detailValue(page, "expected", GRD)).toHaveText("Z", { timeout: T.UI });
     await tcCard(page).getByRole("button", { name: "모두 실행", exact: true }).click();
     await expect(edited.locator('[data-testid^="tc-badge-"]')).toHaveText(/실패/, { timeout: T.LONG });
     await expect(edited).toContainText(GRD);
@@ -1242,7 +1370,8 @@ test.describe("A 룰 등록·편집·확정", () => {
     // 수정 저장 뒤 다시 불러온 view 에도 같은 케이스(case_id)가 남아 체크가 유지된다.
     await pickCases(page, `${CASE_C}(수정)`);
     await tid(page, "tc-update-expected").click();
-    await expect(edited).not.toContainText('"Z"', { timeout: T.UI });
+    await showCase(page, `${CASE_C}(수정)`);
+    await expect(detailValue(page, "expected", GRD)).toHaveText("C", { timeout: T.UI });
     await tcCard(page).getByRole("button", { name: "모두 실행", exact: true }).click();
     await expect(edited.locator('[data-testid^="tc-badge-"]')).toHaveText(/통과/, { timeout: T.LONG });
 
@@ -1252,8 +1381,14 @@ test.describe("A 룰 등록·편집·확정", () => {
     await tid(page, "tc-copy").click();
     for (const n of copied) {
       await expect(caseRow(page, `${n} (복사)`)).toBeVisible({ timeout: T.UI });
-      const input = (row: Locator) => row.locator('.ag-cell[col-id="inputJson"]');
-      await expect(input(caseRow(page, `${n} (복사)`))).toHaveText((await input(caseRow(page, n)).textContent())!);
+      // 입력·기대값은 상세에서 본다. 원본과 복사본이 같은 값을 보여야 한다.
+      for (const shownName of [n, `${n} (복사)`]) {
+        await showCase(page, shownName);
+        const want = n === CASE_A ? { thk: /^2(\.0)?$/, surf: "A", grd: "A" } : { thk: /^5(\.0)?$/, surf: "B", grd: "C" };
+        await expect(detailValue(page, "input", THK)).toHaveText(want.thk);
+        await expect(detailValue(page, "input", SURF)).toHaveText(want.surf);
+        await expect(detailValue(page, "expected", GRD)).toHaveText(want.grd);
+      }
     }
     await expect(caseRows(page)).toHaveCount(5);
     await pickCases(page, ...copied.map((n) => `${n} (복사)`));
@@ -1265,29 +1400,42 @@ test.describe("A 룰 등록·편집·확정", () => {
     await deletePickedCases(page, 1);
     await expect(caseRow(page, CASE_DEL)).toHaveCount(0, { timeout: T.UI });
     await expect(caseRows(page)).toHaveCount(2);
+    await closeTests(page);
     watcher.assertClean("ruleEdit");
   });
 
-  test("TC-DME-EDT-05 카드 묶음·섹션 접기와 빈 넘기기 안내 — 룰 화면의 모든 버튼을 한 번씩 눌렀다", async () => {
+  test("TC-DME-EDT-05 팝업 닫기·입력 유지·검사 섹션 접기와 빈 넘기기 안내 — 룰 화면의 모든 버튼을 한 번씩 눌렀다", async () => {
     // 경계값 케이스 만들기(b3317e4d) — 팝업을 열어 본 뒤 저장하지 않고 닫는다(케이스는 그대로 둘이다).
+    await openTests(page, "cases");
     await tid(page, "tc-boundary").click();
     await expect(tid(page, "bc-modal")).toBeVisible({ timeout: T.UI });
     await snapModal(page, "dme-ruleEdit-05-boundary");
-    await page.getByRole("dialog").getByRole("button", { name: "닫기" }).last().click();
+    // 뒤에 테스트 팝업이 함께 열려 있어 경계값 창으로 좁힌다.
+    await page.getByRole("dialog").filter({ has: tid(page, "bc-modal") }).getByRole("button", { name: "닫기" }).last().click();
     await expect(page.locator('[data-testid="bc-modal"]')).toHaveCount(0);
     await expect(caseRows(page)).toHaveCount(2);
-    // 카드 묶음은 ④⑤⑥(valueTests) 하나다 — ①② 묶음(headerVersions)은 룰 상세로 옮겨 가며 없어졌다(D-105, cards.ts).
-    await tid(page, "rule-group-valueTests-toggle").click();
-    await expect(page.locator('[data-testid="rule-group-valueTests-body"]')).toBeHidden();
-    await tid(page, "rule-group-valueTests-toggle").click();
-    await expect(tid(page, "rule-group-valueTests-body")).toBeVisible();
-    // 열 설정은 처음에 접혀 있으므로(2026-10-01) 먼저 펼쳐 둔 뒤 접기·펼치기를 본다. 피벗 섹션은 없어졌다(325ccf9c).
+    // 카드 묶음·열 설정 섹션 접기는 팝업으로 바뀌며 없어졌다(2026-11-04). 닫았다 열어도 입력이 남는지 본다.
+    await openTests(page, "value");
+    await vtInput(page, SURF, "KEEP");
+    await tid(page, "vt-case-name").fill("E2E 입력 유지");
+    await closeTests(page);
+    await openTests(page, "value");
+    await expect(vtValueCell(page, SURF)).toHaveText("KEEP");
+    await expect(tid(page, "vt-case-name")).toHaveValue("E2E 입력 유지");
+    await tid(page, "vt-case-name").fill("");
+    await closeTests(page);
+    // 열 설정 초안도 닫았다 열어도 남고, 버린 뒤에는 버튼 글자가 돌아온다.
+    const kept = await clickAddColumn(page, "RESULT");
+    await closeColumns(page);
+    await expect(tid(page, "dt-open-columns")).toHaveText("열 설정 · 초안 있음");
     await openColumns(page);
-    await tid(page, "rule-section-columns-toggle").click();
-    await expect(page.locator('[data-testid="rule-section-columns-body"]')).toBeHidden();
-    await tid(page, "rule-section-columns-toggle").click();
-    await expect(tid(page, "rule-section-columns-body")).toBeVisible();
+    await expect(colCell(page, kept, "varName")).toBeVisible();
+    await tid(page, "col-discard").click();
+    await expect(tid(page, "col-dirty")).toHaveCount(0);
+    await closeColumns(page);
+    await expect(tid(page, "dt-open-columns")).toHaveText("열 설정");
     // 의사결정표 [크게 보기]와 검사 섹션 접기(f7d9c47a)는 행이 있는 표에서 보인다 — 누르면 바뀌고 다시 누르면 돌아온다.
+    await openCheck(page);
     await tid(page, "dt-expand").click();
     await expect(tid(page, "dt-expand")).toHaveText("원래 크기");
     await expect(tid(page, "dt-expand")).toHaveAttribute("aria-pressed", "true");
@@ -1454,8 +1602,9 @@ test.describe("A 룰 등록·편집·확정", () => {
     await expect(tableButton(page, "행 추가")).toBeDisabled();
     await openColumns(page);
     await expect(tid(page, "col-readonly")).toBeVisible();
-    await layout.layout(page, "ruleEdit 확정 뒤");
     await snap(page, "dme-ruleEdit-MNG-07-released");
+    await closeColumns(page);
+    await layout.layout(page, "ruleEdit 확정 뒤");
     watcher.assertClean("ruleMng·ruleEdit");
   });
 
@@ -1550,6 +1699,7 @@ test.describe("B 새 버전·삭제·폐기", () => {
     await expect(dtCell(page, v1Rows[1], `c${vGrd}_val`)).toHaveClass(/cell-edited/);
 
     // 값 테스트 — 버전 1 은 B, 편집본(버전 2)은 B2.
+    await openTests(page, "value");
     await tid(page, "vt-target").selectOption({ label: "버전 v1.000 · RELEASED" });
     await vtInput(page, SURF, "B");
     await vtRun(page);
@@ -1562,6 +1712,7 @@ test.describe("B 새 버전·삭제·폐기", () => {
     await vtInput(page, SURF, "A");
     await vtRun(page);
     await expect(resultValue(page, GRD)).toHaveText(/^\s*"?C"?\s*$/);
+    await closeTests(page);
     await layout.layout(page, "ruleEdit 새 버전 수정");
     watcher.assertClean("ruleEdit");
   });
@@ -1615,9 +1766,7 @@ test.describe("B 새 버전·삭제·폐기", () => {
     // 룰 화면(확정 버전 1, 읽기 전용) 버튼 커버리지 — 옛 VER-05 의 룰 화면 확인을 여기로 옮겼다(헤더·버전 버튼은 룰 상세로 갔다, D-105).
     // 장 B 는 새 페이지라 장 A 에서 누른 것은 기록에 없다.
     await assertAllButtonsPressed(page, "ruleEdit(새 버전·삭제)", {
-      "rule-group-valueTests-toggle": "카드 묶음 접기는 장 A TC-DME-EDT-05 에서 누른다",
-      "rule-section-columns-toggle": "섹션 접기는 장 A TC-DME-EDT-05 에서 누른다",
-      "tc-boundary": "경계값 케이스 팝업은 장 A TC-DME-EDT-05 에서 누른다",
+      "dt-open-columns": "열 설정 팝업은 장 A TC-DME-COL-01 에서 누른다",
       "dt-expand": "의사결정표 [크게 보기]는 장 A TC-DME-EDT-05 에서 누른다",
       "dt-check-toggle": "검사(화면) 섹션 접기는 장 A TC-DME-EDT-05 에서 누른다",
       "dt-check-table-toggle": "표 단위 검사 섹션 접기는 장 A TC-DME-EDT-05 에서 누른다",
@@ -2455,10 +2604,13 @@ test.describe("D 화면 연결·넘기기·충돌·드래그·읽기 전용", ()
       await openColumns(page);
       await expect(tid(page, "col-readonly")).toBeVisible();
       await expect(tid(page, "col-add-cond")).toHaveCount(0);
+      await closeColumns(page);
+      await openTests(page, "value");
       // 대상 정의를 받은 뒤(열 없는 룰이라 "입력 변수가 없습니다" 가 보인 뒤)에 본다 — 받기 전에는 권한과 무관하게 꺼져 있다.
       await expect(tid(page, "vt-no-input")).toBeVisible({ timeout: T.UI });
       await expect(vtCard(page).getByRole("button", { name: "실행", exact: true })).toBeDisabled();
       await snap(page, "dme-ro-ruleEdit");
+      await closeTests(page);
 
       // ruleConfirm — 남의 DRAFT 를 골라도 검사·확정이 꺼져 있다.
       await go(page, "ruleConfirm");

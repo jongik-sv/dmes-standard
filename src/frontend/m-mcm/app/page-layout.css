@@ -324,7 +324,10 @@
 /* ========================================
    컨텐츠 영역
    ======================================== */
-.page-layout .content-body {
+/* 모달 안 ContentBody(`.cm-modal-body` 범위)도 같은 규칙을 쓴다 — shared/src/layout/page-layout.css 와 동기(2026-11-25).
+   없으면 모달 안 ContentBody 가 block 이 되어 분할 패널이 좌우로 나뉘지 않고 위아래로 쌓인다(룰 화면 테스트 팝업 실측). */
+.page-layout .content-body,
+.cm-modal-body .content-body {
   flex: 1 1 0;
   display: flex;
   flex-direction: row;
@@ -332,20 +335,33 @@
   min-height: 0;
   height: 0;
   overflow: hidden;
-  padding: 0 10px 8px;
+  padding: 0 10px;
 }
 
-.page-layout .content-body--column {
+/* 페이지에서는 카드 아래(푸터 위)에 카드 간격만큼 여백을 둔다(모달 바디 제외). */
+.page-layout .content-body {
+  padding-bottom: 8px;
+}
+
+.page-layout .content-body--column,
+.cm-modal-body .content-body--column {
   flex-direction: column;
 }
 
-.page-layout .content-body--root {
-  padding: 0 10px 8px;
+.page-layout .content-body--root,
+.cm-modal-body .content-body--root {
+  padding: 0 10px;
   background-color: transparent;
 }
 
+/* 페이지 root 도 아래 여백을 둔다(모달 바디 제외). */
+.page-layout .content-body--root {
+  padding-bottom: 8px;
+}
+
 /* resizable ContentBody 안에 중첩된 ContentBody: 바깥 여백 중복 제거, row 부모에서도 높이를 채운다. */
-.page-layout .content-body.content-body--nested {
+.page-layout .content-body.content-body--nested,
+.cm-modal-body .content-body.content-body--nested {
   padding: 0;
   height: auto;
   align-self: stretch;
@@ -389,7 +405,8 @@
   background: var(--color-primary, #3b82f6);
 }
 
-.page-layout .content-panel {
+.page-layout .content-panel,
+.cm-modal-body .content-panel {
   display: flex;
   flex-direction: column;
   min-width: 0;

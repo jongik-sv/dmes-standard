@@ -87,7 +87,7 @@ export function caseEditError(f: CaseEditFields): string | null {
   return caseJsonError(f);
 }
 
-/** 입력·기대 JSON 검사만(수정 팝업의 "테스트 실행" — 이름 없이도 돌린다). 문제가 없으면 null. */
+/** 입력·기대 JSON 검사만(상세의 "테스트 실행" — 이름 없이도 돌린다). 문제가 없으면 null. */
 export function caseJsonError(f: Pick<CaseEditFields, "inputJson" | "expectedJson">): string | null {
   const input = objectError(f.inputJson.trim(), "입력", "입력은");
   if (input) return input;

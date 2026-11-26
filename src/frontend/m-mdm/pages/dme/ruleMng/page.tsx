@@ -12,12 +12,13 @@
  *
  * Part B §4-3 MUST: 분할 골격(`ContentBody`/`ContentPanel`)은 `page.tsx` 의 **직접 자식**이어야 drag bar 가 붙는다
  * (shared `ContentBody.tsx` 의 `isLayoutItem` 은 `React.Children` 로 받은 직접 자식의 type 만 본다). 그래서 상세는
- * `RuleDetailPanel` 이 내용만 돌려주고 골격은 여기서 그린다(dmc `codeMng` 선례).
+ * `useRuleDetailPanel` 이 ① 헤더·② 버전 내용만 돌려주고 골격은 여기서 그린다(dmc `codeMng` 선례). 오른쪽은 위(헤더)·아래(버전)
+ * 분할이고 막대로 높이를 바꾼다(2026-11-25).
  *
  * 상세 다시 읽기(2026-10-03): 행을 누르면 같은 행이어도, [조회]로 목록을 다시 받으면 고른 룰의 상세를 다시 읽는다 —
  * 다른 창에서 바뀐 상태(선점 해제·확정 등)가 보이게 하려는 것이다(dmc codeMng·dmd dataMng 과 같은 규칙). 그래서 상세는
  * `selectedId` effect 가 아니라 고르는 곳에서 직접 부른다. 응답은 요청 순번(`detailSeq`)이 지금 것과 다르면 버린다 —
- * 늦게 온 A 응답이 B 상세를 덮지 않는다. 저장하지 않은 헤더 입력은 `RuleDetailPanel` 이 같은 룰을 다시 읽어도 남긴다.
+ * 늦게 온 A 응답이 B 상세를 덮지 않는다. 저장하지 않은 헤더 입력은 `useRuleDetailPanel` 이 같은 룰을 다시 읽어도 남긴다.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -39,7 +40,7 @@ import { openRuleEdit } from "@/dme/rule-handoff";
 
 import { searchRules, viewRule } from "./api";
 import { RuleRegisterForm } from "./components/RuleRegisterForm";
-import { RuleDetailPanel } from "./RuleDetailPanel";
+import { useRuleDetailPanel } from "./RuleDetailPanel";
 import {
   RULE_KIND_LABELS,
   RULE_PAGE_SIZE,
@@ -238,6 +239,24 @@ export default function RuleMngPage() {
   const gridRows = useMemo(() => rows.map((r) => ({ ...r, pendingText: pendingText(r) })), [rows]);
   const totalPages = Math.max(1, Math.ceil(totalCount / RULE_PAGE_SIZE));
 
+  // 오른쪽 상세 ① 헤더·② 버전 — 상태는 훅이 갖고 내용만 받아 아래 분할 패널에 넣는다.
+  const detailParts = useRuleDetailPanel({
+    view: detail,
+    // 쓰기 뒤 다시 읽기는 지금 선택을 본다 — 쓰기를 기다리는 사이 다른 룰을 골랐으면 옛 룰을 더 새 순번으로 읽어
+    // 강조와 상세가 어긋나지 않게 읽지 않는다(검토 I2).
+    reload: () =>
+      detail && selectedIdRef.current === detail.header.maruRuleId
+        ? loadDetail(selectedIdRef.current).then(() => true)
+        : Promise.resolve(false),
+    onWriting: (delta) => {
+      writing.current += delta;
+    },
+    canDo: (action) => canDoButton(rbac, SCREEN_ID, action),
+    busy: isBusy || isDetailBusy,
+    onError: setErrorMessage,
+    onContentEdit: (ruleId, ver) => openRuleEdit(ruleId, ver),
+  });
+
   return (
     <MdmPageLayout
       group="dme"
@@ -321,32 +340,19 @@ export default function RuleMngPage() {
           />
         </ContentPanel>
 
-        {/* 오른쪽 = ① 헤더·② 버전(D-105). 내용 편집은 여기 없다 — `ruleEdit` 화면이 맡는다. */}
-        <ContentPanel flex="1 1 0">
-          {detail ? (
-            <RuleDetailPanel
-              view={detail}
-              // 쓰기 뒤 다시 읽기는 지금 선택을 본다 — 쓰기를 기다리는 사이 다른 룰을 골랐으면 옛 룰을 더 새 순번으로 읽어
-              // 강조와 상세가 어긋나지 않게 읽지 않는다(검토 I2).
-              reload={() =>
-                selectedIdRef.current === detail.header.maruRuleId
-                  ? loadDetail(selectedIdRef.current).then(() => true)
-                  : Promise.resolve(false)
-              }
-              onWriting={(delta) => {
-                writing.current += delta;
-              }}
-              canDo={(action) => canDoButton(rbac, SCREEN_ID, action)}
-              busy={isBusy || isDetailBusy}
-              onError={setErrorMessage}
-              onContentEdit={(ruleId, ver) => openRuleEdit(ruleId, ver)}
-            />
-          ) : (
+        {/* 오른쪽 = ① 헤더·② 버전(D-105), 위아래 분할. 내용 편집은 여기 없다 — `ruleEdit` 화면이 맡는다. */}
+        {detailParts ? (
+          <ContentBody direction="column" resizable storageKey="mdm.dme.ruleMng.detail" flex="1 1 0">
+            <ContentPanel scrollY>{detailParts.header}</ContentPanel>
+            <ContentPanel scrollY>{detailParts.versions}</ContentPanel>
+          </ContentBody>
+        ) : (
+          <ContentPanel flex="1 1 0">
             <p data-testid="rule-detail-empty" style={{ color: "var(--color-text-secondary)" }}>
               {isDetailBusy ? "불러오는 중..." : "룰을 고르세요."}
             </p>
-          )}
-        </ContentPanel>
+          </ContentPanel>
+        )}
       </ContentBody>
 
       {/*

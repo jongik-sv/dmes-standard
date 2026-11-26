@@ -3,6 +3,10 @@
 /**
  * ruleMng 오른쪽 상세 ① 헤더 + ② 버전 (decisions.md D-105).
  *
+ * <p>헤더와 버전은 위아래 분할 패널로 나뉘고 막대로 높이를 바꾼다(2026-11-25). 분할 막대가 붙으려면 두 `ContentPanel` 이
+ * `page.tsx` 의 `ContentBody` 직접 자식이어야 한다. 그래서 이 파일은 컴포넌트가 아니라 훅(`useRuleDetailPanel`)으로
+ * 상태를 갖고, 헤더·버전 내용을 따로 돌려준다. 패널 골격은 `page.tsx` 가 그린다.
+ *
  * <p>D-101(dmc)·D-104(dmd)에 이어 룰도 같은 분할을 따른다. 옛 `ruleEdit` 카드 ①② 를 여기로 옮긴 것이고, 서버
  * 서비스도 `ruleMng` 의 `view`·`save`(target HEADER)·`copy`·`delete`·`lock`·`unlock`·`handover` 로 옮겨 갔다.
  *
@@ -24,7 +28,7 @@
  * 입력을 버리는 길은 [다시 불러오기] 하나다. 헤더 저장에 성공한 뒤에는 입력이 보낸 그대로면 서버 값(trim 된 값)·새 auditVer 로
  * 맞춘다(검토 I1).
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 
 import { DETAIL_LABEL_CELL, DETAIL_TABLE_STYLE, DETAIL_VALUE_CELL } from "@dk-oasis/shared/layout";
 import { AgDataGrid, type GridColumn } from "@dk-oasis/shared/grid";
@@ -103,8 +107,46 @@ function sameForm(a: HeaderForm, b: HeaderForm): boolean {
   return a.maruRuleName === b.maruRuleName && a.description === b.description && a.usageNote === b.usageNote;
 }
 
+/** 설명·활용처 메모 입력칸 — 4줄을 보이고 아래 모서리를 끌어 높이를 바꾼다(Mantine `--input-resize`). */
+const MEMO_ROWS = 4;
+const MEMO_STYLE = { "--input-resize": "vertical" } as CSSProperties;
+
+/** 상세가 없을 때(룰을 고르기 전) 훅을 돌리는 빈 값 — 훅은 조건 없이 불려야 한다. 이때 훅은 null 을 돌려준다. */
+const EMPTY_VIEW: RuleMngView = {
+  header: {
+    maruRuleId: "",
+    maruRuleName: "",
+    ruleKind: "DECISION",
+    status: "CREATED",
+    sourceKind: "MDM",
+    sourceSystem: null,
+    description: null,
+    usageNote: null,
+    auditVer: null,
+  },
+  versions: [],
+  flags: {
+    headerEditable: false,
+    canNewVersion: false,
+    canNewMajor: false,
+    canNewMinor: false,
+    nextMajor: null,
+    nextMinor: null,
+    canDeprecate: false,
+    unappliedCount: 0,
+    currentVer: null,
+  },
+};
+
+/** 훅이 돌려주는 상세 내용 — `page.tsx` 가 위(헤더)·아래(버전) 분할 패널에 하나씩 넣는다. */
+export interface RuleDetailParts {
+  header: ReactNode;
+  versions: ReactNode;
+}
+
 export interface RuleDetailPanelProps {
-  view: RuleMngView;
+  /** 상세 — 아직 고르지 않았으면 null(훅은 null 을 돌려준다). */
+  view: RuleMngView | null;
   /**
    * 상세 재조회 — 쓰기 뒤 row_version·auditVer 을 맞춰야 한다. 실제로 다시 읽었으면 true, 그사이 선택이 바뀌어 건너뛰었으면
    * false 를 돌려준다.
@@ -118,7 +160,16 @@ export interface RuleDetailPanelProps {
   onContentEdit: (ruleId: string, ver?: string) => void;
 }
 
-export function RuleDetailPanel({ view, reload, canDo, busy: pageBusy, onError, onContentEdit, onWriting }: RuleDetailPanelProps) {
+export function useRuleDetailPanel({
+  view: viewOrNull,
+  reload,
+  canDo,
+  busy: pageBusy,
+  onError,
+  onContentEdit,
+  onWriting,
+}: RuleDetailPanelProps): RuleDetailParts | null {
+  const view = viewOrNull ?? EMPTY_VIEW;
   // 진행 중인 쓰기 수 — 쓰기 동안 헤더 입력과 쓰기 단추를 잠근다. 저장 중에 또 고친 입력이 옛 auditVer 로 남거나 [헤더 저장]이
   // 두 번 나가 거짓 MDM001 이 나지 않게 한다(재검토 I3). ref 는 같은 틱의 두 번째 누름까지 막는다.
   const [writing, setWriting] = useState(0);
@@ -252,8 +303,10 @@ export function RuleDetailPanel({ view, reload, canDo, busy: pageBusy, onError, 
 
   const set = (key: keyof HeaderForm, value: string) => setForm((p) => ({ ...p, [key]: value }));
 
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "var(--spacing-sm)", minHeight: 0, overflow: "auto" }}>
+  if (!viewOrNull) return null;
+
+  const headerPart = (
+    <>
       {conflict && (
         <div
           data-testid="rule-conflict"
@@ -318,7 +371,8 @@ export function RuleDetailPanel({ view, reload, canDo, busy: pageBusy, onError, 
                 <Textarea
                   data-testid="rule-header-description"
                   value={form.description}
-                  rows={2}
+                  rows={MEMO_ROWS}
+                  style={MEMO_STYLE}
                   disabled={!editable || busy}
                   onChange={(v) => set("description", v)}
                 />
@@ -332,7 +386,8 @@ export function RuleDetailPanel({ view, reload, canDo, busy: pageBusy, onError, 
                 <Textarea
                   data-testid="rule-header-usage"
                   value={form.usageNote}
-                  rows={2}
+                  rows={MEMO_ROWS}
+                  style={MEMO_STYLE}
                   disabled={!editable || busy}
                   onChange={(v) => set("usageNote", v)}
                 />
@@ -372,8 +427,10 @@ export function RuleDetailPanel({ view, reload, canDo, busy: pageBusy, onError, 
           </Button>
         </div>
       </section>
+    </>
+  );
 
-      {/* ── ② 버전 ── */}
+  const versionsPart = (
       <section data-testid="rule-card-versions" style={{ padding: "0 var(--spacing-sm) var(--spacing-sm)" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "var(--spacing-xs)", paddingBottom: "var(--spacing-xs)" }}>
           <strong style={{ flex: "1 1 auto" }}>② 버전</strong>
@@ -459,6 +516,7 @@ export function RuleDetailPanel({ view, reload, canDo, busy: pageBusy, onError, 
           trailing={selected ? <DraftLockBadge status={selected.status} ownerId={selected.ownerId} currentUserId={me} /> : null}
         />
       </section>
-    </div>
   );
+
+  return { header: headerPart, versions: versionsPart };
 }

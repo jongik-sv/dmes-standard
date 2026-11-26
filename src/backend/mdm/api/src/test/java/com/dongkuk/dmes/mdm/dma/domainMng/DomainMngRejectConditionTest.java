@@ -119,6 +119,17 @@ class DomainMngRejectConditionTest extends DomainMngApiSupport {
     }
 
     @Test
+    void R08_길이를_넘는_값은_식이_없어도_실패로_판정한다() {
+        // 사원ID(EMP_ID) 사례 — 표준식 없이 길이 10만 있다. 11자는 실패여야 한다.
+        assertRejected("R08", req(r -> r.setLength(10)), cases(tc("12345678901", true)));
+        saveOk(req(r -> r.setLength(10)), cases(tc("1234567890", true), tc("12345678901", false)));
+        // 길이는 상위에서 이어받는다
+        Long parent = saveOk(req(r -> r.setLength(10)));
+        saveOk(req(r -> r.setParentDomainId(parent)), cases(tc("12345678901", false)));
+        assertRejected("R08", req(r -> r.setParentDomainId(parent)), cases(tc("12345678901", true)));
+    }
+
+    @Test
     void R09_CODE_종류는_체인에_코드_참조가_있어야_한다() {
         assertRejected("R09", req(r -> r.setDomainKind("CODE")));
         Long parent = saveOk(req(r -> {

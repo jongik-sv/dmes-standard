@@ -40,10 +40,15 @@ const usageColumns: GridColumn[] = [
 export function RuleUsageCard({ view }: RuleEditCardProps) {
   const usage = view.usage ?? { sets: [] };
   return (
-    <CardFrame title="⑧ 활용처" testId="rule-card-usage">
-      <p style={{ margin: "0 0 var(--spacing-xs)" }}>
-        <strong>활용처 메모</strong> {usage.usageNote ? usage.usageNote : <MutedText>없음</MutedText>}
-      </p>
+    <CardFrame title="활용처" testId="rule-card-usage">
+      <div style={{ margin: "0 0 var(--spacing-xs)" }} data-testid="rule-usage-note">
+        <strong>활용처 메모</strong>{" "}
+        {usage.usageNote ? (
+          <div style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere", marginTop: "var(--spacing-xs)" }}>{usage.usageNote}</div>
+        ) : (
+          <MutedText>없음</MutedText>
+        )}
+      </div>
       <div data-testid="rule-usage-sets">
         <AgDataGrid gridId="ruleUsage"
           columns={usageColumns}
