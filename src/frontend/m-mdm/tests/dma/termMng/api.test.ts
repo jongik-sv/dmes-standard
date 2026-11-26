@@ -3,6 +3,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { recommend, saveTerm, searchTerms } from "../../../pages/dma/termMng/api";
+import { parseRecoCount } from "../../../pages/dma/termMng/TermDetailPane";
 import { emptyTermForm } from "../../../pages/dma/termMng/types";
 import { SUCCESS_ENVELOPE, describeOasisEnvelope, stubOasis } from "../../helpers/oasis-envelope";
 
@@ -37,6 +38,21 @@ describe("termMng — 화면별 차이", () => {
     expect(calls[0].url).toBe("/api/mdm/oasis/termMng/compare");
     expect(calls[0].init.signal).toBe(ac.signal);
     expect(calls[0].body.params).toEqual({ termName: "두께", definition: "", engName: "THK" });
+  });
+
+  it("recommend 는 추천 개수를 주면 params 에 싣고, 비운 개수는 뺀다", async () => {
+    const calls = stubOasis(SUCCESS_ENVELOPE);
+    await recommend(null, "두께", "", "", undefined, { stage1TopN: 3, stage2TopN: undefined });
+    expect(calls[0].body.params).toEqual({ termName: "두께", definition: "", engName: "", stage1TopN: 3 });
+  });
+
+  it("parseRecoCount 는 1~100 정수만 받는다", () => {
+    expect(parseRecoCount("1")).toBe(1);
+    expect(parseRecoCount(" 100 ")).toBe(100);
+    expect(parseRecoCount("0")).toBeUndefined();
+    expect(parseRecoCount("101")).toBeUndefined();
+    expect(parseRecoCount("2.5")).toBeUndefined();
+    expect(parseRecoCount("")).toBeUndefined();
   });
 
   it("signal 을 주지 않으면 fetch 의 signal 은 undefined 다", async () => {

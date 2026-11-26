@@ -53,6 +53,13 @@ mdm:
   embedding:
     encoder: none
     model-dir: ""
+    # 2차(임베딩) 유사어 추천의 최소 코사인 유사도(-1~1). 이 값보다 낮은 후보는 보이지 않는다.
+    # -1 은 거르지 않는다(상위 5건을 그대로 보인다). 환경 변수 MDM_EMBEDDING_MIN_SCORE 로 바꿀 수 있다.
+    min-score: ${MDM_EMBEDDING_MIN_SCORE:-1}
+  # 유사어 추천 개수(1~100). 1차(이름)·2차(의미) 각각 이 건수까지 보인다. 환경 변수로도 바꿀 수 있다.
+  recommend:
+    stage1-top-n: ${MDM_RECOMMEND_STAGE1_TOP_N:5}
+    stage2-top-n: ${MDM_RECOMMEND_STAGE2_TOP_N:5}
   # ── 메타 변경 신호(ADR-0007 D2 개정, 2026-10-12) ──
   # 변경 기록(TB_MDM_META_REV)을 커밋한 뒤 업무 모듈에 POST {target}/internal/mdm/metaSignal 을 보내 곧바로 확인하게 한다(최선 노력).
   # targets 는 모듈 인스턴스 기준 주소 목록(쉼표). 비면 보내지 않고 모듈은 정기 확인(cactus.mdm.poll-interval, 기본 5분)으로만 따라온다.
