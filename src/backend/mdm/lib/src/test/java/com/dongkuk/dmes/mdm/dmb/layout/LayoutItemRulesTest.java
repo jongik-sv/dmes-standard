@@ -209,4 +209,14 @@ class LayoutItemRulesTest {
                 new LayoutItemDraft(2, "FILLER", "COIL_ID", null, null, null, null, 3));
         assertEquals(List.of("L02", "L01", "L02"), codes(issues));
     }
+
+    @Test
+    void 도메인_없이_기본_길이만_있는_컬럼은_L07이_아니고_길이도_기본_타입도_없으면_L07() {
+        LayoutColumnInfo baseOnly = new LayoutColumnInfo("BASE_COL", "기본", null, "기본", null, null, "STRING", 10, null, null);
+        LayoutColumnInfo nothing = new LayoutColumnInfo("NONE_COL", "없음", null, "없음", null, null, null, null, null, null);
+        Map<String, LayoutColumnInfo> dict = Map.of("BASE_COL", baseOnly, "NONE_COL", nothing);
+        assertTrue(LayoutItemRules.check(List.of(new LayoutItemDraft(1, "DATA", "BASE_COL", null, null, null, null, null)), dict).isEmpty());
+        assertEquals(List.of("L07"), codes(LayoutItemRules.check(
+                List.of(new LayoutItemDraft(1, "DATA", "NONE_COL", null, null, null, null, null)), dict)));
+    }
 }

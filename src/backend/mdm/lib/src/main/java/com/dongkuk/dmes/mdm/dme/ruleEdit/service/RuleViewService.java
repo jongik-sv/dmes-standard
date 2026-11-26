@@ -146,7 +146,9 @@ public class RuleViewService {
         List<VarCandidate> out = new ArrayList<>();
         Set<String> seen = new HashSet<>();
         for (MdmColumn c : columnRepository.findAllByOrderByPhysNameAsc()) {
-            if (c.getPhysName() != null && seen.add(c.getPhysName())) {
+            // 유효 타입이 있는 컬럼만 — 도메인이 있거나 기본 타입(DATA_TYPE)이 있다
+            boolean typed = c.getDomainId() != null || (c.getDataType() != null && !c.getDataType().isBlank());
+            if (typed && c.getPhysName() != null && seen.add(c.getPhysName())) {
                 String label = c.getLabelMid() != null ? c.getLabelMid() : c.getLabelLong();
                 out.add(new VarCandidate(c.getPhysName(), label, "COLUMN"));
             }

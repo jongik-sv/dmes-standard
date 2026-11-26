@@ -68,6 +68,8 @@ public class DomainMngService {
 
     private static final Pattern STD_NAME = Pattern.compile("^[A-Z][A-Z0-9_]*$");
     private static final String FALLBACK_COLUMN = "VALUE";
+    /** CK_TB_MDM_COLUMN_DTYPE 가 허용하는 컬럼 기본 타입(ColumnMngService.validateBaseType 과 같은 정확 일치). */
+    private static final Set<String> COLUMN_BASE_TYPES = Set.of("NUMBER", "STRING", "BOOLEAN", "DATE");
     private static final Set<DomainIssueCode> COMPILE_CODES =
             EnumSet.of(DomainIssueCode.R01, DomainIssueCode.R02, DomainIssueCode.R04, DomainIssueCode.S05);
 
@@ -373,8 +375,25 @@ public class DomainMngService {
         List<MdmColumn> columns = entityManager
                 .createQuery("select c from MdmColumn c where c.domainId = :id", MdmColumn.class)
                 .setParameter("id", id).getResultList();
+        // 부모가 없어 도메인이 비는 컬럼은 지운 도메인의 유효 타입(삭제 전 체인 값)을 기본 타입으로 받아 타입을 잃지 않는다.
+        String colType = removedView == null ? removed.dataType() : removedView.dataType();
+        Integer colLength = removedView == null ? removed.length() : removedView.length();
+        Integer colScale = removedView == null ? removed.scale() : removedView.scale();
+        int baseTypedColumns = 0;
         for (MdmColumn c : columns) {
             c.setDomainId(newParent);
+            if (newParent == null && colType != null && !colType.isBlank()) {
+                if (COLUMN_BASE_TYPES.contains(colType)) {
+                    c.setDataType(colType);
+                    c.setLength(colLength);
+                    c.setScale(colScale);
+                    baseTypedColumns++;
+                } else {
+                    // 옛 도메인 타입이 CK_TB_MDM_COLUMN_DTYPE 밖이면 기본 타입을 비워 두고 알린다(삭제는 막지 않는다).
+                    issues.add(DomainIssue.of(DomainIssueCode.W06, "DATA_TYPE", String.valueOf(c.getColumnId()),
+                            "컬럼 " + c.getPhysName() + " — 도메인 타입 " + colType));
+                }
+            }
         }
         List<MdmRuleVar> vars = entityManager
                 .createQuery("select v from MdmRuleVar v where v.domainId = :id", MdmRuleVar.class)
@@ -413,6 +432,7 @@ public class DomainMngService {
         out.put("newParentDomainId", newParent);
         out.put("movedDomainIds", moved);
         out.put("movedColumnCount", columns.size());
+        out.put("baseTypedColumnCount", baseTypedColumns);
         out.put("movedRuleVarCount", vars.size());
         out.put("warnings", issues.stream().filter(i -> !i.isError()).map(DomainIssue::toRow).toList());
         out.put("preexistingIssues", preexisting.stream().map(DomainIssue::toRow).toList());

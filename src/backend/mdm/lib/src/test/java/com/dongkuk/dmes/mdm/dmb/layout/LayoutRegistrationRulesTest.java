@@ -137,6 +137,19 @@ class LayoutRegistrationRulesTest {
         assertEquals(3, issues.get(0).seq());
     }
 
+    @Test
+    void 거부_4_도메인_없는_기본_타입_컬럼도_자리_검사를_하고_문구는_기본_타입을_가리킨다() {
+        LayoutColumnInfo base = new LayoutColumnInfo("BASE_NUM", "기본 숫자", null, "기본 숫자", null, null, "NUMBER", 3, 1, null);
+        Map<String, LayoutColumnInfo> dict = Map.of("BASE_NUM", base);
+        List<LayoutItemDraft> items = List.of(item(1, "DATA", "BASE_NUM", null, null, "SIGN=N;ZERO=Y;SCALE=1;WIDTH=2", null, null));
+        List<LayoutIssue> issues = LayoutRegistrationRules.check(items, dict, UNITS, EUC_KR, Map.of(1, 2), PASS, new ArrayList<>());
+        only(LayoutIssueCode.L14, issues);
+        assertEquals("표현 자리 2는 컬럼 BASE_NUM 기본 타입(숫자 3,1)를 담지 못합니다", issues.get(0).message());
+        assertTrue(LayoutRegistrationRules.check(
+                List.of(item(1, "DATA", "BASE_NUM", null, null, "SIGN=N;ZERO=Y;SCALE=1;WIDTH=3", null, null)),
+                dict, UNITS, EUC_KR, Map.of(1, 3), PASS, new ArrayList<>()).isEmpty());
+    }
+
     @ParameterizedTest
     @CsvSource({
             "3, 1, SIGN=N;ZERO=Y;SCALE=1, '', 3",

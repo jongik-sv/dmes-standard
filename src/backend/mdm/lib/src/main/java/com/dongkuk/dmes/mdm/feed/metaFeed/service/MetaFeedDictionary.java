@@ -2,6 +2,7 @@ package com.dongkuk.dmes.mdm.feed.metaFeed.service;
 
 import com.dongkuk.dmes.mdm.common.dictionary.ColumnDescriptionFormat;
 import com.dongkuk.dmes.mdm.common.dictionary.ColumnDescriptionSanitizer;
+import com.dongkuk.dmes.mdm.common.dictionary.ColumnEffectiveType;
 import com.dongkuk.dmes.mdm.common.dictionary.DomainChainAssembler;
 import com.dongkuk.dmes.mdm.common.dictionary.DomainNode;
 import com.dongkuk.dmes.mdm.common.dictionary.DomainTreeReader;
@@ -211,6 +212,15 @@ public class MetaFeedDictionary {
         EffectiveDomainView v = chain == null ? null : chain.view();
         String normalized = ColumnDescriptionSanitizer.normalize(c.getDescription());
         String descriptionHtml = ColumnDescriptionFormat.isHtml(normalized) ? normalized : null;
+        // 유효 타입: 도메인 체인에 타입이 있으면 그 값, 아니면 컬럼 기본 타입(단위·도메인 파생 칸은 없다)
+        // (ColumnEffectiveType 과 같은 규칙: 도메인 체인에 타입이 없으면 기본 타입으로 넘어간다)
+        boolean domainTyped = v != null && v.dataType() != null && !v.dataType().isBlank();
+        ColumnEffectiveType eff = domainTyped
+                ? new ColumnEffectiveType(v.dataType(), v.length(), v.scale(), ColumnEffectiveType.Source.DOMAIN)
+                : ColumnEffectiveType.ofBase(c.getDataType(), c.getLength(), c.getScale());
+        String effType = eff.dataType();
+        Integer effLength = eff.length();
+        Integer effScale = eff.scale();
         return new ColumnMeta(
                 c.getPhysName().toUpperCase(Locale.ROOT),
                 c.getColumnName(),
@@ -219,9 +229,9 @@ public class MetaFeedDictionary {
                 c.getLabelShort(),
                 ColumnDescriptionSanitizer.plainTextOfNormalized(normalized),
                 ColumnDescriptionSanitizer.plainText(c.getUsageNote()),
-                v == null ? null : v.dataType(),
-                v == null ? null : v.length(),
-                v == null ? null : v.scale(),
+                effType,
+                effLength,
+                effScale,
                 c.isRequired(),
                 c.getDefaultValue(),
                 c.getRefKind(),

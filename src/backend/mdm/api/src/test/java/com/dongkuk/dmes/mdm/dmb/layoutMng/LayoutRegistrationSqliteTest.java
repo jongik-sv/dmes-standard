@@ -6,6 +6,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.dongkuk.dmes.cactus.common.BusinessException;
 import com.dongkuk.dmes.mdm.dme.DmeTestSupport;
+import com.dongkuk.dmes.mdm.dmb.layout.LayoutConstJudge;
+import com.dongkuk.dmes.mdm.dmb.layout.LayoutDictionary;
+import org.springframework.beans.factory.annotation.Autowired;
 import com.dongkuk.dmes.mdm.dmb.LayoutServiceTestSupport;
 import com.dongkuk.dmes.mdm.dmb.layoutMng.dto.LayoutMngSaveRequest;
 import java.util.ArrayList;
@@ -25,6 +28,12 @@ import org.springframework.test.context.ActiveProfiles;
 @ActiveProfiles("local")
 @Import(DmeTestSupport.Config.class)
 class LayoutRegistrationSqliteTest extends LayoutServiceTestSupport {
+
+    @Autowired
+    private LayoutDictionary dictionary;
+
+    @Autowired
+    private LayoutConstJudge constJudge;
 
     @BeforeEach
     void setUp() {
@@ -76,6 +85,21 @@ class LayoutRegistrationSqliteTest extends LayoutServiceTestSupport {
     @Test
     void 거부_2_CONST_값이_도메인_유효_식을_위반하면_L12() {
         String msg = reject(with(row("CONST", "FLAG1", "2")));
+        assertTrue(msg.startsWith("전문 저장 거부: L12[5]"), msg);
+    }
+
+    @Test
+    void 도메인_없는_컬럼은_기본_타입으로_사전이_채워지고_CONST_값도_기본_타입으로_판정한다() {
+        jdbc.update("INSERT INTO TB_MDM_COLUMN (COLUMN_NAME, LABEL_LONG, PHYS_NAME, DOMAIN_ID, DATA_TYPE, LENGTH, SCALE, REQUIRED, CHG_SEQ, VER) "
+                + "VALUES ('기본 타입 수치', NULL, 'BASE_NUM', NULL, 'NUMBER', 3, 1, 0, 0, 0)");
+        var info = dictionary.byPhysNames(List.of("BASE_NUM")).get("BASE_NUM");
+        assertEquals("NUMBER", info.dataType());
+        assertEquals(3, info.length());
+        assertEquals(1, info.scale());
+        assertEquals(LayoutConstJudge.Judgement.FAIL, constJudge.judge("BASE_NUM", "ABC").result());
+        assertEquals(LayoutConstJudge.Judgement.FAIL, constJudge.judge("BASE_NUM", "12345").result(), "자리수 초과");
+        assertEquals(LayoutConstJudge.Judgement.PASS, constJudge.judge("BASE_NUM", "1.5").result());
+        String msg = reject(with(row("CONST", "BASE_NUM", "ABC")));
         assertTrue(msg.startsWith("전문 저장 거부: L12[5]"), msg);
     }
 

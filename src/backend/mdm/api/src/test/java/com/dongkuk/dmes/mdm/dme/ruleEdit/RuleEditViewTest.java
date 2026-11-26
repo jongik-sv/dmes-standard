@@ -361,9 +361,12 @@ class RuleEditViewTest extends AbstractMdmSharedDbTest {
         DmeTestSupport.var(jdbc, "PREV_JDG", 1, 1, "RESULT", "Value", "PREV_GRADE", 1, "STRING");
         DmeTestSupport.pending(jdbc, "QLTY_GRD_JDG", 2, "DRAFT", "kim", "FIRST", 1);
         DmeTestSupport.sampleDefinition(jdbc, "QLTY_GRD_JDG", 2);
+        // 도메인도 기본 타입도 없는 컬럼 — 유효 타입이 없어 후보에서 빠진다
+        jdbc.update("INSERT INTO TB_MDM_COLUMN (COLUMN_NAME, PHYS_NAME) VALUES ('NO_TYPE_COL', 'NO_TYPE_COL')");
 
         RuleEditViewResult v = view("QLTY_GRD_JDG", 2);
         List<RuleEditViewResult.VarCandidate> cand = v.getVarCandidates();
+        assertTrue(cand.stream().noneMatch(c -> "NO_TYPE_COL".equals(c.getName())), "도메인·기본 타입이 없는 컬럼은 후보가 아니다");
         assertTrue(cand.stream().anyMatch(c -> "COIL_THK".equals(c.getName()) && "COLUMN".equals(c.getKind())),
                 "컬럼 사전 물리명(datalist 소스)");
         assertTrue(cand.stream().anyMatch(c -> "PREV_GRADE".equals(c.getName()) && "RULE_RESULT".equals(c.getKind())),

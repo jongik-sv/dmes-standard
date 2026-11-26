@@ -101,6 +101,9 @@ class DomainMngDeleteTest extends DomainMngApiSupport {
         assertEquals(15, ((Number) row(c).get("LENGTH")).intValue(), "지운 도메인의 길이를 하위가 받는다");
         assertEquals("value >= 0", row(c).get("STD_RULE"), "지운 도메인의 표준식을 하위가 받는다");
         assertEquals(p, columnDomain(col), "참조 컬럼은 부모 도메인으로 옮긴다");
+        assertNull(jdbc.queryForObject("SELECT DATA_TYPE FROM TB_MDM_COLUMN WHERE COLUMN_ID = ?", String.class, col),
+                "부모로 옮긴 컬럼은 기본 타입을 받지 않는다");
+        assertEquals(0, out.get("baseTypedColumnCount"));
         assertEquals(List.of(c), ((List<?>) out.get("movedDomainIds")).stream().map(DomainMngDeleteTest::id).toList());
         assertEquals(1, out.get("movedColumnCount"));
         assertEquals(p, id(out.get("newParentDomainId")));
@@ -121,7 +124,7 @@ class DomainMngDeleteTest extends DomainMngApiSupport {
         }), cases(tc("Y", true), tc("X", false)));
         Long col = column(root);
 
-        delete(root);
+        Map<String, Object> out = delete(root);
 
         assertTrue(!exists(root));
         assertNull(parentOf(child));
@@ -129,6 +132,10 @@ class DomainMngDeleteTest extends DomainMngApiSupport {
         assertEquals("value == \"Y\" || value == \"N\"", row(child).get("STD_RULE"),
                 "최상위 FLAG 는 표준식이 있어야 한다(S04) — 지운 도메인 식을 받는다");
         assertNull(columnDomain(col), "부모가 없으면 참조 컬럼의 도메인을 비운다");
+        Map<String, Object> colRow = jdbc.queryForMap("SELECT DATA_TYPE, LENGTH FROM TB_MDM_COLUMN WHERE COLUMN_ID = ?", col);
+        assertEquals("STRING", colRow.get("DATA_TYPE"), "비운 컬럼은 지운 도메인의 유효 타입을 기본 타입으로 받는다");
+        assertEquals(1, ((Number) colRow.get("LENGTH")).intValue());
+        assertEquals(1, out.get("baseTypedColumnCount"));
     }
 
     /** 저장 검사를 거치지 않고 들어온 행(이관 데이터) — 코드 참조 없는 CODE 트리. */

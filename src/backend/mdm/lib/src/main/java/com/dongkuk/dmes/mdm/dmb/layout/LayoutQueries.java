@@ -252,6 +252,20 @@ public class LayoutQueries {
         return em.createNativeQuery(COLUMNS_BY_PHYS_SQL).setParameter("names", physNames).getResultList();
     }
 
+    /**
+     * 컬럼 기본 타입 {@code [PHYS_NAME, DATA_TYPE, LENGTH, SCALE]} — 기본 타입이 있는 컬럼만. LENGTH 는 예약어라 네이티브 SQL 에 쓰지 않고
+     * 엔티티(JPQL)로 읽는다. 물리명은 {@link #IN_CHUNK} 개씩 나눠 읽는다.
+     */
+    public List<Object[]> baseTypesByPhys(Collection<String> physNames) {
+        List<Object[]> out = new ArrayList<>();
+        for (List<String> chunk : chunks(physNames)) {
+            out.addAll(em.createQuery("SELECT c.physName, c.dataType, c.length, c.scale FROM MdmColumn c "
+                    + "WHERE c.physName IN :names AND c.dataType IS NOT NULL", Object[].class)
+                    .setParameter("names", chunk).getResultList());
+        }
+        return out;
+    }
+
     /** {@code [SYSTEM_CODE, SYSTEM_NAME]}. */
     @SuppressWarnings("unchecked")
     public List<Object[]> systems() {
