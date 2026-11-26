@@ -112,7 +112,8 @@ class ColumnMngQueryCountTest extends AbstractMdmSharedDbTest {
             assertTerms(t, m.result());
         }
         assertEquals(counts.get("view3"), counts.get("view10"), counts::toString);
-        assertTrue(counts.get("view10") <= 3, counts::toString);
+        // 3(컬럼·매핑·용어 IN) + 2(도메인 유효 타입 — 조상 CTE·체인 IN, 2026-11-26 컬럼 기본 타입). 용어 수와 무관한 상수다
+        assertTrue(counts.get("view10") <= 5, counts::toString);
     }
 
     /**

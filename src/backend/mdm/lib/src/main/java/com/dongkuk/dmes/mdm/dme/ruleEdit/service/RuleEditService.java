@@ -2,8 +2,10 @@ package com.dongkuk.dmes.mdm.dme.ruleEdit.service;
 
 import com.dongkuk.dmes.cactus.common.BusinessException;
 import com.dongkuk.dmes.cactus.common.ErrorCode;
+import com.dongkuk.dmes.mdm.common.dictionary.ColumnEffectiveType;
 import com.dongkuk.dmes.mdm.common.dictionary.DomainNode;
 import com.dongkuk.dmes.mdm.common.dictionary.DomainTreeReader;
+import com.dongkuk.dmes.mdm.common.dictionary.DomainTreeSnapshot;
 import com.dongkuk.dmes.mdm.common.rule.RuleExprParser;
 import com.dongkuk.dmes.mdm.common.rule.RuleQueries;
 import com.dongkuk.dmes.mdm.common.rule.RuleScreenSupport;
@@ -126,7 +128,8 @@ public class RuleEditService {
         String kw = request == null ? null : RuleScreenSupport.blankToNull(request.getKeyword());
         String needle = kw == null ? "" : kw.toUpperCase(Locale.ROOT);
         List<DomainNode> matched = new ArrayList<>();
-        for (DomainNode n : domainTreeReader.load().nodes()) {
+        DomainTreeSnapshot snapshot = domainTreeReader.load();
+        for (DomainNode n : snapshot.nodes()) {
             if (needle.isEmpty() || contains(n.stdName(), needle) || contains(n.domainName(), needle)) {
                 matched.add(n);
             }
@@ -137,9 +140,24 @@ public class RuleEditService {
                         : n.stdName() != null && n.stdName().toUpperCase(Locale.ROOT).startsWith(needle) ? 1 : 2)
                 .thenComparing(n -> n.stdName() == null ? "" : n.stdName().toUpperCase(Locale.ROOT)));
         return new RuleDomainSearchResult(matched.stream().limit(DOMAIN_SEARCH_LIMIT)
-                .map(n -> new RuleDomainSearchResult.Row(n.domainId(), n.stdName(), n.domainName(), n.domainKind(),
-                        n.dataType(), n.length(), n.scale(), n.stdRule()))
+                .map(n -> domainRow(n, snapshot))
                 .toList());
+    }
+
+    /**
+     * 도메인 한 행 — 자기 값(dataType·length·scale)에 상위에서 물려받은 유효 값(effective*)을 덧붙인다. 컬럼 폼이 도메인을 뺄 때
+     * 기본 타입 칸을 채우는 출처다(2026-11-26 컬럼 기본 타입). 체인을 조립할 수 없으면 effective* 는 null.
+     */
+    private static RuleDomainSearchResult.Row domainRow(DomainNode n, DomainTreeSnapshot snapshot) {
+        RuleDomainSearchResult.Row row = new RuleDomainSearchResult.Row(n.domainId(), n.stdName(), n.domainName(),
+                n.domainKind(), n.dataType(), n.length(), n.scale(), n.stdRule());
+        ColumnEffectiveType effective = ColumnEffectiveType.ofDomain(n.domainId(), snapshot);
+        if (effective != null) {
+            row.setEffectiveDataType(effective.dataType());
+            row.setEffectiveLength(effective.length());
+            row.setEffectiveScale(effective.scale());
+        }
+        return row;
     }
 
     private static boolean equalsIgnoreCase(String value, String needle) {

@@ -50,6 +50,21 @@ public class MdmColumn extends CactusAuditEntity {
     @Column(name = "DOMAIN_ID")
     private Long domainId;
 
+    /**
+     * 컬럼 기본 타입 — 룰 엔진 DataType 4종(NUMBER·STRING·BOOLEAN·DATE). 도메인이 있으면 NULL(도메인 값이 유효 타입),
+     * 도메인이 없을 때만 유효 타입의 출처가 된다(V11).
+     */
+    @Column(name = "DATA_TYPE", length = 20)
+    private String dataType;
+
+    /** 컬럼 기본 길이(V11). 도메인이 있으면 NULL. */
+    @Column(name = "LENGTH")
+    private Integer length;
+
+    /** 컬럼 기본 소수 자릿수(V11). 도메인이 있으면 NULL. */
+    @Column(name = "SCALE")
+    private Integer scale;
+
     @Column(name = "REQUIRED", nullable = false)
     private boolean required;
 
@@ -93,6 +108,9 @@ public class MdmColumn extends CactusAuditEntity {
     public String getPhysName() { return physName; }
     public String getDescription() { return description; }
     public Long getDomainId() { return domainId; }
+    public String getDataType() { return dataType; }
+    public Integer getLength() { return length; }
+    public Integer getScale() { return scale; }
     public boolean isRequired() { return required; }
     public String getDefaultValue() { return defaultValue; }
     public String getRefKind() { return refKind; }
@@ -109,6 +127,9 @@ public class MdmColumn extends CactusAuditEntity {
     public void setPhysName(String v) { this.physName = v; }
     public void setDescription(String v) { this.description = v; }
     public void setDomainId(Long v) { this.domainId = v; }
+    public void setDataType(String v) { this.dataType = v; }
+    public void setLength(Integer v) { this.length = v; }
+    public void setScale(Integer v) { this.scale = v; }
     public void setRequired(boolean v) { this.required = v; }
     public void setDefaultValue(String v) { this.defaultValue = v; }
     public void setRefKind(String v) { this.refKind = v; }

@@ -14,7 +14,7 @@ import org.springframework.stereotype.Component;
 /**
  * 컬럼 상세({@code columnMng.view})에 싣는 도메인 상세 — 이름·표준명·종류와 상속 체인으로 조립한 유효 타입·길이·소수·단위.
  *
- * <p>컬럼에는 타입·길이 칸이 없어 모두 도메인에서 온다. 조상 체인 CTE 로 체인 id 만 골라 읽고(SQL 2문, 도메인 전체를 읽지 않는다)
+ * <p>도메인 있는 컬럼의 유효 타입은 모두 도메인에서 온다(컬럼 기본 타입 칸은 도메인 없는 컬럼만 쓴다, V11). 조상 체인 CTE 로 체인 id 만 골라 읽고(SQL 2문, 도메인 전체를 읽지 않는다)
  * {@link DomainChainAssembler} 로 조립한다 — 상속 규칙을 다시 구현하지 않는다(레이아웃 {@code LayoutDictionary} 와 같은 조립 경로).
  * 순환·깨진 체인은 이름·표준명만 싣고 파생값은 null 이다.
  */

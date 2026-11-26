@@ -312,6 +312,29 @@ class RuleEditViewTest extends AbstractMdmSharedDbTest {
     }
 
     @Test
+    void searchDomains_행은_상위에서_물려받은_유효_타입_길이_소수를_싣는다() {
+        long parent = DmeTestSupport.domain(jdbc, "QTY_P_D", "QTY", "NUMBER", 3);
+        jdbc.update("UPDATE TB_MDM_DOMAIN SET LENGTH = 13 WHERE DOMAIN_ID = ?", parent);
+        // 하위 행의 DATA_TYPE 은 NOT NULL 이지만 유효 타입은 최상위 값이다 — 길이·소수는 비워 상위에서 물려받게 한다
+        jdbc.update("INSERT INTO TB_MDM_DOMAIN (DOMAIN_NAME, STD_NAME, DOMAIN_KIND, DATA_TYPE, PARENT_DOMAIN_ID, VER)"
+                + " VALUES (?, ?, ?, ?, ?, 0)", "QTY_C_D", "QTY_C_D", "QTY", "STRING", parent);
+
+        RuleDomainSearchRequest q = new RuleDomainSearchRequest();
+        q.setKeyword("QTY_C_D");
+        RuleDomainSearchResult.Row child = service.searchDomains(q).getRows().get(0);
+        assertEquals("QTY_C_D", child.getStdName());
+        assertNull(child.getLength(), "자기 칸은 그대로(비어 있음)");
+        assertEquals("STRING", child.getDataType(), "자기 칸은 그대로");
+        assertEquals("NUMBER", child.getEffectiveDataType(), "타입은 최상위에서");
+        assertEquals(13, child.getEffectiveLength(), "길이는 상위에서 물려받는다");
+        assertEquals(3, child.getEffectiveScale());
+
+        q.setKeyword("QTY_P_D");
+        RuleDomainSearchResult.Row self = service.searchDomains(q).getRows().get(0);
+        assertEquals(13, self.getEffectiveLength(), "최상위는 자기 값 그대로");
+    }
+
+    @Test
     void searchDomains_는_표준명_도메인명이_검색어와_같은_도메인을_맨_앞에_둔다() {
         for (int i = 1; i <= 10; i++) {
             long id = DmeTestSupport.domain(jdbc, "A_FLAG_" + i, "TEXT", "STRING", null);
