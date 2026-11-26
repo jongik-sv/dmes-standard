@@ -18,6 +18,10 @@ import { ResizableLayoutCatalogScreen } from "./screens/ResizableLayoutCatalogSc
 import { ChartDashboardScreen } from "./screens/ChartDashboardScreen";
 import { WorkOrderGanttScreen } from "./screens/WorkOrderGanttScreen";
 import { JobSchedulerScreen } from "./screens/JobSchedulerScreen";
+import { DispatchInquiryScreen } from "./screens/m30/DispatchInquiryScreen";
+import { StockByGroupScreen } from "./screens/m30/StockByGroupScreen";
+import { IncomingInspectionScreen } from "./screens/m30/IncomingInspectionScreen";
+import { ConsumptionResultScreen } from "./screens/m30/ConsumptionResultScreen";
 
 const MODULE_ID = "design-dummy";
 const HOME_PAGE_ID = `${MODULE_ID}:guide/overview`;
@@ -126,6 +130,22 @@ const PORTAL_MENU: PortalShellMenuResponse = {
       ),
       page("quality", "부적합가공검토", "sample/quality", "sample-screens"),
     ]),
+    directory("m30-screens", "부재료관리(M30)", [
+      page("m30-dispatch", "배차정보 조회", "m30/dispatch", "m30-screens"),
+      page(
+        "m30-inspection",
+        "수입검사대상조회",
+        "m30/inspection",
+        "m30-screens",
+      ),
+      page("m30-consumption", "소모실적조회", "m30/consumption", "m30-screens"),
+      page(
+        "m30-stock-group",
+        "재고현황(그룹별)조회",
+        "m30/stock-group",
+        "m30-screens",
+      ),
+    ]),
     directory("system-screens", "시스템관리(시안)", [
       page(
         "job-scheduler",
@@ -175,6 +195,19 @@ const WorkOrderGanttPage: PortalShellPageComponent = () => (
 
 const JobSchedulerPage: PortalShellPageComponent = () => <JobSchedulerScreen />;
 
+const M30DispatchPage: PortalShellPageComponent = () => (
+  <DispatchInquiryScreen />
+);
+const M30InspectionPage: PortalShellPageComponent = () => (
+  <IncomingInspectionScreen />
+);
+const M30ConsumptionPage: PortalShellPageComponent = () => (
+  <ConsumptionResultScreen />
+);
+const M30StockGroupPage: PortalShellPageComponent = () => (
+  <StockByGroupScreen />
+);
+
 const PAGE_COMPONENTS = new Map<string, PortalShellPageComponent>([
   [HOME_PAGE_ID, OverviewPage],
   [`${MODULE_ID}:catalog/form-feedback`, FormFeedbackPage],
@@ -188,6 +221,10 @@ const PAGE_COMPONENTS = new Map<string, PortalShellPageComponent>([
   [`${MODULE_ID}:sample/work-order-gantt`, WorkOrderGanttPage],
   [`${MODULE_ID}:sample/quality`, QualityPage],
   [`${MODULE_ID}:system/job-scheduler`, JobSchedulerPage],
+  [`${MODULE_ID}:m30/dispatch`, M30DispatchPage],
+  [`${MODULE_ID}:m30/inspection`, M30InspectionPage],
+  [`${MODULE_ID}:m30/consumption`, M30ConsumptionPage],
+  [`${MODULE_ID}:m30/stock-group`, M30StockGroupPage],
 ]);
 
 export function App() {
