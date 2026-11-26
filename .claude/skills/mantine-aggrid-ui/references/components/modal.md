@@ -69,9 +69,9 @@ export function UnitRegModal({ open, isBusy, onClose, onSubmit }: {
 
 모달 위에 모달을 띄워도(예: SQL 큰 창 위의 확인 창) ESC 한 번에 맨 위 하나만 닫힌다. 열린 모달 순서는 `modal-stack.ts` 가 관리하고 `closeOnEscape` 와 Tab 가두기는 맨 위 모달만 처리한다. 화면에서 따로 할 일은 없다. 단, `modals.open*`(Mantine `ModalsProvider`)로 띄운 창은 순서표 밖이다.
 
-### 바깥을 눌러도 닫히지 않게
+### 바깥 누름과 닫기
 
-긴 입력 초안이 있는 창은 `closeOnClickOutside={false}` 로 둔다. X·ESC·[취소]로는 지금처럼 닫힌다.
+모든 창은 기본으로 바깥(오버레이)을 눌러도 닫히지 않는다(2026-11-26부터, 알림·확인 창 `MessageModal` 포함). 잘못 누른 한 번에 입력하던 내용이 사라지지 않게 하려는 것이다. X·ESC·[취소]·[닫기]로 닫는다. 닫혀도 잃을 것이 없는 창에서 바깥 누름으로 닫고 싶을 때만 `closeOnClickOutside` 를 켠다.
 
 ### 사용자가 크기를 조절하게 하기
 
@@ -98,7 +98,7 @@ Modal
 | className | `string` | `""` | 창에 붙일 클래스 |
 | bodyClassName | `string` | `""` | 본문에 붙일 클래스 |
 | descriptionId | `string` | - | 창이 설명으로 참조할 본문 요소 id |
-| closeOnClickOutside | `boolean` | `true` | 바깥(오버레이) 누름으로 닫을지. 초안이 사라지면 곤란한 창(SQL 큰 창 등)만 `false`. X·ESC·[취소]는 영향 없다 |
+| closeOnClickOutside | `boolean` | `false` | 바깥(오버레이) 누름으로 닫을지. 기본은 닫지 않는다. 닫혀도 잃을 것이 없는 창만 `true`. X·ESC·[취소]는 영향 없다 |
 | resizable | `boolean` | `false` | 오른쪽 아래 모서리 손잡이로 창 크기를 조절한다. 최소 480×320, 최대는 화면 안. 조절하면 창에 `cm-modal--resized` 클래스 |
 | draggable | `boolean` | `false` | 제목 줄을 끌어 창 위치를 옮긴다. 머리줄은 항상 화면 안, 두 번 누르면 가운데·기본 크기로 복귀 |
 | resizeStorageKey | `string` | - | `resizable`·`draggable` 일 때 조절한 크기·위치를 localStorage 에 이 키로 남긴다(없으면 열려 있는 동안만 유지) |
@@ -132,7 +132,8 @@ MessageModal (보통 `MessageProvider` 가 대신 띄운다)
 | 실행 버튼을 왼쪽에, 취소를 오른쪽에 둔다 | 취소가 왼쪽, 실행(primary)이 오른쪽이다 |
 | 버튼 문구를 "확인"으로 통일한다 | 동작 그대로("저장"·"적용"·"선택")를 쓴다 |
 | `onClose` 를 안 준다 | ESC·X 로 닫히지 않는다. 항상 준다 |
-| 처리 중에도 바깥 클릭으로 닫힌다 | `onClose` 안에서 `isBusy` 를 보고 무시한다 |
+| 처리 중에도 ESC·X 로 닫힌다 | `onClose` 안에서 `isBusy` 를 보고 무시한다 |
+| 바깥 누름을 막으려고 `closeOnClickOutside={false}` 를 붙인다 | 기본이 이미 닫지 않음이다. 붙이지 않는다 |
 | 알림을 `MessageModal` 로 직접 그린다 | `showMessage` 를 쓴다([message](message.md)) |
 | 같은 화면에 `Modal` 을 여러 개 같은 상태로 연다 | 팝업마다 열림 상태를 따로 둔다 |
 

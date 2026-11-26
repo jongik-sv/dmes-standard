@@ -417,7 +417,10 @@ export interface ModalProps {
   bodyClassName?: string;
   /** dialog이 설명으로 참조할 소비처 본문 요소 ID. */
   descriptionId?: string;
-  /** 바깥(오버레이) 누름으로 닫을지. 기본 true. 초안이 사라지면 곤란한 창(SQL 큰 창 등)만 false. X·Esc·[취소]는 영향 없다. */
+  /**
+   * 바깥(오버레이) 누름으로 닫을지. 기본 false(2026-11-26) — 잘못 누른 한 번에 입력하던 내용이 사라지지 않게 모든 창이 X·Esc·[취소]·[닫기]로만 닫힌다.
+   * 바깥 누름으로 닫혀도 잃을 것이 없는 창만 true 로 켠다.
+   */
   closeOnClickOutside?: boolean;
   /**
    * 오른쪽 아래 모서리 손잡이를 끌어 창 크기를 조절한다. 기본 false(지금 그대로). 최소 480×320, 최대는 화면 안.
@@ -459,7 +462,7 @@ function ModalCore({
   showCloseButton = true,
   bodyClassName = "",
   descriptionId,
-  closeOnClickOutside = true,
+  closeOnClickOutside = false,
   resizable = false,
   draggable = false,
   resizeStorageKey,
