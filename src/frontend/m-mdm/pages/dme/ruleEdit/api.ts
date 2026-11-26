@@ -92,7 +92,7 @@ export interface ValueTestRequest {
    */
   caseIds?: number[];
   /**
-   * 저장 전 케이스 판정 — 수정 팝업의 "테스트 실행". 켜면 inputJson 의 결과를 expectedJson 과 서버가 견줘 `draftCase` 로 돌려준다(I24).
+   * 저장 전 케이스 판정 — 케이스 상세의 "테스트 실행". 켜면 inputJson 의 결과를 expectedJson 과 서버가 견줘 `draftCase` 로 돌려준다(I24).
    * 빈 expectedJson 은 "실행만"(pass null)이다.
    */
   judge?: { expectedJson: string };

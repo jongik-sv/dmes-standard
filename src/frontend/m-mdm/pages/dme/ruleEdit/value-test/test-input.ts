@@ -26,7 +26,7 @@ export interface InputField {
   description: string | null;
 }
 
-/** 다른 카드(⑥ 케이스 수정 팝업)에 넘기는 입력 줄 요약. */
+/** 다른 카드(⑥ 케이스 상세)에 넘기는 입력 줄 요약. */
 export type InputFieldInfo = Pick<InputField, "name" | "label" | "typeBadge" | "contractBadge">;
 
 export interface InputFieldsResult {
@@ -193,7 +193,7 @@ export function inputFromReads(
  * MISSING_KEY) 로 처리한다 — 화면에서 그 사실을 미리 보이게 하는 것이 목적이고, 값 판정은
  * 여전히 서버 몫이다(I21).
  *
- * <p>JSON 객체가 아니면 원본을 그대로 돌려준다(수정 팝업의 입력 검사가 따로 잡는다).
+ * <p>JSON 객체가 아니면 원본을 그대로 돌려준다(상세의 입력 검사가 따로 잡는다).
  */
 export function mergeMissingInputKeys(inputJson: string, fields: readonly Pick<InputField, "name">[]): string {
   let parsed: Record<string, unknown>;

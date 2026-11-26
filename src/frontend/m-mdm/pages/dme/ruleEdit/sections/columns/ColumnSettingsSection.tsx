@@ -1,16 +1,17 @@
 "use client";
 
 /**
- * 열 설정 섹션(TSK-08-03 design §2.1) — 의사결정표 아래에서 모든 열을 한 번에 고치는 **초안 → 전체 검사 → 원자 적용/초안 버리기** 흐름.
+ * 열 설정 팝업(TSK-08-03 design §2.1, 2026-11-04 표 아래 섹션에서 팝업으로 옮김) — 모든 열을 한 번에 고치는 **초안 → 전체 검사 → 원자 적용/초안 버리기** 흐름.
+ * 표 카드 [열 설정] 으로 연다. 초안·식 파싱은 팝업 밖 이 컴포넌트에 있어 창을 닫아도 남고, 표 저장 막기(불변 13)도 그대로다.
  * 초안은 `column-draft.ts`(순수 함수)가 검사·적용 계산을 하고, 이 컴포넌트는 그리기·서버 호출만 한다. 적용은 part COLUMNS 한 번의 요청이며
  * 거부가 하나라도 있으면 요청을 만들지 않는다(불변 2). 초안이 dirty 면 표 저장·열 머리 드래그를 막는다(불변 13, `DecisionTableCard`).
- * 초안은 sessionStorage 키 `mdm-ruleEdit-colDraft:{ruleId}:{ver}` 에 둔다(시안 ST.cd 관례). 섹션은 처음에 접혀 있다(2026-10-01).
+ * 초안은 sessionStorage 키 `mdm-ruleEdit-colDraft:{ruleId}:{ver}` 에 둔다(시안 ST.cd 관례).
  * 표는 의사결정표와 같은 shared `AgDataGrid`(`column-grid.tsx`)다. 식 칸(변수 식·열 조건·산출 결과 식)의 서버 파싱은 보이지 않는
  * `ExprProbe` 가 맡고, 참조 변수·오류·미리보기는 "식 결과" 칸에 보인다.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { AgDataGrid, GRID_HEADER_HEIGHT } from "@dk-oasis/shared/grid";
+import { AgDataGrid } from "@dk-oasis/shared/grid";
 import { Button, Input } from "@dk-oasis/shared/form";
 import { Modal } from "@dk-oasis/shared/modal";
 import { DomainSearchBox, matchDomain } from "@/domain";
@@ -23,7 +24,6 @@ import { parsePreviewInput } from "../../expr/preview-input";
 import { useParseExpr } from "../../expr/useParseExpr";
 import type { DomainRow, VarCandidate } from "../../types";
 import { useColumnDraftShared } from "../column-draft-context";
-import { SectionFrame } from "../SectionFrame";
 import {
   addColumn,
   applyColumnDraft,
@@ -118,17 +118,14 @@ export function ColumnSettingsSection({ view, editable, runWrite, notify, setDir
   const [domainEdits, setDomainEdits] = useState(0);
   const domainSeq = useRef(0);
   const [previewText, setPreviewText] = useState("");
-  // 처음에는 접어 둔다(2026-10-01 — 표를 먼저 보이게). 열 머리를 누르거나(highlightVarId), 표 카드의 [열 설정 보기]
-  // (적중 정책을 바꿔 열 설정과 어긋날 때), 저장 안 한 초안을 되살렸을 때 펼친다. 접혀도 제목 줄의 초안·읽기 전용 배지는 보인다.
-  const [open, setOpen] = useState(false);
+  const open = shared.columnsOpen ?? true;
+  const close = () => shared.setColumnsOpen?.(false);
   const counter = useRef(0);
 
   // view 가 바뀌면(룰·버전 전환·적용 뒤 다시 불러오기) 초안을 다시 잡는다 — 같은 row_version 의 저장 초안이 있으면 되살린다.
   useEffect(() => {
     const restored = storageKey && canEdit ? readStored(storageKey, selected?.rowVersion ?? -1) : null;
     setRows(restored ?? baseline);
-    // 되살린 초안은 표 저장을 막으므로(불변 13) 무엇이 남았는지 보이게 펼친다.
-    if (restored) setOpen(true);
     setApplyRejects(null);
     setDomainPopup(null);
   }, [baseline, storageKey, canEdit, selected?.rowVersion]);
@@ -160,17 +157,10 @@ export function ColumnSettingsSection({ view, editable, runWrite, notify, setDir
   const varById = useMemo(() => new Map(view.vars.map((v) => [v.varId, v])), [view.vars]);
   const baseByKey = useMemo(() => new Map(baseline.map((r) => [r.key, r])), [baseline]);
 
-  // 열 머리를 누르면 그 줄을 하이라이트·스크롤한다. 접혀 있으면 먼저 펼친다.
-  const { highlightVarId, revealSeq = 0 } = shared;
-  useEffect(() => {
-    if (highlightVarId != null) setOpen(true);
-  }, [highlightVarId]);
-  // 표 카드의 [열 설정 보기](적중 정책이 열 설정과 어긋날 때) — 누를 때마다 펼친다.
-  useEffect(() => {
-    if (revealSeq > 0) setOpen(true);
-  }, [revealSeq]);
+  // 열 머리를 누르면 그 줄을 기억해 두었다가 팝업을 열 때 하이라이트·스크롤한다. 머리를 누른다고 팝업을 열지는 않는다 — 표를 가린다.
+  const { highlightVarId } = shared;
   const highlightKey = highlightVarId == null ? null : (rows.find((r) => r.varId === highlightVarId)?.key ?? null);
-  // 그리드는 안에서만 스크롤하므로(scrollToRow) 페이지도 그 줄이 보이게 옮긴다. 펼친 뒤 행이 그려진 다음 프레임에 한다.
+  // 그리드는 안에서만 스크롤하므로(scrollToRow) 팝업 본문도 그 줄이 보이게 옮긴다. 연 뒤 행이 그려진 다음 프레임에 한다.
   useEffect(() => {
     if (highlightKey == null || !open) return;
     const id = requestAnimationFrame(() => {
@@ -300,6 +290,8 @@ export function ColumnSettingsSection({ view, editable, runWrite, notify, setDir
     if (saved) {
       writeStored(storageKey, null);
       notify({ kind: "info", text: res.notices.length > 0 ? res.notices.map(noticeText).join(" ") : "열 설정을 적용했습니다." });
+      // 결과 알림은 화면 위 정보 줄에 나온다 — 창을 닫아 바뀐 표와 함께 보이게 한다.
+      close();
     }
   };
 
@@ -309,37 +301,74 @@ export function ColumnSettingsSection({ view, editable, runWrite, notify, setDir
   const domainRow = domainPopup ? rows.find((r) => r.key === domainPopup.key) : undefined;
 
   return (
-    <SectionFrame
-      testId="rule-section-columns"
-      title="열 설정"
-      open={open}
-      onOpenChange={setOpen}
-      headerExtra={
-        <>
-          {dirty && (
-            <span data-testid="col-dirty" style={badgeStyle("warning")}>
-              열 설정 초안(저장 안 함)
-            </span>
-          )}
-          {!canEdit && (
-            <span data-testid="col-readonly" style={badgeStyle("muted")}>
-              읽기 전용
-            </span>
-          )}
-        </>
-      }
-    >
+    <>
+      {/* 식 파싱은 창이 닫혀 있어도 돈다 — 초안 검사(거부 수)가 이 결과에 기댄다. */}
       {probes.map(([k, x]) => (
         <ExprProbe key={k} text={x.text} slot={x.slot} enabled={parseEnabled} candidates={candidates} onParsed={onParsed} />
       ))}
-      {/* 바깥 상자는 높이를 고정하지 않는다 — 머리줄이 표 위에 더해지고, 칸별 필터 입력 줄을 펴면 그리드가 숫자 height 에 그 줄 높이를 더해 내용만큼 늘어나 아래 요소와 겹치지 않는다. */}
-      <div data-testid="col-table" style={{ paddingTop: "var(--spacing-xs)" }}>
-        <AgDataGrid gridId="columnSettings"
+      <Modal
+        open={open}
+        title={`열 설정 · ${view.rule.maruRuleId}`}
+        size="xl"
+        resizable
+        draggable
+        resizeStorageKey="mdm-ruleEdit-columnsPopup"
+        onClose={close}
+        footer={
+          <>
+            {canEdit && (
+              <>
+                <Button disabled={!dirty || busy} data-testid="col-discard" onClick={discard}>
+                  초안 버리기
+                </Button>
+                <Button variant="primary" disabled={!dirty || disabled || !canDo("save")} data-testid="col-apply" onClick={() => void apply()}>
+                  열 설정 적용
+                </Button>
+              </>
+            )}
+            <Button onClick={close}>닫기</Button>
+          </>
+        }
+      >
+      {/* 창 높이를 채운다 — 표 상자가 남은 높이를 받고(최소 gridHeight), 창을 키우면 표가 같이 늘어난다(2026-11-25). */}
+      <div data-testid="rule-section-columns" style={{ flex: "1 1 auto", minHeight: 0, display: "flex", flexDirection: "column" }}>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--spacing-xs)", alignItems: "center", paddingBottom: "var(--spacing-xs)" }}>
+        {canEdit && !derive && (
+          <Button disabled={disabled} data-testid="col-add-cond" onClick={() => add("COND")}>
+            조건 열 추가
+          </Button>
+        )}
+        {canEdit && (
+          <Button disabled={disabled} data-testid="col-add-result" onClick={() => add("RESULT")}>
+            결과 열 추가
+          </Button>
+        )}
+        {dirty && (
+          <span data-testid="col-dirty" style={badgeStyle("warning")}>
+            열 설정 초안(저장 안 함)
+          </span>
+        )}
+        {!canEdit && (
+          <span data-testid="col-readonly" style={badgeStyle("muted")}>
+            읽기 전용
+          </span>
+        )}
+        {canEdit && (
+          <>
+            <span style={{ marginLeft: "auto", color: "var(--color-text-secondary)" }}>미리보기 입력</span>
+            <Input data-testid="col-preview-input" value={previewText} placeholder="COIL_THK=1.8, COIL_WID=1200" onChange={setPreviewText} style={{ width: 260 }} />
+          </>
+        )}
+      </div>
+      {/* 표 상자는 남은 높이를 받고, 안쪽 절대 위치 상자가 그 높이를 확정해 그리드(height 생략 = 부모 채움)가 채운다.
+          칸별 필터 입력 줄을 펴도 그리드 안에서 표가 줄어들 뿐 아래 요소와 겹치지 않는다. */}
+      <div data-testid="col-table" style={{ flex: "1 1 auto", minHeight: gridHeight, position: "relative", marginTop: "var(--spacing-xs)" }}>
+        <div style={{ position: "absolute", inset: 0 }}>
+        <AgDataGrid gridId="modal-columnSettings"
           key={gridKey}
           columns={columns}
           data={data}
           rowKey="rowKey"
-          height={gridHeight - GRID_HEADER_HEIGHT}
           columnSizing="fixed"
           sortable={false}
           singleClickEdit
@@ -354,37 +383,8 @@ export function ColumnSettingsSection({ view, editable, runWrite, notify, setDir
           emptyMessage="열이 없습니다."
           ariaLabel="열 설정"
         />
-      </div>
-      <Modal open={!!domainRow} title={`값 타입 도메인 찾기 · ${domainRow?.varName || "새 열"}`} size="md" onClose={() => setDomainPopup(null)}>
-        {domainRow && (
-          <DomainSearchBox
-            search={searchDomains}
-            key={`${domainRow.key}:${domainPopup?.keyword ?? ""}`}
-            testId={`col-domain-${domainRow.key}`}
-            initialKeyword={domainPopup?.keyword}
-            onPick={(d) => pickDomain(domainRow.key, d)} onClose={() => setDomainPopup(null)} />
-        )}
-      </Modal>
-      {canEdit && (
-        <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--spacing-xs)", paddingTop: "var(--spacing-sm)", alignItems: "center" }}>
-          {!derive && (
-            <Button disabled={disabled} data-testid="col-add-cond" onClick={() => add("COND")}>
-              조건 열 추가
-            </Button>
-          )}
-          <Button disabled={disabled} data-testid="col-add-result" onClick={() => add("RESULT")}>
-            결과 열 추가
-          </Button>
-          <Button variant="primary" disabled={!dirty || disabled || !canDo("save")} data-testid="col-apply" onClick={() => void apply()}>
-            열 설정 적용
-          </Button>
-          <Button disabled={!dirty || busy} data-testid="col-discard" onClick={discard}>
-            초안 버리기
-          </Button>
-          <span style={{ color: "var(--color-text-secondary)" }}>미리보기 입력</span>
-          <Input data-testid="col-preview-input" value={previewText} placeholder="COIL_THK=1.8, COIL_WID=1200" onChange={setPreviewText} style={{ width: 260 }} />
         </div>
-      )}
+      </div>
       {dirty && (
         <div data-testid="col-summary" style={{ paddingTop: "var(--spacing-xs)" }}>
           <span data-testid="col-reject-count" style={{ color: rejectCount > 0 ? "var(--color-danger)" : "var(--color-text-secondary)" }}>
@@ -411,6 +411,18 @@ export function ColumnSettingsSection({ view, editable, runWrite, notify, setDir
           </ul>
         </div>
       )}
-    </SectionFrame>
+      </div>
+      </Modal>
+      <Modal open={!!domainRow} title={`값 타입 도메인 찾기 · ${domainRow?.varName || "새 열"}`} size="md" onClose={() => setDomainPopup(null)}>
+        {domainRow && (
+          <DomainSearchBox
+            search={searchDomains}
+            key={`${domainRow.key}:${domainPopup?.keyword ?? ""}`}
+            testId={`col-domain-${domainRow.key}`}
+            initialKeyword={domainPopup?.keyword}
+            onPick={(d) => pickDomain(domainRow.key, d)} onClose={() => setDomainPopup(null)} />
+        )}
+      </Modal>
+    </>
   );
 }

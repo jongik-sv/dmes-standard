@@ -253,7 +253,7 @@ function sameMark(a: CellMark | undefined, b: CellMark | undefined): boolean {
 
 /**
  * 표시 행 캐시 — 같은 그리드 행·변수 목록이고 강조가 같으면 앞서 만든 표시 행 객체를 그대로 쓴다. 그리드(ag-grid)는 행 객체 참조가
- * 같으면 그 행을 건드리지 않고, `markTokenOf` 도 바뀐 행만 다시 직렬화한다. 그리드 하나에 캐시 하나(그리드가 표시 행을 직접 고치므로
+ * 같으면 그 행을 건드리지 않는다. 그리드 하나에 캐시 하나(그리드가 표시 행을 직접 고치므로
  * 다른 그리드와 나누지 않는다).
  */
 export interface DisplayRowCache {
@@ -301,23 +301,37 @@ export function displayRows(rows: readonly GridRow[], vars: readonly ResolvedVar
   return out;
 }
 
-/** 표시 행 강조 직렬화 — 행마다 한 번만 만들어 둔다(표시 행 객체는 캐시로 재사용되므로 바뀐 행만 다시 직렬화한다). */
-const markJson = new WeakMap<Record<string, unknown>, string>();
+/** 행 클래스 기록 — 행 키 → 붙은 행 클래스(1 = 새 행 `__added`, 2 = 적중 행 `__hit`). 그리드 하나에 하나. */
+export interface RowClassMemo {
+  byKey: Map<string, number>;
+  token: number;
+}
+
+export function createRowClassMemo(): RowClassMemo {
+  return { byKey: new Map(), token: 0 };
+}
 
 /**
- * 그리드 행 클래스 갱신 토큰 — `JSON.stringify(data.map((r) => [r.rowKey, r.__mk, r.__added, r.__hit]))` 와 글자까지 같다.
- * 행별 조각을 표시 행 객체마다 기억해 이어 붙인다.
+ * 그리드 행 클래스 갱신 토큰(`rowClassRefreshToken`) — 이미 있던 행이 새 행·적중 행 표시를 잃을 때만 오른다.
+ *
+ * 토큰이 바뀌면 그리드는 표 전체를 `redrawRows` 로 다시 만든다(보이는 행의 DOM·칸 렌더러를 모두 다시 붙여 표가 깜박인다).
+ * ag-grid(33)는 행 객체가 바뀌면 그 행의 칸을 다시 그리며 칸 강조(`cellClassRules` — 오류·경고·바뀐 칸·테스트 칸)를 다시 판정하고,
+ * 행 클래스(`getRowClass`)는 더하기만 한다(`postProcessClassesFromGridOptions`). 그래서 다시 그려야 하는 때는 행 클래스가 빠질 때뿐이다.
+ * 전에는 칸 강조까지 토큰에 실어, 칸을 고치거나 즉시 검사 결과가 올 때마다 표 전체가 다시 그려졌다(2026-11-06 깜박임).
  */
-export function markTokenOf(data: readonly Record<string, unknown>[]): string {
-  const parts = data.map((r) => {
-    let s = markJson.get(r);
-    if (s === undefined) {
-      s = JSON.stringify([r.rowKey, r.__mk, r.__added, r.__hit]);
-      markJson.set(r, s);
-    }
-    return s;
-  });
-  return `[${parts.join(",")}]`;
+export function rowClassDropToken(memo: RowClassMemo, data: readonly Record<string, unknown>[]): number {
+  const next = new Map<string, number>();
+  let dropped = false;
+  for (const r of data) {
+    const key = String(r.rowKey);
+    const bits = (r.__added === true ? 1 : 0) | (r.__hit === true ? 2 : 0);
+    const prev = memo.byKey.get(key);
+    if (prev !== undefined && (prev & ~bits) !== 0) dropped = true;
+    next.set(key, bits);
+  }
+  memo.byKey = next;
+  if (dropped) memo.token += 1;
+  return memo.token;
 }
 
 /** 고른 행의 `-`(무관)가 아닌 조건 칸인가 — 고른 행인지를 먼저 본다(나머지 행은 셀을 읽지 않는다). */

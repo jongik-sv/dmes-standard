@@ -159,7 +159,7 @@ function VersionTable({ def, result }: { def: RuleEditView; result: ValueTestRes
       <MutedText>테스트한 버전이 위 의사결정표와 달라 그 버전의 표를 따로 보인다. 초록 행이 적중 행이고 붉은 칸이 떨어진 행의 첫 거짓 조건이다.</MutedText>
       {/* 바깥 상자는 높이를 고정하지 않는다 — 머리줄이 표 위에 더해지고, 칸별 필터 입력 줄을 펴면 그리드가 숫자 height 에 그 줄 높이를 더해 내용만큼 늘어난다. */}
       <div style={{ paddingTop: "var(--spacing-xs)" }}>
-        <AgDataGrid gridId="testResultTable"
+        <AgDataGrid gridId="modal-testResultTable"
           key={`${def.rule.maruRuleId}:${def.selectedVer}`}
           columns={columns}
           data={data}
@@ -185,7 +185,7 @@ export function TestResultCard({ view }: RuleEditCardProps) {
 
   if (!run) {
     return (
-      <CardFrame title="⑤ 테스트 결과" testId="rule-card-test-result">
+      <CardFrame title="테스트 결과" testId="rule-card-test-result">
         <p data-testid="vt-result-empty" style={{ margin: 0, color: "var(--color-text-muted)" }}>
           실행을 누르면 결과 변수 값과 적중 행을 보인다.
         </p>
@@ -200,7 +200,7 @@ export function TestResultCard({ view }: RuleEditCardProps) {
     const count = (p: boolean | null) => cases.filter((c) => c.pass === p).length;
     return (
       <CardFrame
-        title="⑤ 테스트 결과"
+        title="테스트 결과"
         testId="rule-card-test-result"
         right={<span data-testid="vt-result-target" style={badgeStyle("neutral")}>{targetLabel(run)} · 케이스 실행 · {r.evalTs}</span>}
       >
@@ -208,7 +208,7 @@ export function TestResultCard({ view }: RuleEditCardProps) {
           테스트 케이스 {cases.length}건을 실행했습니다 — 통과 {count(true)} · 실패 {count(false)} · 실행만 {count(null)}. 케이스별 결과는 ⑥ 표에서
           봅니다.
         </p>
-        <MutedText>값 테스트(④) 입력의 결과를 보려면 ④ 에서 [실행]을 누르세요.</MutedText>
+        <MutedText>값 테스트 입력의 결과를 보려면 값 테스트에서 [실행]을 누르세요.</MutedText>
       </CardFrame>
     );
   }
@@ -229,7 +229,7 @@ export function TestResultCard({ view }: RuleEditCardProps) {
 
   return (
     <CardFrame
-      title="⑤ 테스트 결과"
+      title="테스트 결과"
       testId="rule-card-test-result"
       right={
         <span data-testid="vt-result-target" style={badgeStyle(r.outcome === "OK" ? "success" : "warning")}>
