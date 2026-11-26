@@ -37,6 +37,10 @@ if (-not (Test-Path -LiteralPath $modLib)) {
 }
 . $modLib
 $ports = @($DmesPortalPort) + @($DmesBeModules.Values)
+# MDM is started by dmes-up.ps1 outside the ps1 catalog (modules.conf platforms 'sh'); check its port too.
+foreach ($raw in Get-Content -LiteralPath (Join-Path $RootDir 'scripts\lib\modules.conf')) {
+    if ($raw -match '^\s*be\s+mdm\s+(\d+)\s') { $ports += [int] $Matches[1] }
+}
 $still = @($ports | Where-Object {
     Get-NetTCPConnection -LocalPort $_ -State Listen -ErrorAction SilentlyContinue })
 if ($still.Count -eq 0) { Write-Host '[down] all ports free' -ForegroundColor Green }
