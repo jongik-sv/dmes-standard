@@ -235,7 +235,21 @@ export const SCREENS = [
   },
   // 2026-11-27 perm-fe-a f9 등록 — 퍼미션 작업대 회차(perm-bench)가 손대는 csa 화면.
   //   메뉴 = McmMenuSeeder.java:58·60·63(PARENT_MENU_ID "csa" = 시스템관리). 셋 다 SearchArea autoSearch 라 진입하면 조회한다.
-  //   commPermBench(권한 작업대) = perm-core c4 시더가 메뉴를 정한 뒤 등록한다(지금은 빈 자리).
+  //   commPermBench(권한 작업대) = McmMenuSeeder.seedPermBenchMenu(c4, 메뉴 1020230 「권한 작업대」).
+  {
+    // 2026-11-27 perm-fe-a f9 — 권한 작업대. 조회 단추가 없고 진입하면 searchBench 1 + searchMenuTree 2 + 사람 역할 searchRolePerm
+    // + explain 1 을 부른다(조회 버튼 대기 없음 → 셸 신호만, needsSearch false). 그리드는 메뉴 칸 AgDataGrid 하나(GridPanel 아님 →
+    // listPanelTitle 없이 보이는 첫 그리드). 칸 폭 끌기는 shared ResizableColumns.
+    id: "commPermBench",
+    label: "권한 작업대",
+    trail: [/^공통관리$/, /^시스템관리$/, /^권한 작업대$/],
+    breadcrumb: "공통관리 > 시스템관리 > 권한 작업대",
+    /** count-renders ⑤ 입력 — 사람 칸 찾기(R12: 그 칸만 다시 그려야 한다). 저장하지 않는다. */
+    formInput: 'input[aria-label="이름·부서·사번 찾기"]',
+    searchUrlPattern: /\/api\/mcm\/oasis\/commPermBench\/searchBench$/,
+    needsSearch: false,
+    autoSearchAtEntry: true,
+  },
   {
     // perm-fe-b 새 설계(d02b2254f): 화면 제목 「퍼미션 관리」, 메뉴 이름은 시더 그대로 「PERMISSION 관리」.
     // 진입 호출 = lov 등 2건(조회 제외). 상세 = PermOnePane(퍼미션 한 줄), 버튼 권한 값은 shared TokenChipInput.
@@ -270,7 +284,10 @@ export const SCREENS = [
     trail: [/^공통관리$/, /^시스템관리$/, /^OBJECT 관리$/],
     breadcrumb: "공통관리 > 시스템관리 > OBJECT 관리",
     listPanelTitle: "OBJECT 목록",
+    /** count-renders ⑤ 상세 입력 — OBJECT명 칸(perm-legacy-be 새 설계). 저장하지 않는다. */
+    formInput: 'tr:has(th:has-text("OBJECT명")) input',
     searchUrlPattern: /\/api\/mcm\/oasis\/commObjMng\/search$/,
+    searchUrlExclude: /optionsOnly/,
     needsSearch: true,
     autoSearchAtEntry: true,
   },

@@ -4,8 +4,8 @@
  * 모양 = types.ts `PermBenchApi`(mock.ts 와 같다). 화면은 인터페이스만 안다.
  * D36: 목록 입력은 params 배열이 아니라 grids 로 보낸다(saveDraft = `grids.changes.rows`, 응답 `grids.draft`).
  * 응답 envelope 풀기 = commRoleGrpMng/api.ts `unwrapPayload` 와 같은 규칙(meta.success=false 면 throw).
+ * HTTP 400 등 2xx 가 아닌 응답도 본문(meta.message "CODE: 설명")을 읽어야 해서 공용 json-api-client 대신 fetch 를 부른다(readResponse).
  */
-import { createJsonApiClient } from "@/lib/http/json-api-client";
 import {
   PERM_ERROR_CODES,
   PermApplyError,
@@ -26,6 +26,7 @@ import {
   type SearchMenuTreeResult,
   type SearchRolePermParams,
   type SearchRolePermResult,
+  type YN,
 } from "./types";
 
 const OASIS_BASE = "/api/mcm/oasis/commPermBench";
@@ -46,12 +47,48 @@ const APPLY_CODES = PERM_ERROR_CODES;
  */
 export function failureOf(env: CactusEnvelope): Error {
   const message = env.meta?.message?.trim() || "요청이 거부되었습니다.";
-  const m = /^([A-Z][A-Z0-9_]*)\s*:\s*([\s\S]*)$/.exec(message);
-  const code = m ? APPLY_CODES.find((c) => c === m[1]) : undefined;
-  if (!code || !m) return new Error(message);
   const scopesRaw = env.data?.["scopes"];
   const scopes = Array.isArray(scopesRaw) ? scopesRaw.map(String) : typeof scopesRaw === "string" ? scopesRaw.split(",").filter(Boolean) : [];
+  return failureFromMessage(message, scopes);
+}
+
+/** "CODE: 설명" 문구 → 아는 코드면 PermApplyError, 아니면 일반 Error. */
+export function failureFromMessage(message: string, scopes: string[] = []): Error {
+  const m = /^([A-Z][A-Z0-9_]*)\s*:\s*([\s\S]*)$/.exec(message.trim());
+  const code = m ? APPLY_CODES.find((c) => c === m[1]) : undefined;
+  if (!code || !m) return new Error(message);
   return new PermApplyError(code, m[2].trim() || message, scopes);
+}
+
+/** HTTP 상태별 기본 문구(서버가 문구를 주지 않을 때). json-api-client 와 같은 말. */
+const STATUS_TEXT: Record<number, string> = {
+  400: "잘못된 요청입니다.",
+  401: "로그인이 필요합니다.",
+  403: "권한이 없습니다.",
+  404: "요청한 데이터를 찾을 수 없습니다.",
+  409: "다른 요청과 충돌했습니다. 잠시 뒤 다시 시도합니다.",
+  500: "서버 오류가 발생했습니다.",
+  502: "서버에서 응답을 받지 못했습니다(게이트웨이 오류). 잠시 뒤 다시 시도합니다.",
+  503: "서비스를 일시적으로 사용할 수 없습니다.",
+  504: "서버 응답 시간이 지났습니다. 잠시 뒤 다시 시도합니다.",
+};
+
+/** fetch 자체가 실패했을 때(TypeError "Failed to fetch" 등) 보이는 글. */
+export const NETWORK_ERROR_TEXT = "서버에 연결하지 못했습니다. 네트워크를 확인한 뒤 다시 시도합니다.";
+
+/**
+ * HTTP 응답 → 본문. 2xx 가 아니어도 본문을 읽는다.
+ * 공용 json-api-client 는 2xx 가 아니면 `error.message`·`message` 만 읽어 Cactus envelope 의 `meta.message`("NOT_FOUND: …")를 잃는다.
+ * 그래서 이 화면은 fetch 를 직접 부르고, 실패 envelope 를 failureOf 로 바꾼다(BE 400 INVALID_VALUE 의 "NOT_FOUND: …" 도 코드로 읽는다).
+ */
+export async function readResponse(res: Response): Promise<unknown> {
+  const body = (await res.json().catch(() => null)) as (CactusEnvelope & { message?: string; error?: { message?: string } }) | null;
+  if (body?.meta && body.meta.success === false) throw failureOf(body);
+  if (!res.ok) {
+    const msg = body?.meta?.message || body?.error?.message || body?.message || STATUS_TEXT[res.status] || `요청을 처리하지 못했습니다. (${res.status})`;
+    throw failureFromMessage(msg);
+  }
+  return body;
 }
 
 /** 칸 값이 `{ rows }` 모양이면 rows 를, 아니면 그대로. */
@@ -90,15 +127,22 @@ type Grids = Record<string, { rows: Record<string, unknown>[] }>;
 /** 응답 칸이 비어 오면 빈 배열로 채운다. */
 const rowsOf = <T>(v: unknown): T[] => (Array.isArray(v) ? (v as T[]) : []);
 
-export function createPermBenchApi(): PermBenchApi {
-  const http = createJsonApiClient();
-
+export function createPermBenchApi(fetchImpl: typeof fetch = (...a) => fetch(...a)): PermBenchApi {
   async function call(action: string, params: Record<string, string> = {}, grids?: Grids): Promise<Record<string, unknown>> {
-    const res = await http.request<unknown>(`${OASIS_BASE}/${action}`, {
-      method: "POST",
-      body: { meta: { menuId: SCREEN_ID }, params, ...(grids ? { grids } : {}) },
-    });
-    return unwrapPayload<Record<string, unknown>>(res);
+    let res: Response;
+    try {
+      res = await fetchImpl(`${OASIS_BASE}/${action}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({ meta: { menuId: SCREEN_ID }, params, ...(grids ? { grids } : {}) }),
+      });
+    } catch (e) {
+      // 네트워크 오류(fetch 의 TypeError)는 영어 원문 대신 한국어 안내. 다른 곳에서 "CODE: 설명" 으로 던진 오류도 같은 규칙으로 읽는다
+      if (e instanceof TypeError) throw new Error(NETWORK_ERROR_TEXT, { cause: e });
+      throw e instanceof Error ? failureFromMessage(e.message) : e;
+    }
+    return unwrapPayload<Record<string, unknown>>(await readResponse(res));
   }
 
   return {
@@ -110,6 +154,8 @@ export function createPermBenchApi(): PermBenchApi {
         roles: rowsOf(r.roles),
         userGroups: rowsOf(r.userGroups),
         groupRoles: rowsOf(r.groupRoles),
+        // ME_SYSADMIN(bench-be f3 추가) — 옛 서버는 칸이 없어 넣지 않는다(화면은 없으면 SYSADMIN 아님으로 본다)
+        ...(Array.isArray(r.me) ? { me: rowsOf<{ ME_SYSADMIN: YN }>(r.me) } : {}),
       };
     },
     async searchMenuTree(p: SearchMenuTreeParams): Promise<SearchMenuTreeResult> {

@@ -79,6 +79,8 @@ export interface BenchIndex {
   groupRoles: Map<string, string[]>;
   /** ROLE_ID → ROLE_GROUP_ID[] */
   roleGroups: Map<string, string[]>;
+  /** 로그인한 관리자가 SYSADMIN 인가(searchBench me[0].ME_SYSADMIN === "Y"). 칸이 없으면(옛 서버·mock 밖) false 로 본다. */
+  meSysadmin?: boolean;
 }
 
 const pushTo = (m: Map<string, string[]>, k: string, v: string) => {
@@ -107,6 +109,7 @@ export function indexBench(res: SearchBenchResult): BenchIndex {
     userGroups,
     groupRoles,
     roleGroups,
+    meSysadmin: res.me?.[0]?.ME_SYSADMIN === "Y",
   };
 }
 
@@ -235,7 +238,7 @@ export function permCount(roleId: string, row: RolePermRow | undefined, objUnuse
 export interface MenuTree {
   rows: BenchMenuRow[];
   byId: Map<string, BenchMenuRow>;
-  /** 부모 MENU_ID("" = 맨 위) → 자식(SORT_SEQ 순). */
+  /** 부모 MENU_ID("" = 맨 위) → 자식(서버가 준 순서 = 그래프 메뉴 순서. 화면은 다시 정렬하지 않는다, bench-be #11 e). */
   children: Map<string, BenchMenuRow[]>;
   /** OBJECT_ID → 화면 메뉴 줄(같은 화면이 여러 메뉴에 걸리면 먼저 나온 줄). 모두는 `menusOf`. */
   byObject: Map<string, BenchMenuRow>;
@@ -256,7 +259,7 @@ export function buildMenuTree(menus: readonly BenchMenuRow[]): MenuTree {
     if (list) list.push(m);
     else children.set(p, [m]);
   }
-  for (const list of children.values()) list.sort((a, b) => a.SORT_SEQ - b.SORT_SEQ);
+  // 줄 순서 = 서버가 준 그래프 메뉴 순서(bench-be #11 e) — SORT_SEQ 로 다시 정렬하지 않는다
   const byObject = new Map<string, BenchMenuRow>();
   const menusOf = new Map<string, BenchMenuRow[]>();
   const screensUnder = new Map<string, string[]>();
@@ -311,7 +314,7 @@ export const menuPathOf = (tree: MenuTree, objectId: string, menuId?: string | n
  */
 export const objUseOf = (m: BenchMenuRow | undefined): boolean | undefined => (m?.OBJ_USE_TP ? m.OBJ_USE_TP === "N" : undefined);
 
-/** 사람 기준 트리에서만 믿을 수 있다(역할 기준 트리는 REASON 이 NO_PERM·null 만). OBJ_USE_TP 가 있으면 그것이 먼저. */
+/** 줄의 「오브젝트 사용 안 함」. OBJ_USE_TP 가 있으면 그것이 먼저, 없으면 REASON(bench-be #11 d 부터 역할 기준 트리도 실제 이유를 준다). */
 export const isObjUnused = (m: BenchMenuRow | undefined): boolean => objUseOf(m) ?? m?.REASON === "OBJ_UNUSED";
 
 /** 읽어 둔 트리들에서 「오브젝트 사용 안 함」 OBJECT_ID 를 모은다. */
@@ -320,7 +323,22 @@ export function unusedObjectsOf(trees: Iterable<MenuTree>): Set<string> {
   for (const t of trees) for (const m of t.rows) if (m.OBJECT_ID && isObjUnused(m)) out.add(m.OBJECT_ID);
   return out;
 }
-export const isHidden = (m: BenchMenuRow | undefined): boolean => m?.SHOW_TP === "N";
+/**
+ * 메뉴에서 숨김(「숨김」 표시). SHOW_TP = N 또는 REASON = MENU_HIDDEN(bench-be #11):
+ *   - 권한이 닿는 숨긴 화면 = VISIBLE Y · REASON MENU_HIDDEN · SHOW_TP N(주소로는 연다)
+ *   - 보이는 화면의 숨긴 위 폴더 = VISIBLE Y · REASON MENU_HIDDEN
+ */
+export const isHidden = (m: BenchMenuRow | undefined): boolean => m?.SHOW_TP === "N" || m?.REASON === "MENU_HIDDEN";
+
+/** 이 줄이나 위 모듈·폴더 하나가 메뉴에서 숨김인가(권한이 닿아도 메뉴에는 없다 = 주소로 여는 화면). */
+export function hiddenInMenu(tree: MenuTree, m: BenchMenuRow | undefined): boolean {
+  let cur = m;
+  for (let i = 0; cur && i < 64; i++) {
+    if (isHidden(cur)) return true;
+    cur = cur.PARENT_MENU_ID ? tree.byId.get(cur.PARENT_MENU_ID) : undefined;
+  }
+  return false;
+}
 
 /** 메뉴 칸 그리드 한 줄. */
 export interface MenuGridRow extends Record<string, unknown> {
@@ -340,6 +358,8 @@ export interface MenuGridRow extends Record<string, unknown> {
   BTN_TXT: string;
   HIDDEN: boolean;
   OBJ_UNUSED: boolean;
+  /** 초안 차이(화면 줄만). add = 새로 등록 · del = 등록 해제 · mod = 값 바뀜. */
+  CHG: "add" | "del" | "mod" | null;
 }
 
 export interface FlattenMenuOptions {
@@ -351,10 +371,12 @@ export interface FlattenMenuOptions {
   /** 화면 「버튼」 칸 글. */
   btnText: (objectId: string) => string;
   /**
-   * 오브젝트 사용 안 함 판정. 줄에 OBJ_USE_TP 가 있으면 그 값이 먼저다. 없으면(옛 서버) 역할 기준 트리의 REASON 이
-   * NO_PERM·null 만 오므로 화면이 다른 출처(사람 기준 트리 등)를 합쳐 넘긴다. 이것도 없으면 줄의 REASON 을 본다.
+   * 오브젝트 사용 안 함 판정. 줄에 OBJ_USE_TP 가 있으면 그 값이 먼저다. 없으면(옛 서버) 화면이 다른 출처(사람 기준 트리·explain 등)를
+   * 합쳐 넘긴다. 이것도 없으면 줄의 REASON 을 본다(bench-be #11 d 부터 역할 기준 트리도 실제 이유를 준다).
    */
   objUnused?: (objectId: string) => boolean;
+  /** 2단계: 화면의 초안 차이. 없으면 늘 null. */
+  changeOf?: (objectId: string) => "add" | "del" | "mod" | null;
 }
 
 /** 메뉴 칸에 보일 줄을 펼침 상태대로 편다(시안 colMenu). 찾는 말이 있으면 모두 펼친다. */
@@ -372,6 +394,7 @@ export function flattenMenuRows(tree: MenuTree, o: FlattenMenuOptions): MenuGrid
           MENU_ID: m.MENU_ID, LEVEL: level, NAME: m.MENU_NM, OBJECT_ID: m.OBJECT_ID, OPEN: false,
           REG: reg ? "Y" : "N", SCREEN_CNT: 1, REG_CNT: reg ? 1 : 0, BTN_TXT: reg ? o.btnText(m.OBJECT_ID) : "",
           HIDDEN: isHidden(m), OBJ_UNUSED: objUseOf(m) ?? (o.objUnused ? o.objUnused(m.OBJECT_ID) : isObjUnused(m)),
+          CHG: o.changeOf ? o.changeOf(m.OBJECT_ID) : null,
         });
         continue;
       }
@@ -383,7 +406,7 @@ export function flattenMenuRows(tree: MenuTree, o: FlattenMenuOptions): MenuGrid
       out.push({
         MENU_ID: m.MENU_ID, LEVEL: level, NAME: m.MENU_NM, OBJECT_ID: null, OPEN: open,
         REG: all.length && regCnt === all.length ? "Y" : regCnt > 0 ? "P" : "N", SCREEN_CNT: all.length, REG_CNT: regCnt, BTN_TXT: "",
-        HIDDEN: isHidden(m), OBJ_UNUSED: false,
+        HIDDEN: isHidden(m), OBJ_UNUSED: false, CHG: null,
       });
       if (open) visit(m.MENU_ID, level + 1);
     }
@@ -401,21 +424,62 @@ export interface NavItem {
   OPEN: boolean;
   /** 모듈·폴더: 보이는 화면 수. */
   CNT: number;
+  /** 비교(초안 보기): 초안에서 새로 보임. */
+  NEW?: boolean;
+  /** 비교(초안 보기): 현재는 보이지만 초안에서 메뉴에서 사라짐. */
+  GONE?: boolean;
+  /** 화면: 권한은 닿지만 메뉴에서 숨김(이 줄이나 위 폴더가 숨김 — 주소로 여는 화면, bench-be #11 a·b). */
+  HIDDEN?: boolean;
 }
 
-export function flattenNav(tree: MenuTree, open: ReadonlySet<string>): { items: NavItem[]; visibleCnt: number } {
+/**
+ * base 를 주면(초안 보기) 현재 트리와 비교한다 — 현재만 보이는 화면도 GONE 으로 남기고, 초안에서만 보이는 화면에 NEW 를 단다(시안 rightPreview cmp).
+ * visibleCnt 는 tree 기준. newCnt·goneCnt 는 비교할 때만 센다.
+ * 숨긴 화면(VISIBLE Y + 메뉴에서 숨김)은 줄로 보이되 HIDDEN 을 달고, 메뉴 수(visibleCnt·CNT)에는 넣지 않는다.
+ */
+export function flattenNav(
+  tree: MenuTree,
+  open: ReadonlySet<string>,
+  base?: MenuTree,
+): { items: NavItem[]; visibleCnt: number; newCnt: number; goneCnt: number } {
   const vis = (m: BenchMenuRow) => m.VISIBLE === "Y";
+  const was = (m: BenchMenuRow) => !!base && base.byId.get(m.MENU_ID)?.VISIBLE === "Y";
+  const any = (m: BenchMenuRow) => vis(m) || was(m);
+  // 숨긴 줄 아래 화면 MENU_ID(위 폴더 숨김까지) — 한 번만 훑는다
+  const hiddenIds = new Set<string>();
+  const mark = (parent: string, up: boolean) => {
+    for (const m of tree.children.get(parent) ?? []) {
+      const h = up || isHidden(m);
+      if (h) hiddenIds.add(m.MENU_ID);
+      if (!m.OBJECT_ID) mark(m.MENU_ID, h);
+    }
+  };
+  mark("", false);
+  const shown = (m: BenchMenuRow) => vis(m) && !hiddenIds.has(m.MENU_ID);
   const out: NavItem[] = [];
   let visibleCnt = 0;
+  let newCnt = 0;
+  let goneCnt = 0;
   const visit = (parent: string, level: number, show: boolean) => {
     for (const m of tree.children.get(parent) ?? []) {
       if (m.OBJECT_ID) {
-        if (!vis(m)) continue;
-        if (show) out.push({ MENU_ID: m.MENU_ID, LEVEL: level, NAME: m.MENU_NM, OBJECT_ID: m.OBJECT_ID, OPEN: false, CNT: 0 });
+        if (!any(m)) continue;
+        const isNew = !!base && vis(m) && !was(m);
+        const gone = !!base && !vis(m);
+        if (isNew) newCnt += 1;
+        if (gone) goneCnt += 1;
+        const hid = hiddenIds.has(m.MENU_ID);
+        if (show) {
+          out.push({
+            MENU_ID: m.MENU_ID, LEVEL: level, NAME: m.MENU_NM, OBJECT_ID: m.OBJECT_ID, OPEN: false, CNT: 0,
+            ...(base ? { NEW: isNew, GONE: gone } : {}), ...(hid ? { HIDDEN: true } : {}),
+          });
+        }
         continue;
       }
-      const cnt = (tree.menusUnder.get(m.MENU_ID) ?? []).filter(vis).length;
-      if (!cnt) continue;
+      const under = tree.menusUnder.get(m.MENU_ID) ?? [];
+      if (!under.some(any)) continue;
+      const cnt = under.filter(shown).length;
       if (level === 0) visibleCnt += cnt;
       const isOpen = open.has(m.MENU_ID);
       if (show) out.push({ MENU_ID: m.MENU_ID, LEVEL: level, NAME: m.MENU_NM, OBJECT_ID: null, OPEN: isOpen, CNT: cnt });
@@ -423,7 +487,7 @@ export function flattenNav(tree: MenuTree, open: ReadonlySet<string>): { items: 
     }
   };
   visit("", 0, true);
-  return { items: out, visibleCnt };
+  return { items: out, visibleCnt, newCnt, goneCnt };
 }
 
 // ── 버튼이 왜 켜졌나·잠겼나 ──────────────────────────────────

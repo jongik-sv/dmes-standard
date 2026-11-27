@@ -3,7 +3,7 @@
 /**
  * 메뉴(오브젝트) 칸(시안 colMenu). 고른 역할의 메뉴 트리를 AgDataGrid 한 장으로 편다.
  * - 화면 1,004개 → 그리드가 가상 스크롤한다(시안의 260줄 상한은 두지 않는다).
- * - 체크 = 등록(퍼미션 줄 있음). 1단계는 보기만, 2단계(f3)에서 onToggleRegister 를 잇는다.
+ * - 체크 = 등록(퍼미션 줄 있음). 2단계부터 체크로 등록·해제(초안), 모듈·폴더 체크 = 아래 화면 전부. 상태 칸에 초안 차이(등록·해제·바뀜).
  * - 모듈·폴더 줄을 누르면 접고 편다. 화면 줄을 누르면 그 화면을 고른다.
  */
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -13,6 +13,10 @@ import { Button, Input, SegmentedControl } from "@dk-oasis/shared/form";
 import { PERM_SYSADMIN_ROLE_ID } from "./types";
 import { flattenMenuRows, fmtNum, hasPerm, objUseOf, permCount, screenRowOf, type MenuFilter, type MenuGridRow, type MenuTree, type RolePermMap } from "./model";
 import { FolderPen, LegacyIconButton, Panel, RoleChip, StatusTag, useBench } from "./parts";
+import { permDiffKind } from "./draft";
+
+const CHG_TEXT = { add: "등록", del: "해제", mod: "바뀜" } as const;
+const CHG_TIP = { add: "초안에서 새로 등록", del: "초안에서 등록 해제", mod: "초안에서 버튼·팝업이 바뀜" } as const;
 
 const FILTER_OPTIONS = [
   { value: "granted", label: "등록된 것" },
@@ -39,7 +43,7 @@ function TriCheck({ state, label, disabled, onChange }: { state: "Y" | "P" | "N"
 }
 
 export const MenuCol = memo(function MenuCol({
-  roleId, objectId, menuId, tree, rolePerm, failed, open, mfilter, unusedObjs, canEdit,
+  roleId, objectId, menuId, tree, rolePerm, basePerm, failed, open, mfilter, unusedObjs, canEdit,
   onSelectObject, onToggleOpen, onExpandAll, onCollapseAll, onFilter, onToggleRegister, onRetry,
 }: {
   roleId: string | null;
@@ -48,7 +52,10 @@ export const MenuCol = memo(function MenuCol({
   menuId: string | null;
   /** 고른 역할의 메뉴 트리(searchMenuTree roleId). 읽는 중이면 undefined. */
   tree: MenuTree | undefined;
+  /** 고른 역할의 퍼미션 + 초안. */
   rolePerm: RolePermMap | undefined;
+  /** 같은 역할의 현재 값(초안 차이 꼬리표용). */
+  basePerm: RolePermMap | undefined;
   /** 이 역할의 메뉴 트리·퍼미션 읽기가 실패했는가. */
   failed: boolean;
   open: ReadonlySet<string>;
@@ -60,13 +67,15 @@ export const MenuCol = memo(function MenuCol({
   onExpandAll: () => void;
   onCollapseAll: () => void;
   onFilter: (f: MenuFilter) => void;
-  /** 2단계(f3) 자리 — 메뉴 등록·해제. */
+  /** 메뉴 등록·해제(ROLE_OBJ 초안). */
   onToggleRegister: (objectIds: readonly string[], on: boolean) => void;
   onRetry: () => void;
 }) {
   const { bench, canLink } = useBench();
   const [q, setQ] = useState("");
   const locked = roleId === PERM_SYSADMIN_ROLE_ID;
+  /** 현재 값 퍼미션을 읽었는가(boolean 만 열 정의 deps 에 둔다 — 편집마다 열을 새로 만들지 않게). */
+  const permReady = !!basePerm;
   const role = roleId ? bench.roleById.get(roleId) : undefined;
   const roleUnused = role?.USE_TP === "N";
 
@@ -78,8 +87,9 @@ export const MenuCol = memo(function MenuCol({
       const c = permCount(roleId, rolePerm?.get(oid), objUseOf(tree.byObject.get(oid)) ?? unusedObjs.has(oid), roleUnused);
       return c ? `${c.nb}/${c.total}` : "";
     };
-    return flattenMenuRows(tree, { open, filter: mfilter, query: q, isReg, btnText, objUnused: (oid) => unusedObjs.has(oid) });
-  }, [tree, roleId, locked, rolePerm, open, mfilter, q, unusedObjs, roleUnused]);
+    const changeOf = !locked && basePerm && rolePerm !== basePerm ? (oid: string) => permDiffKind(basePerm.get(oid), rolePerm?.get(oid)) : undefined;
+    return flattenMenuRows(tree, { open, filter: mfilter, query: q, isReg, btnText, objUnused: (oid) => unusedObjs.has(oid), changeOf });
+  }, [tree, roleId, locked, rolePerm, basePerm, open, mfilter, q, unusedObjs, roleUnused]);
 
   const regCount = useMemo(() => {
     if (!roleId) return null;
@@ -104,7 +114,15 @@ export const MenuCol = memo(function MenuCol({
           const row = r as MenuGridRow;
           const ids = row.OBJECT_ID ? [row.OBJECT_ID] : handlers.current.tree?.screensUnder.get(row.MENU_ID) ?? [];
           const label = row.OBJECT_ID ? `${row.NAME} 등록` : `${row.NAME} 아래 메뉴 ${row.SCREEN_CNT}개 모두 등록`;
-          return <TriCheck state={row.REG} label={label} disabled={!canEdit || locked || !ids.length} onChange={(on) => handlers.current.onToggleRegister(ids, on)} />;
+          // 역할 퍼미션(현재 값)을 읽기 전에는 처리기가 아무 일도 하지 않으므로 체크를 끈다(f3 리뷰 13)
+          return (
+            <TriCheck
+              state={row.REG}
+              label={permReady ? label : `${label} — 퍼미션을 읽는 중`}
+              disabled={!canEdit || locked || !permReady || !ids.length}
+              onChange={(on) => handlers.current.onToggleRegister(ids, on)}
+            />
+          );
         },
       },
       {
@@ -131,19 +149,24 @@ export const MenuCol = memo(function MenuCol({
         },
       },
       {
-        key: "STATE", header: "상태", width: 90, sortable: false, filter: false, meta: false,
+        key: "STATE", header: "상태", width: 110, sortable: false, filter: false, meta: false,
         render: (_v, r) => {
           const row = r as MenuGridRow;
           return (
             <>
               {row.HIDDEN && <StatusTag kind="block">숨김</StatusTag>}
               {row.OBJ_UNUSED && <StatusTag kind="del">사용 안 함</StatusTag>}
+              {row.CHG && (
+                <StatusTag kind={row.CHG} title={CHG_TIP[row.CHG]}>
+                  {CHG_TEXT[row.CHG]}
+                </StatusTag>
+              )}
             </>
           );
         },
       },
     ],
-    [canEdit, canLink, locked],
+    [canEdit, canLink, locked, permReady],
   );
 
   const rowsRef = useRef(rows);
@@ -205,7 +228,7 @@ export const MenuCol = memo(function MenuCol({
         ) : (
         <>
           <span>
-            <RoleChip roleId={roleId} />의 메뉴. 체크 = 등록(퍼미션 행 있음). 메뉴 · 오브젝트의 수정과 추가는 원래 프로그램에서 합니다. 칸 머리
+            <RoleChip roleId={roleId} />의 메뉴. 체크 = 등록(퍼미션 행 있음).{canEdit && !locked && " 모듈·폴더를 체크하면 그 아래 메뉴를 모두 등록하고, 풀면 모두 해제합니다(초안)."} 메뉴 · 오브젝트의 수정과 추가는 원래 프로그램에서 합니다. 칸 머리
             아이콘(↗)이 그 화면을 엽니다. 폴더 이름도 폴더 줄의 연필(↗)로 메뉴 관리를 엽니다.
             {locked && " 시스템 관리자는 모든 메뉴를 받아 등록을 바꿀 수 없습니다."}
             {roleUnused && " 이 역할은 「사용 안 함」이라 등록돼 있어도 아무 버튼도 주지 않습니다."}

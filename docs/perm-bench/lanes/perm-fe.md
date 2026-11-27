@@ -13,8 +13,11 @@ f0a 계약 타입·가짜 자료 → f1 shared 부품 3개 → f1-merge → f2 �
 | f0a | 끝 | c6d2fb326 | `commPermBench/types.ts`·`mock.ts`·`mock.test.ts`(4 통과). m-mcm tsc = 기존 무관 TS2307 23건만(m-mdm·m-analog dist 없음), commPermBench 오류 0 |
 | f1 | 끝(리뷰 1회·지적 14건 수정) | 1712d9f50 | shared 부품 3개 + unit 시험 3파일(11 통과) + 스킬 문서 3개 + 색인. shared tsc 0, build 통과, aggrid audit 0, ui_docs coverage·check-examples 통과. 브라우저 확인 안 함(끌기·IME 런타임 미확인) |
 | f1-merge | 머지 완료(11-27) | 12cd7bd23 | f0a+f1 squash 1커밋, base 1c263a0f5. shared vitest 212/3134·m-mcm vitest 95/1823 통과. 이 SHA 는 바꾸지 않는다 |
-| f4·f4b | 끝 | 2eb0e09c3·7c97afbf3 | `nav.ts`(openLegacy·readOpenWith·useReloadOnReturn·useOpenWith)·nav.test 13. pageId = `mcm:csa/<screenId>`. 받는 쪽 3화면 훅 = 이 레인 |
-| f2 | 끝·리뷰 중 | 2d8d8ec71 | 13파일 ~2,600줄. 메뉴 칸 = AgDataGrid 가상 스크롤. phase(1·2·3)·편집 자리 no-op. bench-be ①~⑤ 반영(PERM_ERROR_CODES·DraftChange camelCase). 보고 `task-f2-report.md`(미커밋, 열린 질문 8) |
+| f4·f4b | 끝(1차 머지) | fa7e04b59 squash | `nav.ts`(openLegacy·readOpenWith·useReloadOnReturn·useOpenWith)·nav.test 13. pageId = `mcm:csa/<screenId>`. 받는 쪽 3화면 훅 = 이 레인 |
+| f2 | 끝(1차 머지 a2276717d) | fa7e04b59 squash | 13파일 ~2,600줄. 메뉴 칸 = AgDataGrid 가상 스크롤. phase(1·2·3)·편집 자리 no-op. bench-be ①~⑤ 반영(PERM_ERROR_CODES·DraftChange camelCase). 보고 `task-f2-report.md`(미커밋, 열린 질문 8) |
+| f3 | 끝·리뷰 수정 중(opus) | 6ae43cbde | 2단계 편집·초안 자동 저장 0.6초·막대·현재/초안·영향·되돌리기·잃는 사람·충돌·이력. BENCH_PHASE=3. USE_MOCK=true(b1~b6 머지 뒤 실연결 = 다음 커밋). 리뷰 14건(중4·하10) + bench-be 7·9·10번(`task-f3-contract-adds.md`) |
+| f8 | 끝 | f566c65d1 | 시험 3파일 58건, commPermBench 8파일/97 |
+| f9 | 등록 끝 | ea9e95ef5·7700a7e90 | screens.mjs commPermBench·commPermMng·commRoleMng·commObjMng(새 설계). 브라우저 렌더 점검 = 사용자 승인 대기(Mac 조정 통합 확인 몫) |
 
 ### 결정
 
@@ -30,13 +33,13 @@ f0a 계약 타입·가짜 자료 → f1 shared 부품 3개 → f1-merge → f2 �
 
 - f3 규칙(Mac 결정 11-27): 퍼미션 줄에 오브젝트 밖 값(예 print)이 남으면 고친 줄만 초안·저장 때 밖 값을 빼고 보낸다. 그 줄에 「오브젝트에 없는 값 <코드> 는 저장 때 빠진다」 한 줄 표시. 근거 D15(저장 = ⊆ 검사, 서버 엄격). commPermMng 도 같음
 - f4b(결정 15): commUserMng·commRoleGrpMng·commMenuMng 받는 쪽 훅 = 이 레인(훅 줄 추가만). `useOpenWith` 는 nav.ts. commRoleMng = perm-fe-b, commObjMng = perm-legacy-be. 계약 = `/Users/jji/.coord/perm-bench-mac/contracts/open-with.md`
-- 커밋(f1 머지 뒤, 다음 squash 기점 = 12cd7bd23): 2eb0e09c3 f4 · 5dc852589 screens.mjs 3화면 · 7c97afbf3 f4b
+- 결정(11-27): api.ts 는 shared json-api-client 대신 같은 헤더·credentials 의 얇은 fetch 래퍼(client 가 non-2xx 때 meta.message 를 버림 — 다음 회차 후보). SYSADMIN = searchBench data.result.me[0].ME_SYSADMIN(실연결 때), 그전 상수 false. apply 캐시 무효화 = BE b4 몫. 작업대 머지 2회 분할(조정 승인)
 
 ### 남은 일(순서)
 
-1. 작업대 1차 머지(조정 승인, 11-27): f2·f2 리뷰 수정(9건+결정 13+반대 방향 받기)·f4·f4b·screens.mjs 3화면. e3d5cf33c 위 squash → 머지 요청. 요청 뒤 그 SHA 는 바꾸지 않는다
-2. f3(opus/high, 지시 글 = 세션 scratchpad f3-brief.md — 잃으면 이 줄과 결정 절로 다시 쓴다): useBenchState 편집 자리(toggleMember·toggleGroupRole·toggleRegister·setPermValues) 채우기, 초안 막대·현재/초안·영향·되돌리기·잃는 사람·충돌·이력. 오브젝트 밖 값 규칙·SYSADMIN 잠금
-3. f8 → f9(commPermBench 등록 = c4 메뉴 뒤, 브라우저 = 사용자 승인 대기·Mac 조정 통합 확인 몫) → 2차 머지(f3·f8·f9). 미커밋 page-registry 한 줄은 머지 요청에 적음
+1. f3 리뷰 수정(opus/high) 결과 확인 → 커밋
+2. 2차 머지: fetch → 최신 tip 위로 rebase(또는 merge) → m-mcm 전체 시험(heavy)·tsc·audit → squash(page-registry 로컬 변경 있으면 먼저 치움) → 머지 요청(f3·f8·f9·mdm-e2e.ts 주석)
+3. 그 뒤: bench-be b1~b6 머지 알림 → USE_MOCK=false 실연결 새 커밋. ME_SYSADMIN 으로 SYSADMIN 잠금 풀기. CURRENT_USER_IS_SYSADMIN 상수 제거
 
 ## perm-fe-b (Mac, 브랜치 perm/perm-fe-b, 워크트리 dmes-perm-fe-b)
 

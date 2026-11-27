@@ -6,6 +6,10 @@ import { IconPencil, IconPlus } from "@tabler/icons-react";
 import { Checkbox, Input } from "@dk-oasis/shared/form";
 import { fmtNum, rolesOfGroup } from "./model";
 import { LegacyIconButton, Panel, RoleChip, StatusTag, useBench } from "./parts";
+import { linkDiffKind } from "./draft";
+import { PERM_SYSADMIN_ROLE_ID } from "./types";
+
+const SYS_LOCK = "시스템 관리자(SYSADMIN) 역할을 그룹에 넣고 빼는 일은 SYSADMIN 사용자만 합니다";
 
 function RoleIcons({ roleId }: { roleId: string | null }) {
   return (
@@ -21,11 +25,12 @@ export const RoleCol = memo(function RoleCol({ groupId, roleId, canEdit, onSelec
   roleId: string | null;
   canEdit: boolean;
   onSelect: (roleId: string) => void;
-  /** 2단계(f3) 자리 — 그룹 ↔ 역할 체크. */
+  /** 그룹 ↔ 역할 체크(GRP_ROLE 초안). */
   onToggleGroupRole: (roleId: string, on: boolean) => void;
 }) {
-  const { bench } = useBench();
+  const { bench, base, isSysadmin } = useBench();
   const inGroup = rolesOfGroup(bench, groupId);
+  const wasIn = rolesOfGroup(base, groupId);
   const gname = groupId ? bench.groupById.get(groupId)?.ROLE_GROUP_NM ?? groupId : "";
 
   return (
@@ -47,13 +52,27 @@ export const RoleCol = memo(function RoleCol({ groupId, roleId, canEdit, onSelec
         bench.roles.map((r) => {
           const on = inGroup.includes(r.ROLE_ID);
           const cur = r.ROLE_ID === roleId;
+          const chg = linkDiffKind(wasIn.includes(r.ROLE_ID), on);
+          const sysLock = !isSysadmin && r.ROLE_ID === PERM_SYSADMIN_ROLE_ID;
           return (
             <div key={r.ROLE_ID} className={`pb-pick${cur ? " is-on" : ""}`}>
-              <Checkbox checked={on} disabled={!canEdit} aria-label={`${r.ROLE_NM}을(를) 그룹에 넣기`} onChange={(v) => onToggleGroupRole(r.ROLE_ID, v)} />
+              <span title={canEdit && sysLock ? SYS_LOCK : undefined}>
+                <Checkbox
+                  checked={on}
+                  disabled={!canEdit || sysLock}
+                  aria-label={`${r.ROLE_NM}을(를) 그룹에 넣기`}
+                  onChange={(v) => onToggleGroupRole(r.ROLE_ID, v)}
+                />
+              </span>
               <button type="button" className="pb-pick__nm" disabled={!on} onClick={() => onSelect(r.ROLE_ID)} aria-pressed={cur}>
                 <span>
                   <RoleChip roleId={r.ROLE_ID} />
                   {r.USE_TP === "N" && <StatusTag kind="block">사용 안 함</StatusTag>}
+                  {chg && (
+                    <StatusTag kind={chg} title={chg === "add" ? "초안에서 이 그룹에 넣음" : "초안에서 이 그룹에서 뺌"}>
+                      {chg === "add" ? "넣음" : "뺌"}
+                    </StatusTag>
+                  )}
                 </span>
                 <small>
                   메뉴 {fmtNum(r.PERM_CNT)}개 · 사람 {fmtNum(r.USER_CNT)}명

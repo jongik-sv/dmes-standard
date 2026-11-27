@@ -103,7 +103,7 @@ export async function loadMdmFixture(...files: string[]): Promise<void> {
 }
 
 /**
- * mcm 의 MDM 메뉴·RBAC 시드를 mdm-rbac-seed-check.sql 의 SELECT 6개로 읽어 .expected.txt 와 글자 그대로 비교한다. 다르면 두 쪽을 담아 던진다.
+ * mcm 의 MDM 메뉴·RBAC 시드를 mdm-rbac-seed-check.sql 의 SELECT 9개로 읽어 .expected.txt 와 글자 그대로 비교한다. 다르면 두 쪽을 담아 던진다.
  * 마지막 SELECT(e2e 사용자 0명)는 mdm-rbac-users.sql 을 넣기 **전**에만 참이다 — 새 mcm 기동 직후, 시험 사용자를 넣기 전에 부른다.
  */
 export async function verifyMdmRbacSeed(): Promise<void> {

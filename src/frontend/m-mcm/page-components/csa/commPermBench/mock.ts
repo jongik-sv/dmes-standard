@@ -50,6 +50,7 @@ import {
   type SearchRolePermParams,
   type YN,
 } from "./types";
+import { HISTORY_DEFAULT_DAYS, HISTORY_MAX_ROWS, historyRangeError, localDate, minusDays } from "./draft";
 
 // ── 토큰 ─────────────────────────────────────────────────────
 
@@ -369,15 +370,21 @@ function actionsOf(g: MockGraph, roleIds: Iterable<string>): Map<string, Set<str
 const activeRolesOf = (g: MockGraph, userId: string) =>
   new Set(pathsOfUser(g, userId).filter((p) => p.active).map((p) => p.roleId));
 
-/** 메뉴 칸 한 줄의 VISIBLE·REASON. paths = 사람의 역할 길(역할 기준이면 그 역할 하나). */
+/**
+ * 메뉴 칸 화면 한 줄의 VISIBLE·REASON. paths = 사람의 역할 길(역할 기준이면 그 역할 하나).
+ * bench-be #11(런타임 PermExplainService) 규칙:
+ *   a) 권한이 닿는 숨긴 화면(SHOW_TP N) = VISIBLE Y · REASON MENU_HIDDEN(주소로 연다)
+ *   c) OBJECT_ID 가 없는(오브젝트를 모르는) 화면 = N · NO_PERM
+ *   d) 역할 기준 트리도 실제 이유(ROLE_UNUSED·OBJ_UNUSED·NO_PERM …)를 준다
+ *   사용자 사용 안 함은 paths 가 비어 NO_ROLE(그대로).
+ */
 function menuVerdict(g: MockGraph, m: MockGraph["menus"][number], paths: RolePath[]): { VISIBLE: YN; REASON: PermDenyReason | null } {
   const o = m.OBJECT_ID ? g.objects.get(m.OBJECT_ID) : undefined;
-  if (!o) return { VISIBLE: "N", REASON: null };
+  if (!o) return { VISIBLE: "N", REASON: "NO_PERM" };
   if (o.use === "N") return { VISIBLE: "N", REASON: "OBJ_UNUSED" };
-  if (m.SHOW_TP === "N") return { VISIBLE: "N", REASON: "MENU_HIDDEN" };
   if (!paths.length) return { VISIBLE: "N", REASON: "NO_ROLE" };
   const has = (p: RolePath) => p.roleId === PERM_SYSADMIN_ROLE_ID || g.perms.get(p.roleId)?.has(o.id);
-  if (paths.some((p) => p.active && has(p))) return { VISIBLE: "Y", REASON: null };
+  if (paths.some((p) => p.active && has(p))) return { VISIBLE: "Y", REASON: m.SHOW_TP === "N" ? "MENU_HIDDEN" : null };
   const offHit = paths.find((p) => !p.active && has(p));
   return { VISIBLE: "N", REASON: offHit?.off ?? "NO_PERM" };
 }
@@ -386,6 +393,7 @@ function menuTree(g: MockGraph, paths: RolePath[]): BenchMenuRow[] {
   const rows: BenchMenuRow[] = g.menus.map((m) => {
     const o = m.OBJECT_ID ? g.objects.get(m.OBJECT_ID) : undefined;
     // 오브젝트 사용 여부(OBJ_USE_TP) — 사람 기준·역할 기준 트리 모두 준다(BE 결정 13b)
+    if (!m.OBJECT_ID) return { ...m, VISIBLE: "N" as YN, REASON: null };
     return { ...m, ...menuVerdict(g, m, paths), ...(o ? { OBJ_USE_TP: o.use } : {}) };
   });
   // 폴더·모듈 = 아래 화면이 하나라도 보이면 보인다
@@ -399,7 +407,12 @@ function menuTree(g: MockGraph, paths: RolePath[]): BenchMenuRow[] {
       }
     }
   }
-  for (const r of rows) if (!r.OBJECT_ID && r.VISIBLE === "N") r.REASON = "NO_PERM";
+  // 모듈·폴더: 안 보이면 NO_PERM. b) 보이는 화면의 숨긴 위 폴더 = Y · MENU_HIDDEN. 줄 순서는 그래프 메뉴 순서 그대로(e)
+  for (const r of rows) {
+    if (r.OBJECT_ID) continue;
+    if (r.VISIBLE === "N") r.REASON = "NO_PERM";
+    else if (r.SHOW_TP === "N") r.REASON = "MENU_HIDDEN";
+  }
   return rows;
 }
 
@@ -506,6 +519,10 @@ export interface MockPermBenchOptions {
   conflictOnNextApply?: boolean;
   /** 적용한 관리자 ID. */
   adminUserId?: string;
+  /** 로그인한 관리자가 SYSADMIN 인가(searchBench me[0].ME_SYSADMIN). 기본 false = "N". */
+  meSysadmin?: boolean;
+  /** 적용 이력 처음 줄(시험용). 없으면 예시 두 줄. */
+  history?: HistoryRow[];
 }
 
 export interface MockPermBenchApi extends PermBenchApi {
@@ -523,11 +540,12 @@ const BTN_RANK = (b: string) => {
 export function createMockPermBenchApi(options: MockPermBenchOptions = {}): MockPermBenchApi {
   const latency = options.latencyMs ?? 0;
   const admin = options.adminUserId ?? "admin";
+  const meSysadmin = options.meSysadmin ?? false;
   let cur = buildMockGraph();
   let changes: PermChangeRow[] = [];
   let draftAt: string | null = null;
   let conflictOnce = options.conflictOnNextApply ?? false;
-  const his: HistoryRow[] = [
+  const his: HistoryRow[] = options.history ? options.history.slice() : [
     { APPLY_ID: "PA20261120-0001", APPLY_USER_ID: admin, APPLY_AT: "2026-11-20T09:12:00", CHANGE_CNT: 2, GAIN_USER_CNT: 186, LOSE_USER_CNT: 0, APPLY_MEMO: "냉연 확정 버튼 추가" },
     { APPLY_ID: "PA20261124-0001", APPLY_USER_ID: admin, APPLY_AT: "2026-11-24T15:40:00", CHANGE_CNT: 1, GAIN_USER_CNT: 0, LOSE_USER_CNT: 6, APPLY_MEMO: "구 레포트 그룹 정리" },
   ];
@@ -585,7 +603,7 @@ export function createMockPermBenchApi(options: MockPermBenchOptions = {}): Mock
         .filter(([uid]) => ids.has(uid))
         .flatMap(([uid, list]) => list.map((gid) => ({ USER_ID: uid, ROLE_GROUP_ID: gid })));
       const groupRoles: BenchGroupRoleRow[] = [...g.groupRoles].flatMap(([gid, list]) => list.map((rid) => ({ ROLE_GROUP_ID: gid, ROLE_ID: rid })));
-      return wait({ users, groups, roles, userGroups, groupRoles });
+      return wait({ users, groups, roles, userGroups, groupRoles, me: [{ ME_SYSADMIN: meSysadmin ? "Y" : "N" }] });
     },
 
     async searchMenuTree(params: SearchMenuTreeParams) {
@@ -595,9 +613,8 @@ export function createMockPermBenchApi(options: MockPermBenchOptions = {}): Mock
       else if (params.roleId) {
         const r = g.roles.find((x) => x.id === params.roleId);
         if (r) paths = [{ groupId: "", roleId: r.id, active: r.use === "Y", off: r.use === "Y" ? null : "ROLE_UNUSED" }];
-        // bench-be 계약 ③: 역할 기준 메뉴 트리 REASON 은 이번 회차 NO_PERM 하나.
-        const menus = menuTree(g, paths).map((m) => (m.REASON ? { ...m, REASON: "NO_PERM" as const } : m));
-        return wait({ menus });
+        // bench-be #11 d: 역할 기준 트리도 실제 이유를 준다(앞 회차 「NO_PERM 하나」 규칙은 없앴다)
+        return wait({ menus: menuTree(g, paths) });
       }
       return wait({ menus: menuTree(g, paths) });
     },
@@ -706,18 +723,24 @@ export function createMockPermBenchApi(options: MockPermBenchOptions = {}): Mock
     },
 
     async searchHistory(params: SearchHistoryParams) {
-      const from = params.fromDt ?? "";
-      const to = params.toDt ?? "";
+      // bench-be b5: 기본 기간 toDt = 오늘, fromDt = toDt − 30일(둘 다 포함). 형식이 틀리거나 366일을 넘으면 PERM_BAD_VALUE.
+      // his = APPLY_AT 내림차순 앞 500줄.
+      const toDt = params.toDt || localDate();
+      const fromDt = params.fromDt || minusDays(toDt, HISTORY_DEFAULT_DAYS);
+      const bad = historyRangeError(fromDt, toDt);
+      if (bad) throw new PermApplyError("PERM_BAD_VALUE", `${bad} (${fromDt} ~ ${toDt})`);
       const rows = his
-        .filter((h) => (!from || h.APPLY_AT.slice(0, 10) >= from) && (!to || h.APPLY_AT.slice(0, 10) <= to))
+        .filter((h) => h.APPLY_AT.slice(0, 10) >= fromDt && h.APPLY_AT.slice(0, 10) <= toDt)
         .filter((h) => !params.applyUserId || h.APPLY_USER_ID === params.applyUserId)
-        .slice()
-        .reverse();
+        .sort((a, b) => (a.APPLY_AT < b.APPLY_AT ? 1 : a.APPLY_AT > b.APPLY_AT ? -1 : 0))
+        .slice(0, HISTORY_MAX_ROWS);
       return wait({ his: rows });
     },
 
     async searchHistoryDtl(params: { applyId: string }) {
-      return wait({ dtl: dtl.get(params.applyId) ?? [] });
+      // dtl = SEQ_NO 오름차순. 모르는 applyId 는 빈 목록
+      const rows = (dtl.get(params.applyId) ?? []).slice().sort((a, b) => a.SEQ_NO - b.SEQ_NO);
+      return wait({ dtl: rows });
     },
   };
 }

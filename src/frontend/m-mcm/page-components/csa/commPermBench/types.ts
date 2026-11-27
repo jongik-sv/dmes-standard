@@ -84,6 +84,12 @@ export interface SearchBenchResult {
   roles: BenchRoleRow[];
   userGroups: BenchUserGroupRow[];
   groupRoles: BenchGroupRoleRow[];
+  /** 로그인한 관리자(bench-be f3 추가). ME_SYSADMIN = SYSADMIN 인가(로그인 없음 = "N"). 옛 서버는 칸이 없다. */
+  me?: BenchMeRow[];
+}
+
+export interface BenchMeRow {
+  ME_SYSADMIN: YN;
 }
 
 // ── searchMenuTree (1단계) ──────────────────────────────────
@@ -106,10 +112,10 @@ export interface BenchMenuRow {
   USE_TP: YN;
   /** 그 사람(역할)이 메뉴에서 이 화면을 보는지. */
   VISIBLE: YN;
-  /** VISIBLE = N 일 때 이유. */
+  /** 이유. VISIBLE = N 이면 못 보는 이유, VISIBLE = Y 면 MENU_HIDDEN(권한은 닿지만 메뉴에서 숨김 — 그 화면이나 위 폴더, bench-be #11) 또는 null. */
   REASON: PermDenyReason | null;
   /**
-   * 오브젝트 사용 여부(OBJ.USE_TP). 화면 메뉴 줄에만 값이 있다. 선택 칸(BE 결정 13b) — 없으면(옛 서버·모듈·폴더)
+   * 오브젝트 사용 여부(OBJ.USE_TP). 화면 메뉴 줄에만 값이 있다. BE 결정 13b(확정, 2026-11-27) — 없으면(옛 서버·모듈·폴더)
    * 화면이 사람 기준 트리의 REASON·explain 으로 판정한다.
    */
   OBJ_USE_TP?: YN | null;
@@ -293,6 +299,11 @@ export interface ApplyResult {
  * 작업대 실패 코드. 서버 BusinessException 문구 = "CODE: 상세"(bench-be 계약 ①·⑤).
  * - PERM_NO_USER = 로그인 없음 · PERM_DRAFT_BUSY = 같은 관리자의 동시 첫 저장 · PERM_DRAFT_CORRUPT = 초안 JSON 깨짐
  * - PERM_FORBIDDEN = SYSADMIN 역할이 걸린 변경(GRP_ROLE·USER_GRP 는 SYSADMIN 사용자만, ROLE_OBJ 의 SYSADMIN ADD·UPD 는 늘 금지)
+ * - NOT_FOUND = 변경 대상(사람·그룹·역할·오브젝트)이 없음. 서버는 HTTP 400(INVALID_VALUE)으로 "NOT_FOUND: 변경 대상이 없습니다: {key}" 를 준다
+ * - PERM_DRAFT_BUSY 는 초안 동시 저장의 잠금 충돌에도 온다
+ * - PERM_DRAFT_CORRUPT 는 초안 범위가 기준 지문(base fingerprint)에 없을 때도 온다 → 「초안 버리기」로 이끈다
+ * - PERM_BAD_VALUE = 입력 값 형식 오류(이력 기간 형식·366일 넘음 등)
+ * - PERM_BUSY = 잠금 대기 5초 넘음·교착·APPLY_ID 충돌 → 잠시 뒤 다시 시도
  */
 export type PermApplyErrorCode =
   | "PERM_CONFLICT"
@@ -302,7 +313,10 @@ export type PermApplyErrorCode =
   | "PERM_NO_USER"
   | "PERM_DRAFT_BUSY"
   | "PERM_DRAFT_CORRUPT"
-  | "PERM_FORBIDDEN";
+  | "PERM_FORBIDDEN"
+  | "PERM_BAD_VALUE"
+  | "PERM_BUSY"
+  | "NOT_FOUND";
 
 /** 아는 실패 코드 전부(api.ts 가 문구 앞 코드를 이 목록으로 읽는다). */
 export const PERM_ERROR_CODES: readonly PermApplyErrorCode[] = [
@@ -314,6 +328,9 @@ export const PERM_ERROR_CODES: readonly PermApplyErrorCode[] = [
   "PERM_DRAFT_BUSY",
   "PERM_DRAFT_CORRUPT",
   "PERM_FORBIDDEN",
+  "PERM_BAD_VALUE",
+  "PERM_BUSY",
+  "NOT_FOUND",
 ];
 
 /** apply 실패. PERM_CONFLICT 면 scopes 에 충돌 범위(사람·그룹·역할 ID)가 온다. */

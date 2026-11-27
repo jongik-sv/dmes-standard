@@ -12,8 +12,13 @@ import { roleColorIndex, type BenchIndex } from "./model";
 
 /** 작업대 자료 색인 + 3단계 링크 사용 여부. 자료를 다 읽은 뒤에만 그린다. */
 export interface BenchCtx {
+  /** 초안을 얹은 색인(칸·체크가 보는 값). */
   bench: BenchIndex;
+  /** 서버 현재 값 색인(초안 차이 꼬리표의 기준). */
+  base: BenchIndex;
   canLink: boolean;
+  /** 로그인한 관리자가 SYSADMIN 인가 — 아니면 SYSADMIN 이 걸린 소속 체크를 잠근다. */
+  isSysadmin: boolean;
 }
 
 export const BenchContext = createContext<BenchCtx | null>(null);
