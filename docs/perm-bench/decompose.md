@@ -58,6 +58,18 @@
 - 3단계 = 새 API 없음. 기존 화면 서비스를 그대로 쓴다.
 - FE 타입 = `m-mcm/page-components/csa/commPermBench/types.ts` 가 위 칸 이름 그대로(f0).
 
+#### 0.3.1 실제 구현과 맞춘 점(2026-11-28, BE 5c9075d4b·z2fix 7f4f33462 기준 — 위 표와 다르면 이 절이 정본)
+
+- 응답 모양: 그리드가 하나인 action = 응답 맨 위 `grids.<칸>.rows`(List 반환 + BPMN output=`<칸>`). 여러 칸 action(`searchBench`·`explain`·`impact`) = `result.<칸>`(Map + output=`result`).
+- 실패: HTTP 200 + `meta.success=false`, 메시지 = `"CODE: 상세"`. FE 는 메시지 앞 코드로 가른다. `PERM_CONFLICT` 상세 = `group:G,role:R,user:U` 범위 목록(쓰기 단계 충돌에도 온다).
+- 오류 코드: PERM_CONFLICT·PERM_NEED_CONFIRM(숫자 = 잃는 사람 수)·PERM_NOT_IN_OBJ·PERM_EMPTY_BTN·PERM_BAD_VALUE·PERM_FORBIDDEN·PERM_BUSY·PERM_DRAFT_BUSY·PERM_DRAFT_CORRUPT·PERM_DRAFT_NOT_READY·PERM_NOT_READY·PERM_NO_USER·PERM_REQUIRED·PERM_BAD_SOURCE·NOT_FOUND·VALIDATION_ERROR.
+- `searchBench`: `roles.PERM_CNT` = 퍼미션 행 수, SYSADMIN = -1(「모두」, D13). `me`(ME_SYSADMIN Y/N) 추가.
+- `searchMenuTree`·`explain`: 런타임 `PermExplainService` 결과 그대로. 권한이 닿는 숨김 화면 = VISIBLE=Y·REASON=MENU_HIDDEN·SHOW_TP=N. USE_TP=N 폴더·화면 = VISIBLE=N. 역할 기준 REASON = 실제 이유(ROLE_UNUSED·OBJ_UNUSED 등). 비활성 사용자 = 모두 NO_ROLE. 화면 보임의 정본 = 서버 VISIBLE(메뉴는 버튼 토큰 내용을 보지 않는다).
+- `searchRolePerm`: 퍼미션 없는 오브젝트 줄은 `menuFolderId` 를 줄 때만 온다(FE 는 폴더로 한 번 더 부른다). 「퍼미션 있음」 = BTN_PERM null 아님.
+- 이력: 기간 = 양 끝 포함 366일까지(367일 = PERM_BAD_VALUE), 기본 오늘-30일~오늘. `his` APPLY_AT 내림차순 상한 500.
+- 시각 칸(U_AT·APPLY_AT) = `yyyy-MM-dd HH:mm:ss` 문자열.
+- 초안 CHANGES_JSON 원소 키 = camelCase(tp·key1·key2·op·btnPerm·popupPerm). 요청 rows 는 SNAKE.
+
 ### 0.4 옛 화면 API 변경(요약, l-항목이 구현)
 
 - commPermMng: `searchCmPerm`(조건 roleId·menuId(모듈·폴더)·objectQ·codeQ·showEmpty, 페이지) → 줄 = 역할×오브젝트. `saveCmPerm` = PK merge·delete, ⊆ 검사, 빈 BTN 거절
