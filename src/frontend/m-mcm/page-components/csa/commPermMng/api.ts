@@ -1,58 +1,52 @@
 /**
- * commPermMng 화면의 OASIS BFF 호출 래퍼.
+ * commPermMng(퍼미션 관리) 화면의 OASIS BFF 호출 래퍼 — perm-bench 새 설계(types.ts 머리 주석이 계약 정본).
  *
- * 호출 패턴: POST /api/mcm/oasis/commPermMng/{action} (BPMN action 2 enum — To-Be 정책 #1 적용)
- *   - searchCmPerm — PERMISSION 그리드 조회 (selectCommPermMng + ROLE_ID scalar 부착)
- *   - saveCmPerm   — PERMISSION 일괄 저장 (status 분기 inserted/updated/deleted) + 후속 재조회
+ * 호출: POST /api/mcm/oasis/commPermMng/{action}
+ *   - lov           — 역할·메뉴 고르기 목록
+ *   - search        — 퍼미션 목록(역할 × 오브젝트, 페이지)
+ *   - searchPermOne — 퍼미션 한 건의 받는 사람·같은 화면 다른 퍼미션
+ *   - save          — PK merge·delete. 목록 입력은 grids.perms.rows(D36 — params 배열 아님)
  *
- * 폐기 action (cross-cutting 정책 #1, 2026-05-31):
- *   - lov (As-Is CommObjMngMapper.selectAppHostId cross-module) — BIZ_SYSTEM_CODE 컬럼 폐기로 호출 불요
- *
- * 분석리포트 §6 (SQL ID) / §8 (BPMN) / BPMN설계서 §1.1 + §2 인용.
- *
- * 본 모듈 (mcm) 은 SqlSession 빈 미등록 — Phase 7 라우트 사용 금지.
- * 무조건 OASIS (`/api/mcm/oasis/...`) 만 사용 (docs/guide/FrontEnd/standard-v2/frontend-standard/01-rules-decisions-files.md §2-2-1-A).
+ * 본 모듈(mcm)은 SqlSession 빈 미등록 — OASIS(`/api/mcm/oasis/...`)만 쓴다.
  */
 import { createJsonApiClient } from "@/lib/http/json-api-client";
-import type { CommPermMngFilters, CommPermMngRow } from "./types";
+import type {
+  PermMenuLov,
+  PermOtherRow,
+  PermRoleGroupRow,
+  PermRoleLov,
+  PermRow,
+  PermSaveRow,
+  PermSearchParams,
+} from "./types";
 
 const api = createJsonApiClient();
 
 const OASIS_BASE = "/api/mcm/oasis/commPermMng";
 
-interface SearchCmPermPayload {
-  ds_main?: CommPermMngRow[];
-}
-
-interface SaveCmPermPayload {
-  cnt_merge?: number;
-  ds_main?: CommPermMngRow[];
-}
-
 /**
- * Cactus 표준 응답 envelope — CactusResponseConverter 가 Service Map<String,Object> 반환을
- * 다음과 같이 분리:
- *  - 단일 값 (cnt_merge 같은 Number/String) → data.{key}
- *  - List 값 (ds_main 같은) → grids.{key}.rows
- *
- * BPMN output="result" + Service Map 반환 패턴: cactus 가 data.result = Map 으로 적재.
- * Map 내부의 List 는 cactus 가 자동 분리 안 함 → FE 가 result 안의 key 들을 그대로 flat 전개
- * (cma·W1~W5 정본 패턴 그대로).
+ * Cactus 표준 응답 envelope — 단일 값은 data.{key}, List 는 grids.{key}.rows.
+ * BPMN output="result" + Map 반환이면 data.result 안의 키를 그대로 펼친다.
  */
 interface CactusEnvelope {
-  meta?: { success?: boolean; message?: string };
+  meta?: { success?: boolean; message?: string; code?: string };
   data?: Record<string, unknown>;
   grids?: Record<string, { rows?: unknown[] }>;
+  errors?: { code?: string; message?: string }[];
+}
+
+/** 거절 문구 — BE 는 "CODE: 상세" 로 보낸다. 코드가 따로 칸(meta.code·errors[0].code)에만 있으면 앞에 붙여 화면 판정이 같게 한다. */
+export function rejectMessage(env: CactusEnvelope): string {
+  const msg = env.meta?.message?.trim() || env.errors?.[0]?.message?.trim() || "요청이 거부되었습니다.";
+  const code = env.meta?.code || env.errors?.[0]?.code;
+  return code && !msg.startsWith(code) ? `${code}: ${msg}` : msg;
 }
 
 function unwrapPayload<T>(res: unknown): T {
   const env = res as CactusEnvelope;
-  // ★비즈니스 거부 판정 (2026-08-07) — OASIS 실행기는 GlobalExceptionHandler 를 우회해
-  //   HTTP 200 + meta.success=false + meta.message 로 실패를 돌려준다. 이 판정이 없으면
-  //   저장/조회 실패가 조용히 성공으로 처리돼 "버튼을 눌러도 아무 일이 없는" 증상이 된다
-  //   (commMenuMng 저장 미동작의 실제 정체 — BE CoercionException 이 여기서 삼켜지고 있었다).
+  // OASIS 실행기는 실패를 HTTP 200 + meta.success=false + meta.message 로 돌려준다 — 여기서 던져야 화면이 실패를 안다.
   if (env?.meta && env.meta.success === false) {
-    throw new Error(env.meta.message?.trim() || "요청이 거부되었습니다.");
+    throw new Error(rejectMessage(env));
   }
   const out: Record<string, unknown> = {};
   if (env?.data) {
@@ -86,25 +80,47 @@ async function callAction<T>(
   return unwrapPayload<T>(res);
 }
 
-/** action=searchCmPerm — PERMISSION 그리드 조회 (As-Is selectCommPermMng). */
-export async function searchCommPermMng(filters: CommPermMngFilters): Promise<SearchCmPermPayload> {
-  return callAction<SearchCmPermPayload>("search", {
-    edtPERMISSIONID: filters.edt_PERMISSION_ID,
-    edtPERMISSIONNM: filters.edt_PERMISSION_NM,
-    cboUSETP: filters.cbo_USE_TP,
-  });
+export interface PermLovPayload {
+  roles: PermRoleLov[];
+  menus: PermMenuLov[];
 }
 
-/**
- * action=saveCmPerm — PERMISSION 일괄 저장 (CactusRequest 표준: grids.master.rows).
- * BE Service.saveCmPerm(List<Map> master) parameter 이름 = grid key `master` 와 일치 (가이드 §6-E-3).
- */
-export async function saveCommPermMng(rows: CommPermMngRow[]): Promise<SaveCmPermPayload> {
-  return callAction<SaveCmPermPayload>(
-    "save",
-    {},
-    { master: { rows: rows as unknown as Record<string, unknown>[] } },
-  );
+export interface PermSearchPayload {
+  perms: PermRow[];
+  TOTAL_CNT: number;
 }
 
-export type { SearchCmPermPayload, SaveCmPermPayload };
+export interface PermOnePayload {
+  others: PermOtherRow[];
+  groups: PermRoleGroupRow[];
+  USER_CNT: number;
+}
+
+export interface PermSavePayload {
+  cnt_merge: number;
+  cnt_delete: number;
+}
+
+/** action=lov — 역할(SYSADMIN 제외)·메뉴(모듈·폴더) 목록. */
+export async function lov(): Promise<PermLovPayload> {
+  const r = await callAction<Partial<PermLovPayload>>("lov", {});
+  return { roles: r.roles ?? [], menus: r.menus ?? [] };
+}
+
+/** action=search — 퍼미션 목록(한 줄 = 역할 × 오브젝트) + 전체 건수. */
+export async function searchCmPerm(q: PermSearchParams): Promise<PermSearchPayload> {
+  const r = await callAction<Partial<PermSearchPayload>>("search", { ...q });
+  return { perms: r.perms ?? [], TOTAL_CNT: Number(r.TOTAL_CNT ?? 0) };
+}
+
+/** action=searchPermOne — 고른 퍼미션의 같은 화면 다른 퍼미션·역할 그룹·받는 사람 수. */
+export async function searchPermOne(roleId: string, objectId: string): Promise<PermOnePayload> {
+  const r = await callAction<Partial<PermOnePayload>>("searchPermOne", { roleId, objectId });
+  return { others: r.others ?? [], groups: r.groups ?? [], USER_CNT: Number(r.USER_CNT ?? 0) };
+}
+
+/** action=save — 바뀐 퍼미션만 grids.perms.rows 로(OP_TP MERGE·DEL). */
+export async function saveCmPerm(rows: PermSaveRow[]): Promise<PermSavePayload> {
+  const r = await callAction<Partial<PermSavePayload>>("save", {}, { perms: { rows } });
+  return { cnt_merge: Number(r.cnt_merge ?? 0), cnt_delete: Number(r.cnt_delete ?? 0) };
+}

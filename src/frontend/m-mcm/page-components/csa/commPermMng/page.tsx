@@ -1,960 +1,652 @@
 "use client";
 
 /**
- * commPermMng 화면 — PERMISSION 관리 (As-Is CommPermMng.xfdl / W6).
+ * commPermMng 화면 — 퍼미션 관리(perm-bench 새 설계, 시안 v16 lgPermNext · decompose.md §0.4).
  *
- * 인용 정본:
- *   - 분석리포트 §3 (UI 컴포넌트) / §4 (이벤트) / §6 (SQL) / §8 (BPMN)
- *   - 기능설계서 §3 (조회+그리드) / §4 (Detail 필드) / §5 (버튼) / §6 (validation) / §10 (메시지)
- *   - 디자인설계서 §2 (좌우분할 레이아웃) / §3.3 (Detail FormGrid 11 → 10 행)
- *   - BPMN설계서 §1.1 (2 API — To-Be 정책 #1) / §2 (action 흐름)
+ * 한 줄 = 퍼미션 한 건(역할 × 오브젝트). 버튼·팝업 권한은 오브젝트 허용 값 안에서만 켠다(D15).
+ * - 조회 조건: 역할 · 메뉴(전체 · 모듈 · 폴더) · 오브젝트(ID · 이름) · 버튼/팝업 코드 + 「퍼미션 없는 오브젝트도」(역할을 고를 때만).
+ * - 왼쪽 목록 칩으로 바로 켜고 끈다. 오른쪽 「퍼미션 한 건」 에서 값을 적어 고치고, 퍼미션 없는 오브젝트는 만든다.
+ * - 바뀐 값은 화면이 들고 있다가(키 ROLE_ID|OBJECT_ID) [저장] 때 바뀐 건만 보낸다(MERGE·DEL, grids.perms — D36).
+ * - 마지막 버튼을 끄면 퍼미션 빼기(D14). 「조회만」 = 서버 OBJ_READ_PERM(D18). DATA_PERM 은 보기·통과만(D21).
  *
- * 페이지 유형: C 단일 그리드 + 단일 상세 폼 (G+D 좌우 분할).
- * 호출: POST /api/mcm/oasis/commPermMng/{action} (OASIS only — mcm 모듈 SqlSession 미등록).
- *
- * To-Be 정책 #1 (cross-cutting, 2026-05-31):
- *   - BIZ_SYSTEM_CODE 폐기 → S-001 / D-007 / D-008 / G-008 / LV-003 / lov action 모두 제거
- *   - As-Is 3 action (search / save / lov) → To-Be 2 (searchCmPerm / saveCmPerm)
- *
- * 패턴: W1 commObjMng (단일 그리드 + GridPanel 표준 메뉴) + Detail 우측 폼.
- *
- * 2026-06-01 UI 정합 갱신 (As-Is 스크린샷 + 9 화면 횡단 일관성):
- *   - 상단 버튼바에 "닫기" 버튼 추가 — As-Is EX-001 btn_close (xfdl:227 / fn_close xfdl:444).
- *   - 검색 사용여부를 Combo (전체/Y/N) 로 — As-Is S-004 cbo_USE_TP (xfdl:152).
- *   - Detail 의 raw input/textarea/radio 를 shared (Input / Textarea / Radio / DatePicker) 로 교체.
- *   - 유효 개시/기한일 = DatePicker — As-Is D-012/D-014 Calendar (xfdl:113/93).
- *   - Detail Find Button (B-002 / B-003) 추가 — 공통/CUSTOM 권한 팝업 (As-Is btn_common_find / btn_custom_find).
- *   - Grid USE_TP render Y/N → "사용/미사용" 라벨 (As-Is hardcoded codecolumn=condCd 표시).
- *   - Grid START/END_ACTIVE_DATE render 정규화 (yyyy-MM-dd) — As-Is displaytype="date".
- *   - maxLength 정합 — PERMISSION_DESC 300 (As-Is xfdl maxlength=100 + DDL 300 → 300 채택) /
- *     PERMISSION_COMMON / CUSTOM 500 / POPUP_BTN 1000 / PERMISSION_ACTION 500 (DDL §9.3.1).
+ * 렌더 구조(화면 성능 가이드 R7·R12): 열 정의는 한 번만 만들고 동작은 고정 묶음(actions)으로 넘긴다.
+ * 바뀐 건이 없는 줄은 조회 줄 객체를 그대로(보기 줄 캐시) 두어 그리드가 바뀐 줄만 다시 그린다.
+ * 값 글 칸 입력 중 상태는 PermOnePane 안에만 있다.
  */
-
-import { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  PageLayout,
-  SearchArea,
-  SearchField,
-  ContentBody,
-  ContentPanel,
-  ResizableFormPanel,
-  ErrorModal,
-  DETAIL_TABLE_STYLE,
-  DETAIL_LABEL_CELL,
-  DETAIL_VALUE_CELL,
-} from "@dk-oasis/shared/layout";
-import { GridPanel, AgDataGrid, type GridColumn } from "@dk-oasis/shared/grid";
-import {
-  Button,
-  Input,
-  Textarea,
-  Radio,
-  DatePicker,
-} from "@dk-oasis/shared/form";
-import { MdmFieldLabel } from "@dk-oasis/shared/mdm-meta";
-import { Modal } from "@dk-oasis/shared/modal";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { ContentBody, ContentPanel, PageLayout, SearchArea, SearchField } from "@dk-oasis/shared/layout";
+import { AgDataGrid, GridPanel, Pagination, type GridColumn } from "@dk-oasis/shared/grid";
+import { Badge, Button, Checkbox } from "@dk-oasis/shared/form";
 import { useMessage } from "@dk-oasis/shared/message-provider";
 import { useCarryRestored, useCarryState } from "@dk-oasis/shared/portal-shell";
-import { searchCommPermMng, saveCommPermMng } from "./api";
-import type { CommPermMngFilters, CommPermMngRow, RowStatus } from "./types";
+import { lov, saveCmPerm, searchCmPerm, searchPermOne } from "./api";
+import { PermChips } from "./PermChips";
+import { PermOnePane, type PermActions, type PermOneInfo } from "./PermOnePane";
+import {
+  NO_PERM,
+  allowedOf,
+  baseValue,
+  entryOf,
+  findEmptyBtn,
+  foldSaved,
+  makeValue,
+  permKey,
+  toSaveRows,
+  setCodes,
+  toViewRow,
+  type PermEntry,
+  type PermKind,
+  type PermValue,
+  type PermViewRow,
+} from "./perm-chips";
+import { PERM_MNG_CSS, PERM_MNG_STYLE_HREF } from "./perm-styles";
+import type { PermMenuLov, PermRoleLov, PermRow, PermSearchParams } from "./types";
 
-interface GridRow extends Record<string, unknown> {
-  __gridTempId?: string;
-  __rowId?: string;
-  nativeeditor_status?: RowStatus;
+const SCREEN_ID = "commPermMng";
+/** 한 쪽 줄 수(서버 페이지). */
+const PAGE_SIZE = 200;
+
+interface PermFilters {
+  roleId: string;
+  menuId: string;
+  objectQ: string;
+  codeQ: string;
+  showEmpty: boolean;
 }
 
-function getRowKey(row: GridRow): string {
+const DEFAULT_FILTERS: PermFilters = { roleId: "", menuId: "", objectQ: "", codeQ: "", showEmpty: false };
+
+const toParams = (f: PermFilters, pageNo: number): PermSearchParams => ({
+  roleId: f.roleId,
+  menuId: f.menuId,
+  objectQ: f.objectQ.trim(),
+  codeQ: f.codeQ.trim(),
+  showEmpty: f.roleId && f.showEmpty ? "Y" : "N",
+  pageNo,
+  pageSize: PAGE_SIZE,
+});
+
+const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
+
+/** save 거절(UserException) 코드를 알기 쉬운 문구로. 원래 문구는 뒤에 붙인다. */
+function saveErrorText(e: unknown): string {
+  const m = errorText(e);
+  if (m.includes("PERM_NOT_IN_OBJ")) return `오브젝트에 없는 값이 있어 저장하지 못했습니다. 오브젝트 값을 확인하세요.\n${m}`;
+  if (m.includes("PERM_EMPTY_BTN")) return `버튼 권한이 빈 퍼미션은 저장할 수 없습니다. 버튼을 하나 이상 켜거나 퍼미션을 빼세요.\n${m}`;
+  return m;
+}
+
+const EMPTY_WITH_ROLE = "조건에 맞는 퍼미션이 없습니다. 「퍼미션 없는 오브젝트도」를 켜면 만들 수 있습니다.";
+const EMPTY_NO_ROLE = "조건에 맞는 퍼미션이 없습니다. 역할을 고르면 퍼미션 없는 오브젝트도 볼 수 있습니다.";
+
+const ROW_HEIGHT = 40;
+const getRowHeight = () => ROW_HEIGHT;
+const getRowClassExtra = (r: Record<string, unknown>) =>
+  (r as PermViewRow).__state === "empty" ? "cpm-row-empty" : undefined;
+
+function Cell2({ main, sub, mono }: { main: string; sub?: string; mono?: "main" | "sub" }) {
   return (
-    (row.__gridTempId as string) ||
-    (row.__rowId as string) ||
-    String((row as { PERMISSION_ID?: unknown }).PERMISSION_ID ?? "")
+    <span className="cpm-cell2">
+      <span className={mono === "main" ? "cpm-mono" : undefined}>{main}</span>
+      {sub ? <span className={mono === "sub" ? "cpm-sub cpm-mono" : "cpm-sub"}>{sub}</span> : null}
+    </span>
   );
 }
 
-/** 신규/조회 행 모두 `__rowId` 합성 — AgDataGrid rowKey 가 단일 컬럼만 지원 + 신규 row PERMISSION_ID="" 충돌 회피. */
-function withSyntheticId<T extends Partial<CommPermMngRow>>(r: T, idx: number): T & { __rowId: string } {
-  return { ...r, __rowId: `r-${idx}-${String(r.PERMISSION_ID ?? "")}` };
+function buildColumns(actions: PermActions): GridColumn[] {
+  return [
+    {
+      key: "ROLE_ID",
+      header: "역할",
+      width: 150,
+      minWidth: 140,
+      align: "left",
+      render: (_v, r) => <Cell2 main={String(r.ROLE_NM ?? r.ROLE_ID)} sub={String(r.ROLE_ID)} mono="sub" />,
+    },
+    {
+      key: "MENU_PATH",
+      header: "메뉴",
+      width: 150,
+      minWidth: 140,
+      align: "left",
+      render: (_v, r) => <Cell2 main={String(r.MENU_PATH ?? "-")} sub={r.MENU_NM ? String(r.MENU_NM) : undefined} />,
+    },
+    {
+      key: "OBJECT_ID",
+      header: "오브젝트",
+      width: 150,
+      minWidth: 140,
+      align: "left",
+      render: (_v, r) => (
+        <Cell2 main={String(r.OBJECT_ID)} sub={r.OBJECT_NM ? String(r.OBJECT_NM) : undefined} mono="main" />
+      ),
+    },
+    {
+      key: "BTN_PERM",
+      header: "버튼 권한",
+      width: 300,
+      minWidth: 220,
+      align: "left",
+      tooltip: false,
+      render: (_v, r) => {
+        const v = r as PermViewRow;
+        const chips = (
+          <PermChips
+            chips={v.__btnChips}
+            onChange={(next) => actions.set(v.__key, "btn", next)}
+            ariaLabel={`${v.ROLE_ID} × ${v.OBJECT_ID} 버튼 권한`}
+            line
+          />
+        );
+        // D15 — 오브젝트 밖 값이 있으면 저장 때 빠진다는 한 줄을 칩 아래에 둔다.
+        if (!v.__btnOut) return chips;
+        return (
+          <span className="cpm-cell2">
+            {chips}
+            <span className="cpm-warn" title={v.__btnOut}>
+              {v.__btnOut}
+            </span>
+          </span>
+        );
+      },
+    },
+    {
+      key: "POPUP_PERM",
+      header: "팝업 권한",
+      width: 180,
+      minWidth: 120,
+      align: "left",
+      tooltip: false,
+      render: (_v, r) => {
+        const v = r as PermViewRow;
+        const chips = (
+          <PermChips
+            chips={v.__popChips}
+            onChange={(next) => actions.set(v.__key, "pop", next)}
+            ariaLabel={`${v.ROLE_ID} × ${v.OBJECT_ID} 팝업 권한`}
+            line
+          />
+        );
+        // D15 — 오브젝트 밖 값이 있으면 저장 때 빠진다는 한 줄을 칩 아래에 둔다.
+        if (!v.__popOut) return chips;
+        return (
+          <span className="cpm-cell2">
+            {chips}
+            <span className="cpm-warn" title={v.__popOut}>
+              {v.__popOut}
+            </span>
+          </span>
+        );
+      },
+    },
+    {
+      key: "DATA_PERM",
+      header: "데이터 권한",
+      width: 100,
+      minWidth: 90,
+      align: "left",
+      render: (v) => (v ? String(v) : "-"),
+    },
+    {
+      key: "__act",
+      header: "",
+      meta: false,
+      width: 90,
+      minWidth: 84,
+      align: "center",
+      sortable: false,
+      tooltip: false,
+      filter: false,
+      render: (_v, r) => {
+        const v = r as PermViewRow;
+        if (v.__cur.has) {
+          return (
+            <Button size="mini" onClick={() => actions.remove(v.__key)}>
+              빼기
+            </Button>
+          );
+        }
+        if (v.__base.has) {
+          return (
+            <Button size="mini" onClick={() => actions.undo(v.__key)}>
+              되돌리기
+            </Button>
+          );
+        }
+        const canRead = v.__allowed.read.length > 0;
+        return (
+          <Button
+            size="mini"
+            disabled={!canRead}
+            title={canRead ? "조회만으로 만듭니다" : "조회 값이 없습니다 — 오른쪽에서 「오브젝트 값 모두로 만들기」"}
+            onClick={() => actions.make(v.__key, "read")}
+          >
+            만들기
+          </Button>
+        );
+      },
+    },
+  ];
 }
 
-function stripInternal<T extends GridRow>(row: T): Record<string, unknown> {
-  const {
-    __gridTempId: _t,
-    __rowId: _r,
-    nativeeditor_status: _s,
-    ...rest
-  } = row as Record<string, unknown>;
-  return rest;
-}
-
-const DEFAULT_FILTERS: CommPermMngFilters = {
-  edt_PERMISSION_ID: "",
-  edt_PERMISSION_NM: "",
-  cbo_USE_TP: "",
-};
-
-/** S-004 / D-010 / G-009 — Y/N (LV-001 정적 — 분석 §10 / §3.7 DS-002). */
-const USE_TP_OPTIONS: { value: string; label: string }[] = [
-  { value: "Y", label: "Yes" },
-  { value: "N", label: "No" },
-];
-
-/** S-004 검색 — As-Is xfdl:152 cbo_USE_TP innerdataset=ds_cmbValidYn (gfn_setFirstRow 빈 행 prepend → 전체). */
-const USE_TP_SEARCH_OPTIONS: { value: string; label: string }[] = [
-  { value: "", label: "전체" },
-  { value: "Y", label: "Y" },
-  { value: "N", label: "N" },
-];
-
-const USE_TP_LABEL: Record<string, string> = Object.fromEntries(
-  USE_TP_OPTIONS.map((o) => [o.value, o.label]),
-);
-
-/**
- * AsIs `_com_popup::commonPermBtnPopup.xfdl` (xfdl:475/481) 의 To-Be 대체 모달용 권한 후보.
- *
- * AsIs 팝업 본체는 ERP 본가지의 외부 별도 .xfdl 로 To-Be 미이관 — OASIS LoV BPMN service 미구축
- * 시점이므로 docs/guide/FrontEnd/Local-Rules.md §"OASIS LoV BPMN service 미구축 시점" 절차 (v2 §12-X) 에 따라
- * 화면 내장 정적 후보 (As-Is 그리드 컬럼 PERMISSION_COMMON 등에서 관찰되는 표준 action 키워드)
- * 를 임시 옵션으로 제공.
- *
- * Q-NNN 등재: 운영 마스터 (SEC_PERM_BTN 또는 등가) 신설 시 본 옵션을 OASIS LoV 호출로 교체할 것.
- */
-const PERM_BTN_OPTIONS: string[] = [
-  "search",
-  "save",
-  "delete",
-  "import",
-  "export",
-  "reset",
-  "new",
-  "copy",
-  "print",
-  "close",
-  "rowAdd",
-  "rowDelete",
-  "rowCopy",
-  "rowCancel",
-  // mpn 화면 RBAC 적용(2026-06)으로 추가된 커스텀 액션
-  "execute",
-  "validate",
-  "analyze",
-  "view",
-  "activate",
-  "deactivate",
-  "compare",
-  "restore",
-  "apply",
-  "release",
-  "calculate",
-];
-
-/** As-Is `yyyyMMdd` (8자) → `yyyy-MM-dd` 변환 (G-010/G-011 displaytype=date). null/빈/이미 dash 면 그대로. */
-function formatDateCell(raw: unknown): string {
-  if (raw == null) return "";
-  const s = String(raw).trim();
-  if (!s) return "";
-  if (s.includes("T")) return s.slice(0, 10);
-  if (s.length >= 10 && s.charAt(4) === "-" && s.charAt(7) === "-") return s.slice(0, 10);
-  if (s.length === 8 && /^\d{8}$/.test(s)) return `${s.slice(0, 4)}-${s.slice(4, 6)}-${s.slice(6, 8)}`;
-  return s;
-}
-
-/** DatePicker `<input type=date>` 의 value 는 항상 `yyyy-MM-dd`. */
-function toIsoDate(raw: unknown): string {
-  return formatDateCell(raw);
-}
-
-/** DatePicker onChange (yyyy-MM-dd) → As-Is dataset 8자 보존 (BE saveCmPerm 가 8자 / ISO 모두 변환 지원). */
-function fromIsoDate(iso: string): string {
-  if (!iso) return "";
-  if (iso.length === 10 && iso.charAt(4) === "-") {
-    return iso.replace(/-/g, "");
-  }
-  return iso;
-}
-
-/**
- * Master 그리드 컬럼 — 분석 §3.3 G-001~G-012 / To-Be 정책 #1 (G-008 폐기 → 11 컬럼 — STATUS 는 행 상태 자동 표시).
- *
- * 2026-06-02 W5 정책 D — 그리드 인라인 편집 비활성화 (editable: false).
- *   사유: AsIs xfdl ds_main_onrowposchanged (xfdl:451) + BindItem (xfdl:496~506) 패턴 — 그리드 셀과
- *   Detail 폼이 양방향 bind 되며, 사용자 수정은 우측 Detail 폼에서 이루어진다 (그리드 셀 직접 편집은 의도 ✗).
- *   W5 commUserMng 사용자 검수 결과 반영 — csa W5 정합 정책.
- */
-const MASTER_COLUMNS: GridColumn[] = [
-  { key: "PERMISSION_ID", header: "PERMISSION ID *", width: 180, editable: false, align: "left" },
-  { key: "PERMISSION_NM", header: "PERMISSION명", width: 160, editable: false, align: "left" },
-  { key: "PERMISSION_COMMON", header: "공통 버튼 권한", width: 220, editable: false, align: "left" },
-  { key: "PERMISSION_CUSTOM", header: "CUSTOM 버튼 권한", width: 220, editable: false, align: "left" },
-  { key: "POPUP_BTN", header: "POPUP 버튼", width: 140, editable: false, align: "left" },
-  { key: "PERMISSION_ACTION", header: "ACTION 권한", width: 160, editable: false, align: "left" },
-  {
-    key: "USE_TP",
-    header: "사용 여부 *",
-    width: 90,
-    editable: false,
-    align: "center",
-    // AsIs G-009 displaytype 정합 — code (Y/N) 저장, label (Yes/No) 표시.
-    render: (v) => USE_TP_LABEL[String(v ?? "")] ?? String(v ?? ""),
-  },
-  {
-    key: "START_ACTIVE_DATE",
-    header: "유효개시일",
-    width: 110,
-    editable: false,
-    align: "center",
-    render: (v) => formatDateCell(v),
-  },
-  {
-    key: "END_ACTIVE_DATE",
-    header: "유효기한일",
-    width: 110,
-    editable: false,
-    align: "center",
-    render: (v) => formatDateCell(v),
-  },
-  { key: "PERMISSION_DESC", header: "권한 설명", width: 200, editable: false, align: "left" },
-];
-
-/** 행추가 default (As-Is xfdl:378~389 + To-Be END_ACTIVE_DATE 정정 9999-12-31). */
-function emptyRow(): CommPermMngRow {
-  const today = new Date().toISOString().slice(0, 10).replace(/-/g, "");
-  return {
-    PERMISSION_ID: "",
-    PERMISSION_NM: "",
-    PERMISSION_DESC: "",
-    PERMISSION_COMMON: "",
-    PERMISSION_CUSTOM: "",
-    POPUP_BTN: "",
-    PERMISSION_ACTION: "",
-    USE_TP: "Y", // ST-001
-    START_ACTIVE_DATE: today, // ST-002
-    END_ACTIVE_DATE: "99991231", // ST-003 — BE 가 9999-12-31 23:59:59 정정
-    ROLE_ID: null,
-  };
+interface ViewCacheItem {
+  entry: PermEntry | undefined;
+  codeQ: string;
+  view: PermViewRow;
 }
 
 export default function CommPermMngPage() {
   const { showMessage } = useMessage();
 
-  // 새 창으로 분리할 때 이어받는 상태(useCarryState) — 조회 조건·선택 키는 가볍게, 조회 결과 행은 bulky.
-  const [filters, setFilters] = useCarryState<CommPermMngFilters>("filters", DEFAULT_FILTERS);
-  const [isSearching, setIsSearching] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const [rows, setRows] = useCarryState<(CommPermMngRow & GridRow)[]>("rows", [], { bulky: true });
+  // 새 창으로 분리할 때 이어받는 상태 — 조건·마지막 조회 조건·선택 키는 가볍게, 조회 결과 행은 bulky.
+  const [filters, setFilters] = useCarryState<PermFilters>("filters", DEFAULT_FILTERS);
+  const [query, setQuery] = useCarryState<PermSearchParams | null>("query", null);
+  const [rows, setRows] = useCarryState<PermRow[]>("rows", [], { bulky: true });
+  const [total, setTotal] = useCarryState<number>("total", 0);
   const [selectedKey, setSelectedKey] = useCarryState<string | null>("selectedKey", null);
   const restored = useCarryRestored();
 
-  /**
-   * commonPermBtnPopup 모달 상태 (AsIs xfdl:475/481 gfn_openPopup 등가).
-   *  - `findKind` = "common" → PERMISSION_COMMON 채움 (fn_PermBtnCallBack rtnValeChk==="common")
-   *  - `findKind` = "custom" → PERMISSION_CUSTOM 채움 (fn_PermBtnCallBack rtnValeChk==="custom")
-   *  - `findDraft` = textarea 편집 중인 문자열 (콤마 구분 — AsIs Mapper 컬럼 저장 형식 그대로)
-   */
-  const [findKind, setFindKind] = useState<"common" | "custom" | null>(null);
-  const [findDraft, setFindDraft] = useState<string>("");
+  const [roles, setRoles] = useState<PermRoleLov[]>([]);
+  const [menus, setMenus] = useState<PermMenuLov[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
-  const selected = useMemo<(CommPermMngRow & GridRow) | null>(() => {
-    if (!selectedKey) return null;
-    return rows.find((r) => getRowKey(r) === selectedKey) ?? null;
-  }, [rows, selectedKey]);
+  /** 바뀐 퍼미션(키 ROLE_ID|OBJECT_ID). ref 가 정본이고 state 는 다시 그리기용 거울이다. */
+  const [pending, setPending] = useState<ReadonlyMap<string, PermEntry>>(() => new Map());
+  const pendingRef = useRef<ReadonlyMap<string, PermEntry>>(pending);
+  const commitPending = useCallback((next: ReadonlyMap<string, PermEntry>) => {
+    pendingRef.current = next;
+    setPending(next);
+  }, []);
 
-  const hasAnyChanges = useMemo(
-    () => rows.some((r) => r.nativeeditor_status),
-    [rows],
+  const [one, setOne] = useState<PermOneInfo | null>(null);
+  const [oneTick, setOneTick] = useState(0);
+  const oneSeqRef = useRef(0);
+  const searchSeqRef = useRef(0);
+
+  const busy = isSearching || isSaving;
+  const codeQ = query?.codeQ ?? "";
+  // 이벤트 안에서 쓰는 최신 값(Enter 조회·저장 다시 들어오기 막기, 저장 뒤 마지막 조건 다시 조회).
+  const busyRef = useRef(busy);
+  const savingRef = useRef(false);
+  const queryRef = useRef(query);
+  useLayoutEffect(() => {
+    busyRef.current = busy;
+  });
+
+  // ── 보기 줄: 바뀐 건이 없고 조건(codeQ)이 같으면 전에 만든 보기 줄을 그대로 쓴다 ──
+  const [viewCache] = useState(() => new WeakMap<PermRow, ViewCacheItem>());
+  const viewRows = useMemo<PermViewRow[]>(
+    () =>
+      rows.map((r) => {
+        const entry = pending.get(permKey(r.ROLE_ID, r.OBJECT_ID));
+        const hit = viewCache.get(r);
+        if (hit && hit.entry === entry && hit.codeQ === codeQ) return hit.view;
+        const view = toViewRow(r, entry, codeQ);
+        viewCache.set(r, { entry, codeQ, view });
+        return view;
+      }),
+    [rows, pending, codeQ, viewCache],
   );
+  const viewByKey = useMemo(() => new Map(viewRows.map((v) => [v.__key, v])), [viewRows]);
+  const rowByKey = useMemo(() => new Map(rows.map((r) => [permKey(r.ROLE_ID, r.OBJECT_ID), r])), [rows]);
+  const loadedKeys = useMemo<ReadonlySet<string>>(() => new Set(rowByKey.keys()), [rowByKey]);
+  const selectedView = selectedKey ? viewByKey.get(selectedKey) ?? null : null;
 
-  const visibleCount = rows.filter((r) => r.nativeeditor_status !== "deleted").length;
-
-  /** action=searchCmPerm (fn_search → fn_run("searchCmPerm"), xfdl:368~370). */
-  const loadList = useCallback(
-    async (f: CommPermMngFilters) => {
+  // ── 조회 ──
+  /** 조회. 받은 줄을 화면에 넣었으면 true. */
+  const runSearch = useCallback(
+    async (q0: PermSearchParams): Promise<boolean> => {
+      const seq = ++searchSeqRef.current;
       setIsSearching(true);
-      setError(null);
       try {
-        const payload = await searchCommPermMng(f);
-        const list = (payload.ds_main ?? []).map((r, i) => ({
-          ...withSyntheticId(r, i),
-          nativeeditor_status: "" as RowStatus,
-        }));
-        setRows(list);
-        if (list.length > 0) {
-          setSelectedKey(getRowKey(list[0]));
-        } else {
-          setSelectedKey(null);
+        // 서버 페이지(한 쪽 PAGE_SIZE 줄)라 조건이 없어도 한 번에 PAGE_SIZE 줄만 받는다(R1).
+        let q = q0;
+        let res = await searchCmPerm({ ...q, pageSize: PAGE_SIZE });
+        // 저장으로 마지막 쪽 줄이 모두 빠졌으면 남은 마지막 쪽으로 간다.
+        if (res.perms.length === 0 && q.pageNo > 1 && res.TOTAL_CNT > 0) {
+          q = { ...q, pageNo: Math.ceil(res.TOTAL_CNT / PAGE_SIZE) };
+          res = await searchCmPerm({ ...q, pageSize: PAGE_SIZE });
         }
-        // As-Is "{N}건 조회 되었습니다." (xfdl:334)
-        showMessage({ message: `${list.length}건 조회 되었습니다.`, toast: true });
+        if (seq !== searchSeqRef.current) return false;
+        setRows(res.perms);
+        setTotal(res.TOTAL_CNT);
+        setQuery(q);
+        queryRef.current = q;
+        const keys = res.perms.map((r) => permKey(r.ROLE_ID, r.OBJECT_ID));
+        setSelectedKey((prev) => (prev && keys.includes(prev) ? prev : keys[0] ?? null));
+        return true;
       } catch (e) {
-        setError(e instanceof Error ? e.message : "조회 실패");
-        setRows([]);
+        if (seq === searchSeqRef.current) showMessage({ title: "오류", message: errorText(e), alertType: "error" });
+        return false;
       } finally {
-        setIsSearching(false);
+        if (seq === searchSeqRef.current) setIsSearching(false);
       }
     },
-    [showMessage, setRows, setSelectedKey],
+    [showMessage, setRows, setTotal, setQuery, setSelectedKey],
   );
+
+  /** 바뀐 값이 있으면 묻고 지운 뒤 run 을 부른다. */
+  const confirmDiscard = useCallback(
+    (run: () => void) => {
+      if (pendingRef.current.size === 0) {
+        run();
+        return;
+      }
+      showMessage({
+        title: "확인",
+        message: "저장하지 않은 변경이 있습니다. 조회하시겠습니까?",
+        alertType: "confirm",
+        onConfirm: () => {
+          commitPending(new Map());
+          run();
+        },
+      });
+    },
+    [showMessage, commitPending],
+  );
+
+  const handleSearch = useCallback(() => {
+    // SearchArea 의 Enter 는 단추 disabled 를 보지 않는다 — 조회·저장 중에는 받지 않는다.
+    if (busyRef.current) return;
+    const q = toParams(filters, 1);
+    confirmDiscard(() => void runSearch(q));
+  }, [filters, confirmDiscard, runSearch]);
+
+  /** 쪽 넘기기 — 같은 조건이라 바뀐 값은 그대로 둔다(키로 들고 있어 다른 쪽 줄도 저장된다). */
+  const handlePage = useCallback(
+    (page0: number) => {
+      if (query && !busyRef.current) void runSearch({ ...query, pageNo: page0 + 1 });
+    },
+    [query, runSearch],
+  );
+
+  const handleReset = useCallback(() => setFilters(DEFAULT_FILTERS), [setFilters]);
 
   useEffect(() => {
-    // 복원됐는데 행이 없으면 이어받은 조건으로 조회한다. 복원 아닌 첫 조회는 SearchArea autoSearch 가 한다(설계 2026-10-07-search-defaults §6.4).
-    // 조회 결과를 상태에 담는 비동기 호출이라 effect 안 setState 규칙에 걸린다.
+    // 복원됐는데 행이 없으면 이어받은 조건으로 조회한다. 복원 아닌 첫 조회는 SearchArea autoSearch 가 한다.
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (restored && rows.length === 0) void loadList(filters);
+    if (restored && rows.length === 0 && query) void runSearch(query);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleFilterChange = (k: keyof CommPermMngFilters, v: string) =>
-    setFilters((p) => ({ ...p, [k]: v }));
+  // 역할·메뉴 고르기 목록 — 진입 때 한 번(조회가 아니다).
+  useEffect(() => {
+    let alive = true;
+    lov()
+      .then((r) => {
+        if (!alive) return;
+        setRoles(r.roles);
+        setMenus(r.menus);
+      })
+      .catch((e) => {
+        if (alive) showMessage({ title: "오류", message: errorText(e), alertType: "error" });
+      });
+    return () => {
+      alive = false;
+    };
+  }, [showMessage]);
 
-  const handleSearch = () => void loadList(filters);
+  // 고른 퍼미션의 받는 사람·같은 화면 다른 퍼미션 — 낡은 응답은 버린다.
+  useEffect(() => {
+    if (!selectedKey) return;
+    const seq = ++oneSeqRef.current;
+    const i = selectedKey.indexOf("|");
+    const roleId = selectedKey.slice(0, i);
+    const objectId = selectedKey.slice(i + 1);
+    searchPermOne(roleId, objectId)
+      .then((r) => {
+        if (seq === oneSeqRef.current) setOne({ key: selectedKey, ...r });
+      })
+      .catch((e) => {
+        if (seq !== oneSeqRef.current) return;
+        setOne({ key: selectedKey, others: [], groups: [], USER_CNT: 0 });
+        showMessage({ title: "오류", message: errorText(e), alertType: "error" });
+      });
+  }, [selectedKey, oneTick, showMessage]);
 
-  /** 초기화 (fn_reset / xfdl:373~376). */
-  const handleReset = () => {
-    setFilters(DEFAULT_FILTERS);
-  };
-
-  /**
-   * 행취소 — 선택된 단일 row 만 취소 (cma·W1 패턴).
-   * inserted → row 제거 / updated/deleted → status reset.
-   */
-  const handleRowCancel = useCallback(() => {
-    if (!selectedKey) {
-      setError("취소할 행을 선택하세요.");
-      return;
-    }
-    setRows((prev) => {
-      const target = prev.find((r) => getRowKey(r) === selectedKey);
-      if (!target?.nativeeditor_status) {
-        setError("변경된 행이 아닙니다.");
-        return prev;
-      }
-      if (target.nativeeditor_status === "inserted") {
-        return prev.filter((r) => getRowKey(r) !== selectedKey);
-      }
-      return prev.map((r) =>
-        getRowKey(r) === selectedKey
-          ? { ...r, nativeeditor_status: "" as RowStatus }
-          : r,
-      );
-    });
-    setSelectedKey(null);
-  }, [selectedKey, setRows, setSelectedKey]);
-
-  /**
-   * 행추가 / 행복사 / 행삭제 통합 핸들러 (GridPanel onDataChange 시그니처).
-   * addedRowKey 있음 → 신규/복사 (emptyRow() default — fn_rowAdd xfdl:378~389).
-   * 없음 → 행삭제 → newData 비교 → 사라진 행은 deleted 마킹.
-   * 단 ROLE_ID 가 있는 row 는 차단 (As-Is fn_rowDelete xfdl:402~418).
-   */
-  const handleDataChange = useCallback(
-    (newData: Record<string, unknown>[], addedRowKey?: string) => {
-      if (addedRowKey) {
-        const sourceRow = newData.find(
-          (r) => (r as GridRow).__gridTempId === addedRowKey,
-        ) as Partial<CommPermMngRow> | undefined;
-        setRows((prev) => {
-          const base = sourceRow ?? {};
-          // 행복사 시 sourceRow 가 PERMISSION_ID 들고 있을 수 있으나 PK 충돌 방지 위해 항상 빈 값
-          // (cma·W1 패턴 — 필수 PK 는 사용자 입력 강제).
-          const newRow: CommPermMngRow & GridRow = {
-            ...emptyRow(),
-            ...base,
-            PERMISSION_ID: "",
-            ROLE_ID: null, // 신규 행은 ROLE 매핑 없음
-            __gridTempId: addedRowKey,
-            nativeeditor_status: "inserted" as RowStatus,
-          };
-          return [...prev, newRow];
-        });
-        setSelectedKey(addedRowKey);
-      } else {
-        // 행삭제 — ROLE_ID 존재 시 차단 (As-Is xfdl:407)
-        setRows((prev) => {
-          const newKeys = new Set(newData.map((r) => getRowKey(r as GridRow)));
-          const removed = prev.filter((r) => !newKeys.has(getRowKey(r)));
-          for (const r of removed) {
-            if (
-              r.nativeeditor_status !== "inserted" &&
-              r.ROLE_ID &&
-              String(r.ROLE_ID).length > 0
-            ) {
-              setError("연결된 역할이 존재합니다. 제외 후 삭제 하세요.");
-              return prev;
-            }
-          }
-          const kept = newData as (CommPermMngRow & GridRow)[];
-          const deleted = removed
-            .filter((r) => r.nativeeditor_status !== "inserted")
-            .map((r) => ({ ...r, nativeeditor_status: "deleted" as RowStatus }));
-          return [...kept, ...deleted];
-        });
-      }
-    },
-    [setRows, setSelectedKey],
-  );
-
-  /** 셀 변경 — rowStatus 갱신만. */
-  const handleCellChange = useCallback(
-    (p: { rowKey: string | number; field: string; newValue: unknown }) => {
-      setRows((prev) =>
-        prev.map((r) => {
-          if (getRowKey(r) !== String(p.rowKey)) return r;
-          const fieldName = String(p.field);
-          const updated: CommPermMngRow & GridRow = {
-            ...r,
-            [fieldName]: p.newValue,
-          };
-          updated.nativeeditor_status =
-            r.nativeeditor_status === "inserted" ? "inserted" : "updated";
-          return updated;
-        }),
-      );
-    },
-    [setRows],
-  );
-
-  /** 저장 (fn_save / xfdl:423~442). 검증 → API 호출. */
+  // ── 저장 ──
   const handleSave = useCallback(async () => {
-    // V-001: 변경 데이터 검증 (xfdl:425)
-    if (!hasAnyChanges) {
-      setError("변경된 데이터가 없습니다.");
+    if (savingRef.current || busyRef.current) return;
+    const saved = pendingRef.current;
+    // D14 — 저장하면 버튼이 하나도 남지 않는 퍼미션(버튼 값이 모두 오브젝트 밖)은 서버가 거절하므로 먼저 막는다.
+    const empty = findEmptyBtn(saved.values());
+    if (empty.length > 0) {
+      const k = permKey(empty[0].roleId, empty[0].objectId);
+      if (rowByKey.has(k)) setSelectedKey(k);
+      showMessage({
+        message: `버튼 권한이 하나도 남지 않는 퍼미션이 있어 저장하지 않았습니다: ${empty
+          .map((e) => `${e.roleId} × ${e.objectId}`)
+          .join(", ")}. 버튼을 하나 이상 켜거나 퍼미션을 빼세요.`,
+        alertType: "warning",
+      });
       return;
     }
-    // V-002: 필수 2 컬럼 (xfdl:431 gfn_dsRequired("PERMISSION_ID USE_TP"))
-    for (const r of rows) {
-      if (!r.nativeeditor_status) continue;
-      if (r.nativeeditor_status === "deleted") continue;
-      if (!r.PERMISSION_ID || String(r.PERMISSION_ID).trim().length === 0) {
-        setError("PERMISSION ID 는 필수 입력입니다.");
-        return;
-      }
-      if (!r.USE_TP || String(r.USE_TP).trim().length === 0) {
-        setError("사용 여부(USE_TP) 는 필수 입력입니다.");
-        return;
-      }
+    const saveRows = toSaveRows(saved.values());
+    if (saveRows.length === 0) {
+      showMessage({ message: "변경된 데이터가 없습니다.", alertType: "warning" });
+      return;
     }
-
+    savingRef.current = true;
     setIsSaving(true);
-    setError(null);
     try {
-      const payload = rows
-        .filter((r) => r.nativeeditor_status)
-        .map((r) => ({
-          ...stripInternal(r),
-          rowStatus: r.nativeeditor_status,
-        })) as unknown as CommPermMngRow[];
-      const res = await saveCommPermMng(payload);
-      // As-Is "성공적으로 저장되었습니다." (xfdl:350) + 후속 재조회 (xfdl:347)
-      showMessage({ message: `${res.cnt_merge ?? 0}건 저장되었습니다.` });
-      const refreshed = (res.ds_main ?? []).map((r, i) => ({
-        ...withSyntheticId(r, i),
-        nativeeditor_status: "" as RowStatus,
-      }));
-      setRows(refreshed);
-      setSelectedKey(null);
+      await saveCmPerm(saveRows);
+      // 저장한 값을 조회 줄에 먼저 접어 넣고 바뀐 값을 비운다 — 다시 조회가 실패해도 저장 전 값으로 돌아가 보이지 않는다.
+      setRows((prev) => foldSaved(prev, saved));
+      commitPending(new Map());
+      showMessage({ message: "저장되었습니다.", alertType: "success", toast: true });
+      const q = queryRef.current;
+      if (q) await runSearch(q);
+      setOneTick((n) => n + 1);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "저장 실패");
+      showMessage({ title: "오류", message: saveErrorText(e), alertType: "error" });
     } finally {
+      savingRef.current = false;
       setIsSaving(false);
     }
-  }, [rows, hasAnyChanges, showMessage, setRows, setSelectedKey]);
+  }, [showMessage, commitPending, runSearch, rowByKey, setRows, setSelectedKey]);
 
-  /** Detail 필드 변경 — handleCellChange 위임. */
-  const updateDetailField = (field: keyof CommPermMngRow, value: string) => {
-    if (!selected) return;
-    handleCellChange({ rowKey: getRowKey(selected), field: String(field), newValue: value });
+  // ── 퍼미션 한 건 바꾸기 ──
+  /** 지금 값에 fn 을 적용해 바뀐 건 목록을 고친다. 조회 때와 같아지면 목록에서 뺀다. */
+  const updateCur = (key: string, fn: (cur: PermValue, row: PermRow) => PermValue): { prev: PermValue; next: PermValue } | null => {
+    const row = rowByKey.get(key);
+    if (!row) return null;
+    const map = pendingRef.current;
+    const prev = map.get(key)?.cur ?? baseValue(row);
+    const next = fn(prev, row);
+    if (next === prev) return { prev, next };
+    const entry = entryOf(row, next);
+    const nextMap = new Map(map);
+    if (entry) nextMap.set(key, entry);
+    else nextMap.delete(key);
+    commitPending(nextMap);
+    return { prev, next };
   };
 
-  /**
-   * B-002 / B-003 — 공통 / CUSTOM 권한 팝업 (As-Is btn_common_find / btn_custom_find).
-   * AsIs `gfn_openPopup("modal", "commonPermBtnPopup", ...)` + `fn_PermBtnCallBack` (xfdl:484~493)
-   * 동등 모달. AsIs 외부 _com_popup::commonPermBtnPopup.xfdl 본체는 To-Be 미이관 — 화면 내장
-   * 정적 옵션 + textarea 편집 모달로 대체 (docs/guide/FrontEnd/Local-Rules.md §"OASIS LoV BPMN service 미구축" 절차).
-   */
-  const handleFindCommon = useCallback(() => {
-    if (!selected) return;
-    setFindKind("common");
-    setFindDraft(String(selected.PERMISSION_COMMON ?? ""));
-  }, [selected]);
-
-  const handleFindCustom = useCallback(() => {
-    if (!selected) return;
-    setFindKind("custom");
-    setFindDraft(String(selected.PERMISSION_CUSTOM ?? ""));
-  }, [selected]);
-
-  /** 모달 권한 옵션 토글 — draft 의 콤마 분리 token 집합에 add/remove. */
-  const toggleFindOption = useCallback((opt: string) => {
-    setFindDraft((prev) => {
-      const tokens = prev
-        .split(",")
-        .map((s) => s.trim())
-        .filter((s) => s.length > 0);
-      const idx = tokens.indexOf(opt);
-      if (idx >= 0) {
-        tokens.splice(idx, 1);
-      } else {
-        tokens.push(opt);
+  const impl: PermActions = {
+    select: (key) => {
+      if (rowByKey.has(key)) setSelectedKey(key);
+    },
+    set: (key, kind: PermKind, next) => {
+      if (busy) return;
+      const r = updateCur(key, (cur, row) => setCodes(cur, kind, next, allowedOf(row)[kind]));
+      if (r && r.prev.has && !r.next.has) {
+        showMessage({
+          message: "버튼 권한을 모두 꺼서 이 퍼미션을 뺍니다. 저장하기 전에는 [되돌리기]로 되돌릴 수 있습니다.",
+          alertType: "info",
+          toast: true,
+        });
       }
-      return tokens.join(",");
-    });
-  }, []);
+    },
+    make: (key, level) => {
+      if (busy) return;
+      updateCur(key, (cur, row) => (cur.has ? cur : makeValue(level, allowedOf(row)) ?? cur));
+    },
+    remove: (key) => {
+      if (busy) return;
+      updateCur(key, () => NO_PERM);
+    },
+    undo: (key) => {
+      if (busy) return;
+      if (!pendingRef.current.has(key)) return;
+      const nextMap = new Map(pendingRef.current);
+      nextMap.delete(key);
+      commitPending(nextMap);
+    },
+  };
+  const implRef = useRef(impl);
+  useLayoutEffect(() => {
+    implRef.current = impl;
+  });
+  /** 참조가 바뀌지 않는 동작 묶음 — 열 정의와 오른쪽 패널이 받는다. */
+  const actions = useMemo<PermActions>(
+    () => ({
+      select: (k) => implRef.current.select(k),
+      set: (k, kind, next) => implRef.current.set(k, kind, next),
+      make: (k, lv) => implRef.current.make(k, lv),
+      remove: (k) => implRef.current.remove(k),
+      undo: (k) => implRef.current.undo(k),
+    }),
+    [],
+  );
+  // actions 는 implRef 를 이벤트 때만 읽는다(렌더 중에는 읽지 않는다) — 최신 함수 ref 패턴이라 규칙의 오탐이다.
+  // eslint-disable-next-line react-hooks/refs
+  const columns = useMemo(() => buildColumns(actions), [actions]);
 
-  /** AsIs fn_PermBtnCallBack 등가 — rtnValeChk 분기 후 textarea 값 set_value (xfdl:484~493). */
-  const handleFindConfirm = useCallback(() => {
-    if (!findKind) return;
-    if (!selected) {
-      setFindKind(null);
-      setFindDraft("");
-      return;
-    }
-    const field: keyof CommPermMngRow =
-      findKind === "common" ? "PERMISSION_COMMON" : "PERMISSION_CUSTOM";
-    // updateDetailField (selected 의존) 직접 인라인 — useCallback deps 정합 + 외부 함수 stale 회피
-    handleCellChange({ rowKey: getRowKey(selected), field: String(field), newValue: findDraft });
-    setFindKind(null);
-    setFindDraft("");
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [findKind, findDraft, selected, handleCellChange]);
+  const handleRowClick = useCallback(
+    (row: Record<string, unknown>) => setSelectedKey(String((row as PermViewRow).__key)),
+    [setSelectedKey],
+  );
 
-  const handleFindCancel = useCallback(() => {
-    setFindKind(null);
-    setFindDraft("");
-  }, []);
+  // ── 조회 조건 ──
+  const roleOptions = useMemo(
+    () => [
+      { value: "", label: "전체" },
+      ...roles.map((r) => ({ value: r.ROLE_ID, label: r.ROLE_NM ? `${r.ROLE_NM} (${r.ROLE_ID})` : r.ROLE_ID })),
+    ],
+    [roles],
+  );
+  const menuOptions = useMemo(
+    () => [
+      { value: "", label: "전체 메뉴" },
+      ...menus.map((m) => ({ value: m.MENU_ID, label: m.MENU_PATH ?? m.MENU_NM ?? m.MENU_ID })),
+    ],
+    [menus],
+  );
+  const setFilter = <K extends keyof PermFilters>(k: K, v: PermFilters[K]) => setFilters((p) => ({ ...p, [k]: v }));
 
-  /** 모달용 현재 선택된 token 집합 (체크박스 렌더용). */
-  const findSelectedTokens = useMemo(() => {
-    return new Set(
-      findDraft
-        .split(",")
-        .map((s) => s.trim())
-        .filter((s) => s.length > 0),
-    );
-  }, [findDraft]);
+  const totalPages = query ? Math.ceil(total / PAGE_SIZE) : 0;
+  const pageIndex = query ? query.pageNo - 1 : 0;
 
   return (
     <PageLayout
-      title="PERMISSION 관리"
-      breadcrumb="공통관리 > 시스템관리 > PERMISSION 관리"
-      objId="commPermMng"
+      title="퍼미션 관리"
+      breadcrumb="공통관리 > 시스템관리 > 퍼미션 관리"
+      screenId={SCREEN_ID}
+      objId={SCREEN_ID}
       buttons={[
+        { id: "btn_search", label: "조회", onClick: handleSearch, type: "primary", disabled: busy, action: "search" },
+        { id: "btn_reset", label: "초기화", onClick: handleReset, disabled: busy, action: "cancel" },
         {
-          id: "btn_search",
-          label: "조회",
-          onClick: handleSearch,
-          type: "primary" as const,
-          disabled: isSearching || isSaving,
-          action: "search",
-        },
-        {
-          id: "btn_reset",
-          label: "초기화",
-          onClick: handleReset,
-          disabled: isSearching || isSaving,
-          action: "cancel",
-        },
-        {
-          // AsIs xfdl:227 commonTop btn_save — fn_save. 변경여부 검증은 handleSave 내부 V-001.
-          // 2026-06-02 W5 정책 E — row-state (!hasAnyChanges) 사전 비활성 제거.
           id: "btn_save",
           label: "저장",
           onClick: () => void handleSave(),
-          type: "save" as const,
-          disabled: isSearching || isSaving,
+          type: "save",
+          disabled: busy || pending.size === 0,
           action: "save",
         },
       ]}
     >
+      <style href={PERM_MNG_STYLE_HREF} precedence="default">
+        {PERM_MNG_CSS}
+      </style>
+
       <SearchArea onSearch={handleSearch} autoSearch>
         <SearchField
-          label="PERMISSION ID"
-          name="PERMISSION_ID"
-          meta="AUT_ID"
-          value={filters.edt_PERMISSION_ID}
-          onChange={(v) => handleFilterChange("edt_PERMISSION_ID", v)}
-        />
-        <SearchField
-          label="PERMISSION 명"
-          name="PERMISSION_NM"
-          meta="AUT_NM"
-          value={filters.edt_PERMISSION_NM}
-          onChange={(v) => handleFilterChange("edt_PERMISSION_NM", v)}
-        />
-        <SearchField
-          label="사용 여부"
-          name="USE_TP"
+          label="역할"
+          name="ROLE_ID"
           type="select"
-          options={USE_TP_SEARCH_OPTIONS}
-          value={filters.cbo_USE_TP}
-          onChange={(v) => handleFilterChange("cbo_USE_TP", v)}
+          options={roleOptions}
+          value={filters.roleId}
+          onChange={(v) => setFilter("roleId", v)}
         />
+        <SearchField
+          label="메뉴"
+          name="MENU_ID"
+          type="select"
+          options={menuOptions}
+          value={filters.menuId}
+          onChange={(v) => setFilter("menuId", v)}
+        />
+        <SearchField
+          label="오브젝트"
+          defaultKey="objectQ"
+          placeholder="ID · 이름"
+          value={filters.objectQ}
+          onChange={(v) => setFilter("objectQ", v)}
+        />
+        <SearchField
+          label="버튼 · 팝업 코드"
+          defaultKey="codeQ"
+          placeholder="예: send"
+          value={filters.codeQ}
+          onChange={(v) => setFilter("codeQ", v)}
+        />
+        <SearchField label="퍼미션 없는 오브젝트도" defaultable={false}>
+          <Checkbox
+            checked={!!filters.roleId && filters.showEmpty}
+            disabled={!filters.roleId}
+            label={filters.roleId ? "함께 봅니다" : "역할을 고르면 켤 수 있습니다"}
+            aria-label="퍼미션 없는 오브젝트도"
+            onChange={(c) => setFilter("showEmpty", c)}
+          />
+        </SearchField>
       </SearchArea>
 
-      {/* 2026-06-02 W5 정책 A (round3 — 사용자 명시):
-          Detail 폭 420 → 700 으로 확장 (메인 그리드와 균형). 그리드는 flex:1 유지.
-          2026-09-09: ResizableFormPanel 로 교체 — 기본 700, 드래그로 420~900 조절. */}
-      <ContentBody root>
+      <ContentBody root resizable storageKey="mcm.csa.commPermMng">
         <ContentPanel>
           <GridPanel
-            title="PERMISSION 목록"
-            count={visibleCount}
-            showAddButton
-            showCopyButton
-            showDeleteButton
-            buttons={[
-              {
-                // AsIs btn_rowCancel (xfdl:239 commonRight 4 버튼 중 하나) — fn_rowCancel.
-                // 2026-06-02 W5 정책 E — row-state 사전 비활성 제거 (!hasAnyChanges 차단 ✗).
-                // 핸들러가 변경여부를 확인하고 ErrorModal 로 차단 (AsIs onclick 정합).
-                id: "btn_rowCancel",
-                label: "행취소",
-                onClick: handleRowCancel,
-                disabled: isSearching || isSaving,
-              },
-            ]}
-            data={rows}
-            rowKey="__rowId"
-            columns={MASTER_COLUMNS}
-            selectedRowKey={selectedKey}
-            onDataChange={handleDataChange}
+            title="퍼미션 목록"
+            count={total}
+            serverPaged
             loading={isSaving}
+            titleExtra={
+              <span className="cpm-inline">
+                {pending.size > 0 && <Badge tone="warning" label={`바뀐 퍼미션 ${pending.size}건`} />}
+                <Pagination
+                  page={pageIndex}
+                  totalPages={totalPages}
+                  totalElements={total}
+                  onPageChange={handlePage}
+                  disabled={busy}
+                />
+              </span>
+            }
           >
+            {/* key = 조회한 codeQ — 칩의 「조건에 맞음」 강조는 칸 값에 없어 AG Grid 가 다시 그리지 않으므로, 조건이 바뀌면 그리드를 새로 만든다(조회 때만). */}
             <AgDataGrid
-              gridId="main"
+              key={codeQ}
+              gridId="perms"
+              rowKey="__key"
+              columns={columns}
+              data={viewRows}
               columnSizing="fit"
-              columns={MASTER_COLUMNS}
-              data={rows}
-              rowKey="__rowId"
-              sortable
-              singleClickEdit
-              stopEditingWhenCellsLoseFocus={false}
+              personalize={{ sort: false }}
+              getRowHeight={getRowHeight}
+              getRowClassExtra={getRowClassExtra}
               highlightedRowKey={selectedKey}
-              onRowClick={(row) => setSelectedKey(getRowKey(row as GridRow))}
-              onCellValueChanged={handleCellChange}
+              scrollToRow={selectedKey}
+              onRowClick={handleRowClick}
               loading={isSearching}
-              loadingMessage="조회 중..."
-              emptyMessage="조회된 PERMISSION 이 없습니다."
+              emptyMessage={query?.roleId ? EMPTY_WITH_ROLE : EMPTY_NO_ROLE}
             />
           </GridPanel>
         </ContentPanel>
 
-        {/* 2026-06-02 W5 정책 B — Detail wrapper:
-            marginTop:32 (좌측 GridPanel header 자리 비움) + 1px #d4dae0 border + 흰 bg
-            + 28px gray header ("상세 정보") — 좌측 컬럼 헤더 라인과 정렬.
-            height: auto (내용물 크기 맞춤 — 흰 빈 공간 ✗). */}
-        <ResizableFormPanel
-          panelId="commPermMng-detail"
-          defaultWidth={700}
-          minWidth={420}
-          maxWidth={900}
-        >
-          <div
-            style={{
-              marginTop: 32,
-              display: "flex",
-              flexDirection: "column",
-              border: "1px solid #d4dae0",
-              background: "#fff",
-              height: "calc(100% - 32px)",
-              minHeight: 0,
-            }}
-          >
-            <div
-              style={{
-                height: 28,
-                background: "#f4f6f8",
-                borderBottom: "1px solid #d4dae0",
-                padding: "0 10px",
-                display: "flex",
-                alignItems: "center",
-                fontWeight: 600,
-                fontSize: 13,
-                color: "#333",
-                flexShrink: 0,
-              }}
-            >
-              상세 정보
-            </div>
-            <div style={{ padding: 0, background: "#fff", flex: 1, minHeight: 0, overflowY: "auto" }}>
-              {selected ? (
-                <DetailForm
-                  selected={selected}
-                  updateDetailField={updateDetailField}
-                  onFindCommon={handleFindCommon}
-                  onFindCustom={handleFindCustom}
-                />
-              ) : (
-                <div style={{ padding: 16, color: "#888" }}>
-                  행을 선택하거나 행을 추가하세요.
-                </div>
-              )}
-            </div>
-          </div>
-        </ResizableFormPanel>
+        <ContentPanel width={460} scrollY>
+          <PermOnePane row={selectedView} one={one} loadedKeys={loadedKeys} actions={actions} busy={busy} />
+        </ContentPanel>
       </ContentBody>
-
-      <ErrorModal message={error} onClose={() => setError(null)} />
-
-      {/* AsIs commonPermBtnPopup 등가 모달 — fn_PermBtnCallBack 동등 (xfdl:475/481/484).
-          findKind 가 null 이 아닐 때만 mount → AsIs gfn_openPopup("modal", ...) 정합 */}
-      <Modal
-        open={findKind !== null}
-        title={findKind === "common" ? "공통 버튼 권한 선택" : "CUSTOM 버튼 권한 선택"}
-        onClose={handleFindCancel}
-        size="md"
-        footer={
-          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-            <Button variant="default" onClick={handleFindCancel}>
-              취소
-            </Button>
-            <Button variant="primary" onClick={handleFindConfirm}>
-              확인
-            </Button>
-          </div>
-        }
-      >
-        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          <div style={{ fontSize: 12, color: "#555" }}>
-            권한 후보를 선택하거나, 아래 textarea 에서 직접 콤마 (,) 구분으로 편집할 수 있습니다.
-          </div>
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(4, 1fr)",
-              gap: 6,
-              padding: 8,
-              border: "1px solid #d4dae0",
-              background: "#fafbfc",
-            }}
-          >
-            {PERM_BTN_OPTIONS.map((opt) => {
-              const checked = findSelectedTokens.has(opt);
-              return (
-                <label
-                  key={opt}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 6,
-                    fontSize: 12,
-                    cursor: "pointer",
-                    userSelect: "none",
-                  }}
-                >
-                  <input
-                    type="checkbox"
-                    checked={checked}
-                    onChange={() => toggleFindOption(opt)}
-                  />
-                  <span>{opt}</span>
-                </label>
-              );
-            })}
-          </div>
-          <Textarea
-            value={findDraft}
-            rows={3}
-            onChange={(v: string) => setFindDraft(v)}
-          />
-        </div>
-      </Modal>
     </PageLayout>
-  );
-}
-
-/**
- * 상세 정보 폼 — 디자인설계서 §3.3.1 FormGrid (As-Is 11 → To-Be 10 행, D-007/D-008 폐기).
- *
- * 2026-06-01 정합:
- *   - shared 컴포넌트 (Input/Textarea/Radio/DatePicker) 사용 — docs/guide/FrontEnd/FrontEnd_표준_통합_개발가이드_v2.md.
- *   - START/END_ACTIVE_DATE = DatePicker — As-Is xfdl:113/93 Calendar.
- *   - 사용 여부 = Radio (Y/N + Yes/No 라벨, vertical) — As-Is xfdl:95~112.
- *   - 공통/CUSTOM 권한 = Textarea + Find Button — As-Is xfdl:115~116 TextArea + B-002/B-003.
- *   - POPUP 버튼 / ACTION 권한 = Textarea (Find Button 없음) — As-Is xfdl:117/123.
- *   - PERMISSION_ID = readonly (기존 행) / 입력 가능 (신규 행) — As-Is ds_main_onrowposchanged.
- *
- * maxLength 정책: As-Is xfdl maxlength + DDL VARCHAR 길이 비교 후 큰 값 채택.
- *   - PERMISSION_ID 100 (DDL §9.3.1 #1)
- *   - PERMISSION_NM 100 (xfdl + DDL 일치)
- *   - PERMISSION_DESC 300 (DDL §9.3.1 #3 — xfdl 100 는 입력 제한 보수)
- *   - PERMISSION_COMMON / CUSTOM 500 (DDL §9.3.1 #4/#5)
- *   - POPUP_BTN 1000 (DDL §9.3.1 #6)
- *   - PERMISSION_ACTION 500 (DDL §9.3.1 #7)
- */
-function DetailForm({
-  selected,
-  updateDetailField,
-  onFindCommon,
-  onFindCustom,
-}: {
-  selected: CommPermMngRow & GridRow;
-  updateDetailField: (field: keyof CommPermMngRow, value: string) => void;
-  onFindCommon: () => void;
-  onFindCustom: () => void;
-}) {
-  const isNewRow = selected.nativeeditor_status === "inserted";
-
-  return (
-    <table style={DETAIL_TABLE_STYLE}>
-      <tbody>
-        {/* D-001 / D-002 — PERMISSION ID */}
-        <tr>
-          <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="PERMISSION_ID" label="PERMISSION ID" required /></th>
-          <td style={DETAIL_VALUE_CELL}>
-            <Input
-              value={String(selected.PERMISSION_ID ?? "")}
-              maxLength={100}
-              readOnly={!isNewRow}
-              onChange={(v: string) => updateDetailField("PERMISSION_ID", v)}
-            />
-          </td>
-        </tr>
-
-        {/* D-003 / D-004 — PERMISSION명 */}
-        <tr>
-          <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="PERMISSION_NM" label="PERMISSION명" /></th>
-          <td style={DETAIL_VALUE_CELL}>
-            <Input
-              value={String(selected.PERMISSION_NM ?? "")}
-              maxLength={100}
-              onChange={(v: string) => updateDetailField("PERMISSION_NM", v)}
-            />
-          </td>
-        </tr>
-
-        {/* D-005 / D-006 — PERMISSION 설명 */}
-        <tr>
-          <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="PERMISSION_DESC" label="PERMISSION 설명" /></th>
-          <td style={DETAIL_VALUE_CELL}>
-            <Input
-              value={String(selected.PERMISSION_DESC ?? "")}
-              maxLength={300}
-              onChange={(v: string) => updateDetailField("PERMISSION_DESC", v)}
-            />
-          </td>
-        </tr>
-
-        {/* D-009 / D-010 — 사용 여부 Radio */}
-        <tr>
-          <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="USE_TP" label="사용 여부" required /></th>
-          <td style={DETAIL_VALUE_CELL}>
-            <Radio
-              name="USE_TP"
-              value={String(selected.USE_TP ?? "Y")}
-              options={USE_TP_OPTIONS}
-              onChange={(v: string) => updateDetailField("USE_TP", v)}
-            />
-          </td>
-        </tr>
-
-        {/* D-011 / D-012 — 유효 개시일 */}
-        <tr>
-          <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="START_ACTIVE_DATE" label="유효 개시일" /></th>
-          <td style={DETAIL_VALUE_CELL}>
-            <DatePicker
-              value={toIsoDate(selected.START_ACTIVE_DATE)}
-              onChange={(iso: string) => updateDetailField("START_ACTIVE_DATE", fromIsoDate(iso))}
-            />
-          </td>
-        </tr>
-
-        {/* D-013 / D-014 — 유효 기한일 */}
-        <tr>
-          <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="END_ACTIVE_DATE" label="유효 기한일" /></th>
-          <td style={DETAIL_VALUE_CELL}>
-            <DatePicker
-              value={toIsoDate(selected.END_ACTIVE_DATE)}
-              onChange={(iso: string) => updateDetailField("END_ACTIVE_DATE", fromIsoDate(iso))}
-            />
-          </td>
-        </tr>
-
-        {/* D-015 / D-016 / D-017 — 공통 버튼 권한 Textarea + Find Button.
-            2026-06-02 W5 정책 C (round3 — 사용자 명시 스크린샷 정합):
-              - 좌-우 분할 → 상-하 column 분할 (Textarea 위 / 찾기 버튼 아래)
-              - rows: 3 → 5 (ACTION 권한과 동일 크기)
-              - 버튼은 alignSelf:flex-start + width:80 (textarea 하단 좌측). */}
-        <tr>
-          <th style={DETAIL_LABEL_CELL}>
-            <MdmFieldLabel name="PERMISSION_COMMON" label="공통 버튼 권한" />
-            <br />
-            <span style={{ fontWeight: 400, fontSize: 11, color: "#666" }}>
-              (commonTop, commonTopCustom, commonRight)
-            </span>
-          </th>
-          <td style={DETAIL_VALUE_CELL}>
-            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-              <Textarea
-                value={String(selected.PERMISSION_COMMON ?? "")}
-                maxLength={500}
-                rows={3}
-                onChange={(v: string) => updateDetailField("PERMISSION_COMMON", v)}
-              />
-              <Button
-                style={{ alignSelf: "flex-start", width: 80 }}
-                onClick={onFindCommon}
-                variant="default"
-              >
-                찾기
-              </Button>
-            </div>
-          </td>
-        </tr>
-
-        {/* D-018 / D-019 / D-020 — CUSTOM 버튼 권한 Textarea + Find Button (round3 동일 정합). */}
-        <tr>
-          <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="PERMISSION_CUSTOM" label="CUSTOM 버튼 권한" /></th>
-          <td style={DETAIL_VALUE_CELL}>
-            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-              <Textarea
-                value={String(selected.PERMISSION_CUSTOM ?? "")}
-                maxLength={500}
-                rows={3}
-                onChange={(v: string) => updateDetailField("PERMISSION_CUSTOM", v)}
-              />
-              <Button
-                style={{ alignSelf: "flex-start", width: 80 }}
-                onClick={onFindCustom}
-                variant="default"
-              >
-                찾기
-              </Button>
-            </div>
-          </td>
-        </tr>
-
-        {/* D-021 / D-022 — POPUP 버튼 Textarea (round3 — ACTION 과 동일 rows=5 균형) */}
-        <tr>
-          <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="POPUP_BTN" label="POPUP 버튼" /></th>
-          <td style={DETAIL_VALUE_CELL}>
-            <Textarea
-              value={String(selected.POPUP_BTN ?? "")}
-              maxLength={1000}
-              rows={3}
-              onChange={(v: string) => updateDetailField("POPUP_BTN", v)}
-            />
-          </td>
-        </tr>
-
-        {/* D-023 / D-024 — ACTION 권한 Textarea.
-            2026-06-03 W5 정책 C (round4 — 사용자 명시 스크린샷 정합):
-              - rows: 5 → 7 (Detail 하단 빈 공간을 ACTION 권한 textarea 가 채우도록 확장).
-              - wrapper overflow:hidden 유지 (스크롤바 발생 ✗ — wrapper height: calc(100% - 32px) 안에서 흡수). */}
-        <tr>
-          <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="PERMISSION_ACTION" label="ACTION 권한" /></th>
-          <td style={DETAIL_VALUE_CELL}>
-            <Textarea
-              value={String(selected.PERMISSION_ACTION ?? "")}
-              maxLength={500}
-              rows={7}
-              onChange={(v: string) => updateDetailField("PERMISSION_ACTION", v)}
-            />
-          </td>
-        </tr>
-      </tbody>
-    </table>
   );
 }

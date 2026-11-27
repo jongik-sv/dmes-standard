@@ -1,5 +1,101 @@
 /**
- * commRoleMng (역할 관리) 화면 타입.
+ * commRoleMng (역할 관리) 화면 타입 — perm-bench 새 설계(시안 v16 lgRoleNext, decompose.md §0.4).
+ *
+ * 새 퍼미션 = 역할 × 오브젝트 한 건(TB_MCM_SEC_ROLE_PERM). 「이 역할의 퍼미션」 한 칸이
+ * 옛 세 칸(현재 버튼 권한 · OBJECT 선택 · 권한 선택)을 대신한다. PERMISSION_ID 고르기 없음.
+ *
+ * OASIS action(객체 commRoleMng):
+ *   - search(BPMN 분기 이름, 서비스 searchCmRole) — 옛 조건 그대로 → grids `ds_main`(RoleRow = 옛 칸 + RoleAggCols)
+ *   - save(서비스 saveCmRole) — grids `master`(옛 그대로, USE_TP N 포함)
+ *   - searchRoleGroups     — params { roleId } → grids `groups`(RoleGroupRow) · data `USER_CNT`(그룹 겹침 뺀 사람 수)
+ *   - searchCmRoleMap      — params { roleId } → grids `perms`(RolePermRow)
+ *   - saveCmRoleMap        — params { roleId } + grids `perms`(RolePermSaveRow, D36) → data `cnt_merge`·`cnt_delete`
+ *     실패 = PERM_NOT_IN_OBJ · PERM_EMPTY_BTN
+ *   - searchFolderObj      — params { roleId, menuFolderId } → grids `objs`(FolderObjRow). 옛 searchCmPerm·searchObjectLov 대체
+ *   - lov                  — 옛 그대로(MENU_ID lov `ds_lovMenuId`) + grids `menus`(RoleMenuLov, 폴더 고르기)
+ */
+
+/** searchCmRole 응답에 더하는 집계 칸(계산 값, DB 칼럼 아님). */
+export interface RoleAggCols {
+  /** 이 역할이 들어 있는 그룹 수. */
+  GROUP_CNT?: number;
+  /** 받은 사람 수(그룹 겹침 뺀 사람 수). */
+  USER_CNT?: number;
+  /** 퍼미션 수. SYSADMIN 은 -1(= 「모두」 표시). */
+  PERM_CNT?: number;
+}
+
+/** 역할 목록 한 줄(새 설계) = 옛 칸 + 집계 칸. */
+export type RoleRow = CommRoleMngRow & RoleAggCols;
+
+/** 들어 있는 그룹(상세). 그룹에 넣고 빼기는 역할 그룹 관리에서 한다. */
+export interface RoleGroupRow extends Record<string, unknown> {
+  ROLE_GROUP_ID: string;
+  ROLE_GROUP_NM?: string;
+  USE_TP?: string;
+  USER_CNT?: number;
+}
+
+/** 이 역할의 퍼미션 한 줄 = 퍼미션 한 건(ROLE_ID, OBJECT_ID). */
+export interface RolePermRow extends Record<string, unknown> {
+  ROLE_ID: string;
+  OBJECT_ID: string;
+  OBJECT_NM?: string;
+  /** 오브젝트를 가리키는 메뉴가 들어 있는 폴더 MENU_ID(폴더 거르기). */
+  MENU_FOLDER_ID?: string;
+  /** 메뉴 경로 표시. */
+  MENU_PATH?: string;
+  MENU_NM?: string;
+  OBJ_BTN_PERM?: string;
+  OBJ_POPUP_PERM?: string;
+  OBJ_READ_PERM?: string;
+  BTN_PERM?: string;
+  POPUP_PERM?: string;
+  DATA_PERM?: string;
+}
+
+/** 저장 한 줄 — grids.perms.rows(D36). MERGE = 추가·변경, DEL = 빼기. */
+export interface RolePermSaveRow extends Record<string, unknown> {
+  ROLE_ID: string;
+  OBJECT_ID: string;
+  BTN_PERM: string;
+  POPUP_PERM: string;
+  DATA_PERM: string;
+  OP_TP: "MERGE" | "DEL";
+}
+
+/** 메뉴 폴더 오브젝트(「메뉴에서 오브젝트 추가」 후보). */
+export interface FolderObjRow extends Record<string, unknown> {
+  OBJECT_ID: string;
+  OBJECT_NM?: string;
+  /** 오브젝트를 가리키는 메뉴가 들어 있는 폴더 MENU_ID(추가한 퍼미션 줄의 폴더 거르기). */
+  MENU_FOLDER_ID?: string;
+  MENU_NM?: string;
+  MENU_PATH?: string;
+  OBJ_BTN_PERM?: string;
+  OBJ_POPUP_PERM?: string;
+  OBJ_READ_PERM?: string;
+  USE_TP?: string;
+  /** Y = 이 역할에 이미 퍼미션 있음(후보에서 뺀다). */
+  HAS_PERM: "Y" | "N";
+}
+
+/** 폴더 고르기 목록(모듈·폴더). */
+export interface RoleMenuLov extends Record<string, unknown> {
+  MENU_ID: string;
+  MENU_NM?: string;
+  PARENT_MENU_ID?: string | null;
+  MENU_LV: number;
+  MENU_PATH?: string;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 아래 = 옛 화면 타입 중 새 화면도 쓰는 것(CommRoleMngFilters·CommRoleMngRow·MenuIdLov·RowStatus).
+// 옛 RoleMapRow·PermRow·ObjectLovRow 는 f6 에서 지웠다(옛 세 칸·searchCmPerm·searchObjectLov 를 쓰지 않는다).
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * (옛) commRoleMng (역할 관리) 화면 타입.
  *
  * 인용 정본:
  *   - 분석리포트 §3.8 DS-002 (ds_main 컬럼) / DS-003 (ds_roleMap) / DS-001 (ds_perm) / DS-006 (ds_lovMenuId) /
@@ -46,50 +142,6 @@ export interface CommRoleMngRow extends Record<string, unknown> {
   ID?: string;
 }
 
-/**
- * 현재 권한 매핑 그리드 row (sub1) — As-Is ds_roleMap (xfdl:982~997 / 12 컬럼).
- * GE-001 CHK 는 FE 전용 (BE 미저장). 본 10 컬럼 (PERMISSION_ID_UPPER 는 FE 필터링 계산용 derived).
- */
-export interface CommRoleMngRoleMapRow extends Record<string, unknown> {
-  /** GE-002 — PK#3 (FK to TB_MCM_SEC_PERM.PERMISSION_ID). */
-  PERMISSION_ID: string;
-  /** GE-003 — PK#2 (FK to TB_MCM_SEC_OBJ.OBJECT_ID). */
-  OBJECT_ID: string;
-  /** GE-011 — PK#1 (FK to TB_MCM_SEC_ROLE.ROLE_ID). */
-  ROLE_ID: string;
-  /** GE-004 — JOIN TB_MCM_SEC_PERM.PERMISSION_NM. */
-  PERMISSION_NM?: string;
-  /** GE-005. */
-  PERMISSION_COMMON?: string;
-  /** GE-006. */
-  PERMISSION_CUSTOM?: string;
-  /** GE-007. */
-  POPUP_BTN?: string;
-  /** GE-008 — JOIN TB_MCM_SEC_OBJ.OBJECT_NM. */
-  OBJECT_NM?: string;
-  /** GE-009 — JOIN TB_MCM_SEC_OBJ.SYSTEM_CODE. */
-  SYSTEM_CODE?: string;
-  /** GE-010 — JOIN TB_MCM_SEC_OBJ.SERVICE. */
-  SERVICE?: string;
-}
-
-/**
- * 전체 권한 후보 그리드 row (sub2) — As-Is ds_perm (xfdl:957~967 / 7 컬럼).
- * GE-012 CHK 는 FE 전용. 본 5 컬럼 (PERMISSION_ID_UPPER 는 FE 필터링 derived).
- */
-export interface CommRoleMngPermRow extends Record<string, unknown> {
-  /** GE-013. */
-  PERMISSION_ID: string;
-  /** GE-014 (As-Is 띄어쓰기 비대칭 — 분석 §3.4 보존). */
-  PERMISSION_NM?: string;
-  /** GE-015. */
-  PERMISSION_COMMON?: string;
-  /** GE-016. */
-  PERMISSION_CUSTOM?: string;
-  /** GE-017 (As-Is 띄어쓰기 비대칭 — 분석 §3.4 보존). */
-  POPUP_BTN?: string;
-}
-
 /** MENU ID lov row — As-Is ds_lovMenuId (분석 §3.8 DS-006 / 3 컬럼). */
 export interface MenuIdLov extends Record<string, unknown> {
   MENU_ID: string;
@@ -97,21 +149,6 @@ export interface MenuIdLov extends Record<string, unknown> {
   BIZ_SYSTEM_CODE?: string | null;
   /** "MENU_ID (MENU_NM)" 합성. */
   MENU_ID_NM?: string;
-}
-
-/**
- * OBJECT-LoV row — As-Is ds_menuObjLst (xfdl:321~336 commonDynamic_onload — round-2 fix).
- *
- * 본 화면 sub2 영역의 OBJECT_ID 입력 LoV. As-Is xfdl 인자 명시 응답 컬럼 (OBJECT_ID, OBJECT_NM, FORM_URL)
- * 은 BE selectMenuObjPop 응답 5 컬럼 (OBJECT_ID / OBJECT_NM / SERVICE / FORM_URL / PARAM) 의 부분집합.
- * 모두 보존.
- */
-export interface ObjectLovRow extends Record<string, unknown> {
-  OBJECT_ID: string;
-  OBJECT_NM?: string;
-  SERVICE?: string;
-  FORM_URL?: string;
-  PARAM?: string;
 }
 
 /** Nexacro row status (As-Is !nativeeditor_status) — To-Be rowStatus 표준화 (W1·W2 정본 패턴). */

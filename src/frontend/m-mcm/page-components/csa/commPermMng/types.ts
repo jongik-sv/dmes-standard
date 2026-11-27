@@ -1,53 +1,102 @@
 /**
- * commPermMng (PERMISSION 관리) 화면 타입.
+ * commPermMng (퍼미션 관리) 화면 타입 — perm-bench 새 설계(시안 v16 lgPermNext, decompose.md §0.4).
  *
- * 인용 정본:
- *   - 분석리포트 §3.7 DS-001 (ds_main 컬럼) / §9 (DB 컬럼 카탈로그) / §11 To-Be 정책 #1
- *   - 기능설계서 §3.1 / §3.2 / §4.1
- *   - BPMN설계서 §1.1 / §4.1
+ * 새 퍼미션 = 역할 × 오브젝트 한 건(TB_MCM_SEC_ROLE_PERM, PK ROLE_ID·OBJECT_ID).
+ * 버튼·팝업 권한은 오브젝트(TB_MCM_SEC_OBJ.BTN_PERM·POPUP_PERM)가 허용한 값 안에서만 고른다(D15).
+ * 칸 이름 = BE 응답 키 그대로(SNAKE_CASE). 콤마로 잇는 값은 문자열 그대로 둔다.
  *
- * As-Is 컬럼명 (SNAKE_CASE) 보존 — BE Service 의 toSearchRow / saveCmPerm row mapping 키와 1:1 일치.
- * To-Be 정책 #1 (BIZ_SYSTEM_CODE 폐기) 반영 — ds_main 12 → 11 컬럼 (BIZ_SYSTEM_CODE 제거 / ROLE_ID 보존).
+ * OASIS action(객체 commPermMng):
+ *   - lov          — params 없음 → grids `roles`(PermRoleLov) · `menus`(PermMenuLov)
+ *   - search       — params PermSearchParams → grids `perms`(PermRow) · data `TOTAL_CNT`
+ *   - searchPermOne — params { roleId, objectId } → grids `others`(PermOtherRow) · `groups`(PermRoleGroupRow) · data `USER_CNT`
+ *   - save         — grids `perms`(PermSaveRow, D36 목록 입력 = grids) → data `cnt_merge`·`cnt_delete`
+ *   (action 이름 = 기존 BPMN 분기 search·save 그대로. 새 이름은 lov·searchPermOne 만 — perm-core 시드 등록 대상)
+ *     실패 = UserException PERM_NOT_IN_OBJ(오브젝트 밖 값) · PERM_EMPTY_BTN(빈 BTN, D14)
  */
 
-/** 조회조건 — 분석 §3.2 / 기능 §3.1 / To-Be 3 파라미터 (S-001 폐기). */
-export interface CommPermMngFilters {
-  /** S-002 — PERMISSION ID (UPPER LIKE 부분 일치). */
-  edt_PERMISSION_ID: string;
-  /** S-003 — PERMISSION 명 (UPPER LIKE 부분 일치). */
-  edt_PERMISSION_NM: string;
-  /** S-004 — 사용 여부 (Y/N 일치 / 빈 값 = 전체). */
-  cbo_USE_TP: string;
+/** 조회 조건 4개 + 퍼미션 없는 오브젝트도(역할을 고를 때만). */
+export interface PermSearchParams {
+  /** 역할 ID. 빈 값 = 전체(SYSADMIN 제외). */
+  roleId: string;
+  /** 메뉴 ID(모듈 또는 폴더). 빈 값 = 전체 메뉴. 고른 메뉴 아래 오브젝트 전부. */
+  menuId: string;
+  /** 오브젝트 ID·이름 부분 일치(대소문자 무시). */
+  objectQ: string;
+  /** 버튼·팝업 코드 부분 일치. 퍼미션 있는 줄 = 퍼미션 값, 없는 줄 = 오브젝트 허용 값에서 찾는다. */
+  codeQ: string;
+  /** Y = 고른 역할의 퍼미션 없는 오브젝트도 줄로 낸다(roleId 가 비면 무시). */
+  showEmpty: "Y" | "N";
+  /** 1부터. */
+  pageNo: number;
+  pageSize: number;
 }
 
-/**
- * Master 그리드 row — As-Is ds_main (xfdl:159~174) + To-Be 정책 #1 (BIZ_SYSTEM_CODE 제거).
- * 본 10 컬럼 + ROLE_ID (scalar subquery — fn_rowDelete 차단 검증용).
- */
-export interface CommPermMngRow extends Record<string, unknown> {
-  /** G-002 / D-002 — PK (신규 행만 입력 허용). */
-  PERMISSION_ID: string;
-  /** G-003 / D-004. */
-  PERMISSION_NM?: string;
-  /** G-012 / D-006. */
-  PERMISSION_DESC?: string;
-  /** G-004 / D-016 TextArea — 공통 버튼 권한 (B-002 팝업 결과 채움). */
-  PERMISSION_COMMON?: string;
-  /** G-005 / D-019 TextArea — CUSTOM 버튼 권한 (B-003 팝업 결과 채움). */
-  PERMISSION_CUSTOM?: string;
-  /** G-006 / D-022 TextArea — POPUP 버튼. */
-  POPUP_BTN?: string;
-  /** G-007 / D-024 TextArea — ACTION 권한. */
-  PERMISSION_ACTION?: string;
-  /** G-009 / D-010 Radio / S-004 — Y/N (저장 필수). */
+/** 퍼미션 목록 한 줄 = 역할 × 오브젝트(정렬 = 역할 → 메뉴 순서). */
+export interface PermRow extends Record<string, unknown> {
+  ROLE_ID: string;
+  ROLE_NM?: string;
+  OBJECT_ID: string;
+  OBJECT_NM?: string;
+  /** 메뉴 경로 표시(예: "공통관리 › 시스템관리"). */
+  MENU_PATH?: string;
+  /** 오브젝트를 가리키는 메뉴 이름(여럿이면 첫 번째). */
+  MENU_NM?: string;
+  /** 오브젝트 허용 버튼(TB_MCM_SEC_OBJ.BTN_PERM, 콤마). */
+  OBJ_BTN_PERM?: string;
+  /** 오브젝트 허용 팝업(TB_MCM_SEC_OBJ.POPUP_PERM, 콤마). */
+  OBJ_POPUP_PERM?: string;
+  /** 「조회만」 값(서버 PermTokens.readPreset, D18). */
+  OBJ_READ_PERM?: string;
+  /** 퍼미션 버튼(없는 줄 = 빈 값). 오브젝트 밖 값이 남아 있을 수 있다(D15 — 계산에서만 빠짐). */
+  BTN_PERM?: string;
+  POPUP_PERM?: string;
+  /** 데이터 권한 — 조회·저장 통과만, 편집 UI 없음(D21). */
+  DATA_PERM?: string;
+  /** Y = 퍼미션 행 있음, N = showEmpty 로 낸 빈 줄. */
+  HAS_PERM: "Y" | "N";
+}
+
+/** 같은 오브젝트의 다른 역할 퍼미션(오른쪽 「같은 화면 다른 퍼미션」). */
+export interface PermOtherRow extends Record<string, unknown> {
+  ROLE_ID: string;
+  ROLE_NM?: string;
+  BTN_PERM?: string;
+  POPUP_PERM?: string;
+}
+
+/** 역할이 들어 있는 그룹(오른쪽 「받는 사람」 옆 그룹 이름). */
+export interface PermRoleGroupRow extends Record<string, unknown> {
+  ROLE_GROUP_ID: string;
+  ROLE_GROUP_NM?: string;
+  USER_CNT?: number;
+}
+
+/** 저장 한 줄 — PK merge(MERGE) 또는 delete(DEL). grids.perms.rows 로 보낸다(D36). */
+export interface PermSaveRow extends Record<string, unknown> {
+  ROLE_ID: string;
+  OBJECT_ID: string;
+  BTN_PERM: string;
+  POPUP_PERM: string;
+  DATA_PERM: string;
+  OP_TP: "MERGE" | "DEL";
+}
+
+/** 역할 고르기 목록(SYSADMIN 제외). */
+export interface PermRoleLov extends Record<string, unknown> {
+  ROLE_ID: string;
+  ROLE_NM?: string;
   USE_TP?: string;
-  /** G-010 / D-012 — As-Is 행추가 default gfn_today() 8자. */
-  START_ACTIVE_DATE?: string | null;
-  /** G-011 / D-014 — As-Is 행추가 default "99991231" 8자 → To-Be 정정 9999-12-31 23:59:59. */
-  END_ACTIVE_DATE?: string | null;
-  /** ROLE_ID — scalar subquery (TB_MCM_SEC_ROLE_MAPPING). null 아니면 fn_rowDelete 차단. */
-  ROLE_ID?: string | null;
 }
 
-/** Nexacro row status (As-Is !nativeeditor_status) — To-Be rowStatus 표준화. */
-export type RowStatus = "" | "inserted" | "updated" | "deleted";
+/** 메뉴 고르기 목록 — 모듈(MENU_LV 1)·폴더(2 이상). 화면(오브젝트를 가리키는 잎)은 빼고 내린다. */
+export interface PermMenuLov extends Record<string, unknown> {
+  MENU_ID: string;
+  MENU_NM?: string;
+  PARENT_MENU_ID?: string | null;
+  MENU_LV: number;
+  /** 표시용 경로(예: "공통관리 › 시스템관리"). */
+  MENU_PATH?: string;
+}
+
+/** save 거절 코드(UserException). */
+export type PermSaveError = "PERM_NOT_IN_OBJ" | "PERM_EMPTY_BTN";

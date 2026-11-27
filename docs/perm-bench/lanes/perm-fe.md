@@ -32,3 +32,47 @@ f0a 계약 타입·가짜 자료 → f1 shared 부품 3개 → f1-merge → f2 �
 1. f1-merge: `git fetch origin` → `origin/claude/perm-bench`(1c263a0f5) 합치기·tsc·shared 시험 → `node .claude/skills/_shared/node/squash-branch.mjs --onto origin/claude/perm-bench --subject "feat(perm-fe): 작업대 계약 타입·shared 부품 3개를 둔다" --rebase` → 머지 요청(SHA·겹칠 파일·시험·렌더 점검=shared 부품 audit 0)
 2. f2(opus/high agent): 시안 mock-v16.html 렌더 함수 colPeople 1263·colGroups 1273·colRoles 1284·colRoleAll 1295·colMenu 1329·colPerm 1368·rolePick 1394·openRoles 1406·btnWhy 1440·rightPreview 1461·render 1545, CSS 1~494. 파일 나눔 = page.tsx·api.ts(실연결, PermBenchApi)·상태 훅·칸 부품(사람·그룹·역할·메뉴)·미리보기(사람/역할 기준)·퍼미션 칸. 지금은 mock 사용 상수로 전환. 렌더 규칙 = `.claude/skills/dflow-dev/references/e2e.md` 「화면 렌더 최적화」. f3 가 편집을 붙이기 쉽게 단계 표시(1·2·3) 구조
 3. f4 → f3 → f8 → f9(screens.mjs 등록: commPermBench·commPermMng·commRoleMng·commObjMng) → fa-merge. 실연결 = Mac 조정이 b1·b5 머지를 알린 뒤
+
+## perm-fe-b (Mac, 브랜치 perm/perm-fe-b, 워크트리 dmes-perm-fe-b)
+
+- 착수 지시: `~/.coord/perm-bench-mac/lanes/perm-fe-b/brief.md`(지시 perm-fe-b-1). 공통 = `~/.coord/perm-bench-mac/lanes/common.md`
+- 몫: f0b 옛 화면 계약 타입·가짜 자료 → f5 commPermMng · f6 commRoleMng 새 설계 → 머지(두 화면 한 번, 실연결 포함) → f7 「작업대에서 열기」(작업대 머지 뒤 다음 머지 몫)
+- 갱신: 2026-11-27 BE 머지(91535e95b) 뒤 다시 squash·머지 요청 2. f7 준비 끝(곁가지)
+
+### 진행
+
+| 항목 | 상태 | 커밋 | 비고 |
+|---|---|---|---|
+| f0b | 끝 | d02b2254f 안 | types.ts 2개 + 가짜 자료(실연결 때 삭제) |
+| f5 | 끝 | d02b2254f 안 | 리뷰 12건 → 11 고침, 1 건너뜀(새 창으로 분리 때 저장 안 한 값 사라짐 = 후속 후보) |
+| f6 | 끝 | d02b2254f 안 | 리뷰 14건 → 12 고침, 2 건너뜀(밖 값 안내 = 조정 결정대로 유지, 공용 확인 상자 = 새 shared 부품이라 메모만) |
+| 머지 요청 1 | 보류 | d02b2254f | origin/claude/perm-bench d06ddda7c 위 squash 1커밋. 조정 접수, BE l1·l2 머지 뒤 push |
+| 실연결 | 끝(커밋만) | 9866a76d1 | d02b2254f 위 새 커밋. USE_MOCK·mock 분기 11곳·mock.ts 2개 삭제. vitest csa 295/0, tsc 기준선 외 0, eslint 0 |
+| bk-l1 대조 | 끝 | - | 메모 §3·실제 BE 코드와 칸·키·action 전부 일치. 차이 = searchFolderObj 응답에 MENU_FOLDER_ID 없음(조정이 l2 에 한 줄 요청) |
+| 다시 squash | 끝 | (머지 요청 2 SHA) | 91535e95b 합침 뒤 mcm test 1872/0, tsc 기준선 외 0, audit 0 |
+| f7 | 준비 끝(곁가지) | 74811d100 | 곁가지 `perm/perm-fe-b-f7`(perm/perm-fe 합친 ff01c5261 위). 작업대 머지·머지 2 완료 뒤 이 커밋 하나만 cherry-pick(ff01c5261 은 가져오지 않음). vitest 61/0, tsc 기준선 외 0, eslint 0 |
+
+### 결정
+
+- 저장 목록 = `grids.perms.rows`(D36). 줄 = ROLE_ID·OBJECT_ID·BTN_PERM·POPUP_PERM·DATA_PERM·OP_TP(MERGE|DEL)
+- commPermMng action = 기존 `search`·`save` + 새 `lov`·`searchPermOne`. commRoleMng = 기존 `lov`·`search`·`save`·`searchCmRoleMap`·`saveCmRoleMap` + 새 `searchRoleGroups`·`searchFolderObj`
+- D15 식(조정 확정): 바뀐 줄 저장 때 BTN_PERM ∖ OBJ_BTN_PERM, POPUP_PERM ∖ OBJ_POPUP_PERM 을 뺀다. 안 바뀐 줄은 보내지 않는다. 서버 ⊆ 검사는 엄격. 밖 값이 있는 줄에 「오브젝트에 없는 값 … 는 저장 때 빠진다」 한 줄. 두 화면 시험 있음(팝업만 고친 줄 포함)
+- 거절 = 메시지 "CODE: 상세". 코드가 meta.code·errors[].code 에만 오면 앞에 붙인다. PERM_NOT_IN_OBJ·PERM_EMPTY_BTN 만 쉬운 말, 나머지 코드는 메시지 그대로
+- searchFolderObj 폴더 = MENU_FOLDER_ID 있으면 그것, 없으면 MENU_PATH 로 lov menus 에서 찾기
+- 칩 = shared ToggleChipGroup·TokenChipInput(f1, 12cd7bd23). 줄 그음·찾기 강조 = 화면 안 얇은 래퍼
+- 머지 단위(조정 승인) = commPermMng+commRoleMng 한 번, BE l1·l2 머지 뒤. 실연결을 같은 squash 에 넣는다. f7 은 다음 머지
+- 브라우저 확인 = Mac 조정 통합 확인 몫(레인은 서버를 띄우지 않음). 머지 요청 「시험」 칸에 적는다
+- ui-meta-lock.json = 내 4개 파일 항목만 다시 씀. m-mdm 항목 3개 기존 어긋남(시험 1 실패)은 고치지 않음 — Mac 이 win30 에 보고
+- screens.mjs 등록 = perm-fe-a 에 넘김(조정)
+
+### 다음 단계(재개용)
+
+1. 머지 요청 2(다시 squash 1커밋) 의 `머지 완료` 대기
+2. 작업대(perm-fe-a) 머지 + 머지 2 완료 뒤 f7: `git fetch origin` → `git merge origin/claude/perm-bench` → `git cherry-pick 74811d100` → tsc·csa vitest → 머지 요청 3
+3. f7 내용: commRoleMng = `useOpenWith("commRoleMng")` 받기(순수 판정 `openWithStep`, role-perm.ts·시험 2), ready = `(searched || restored) && !isSearching`. 두 화면 「권한 작업대에서 보기」 = `commPermMng/bench-link.ts` `openPermBench(from, roleId, objectId?)`(반대 방향 계약). commPermMng 받는 쪽 없음 — nav.ts LEGACY_SCREENS 에 commPermMng 이 없어 보내는 곳이 없다
+4. 작업대 쪽 주의(perm-fe-a 몫): nav.ts `readOpenWith` 는 from≠"commPermBench" 면 null, objectId 를 버린다 → 반대 방향 받기에 그대로 쓰면 무시된다
+
+### 후속 후보
+
+- commPermMng 새 창으로 분리 때 저장 안 한 퍼미션 값 넘기기
+- commRoleMng 진입 호출 4건(기준 3) — BE 가 searchCmRoleMap 응답에 그룹을 실으면 3건
