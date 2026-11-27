@@ -19,6 +19,7 @@ export const PAGE_REGISTRY: Record<string, () => Promise<{ default: unknown }>> 
   "cmq/userQueryMng": () => import("@/page-components/cmq/userQueryMng/page"),
   "csa/commMenuMng": () => import("@/page-components/csa/commMenuMng/page"),
   "csa/commObjMng": () => import("@/page-components/csa/commObjMng/page"),
+  "csa/commPermBench": () => import("@/page-components/csa/commPermBench/page"),
   "csa/commPermMng": () => import("@/page-components/csa/commPermMng/page"),
   "csa/commRoleGrpMng": () => import("@/page-components/csa/commRoleGrpMng/page"),
   "csa/commRoleMng": () => import("@/page-components/csa/commRoleMng/page"),
