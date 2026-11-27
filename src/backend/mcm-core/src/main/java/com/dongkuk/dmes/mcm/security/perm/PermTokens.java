@@ -15,7 +15,7 @@ import java.util.Set;
  */
 public final class PermTokens {
     private static final List<String> READ_PREFIXES = List.of("search", "find", "get", "list", "lov");
-    private static final List<String> READ_EXACT = List.of("view", "query");
+    private static final List<String> READ_EXACT = List.of("view", "query", "explain");
 
     private PermTokens() {
     }
@@ -66,7 +66,7 @@ public final class PermTokens {
 
     /**
      * 「조회만」 프리셋(D18). allowed 중 이름 규칙에 맞는 것만 allowed 순서대로 돌려준다.
-     * 규칙: 접두 search·find·get·list·lov / 접미 Lov / 정확히 view·query.
+     * 규칙: 접두 search·find·get·list·lov / 접미 Lov / 정확히 view·query·explain(결정 9).
      * 접두는 대소문자를 구분하는 단순 startsWith 라서 searchable 같은 단어도 맞는 것으로 본다.
      */
     public static List<String> readPreset(Collection<String> allowed) {

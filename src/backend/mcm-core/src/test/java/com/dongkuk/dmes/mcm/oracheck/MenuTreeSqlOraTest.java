@@ -34,7 +34,7 @@ class MenuTreeSqlOraTest {
     @Autowired JdbcTemplate jdbc;
 
     private static final List<String> TABLES = List.of(
-            "TB_MCM_SEC_MENU_FLD", "TB_MCM_SEC_MENU", "TB_MCM_SEC_OBJ",
+            "TB_MCM_SEC_ROLE_PERM", "TB_MCM_SEC_MENU_FLD", "TB_MCM_SEC_MENU", "TB_MCM_SEC_OBJ",
             "TB_MCM_SEC_ROLEGROUP_MAPPING", "TB_MCM_SEC_ROLEGROUP", "TB_MCM_SEC_ROLE_MAPPING", "TB_MCM_SEC_ROLE");
 
     @BeforeEach
@@ -162,7 +162,8 @@ class MenuTreeSqlOraTest {
         jdbc.update("INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLEGROUP (ROLE_GROUP_ID, ROLE_GROUP_NM, USE_TP) VALUES ('RG1', 'rg1', ?)", roleGrpUse);
         jdbc.update("INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE (ROLE_ID, ROLE_NM, USE_TP) VALUES ('R1', 'r1', 'Y')");
         jdbc.update("INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLEGROUP_MAPPING (ROLE_GROUP_ID, ROLE_ID) VALUES ('RG1', 'R1')");
-        jdbc.update("INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID) VALUES ('R1', 'OBJ1', 'READ')");
+        obj("OBJ1", "obj1", "Y"); // ROLE_PERM FK(오브젝트) 부모
+        jdbc.update("INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_PERM (ROLE_ID, OBJECT_ID, BTN_PERM) VALUES ('R1', 'OBJ1', 'READ')");
         menu(menuId, "1", null, "OBJ1", "Y", "WEB");
     }
 

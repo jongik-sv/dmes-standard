@@ -1,0 +1,43 @@
+{
+  "_doc": "BPMN actionGateway 에서 읽히지 않는 action 의 손으로 쓰는 보충 목록. objectId -> {btn:[], popup:[], note}. gen-obj-perm.mjs 가 BPMN 분기 이름과 합친다(합집합).",
+  "commObjMng": {
+    "btn": ["searchObjMenu", "searchObjPerm"],
+    "note": "결정 7 — l3 가 BPMN 에 더할 action. 아직 머지 전이라 보충한다"
+  },
+  "commPermBench": {
+    "btn": ["apply", "discardDraft", "explain", "impact", "loadDraft", "saveDraft", "searchBench", "searchHistory", "searchHistoryDtl", "searchMenuTree", "searchRolePerm"],
+    "note": "decompose §0.3 표. b1 이 BPMN 을 머지하면 생성기 분기와 겹친다(합집합이라 무해)"
+  },
+  "commPermMng": {
+    "btn": ["lov", "searchPermOne"],
+    "note": "결정 8 — l1 이 BPMN 에 더할 action"
+  },
+  "commRoleMng": {
+    "btn": ["searchFolderObj", "searchRoleGroups"],
+    "note": "결정 8 — l2 가 BPMN 에 더할 action"
+  },
+  "commWidgetMng": {
+    "btn": ["upload"],
+    "note": "REST 미디어 올리기 rest/commWidgetMng/upload"
+  },
+  "dbViewer": {
+    "btn": ["query"],
+    "note": "analog REST rest/dbViewer/query (BPMN 없음)"
+  },
+  "logViewer": {
+    "btn": ["search"],
+    "note": "analog REST rest/logViewer/search (BPMN 없음)"
+  },
+  "mdmCacheMng": {
+    "btn": ["reload"],
+    "note": "MDM 캐시 관리 재등록 버튼(BPMN 없음). 시더 allActions 의 reload"
+  },
+  "mdmSample": {
+    "btn": ["search"],
+    "note": "빈 샘플 화면(BPMN 없음). 옛 PERM_SEARCH_ONLY 와 같게 search 만"
+  },
+  "searchDefaultsSample": {
+    "btn": ["search"],
+    "note": "조회 기본값 샘플 화면(BPMN 없음)"
+  }
+}

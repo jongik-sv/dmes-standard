@@ -344,4 +344,113 @@ public class SeedSupport {
     protected jakarta.persistence.Query nq(String sql) {
         return entityManager.createNativeQuery(sql);
     }
+
+    // ── 퍼미션 모델 v2 도우미 (2026-11-27 perm-bench c4, docs/perm-bench/decompose.md D10·D11·D13·D14) ──
+    // 옛 TB_MCM_SEC_ROLE_MAPPING 시드 줄은 그대로 두고(legacy 되돌림·r3 전 런타임용), 같은 뜻의 새 TB_MCM_SEC_ROLE_PERM 행을 함께 쓴다.
+    // SYSADMIN 은 퍼미션 행 없이 계산하므로(D13) 이 도우미를 SYSADMIN 에 쓰지 않는다.
+
+    /**
+     * 역할×오브젝트 퍼미션 1건({@code TB_MCM_SEC_ROLE_PERM}) 멱등 병합 — PK(ROLE_ID, OBJECT_ID) 기준.
+     *
+     * <p>행이 없으면 넣는다. 있으면 기존 토큰 뒤에 빠진 토큰만 덧붙인다(합집합, 기존 순서 유지 — {@link #ensurePermActions} 와 같은 계열).
+     * 값이 같으면 쓰지 않는다. 행이 없는데 버튼 토큰이 비면 넣지 않는다(D14 — 버튼 없는 퍼미션 금지).
+     *
+     * @param btnCsv   버튼 권한 action 코드(쉼표 구분)
+     * @param popupCsv 팝업 권한 action 코드(쉼표 구분, null 가능)
+     * @return 넣거나 고친 행 수(0 또는 1)
+     */
+    protected int ensureRolePerm(String roleId, String objectId, String btnCsv, String popupCsv) {
+        List<String> btn = com.dongkuk.dmes.mcm.security.perm.PermTokens.parse(btnCsv);
+        List<String> popup = com.dongkuk.dmes.mcm.security.perm.PermTokens.parse(popupCsv);
+        @SuppressWarnings("unchecked")
+        List<Object[]> rows = nq(
+                "SELECT BTN_PERM, POPUP_PERM FROM MCMAPUSER.TB_MCM_SEC_ROLE_PERM WHERE ROLE_ID = :r AND OBJECT_ID = :o")
+                .setParameter("r", roleId)
+                .setParameter("o", objectId)
+                .getResultList();
+        if (rows.isEmpty()) {
+            if (btn.isEmpty()) {
+                log.warn("[DataInitializer] ROLE_PERM 건너뜀 — 버튼 토큰이 비었다(D14) role={} object={}", roleId, objectId);
+                return 0;
+            }
+            String popupLit = popup.isEmpty() ? "NULL"
+                    : "'" + escapeSql(com.dongkuk.dmes.mcm.security.perm.PermTokens.join(popup)) + "'";
+            nq("INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_PERM (ROLE_ID, OBJECT_ID, BTN_PERM, POPUP_PERM" + AUDIT_COLS + ") " +
+               "VALUES ('" + escapeSql(roleId) + "', '" + escapeSql(objectId) + "', " +
+               "'" + escapeSql(com.dongkuk.dmes.mcm.security.perm.PermTokens.join(btn)) + "', " + popupLit + AUDIT_VALS + ")")
+                    .executeUpdate();
+            log.info("[DataInitializer] SEED INSERT: TB_MCM_SEC_ROLE_PERM composite PK={}/{}", roleId, objectId);
+            return 1;
+        }
+        Object[] cur = rows.get(0);
+        String curBtn = cur[0] == null ? null : cur[0].toString();
+        String curPopup = cur[1] == null ? null : cur[1].toString();
+        Set<String> mergedBtn = new LinkedHashSet<>(com.dongkuk.dmes.mcm.security.perm.PermTokens.parse(curBtn));
+        mergedBtn.addAll(btn);
+        Set<String> mergedPopup = new LinkedHashSet<>(com.dongkuk.dmes.mcm.security.perm.PermTokens.parse(curPopup));
+        mergedPopup.addAll(popup);
+        String newBtn = com.dongkuk.dmes.mcm.security.perm.PermTokens.join(mergedBtn);
+        String newPopup = mergedPopup.isEmpty() ? null : com.dongkuk.dmes.mcm.security.perm.PermTokens.join(mergedPopup);
+        if (newBtn.equals(curBtn) && java.util.Objects.equals(newPopup, curPopup)) {
+            return 0;
+        }
+        String popupLit = newPopup == null ? "NULL" : "'" + escapeSql(newPopup) + "'";
+        int n = nq("UPDATE MCMAPUSER.TB_MCM_SEC_ROLE_PERM SET BTN_PERM = '" + escapeSql(newBtn) + "', POPUP_PERM = " + popupLit +
+                   ", U_USR_ID = 'admin', U_AT = SYSTIMESTAMP WHERE ROLE_ID = :r AND OBJECT_ID = :o")
+                .setParameter("r", roleId)
+                .setParameter("o", objectId)
+                .executeUpdate();
+        log.info("[DataInitializer] ROLE_PERM 토큰 보정 — {}/{} btn={} popup={}", roleId, objectId, newBtn, newPopup);
+        return n;
+    }
+
+    /**
+     * 옛 권한 세트({@code TB_MCM_SEC_PERM}) 하나를 새 퍼미션 행으로 옮겨 병합한다(D11 규칙 — V21 옮기기와 같다).
+     * BTN = PERMISSION_COMMON ∪ PERMISSION_CUSTOM ∪ PERMISSION_ACTION, POPUP = POPUP_BTN. 권한 세트가 없으면 건너뛴다.
+     * 값은 DB 의 현재 값을 읽는다 — {@link #ensurePermActions} 가 덧붙인 action 까지 들어가 legacy 계산과 같다.
+     */
+    protected int ensureRolePermFromPerm(String roleId, String objectId, String permissionId) {
+        @SuppressWarnings("unchecked")
+        List<Object[]> rows = nq(
+                "SELECT PERMISSION_COMMON, PERMISSION_CUSTOM, PERMISSION_ACTION, POPUP_BTN " +
+                "FROM MCMAPUSER.TB_MCM_SEC_PERM WHERE PERMISSION_ID = :p")
+                .setParameter("p", permissionId)
+                .getResultList();
+        if (rows.isEmpty()) {
+            log.warn("[DataInitializer] ROLE_PERM 건너뜀 — 권한 세트 없음 permission={} role={} object={}", permissionId, roleId, objectId);
+            return 0;
+        }
+        Object[] r = rows.get(0);
+        Set<String> btn = new LinkedHashSet<>();
+        for (int i = 0; i < 3; i++) {
+            appendCsv(btn, r[i] == null ? null : r[i].toString());
+        }
+        return ensureRolePerm(roleId, objectId, String.join(",", btn), r[3] == null ? null : r[3].toString());
+    }
+
+    /**
+     * 오브젝트 허용 값({@code TB_MCM_SEC_OBJ.BTN_PERM·POPUP_PERM}) 처음 채움 — 칸이 비었을 때만 쓴다(관리자가 고친 값 보존, 멱등).
+     * 빈 값(null·공백)은 쓰지 않는다. 1000자를 넘으면 조용히 자르지 않고 기동을 멈춘다(decompose.md §6 위험).
+     *
+     * @return 고친 칸 수(0~2)
+     */
+    protected int fillObjPermIfNull(String objectId, String btnCsv, String popupCsv) {
+        int n = 0;
+        String[][] cols = {{"BTN_PERM", btnCsv}, {"POPUP_PERM", popupCsv}};
+        for (String[] c : cols) {
+            String v = com.dongkuk.dmes.mcm.security.perm.PermTokens.join(com.dongkuk.dmes.mcm.security.perm.PermTokens.parse(c[1]));
+            if (v.isEmpty()) {
+                continue;
+            }
+            if (v.length() > 1000) {
+                throw new IllegalStateException("[DataInitializer] TB_MCM_SEC_OBJ." + c[0] + " 1000자 초과 — object=" + objectId
+                        + " length=" + v.length());
+            }
+            n += nq("UPDATE MCMAPUSER.TB_MCM_SEC_OBJ SET " + c[0] + " = :v WHERE OBJECT_ID = :o AND " + c[0] + " IS NULL")
+                    .setParameter("v", v)
+                    .setParameter("o", objectId)
+                    .executeUpdate();
+        }
+        return n;
+    }
 }

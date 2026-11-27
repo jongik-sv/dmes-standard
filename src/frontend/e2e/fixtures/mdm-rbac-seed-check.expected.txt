@@ -14,4 +14,8 @@ PERM_MDM_READ|-|-|-|search,view,export,compare
 MDM_STD_ADMIN|mdmSample|PERM_MDM_EDIT
 MDM_STEWARD|mdmSample|PERM_MDM_READ
 SYSADMIN|mdmSample|PERM_ALL
+MDM_STD_ADMIN|mdmSample|search,view,export,compare,save,delete,reg,import,validate,execute,copy,restore,lock,unlock,handover|-
+MDM_STEWARD|mdmSample|search,view,export,compare|-
+0
+0
 0

@@ -1,0 +1,615 @@
+{
+  "auditLog": {
+    "btn": [
+      "period",
+      "search"
+    ],
+    "popup": []
+  },
+  "codeCateEdit": {
+    "btn": [
+      "compare",
+      "restore",
+      "save",
+      "search",
+      "validate",
+      "view"
+    ],
+    "popup": []
+  },
+  "codeConfirm": {
+    "btn": [
+      "confirm",
+      "search",
+      "validate",
+      "view"
+    ],
+    "popup": []
+  },
+  "codeEdit": {
+    "btn": [
+      "delete",
+      "execute",
+      "handover",
+      "lock",
+      "reg",
+      "restore",
+      "save",
+      "search",
+      "unlock",
+      "view"
+    ],
+    "popup": []
+  },
+  "codeItemEdit": {
+    "btn": [
+      "compare",
+      "execute",
+      "restore",
+      "save",
+      "search",
+      "validate",
+      "view"
+    ],
+    "popup": []
+  },
+  "codeMng": {
+    "btn": [
+      "reg",
+      "search"
+    ],
+    "popup": []
+  },
+  "columnMng": {
+    "btn": [
+      "compare",
+      "save",
+      "search",
+      "view"
+    ],
+    "popup": []
+  },
+  "commMenuMng": {
+    "btn": [
+      "commonList",
+      "save",
+      "saveCmMenuFld",
+      "search",
+      "searchCmMenuFld",
+      "searchMenuGrp",
+      "searchObj"
+    ],
+    "popup": []
+  },
+  "commObjMng": {
+    "btn": [
+      "lov",
+      "save",
+      "search",
+      "searchObjMenu",
+      "searchObjPerm",
+      "searchSystemLov"
+    ],
+    "popup": []
+  },
+  "commPermBench": {
+    "btn": [
+      "apply",
+      "discardDraft",
+      "explain",
+      "impact",
+      "loadDraft",
+      "saveDraft",
+      "searchBench",
+      "searchHistory",
+      "searchHistoryDtl",
+      "searchMenuTree",
+      "searchRolePerm"
+    ],
+    "popup": []
+  },
+  "commPermMng": {
+    "btn": [
+      "lov",
+      "save",
+      "search",
+      "searchPermOne"
+    ],
+    "popup": []
+  },
+  "commRoleGrpMng": {
+    "btn": [
+      "save",
+      "saveCmRoleGrpMap",
+      "search",
+      "searchCmRole",
+      "searchCmRoleGrpMap",
+      "searchCmRoleGrpMenu"
+    ],
+    "popup": []
+  },
+  "commRoleMng": {
+    "btn": [
+      "lov",
+      "save",
+      "saveCmRoleMap",
+      "search",
+      "searchCmPerm",
+      "searchCmRoleMap",
+      "searchFolderObj",
+      "searchObjectLov",
+      "searchRoleGroups"
+    ],
+    "popup": []
+  },
+  "commUserMng": {
+    "btn": [
+      "commonUserDept",
+      "deleteCmUser",
+      "pwdinit",
+      "reRegCmUser",
+      "regCmUser",
+      "save",
+      "saveUserRoleGrp",
+      "saveUserRoleGrpCopy",
+      "search",
+      "searchDeptLov",
+      "searchRoleGrp",
+      "searchUserRoleGrp"
+    ],
+    "popup": []
+  },
+  "commUserRoleCopy": {
+    "btn": [
+      "save",
+      "search",
+      "searchUserList"
+    ],
+    "popup": []
+  },
+  "commWidgetMng": {
+    "btn": [
+      "delete",
+      "deleteDefaultTab",
+      "deleteLayout",
+      "loadDefaultTabs",
+      "loadLayout",
+      "previewQuery",
+      "reorderDefaultTabs",
+      "save",
+      "saveDefaultTab",
+      "saveLayout",
+      "search",
+      "searchDepts",
+      "searchLayouts",
+      "upload"
+    ],
+    "popup": []
+  },
+  "dataCateEdit": {
+    "btn": [
+      "compare",
+      "delete",
+      "reg",
+      "restore",
+      "save",
+      "search",
+      "view"
+    ],
+    "popup": []
+  },
+  "dataCsvUploadPop": {
+    "btn": [
+      "save",
+      "validate"
+    ],
+    "popup": []
+  },
+  "dataEdit": {
+    "btn": [
+      "delete",
+      "save",
+      "view"
+    ],
+    "popup": []
+  },
+  "dataHistory": {
+    "btn": [
+      "search",
+      "view"
+    ],
+    "popup": []
+  },
+  "dataItemMng": {
+    "btn": [
+      "delete",
+      "reg",
+      "restore",
+      "save",
+      "search",
+      "view"
+    ],
+    "popup": []
+  },
+  "dataMng": {
+    "btn": [
+      "reg",
+      "search"
+    ],
+    "popup": []
+  },
+  "dbViewer": {
+    "btn": [
+      "query"
+    ],
+    "popup": []
+  },
+  "domainMng": {
+    "btn": [
+      "delete",
+      "execute",
+      "save",
+      "search",
+      "validate",
+      "view"
+    ],
+    "popup": []
+  },
+  "erdEdit": {
+    "btn": [
+      "compare",
+      "confirm",
+      "copy",
+      "delete",
+      "execute",
+      "handover",
+      "import",
+      "lock",
+      "reg",
+      "restore",
+      "save",
+      "search",
+      "unlock",
+      "validate",
+      "view"
+    ],
+    "popup": []
+  },
+  "headerMng": {
+    "btn": [
+      "copy",
+      "delete",
+      "handover",
+      "lock",
+      "save",
+      "search",
+      "unlock",
+      "view"
+    ],
+    "popup": []
+  },
+  "jobSchedMng": {
+    "btn": [
+      "collectData",
+      "cronPreview",
+      "delete",
+      "get",
+      "handlers",
+      "history",
+      "list",
+      "runNow",
+      "save",
+      "setUse"
+    ],
+    "popup": []
+  },
+  "layoutConfirm": {
+    "btn": [
+      "confirm",
+      "search",
+      "validate",
+      "view"
+    ],
+    "popup": []
+  },
+  "layoutMng": {
+    "btn": [
+      "copy",
+      "delete",
+      "execute",
+      "export",
+      "handover",
+      "lock",
+      "save",
+      "search",
+      "unlock",
+      "validate",
+      "view"
+    ],
+    "popup": []
+  },
+  "logViewer": {
+    "btn": [
+      "search"
+    ],
+    "popup": []
+  },
+  "mdmCacheMng": {
+    "btn": [
+      "reload"
+    ],
+    "popup": []
+  },
+  "mdmSample": {
+    "btn": [
+      "search"
+    ],
+    "popup": []
+  },
+  "metaFeed": {
+    "btn": [
+      "save",
+      "search",
+      "view"
+    ],
+    "popup": []
+  },
+  "noticeBoard": {
+    "btn": [
+      "search"
+    ],
+    "popup": []
+  },
+  "noticeMgmt": {
+    "btn": [
+      "changeStatus",
+      "save",
+      "search"
+    ],
+    "popup": []
+  },
+  "ruleCalc": {
+    "btn": [
+      "execute",
+      "search",
+      "view"
+    ],
+    "popup": []
+  },
+  "ruleConfirm": {
+    "btn": [
+      "confirm",
+      "search",
+      "validate",
+      "view"
+    ],
+    "popup": []
+  },
+  "ruleEdit": {
+    "btn": [
+      "execute",
+      "save",
+      "search",
+      "validate",
+      "view"
+    ],
+    "popup": []
+  },
+  "ruleMng": {
+    "btn": [
+      "copy",
+      "delete",
+      "handover",
+      "lock",
+      "reg",
+      "save",
+      "search",
+      "unlock",
+      "view"
+    ],
+    "popup": []
+  },
+  "ruleSetConfirm": {
+    "btn": [
+      "confirm",
+      "search",
+      "validate",
+      "view"
+    ],
+    "popup": []
+  },
+  "ruleSetEdit": {
+    "btn": [
+      "copy",
+      "delete",
+      "execute",
+      "handover",
+      "lock",
+      "restore",
+      "save",
+      "search",
+      "unlock",
+      "validate",
+      "view"
+    ],
+    "popup": []
+  },
+  "ruleSetMng": {
+    "btn": [
+      "reg",
+      "search"
+    ],
+    "popup": []
+  },
+  "screenUsage": {
+    "btn": [
+      "record"
+    ],
+    "popup": []
+  },
+  "screenUsageStat": {
+    "btn": [
+      "byDept",
+      "byScreen",
+      "byUser",
+      "history",
+      "overview",
+      "unused"
+    ],
+    "popup": []
+  },
+  "searchDefaultsSample": {
+    "btn": [
+      "search"
+    ],
+    "popup": []
+  },
+  "secCodeGroup": {
+    "btn": [
+      "save",
+      "search"
+    ],
+    "popup": []
+  },
+  "secCodeItem": {
+    "btn": [
+      "lov",
+      "save",
+      "search"
+    ],
+    "popup": []
+  },
+  "secFavorite": {
+    "btn": [
+      "addFolder",
+      "deleteFolder",
+      "reorder",
+      "save",
+      "search",
+      "toggle"
+    ],
+    "popup": []
+  },
+  "secSrchDflt": {
+    "btn": [
+      "resetPage",
+      "savePage",
+      "search"
+    ],
+    "popup": []
+  },
+  "secStartPgm": {
+    "btn": [
+      "reorder",
+      "search",
+      "toggle"
+    ],
+    "popup": []
+  },
+  "secUser": {
+    "btn": [
+      "myButtonEndpoints",
+      "myMenus",
+      "myMenusTree",
+      "myPermissions"
+    ],
+    "popup": []
+  },
+  "secWidget": {
+    "btn": [
+      "deleteTab",
+      "reorderTabs",
+      "resetHome",
+      "resetTab",
+      "saveTab",
+      "search",
+      "searchUsers",
+      "shareTab"
+    ],
+    "popup": []
+  },
+  "termMng": {
+    "btn": [
+      "compare",
+      "delete",
+      "execute",
+      "save",
+      "search"
+    ],
+    "popup": []
+  },
+  "termRegPop": {
+    "btn": [
+      "reg",
+      "search"
+    ],
+    "popup": []
+  },
+  "unitMng": {
+    "btn": [
+      "compare",
+      "delete",
+      "save",
+      "search"
+    ],
+    "popup": []
+  },
+  "userQuery": {
+    "btn": [
+      "getDef",
+      "myList",
+      "run"
+    ],
+    "popup": []
+  },
+  "userQueryMng": {
+    "btn": [
+      "delete",
+      "get",
+      "previewQuery",
+      "save",
+      "saveAssign",
+      "search",
+      "searchAssign",
+      "searchDepts",
+      "searchUserList",
+      "validate"
+    ],
+    "popup": []
+  },
+  "widgetChat": {
+    "btn": [
+      "history",
+      "reset",
+      "send"
+    ],
+    "popup": []
+  },
+  "widgetData": {
+    "btn": [
+      "run"
+    ],
+    "popup": []
+  },
+  "widgetDef": {
+    "btn": [
+      "list"
+    ],
+    "popup": []
+  },
+  "widgetExt": {
+    "btn": [
+      "exchange",
+      "options",
+      "weather"
+    ],
+    "popup": []
+  },
+  "widgetMemo": {
+    "btn": [
+      "load",
+      "save"
+    ],
+    "popup": []
+  }
+}

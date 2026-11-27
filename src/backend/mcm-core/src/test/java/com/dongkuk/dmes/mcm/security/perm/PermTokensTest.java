@@ -64,6 +64,13 @@ class PermTokensTest {
         assertThat(PermTokens.readPreset(null)).isEmpty();
     }
 
+    @Test
+    @DisplayName("readPreset: explain 은 조회로 본다(결정 9), impact·loadDraft 는 편집용이라 뺀다")
+    void readPresetExplain() {
+        List<String> allowed = List.of("searchBench", "explain", "impact", "loadDraft", "explainAll");
+        assertThat(PermTokens.readPreset(allowed)).containsExactly("searchBench", "explain");
+    }
+
     // ---------- applyChanges ----------
 
     private static PermGraph base() {

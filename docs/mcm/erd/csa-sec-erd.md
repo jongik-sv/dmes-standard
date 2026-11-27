@@ -10,6 +10,9 @@
 >
 > **물리 FK 제약은 0건**이며 아래 관계선은 모두 논리 FK 이다 (JPA 연관관계 금지 정책. 조인은 native query 나 Java 코드가 수행).
 
+> **2026-11-27 퍼미션 모델 v2 ([ADR-0001](../adr/0001-perm-model-v2.md), PROPOSED)**: 아래 그림 1·§4·§5 의 `SEC_PERM`·`SEC_ROLE_MAPPING` 은 **쓰기 중단, 런타임 legacy 모드 전용(D10)** 이다.
+> 기본 런타임(`mcm.security.perm-model=v2`)은 [§8](#8-퍼미션-모델-v2-2026-11-27)의 `SEC_ROLE_PERM` 을 읽는다. 옛 두 표는 대조·되돌리기용으로 지우지 않는다.
+
 한 그림에 13개 테이블을 다 넣으면 폭이 커져 읽기 어려우므로 목적별 세 장으로 나눴다.
 두 그림에 함께 나오는 테이블은 두 번째 그림에서 키 컬럼만 적었다.
 
@@ -230,17 +233,19 @@ erDiagram
 | `SEC_USER` | 본체 | 1 | 사용자. 비밀번호는 `SEC_USER_PWD` 로 1:1 분리 |
 | `SEC_ROLEGROUP` | 본체 | 1 | 역할 묶음. 사용자에게 부여되는 단위 |
 | `SEC_ROLE` | 본체 | 1 | 역할. `MENU_ID` 로 기본 진입 폴더 지정 |
-| `SEC_PERM` | 본체 | 1 | 허용 action 목록(search/save/delete…)을 콤마로 보유 |
+| `SEC_PERM` | 본체 (쓰기 중단, 런타임 legacy 모드 전용 D10) | 1 | 허용 action 목록(search/save/delete…)을 콤마로 보유 |
 | `SEC_OBJ` | 본체 | 21 | 화면 실체. `SYSTEM_CODE` 가 FE moduleId 가 됨 |
 | `SEC_MENU` | 본체 | 21 | 화면(leaf)만. 폴더는 `SEC_MENU_FLD` 가 따로 담음 |
 | `SEC_MENU_FLD` | 본체 | 8 | 모듈·그룹 폴더. 엔티티 없음, DataInitializer DDL 로만 존재 |
 | `SEC_USER_MAPPING` | 매핑 | — | 사용자 × 역할그룹 |
 | `SEC_ROLEGROUP_MAPPING` | 매핑 | — | 역할그룹 × 역할 |
-| `SEC_ROLE_MAPPING` | 매핑 | — | 역할 × OBJECT × PERMISSION 3중 복합 PK. 권한 판정의 핵심 |
+| `SEC_ROLE_MAPPING` | 매핑 (쓰기 중단, 런타임 legacy 모드 전용 D10) | — | 역할 × OBJECT × PERMISSION 3중 복합 PK. 권한 판정의 핵심 |
 | `SEC_USER_HIS` | 이력 | 0 | 사용자 변경 이력 |
 | `SEC_USER_ROLL_HIS` | 이력 | 0 | 사용자 역할그룹 부여 이력(그룹명 스냅샷 보유) |
 
-## 5. 권한 해석 체인 (코드 기준)
+## 5. 권한 해석 체인 (코드 기준 · legacy 모드)
+
+> 이 절은 `perm-model=legacy` 일 때의 체인이다. v2 체인은 §8.3 을 본다.
 
 1. `SEC_USER` → `SEC_USER_MAPPING` → 역할그룹 집합
 2. 역할그룹 → `SEC_ROLEGROUP_MAPPING` → 역할 집합
@@ -354,3 +359,82 @@ erDiagram
 - **화면**: 메뉴 관리(`commMenuMng`)에 세트 선택 추가, 역할그룹 관리(`commRoleGrpMng`)에 세트 접근 탭 추가, 신규 세트 관리 화면 1개.
 - **포털 셸**: `portal-shell` 이 세트 ID 를 들고 `getMyMenus` 에 전달, 세트 전환 UI.
 - **데이터 이행**: 기존 폴더 8행·화면 21행에 `MES` 부여, 기존 역할그룹에 `MES`(+`MOBILE`) 접근 행 삽입. 멱등 DDL/시드는 DataInitializer 관례를 따른다.
+
+---
+
+## 8. 퍼미션 모델 v2 (2026-11-27)
+
+근거: [ADR-0001](../adr/0001-perm-model-v2.md) (PROPOSED), `docs/perm-bench/decompose.md` §0.1, 마이그레이션 `V20__perm_model.sql`.
+역할×오브젝트 퍼미션을 한 건으로 합치고, 오브젝트가 허용하는 값을 오브젝트 쪽에 둔다.
+물리 FK 는 `ROLE_PERM`→`ROLE`·`OBJ` 와 `PERM_HIS_DTL`→`PERM_HIS` 3건이다(ON DELETE 없음, D19). 위의 "물리 FK 0건" 정책에서 이 3건만 예외다.
+
+### 8.1 ERD
+
+```mermaid
+erDiagram
+    direction TB
+    TB_MCM_SEC_ROLE      ||--o{ TB_MCM_SEC_ROLE_PERM     : "ROLE_ID (FK)"
+    TB_MCM_SEC_OBJ       ||--o{ TB_MCM_SEC_ROLE_PERM     : "OBJECT_ID (FK)"
+    TB_MCM_SEC_PERM_HIS  ||--o{ TB_MCM_SEC_PERM_HIS_DTL  : "APPLY_ID (FK)"
+    TB_MCM_SEC_USER      |o..o| TB_MCM_SEC_PERM_DRAFT    : "OWNER_USER_ID (논리, 관리자마다 1건)"
+
+    TB_MCM_SEC_ROLE_PERM {
+        varchar(30)   ROLE_ID PK
+        varchar(50)   OBJECT_ID PK
+        varchar(1000) BTN_PERM "NOT NULL, 버튼 action 코드"
+        varchar(1000) POPUP_PERM "팝업 action 코드"
+        varchar(1000) DATA_PERM "데이터 권한 코드"
+    }
+    TB_MCM_SEC_OBJ {
+        varchar(50)   OBJECT_ID PK "기존 칼럼은 그림 1"
+        varchar(1000) BTN_PERM "신규 · 허용 버튼 값"
+        varchar(1000) POPUP_PERM "신규 · 허용 팝업 값"
+        varchar(1000) DATA_PERM "신규 · 허용 데이터 값"
+    }
+    TB_MCM_SEC_PERM_DRAFT {
+        varchar(100) OWNER_USER_ID PK
+        clob         DRAFT_JSON "변경 목록"
+        clob         BASE_FP_JSON "처음 건드린 범위의 행 지문"
+        number       CHANGE_CNT
+    }
+    TB_MCM_SEC_PERM_HIS {
+        varchar(40)   APPLY_ID PK
+        varchar(100)  APPLY_USER_ID
+        timestamp     APPLY_AT
+        number        CHANGE_CNT
+        number        GAIN_USER_CNT
+        number        LOSE_USER_CNT
+        varchar(1000) APPLY_MEMO
+    }
+    TB_MCM_SEC_PERM_HIS_DTL {
+        varchar(40)   APPLY_ID PK
+        number        SEQ_NO PK
+        varchar(10)   TARGET_TP "USER_GRP · GRP_ROLE · ROLE_OBJ"
+        varchar(100)  KEY1
+        varchar(100)  KEY2
+        varchar(3)    OP_TP "ADD · DEL · UPD"
+        varchar(2000) BEFORE_VAL
+        varchar(2000) AFTER_VAL
+    }
+```
+
+### 8.2 테이블 역할
+
+| 테이블 | 구분 | 상태 | 한 줄 설명 |
+|---|---|---|---|
+| `SEC_ROLE_PERM` | 본체 | 신규 | 역할×오브젝트 퍼미션 한 건. 이 줄이 있으면 그 역할에 메뉴가 보인다 |
+| `SEC_OBJ` | 본체 | 칼럼 3개 추가 | `BTN_PERM`·`POPUP_PERM`·`DATA_PERM` = 오브젝트가 허용하는 값 |
+| `SEC_PERM_DRAFT` | 작업 | 신규 | 권한 작업대 초안. 관리자마다 1건 |
+| `SEC_PERM_HIS` | 이력 | 신규 | 작업대 적용 한 번의 머리(누가·언제·몇 명) |
+| `SEC_PERM_HIS_DTL` | 이력 | 신규 | 적용 한 번의 줄(무엇이 어떻게 바뀌었나) |
+| `SEC_PERM` | 본체 | 쓰기 중단, 런타임 legacy 모드 전용(D10) | 옛 권한 묶음. 지우지 않는다 |
+| `SEC_ROLE_MAPPING` | 매핑 | 쓰기 중단, 런타임 legacy 모드 전용(D10) | 옛 역할×오브젝트×묶음. 지우지 않는다 |
+
+### 8.3 권한 해석 체인 (v2)
+
+1. 사용자 → `SEC_USER_MAPPING` → 역할그룹 → `SEC_ROLEGROUP_MAPPING` → 역할 (여기까지 바뀐 것 없음)
+2. 역할 → `SEC_ROLE_PERM` → (역할, 오브젝트) 퍼미션 한 건
+3. 효과 = (퍼미션 BTN ∩ 오브젝트 BTN) ∪ (퍼미션 POPUP ∩ 오브젝트 POPUP). 오브젝트에서 뺀 값은 퍼미션에 남지만 계산에서 빠진다(D15)
+4. SYSADMIN 역할은 퍼미션 행 없이 사용 중인 모든 오브젝트의 허용 값 전부를 받는다(D13)
+5. 역할·역할그룹·오브젝트의 `USE_TP=N` 과 유효 기간 밖은 계산에서 뺀다(D35)
+6. 런타임 키 `lower(SYSTEM_CODE)/lower(OBJECT_ID)/action` 은 그대로다(D26)

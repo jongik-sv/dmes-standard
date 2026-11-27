@@ -146,7 +146,16 @@ public final class CoreRbacSeeder extends SeedSupport {
                 // 2026-10-10 — 맞춤 레포트(services/cmq/userQueryMng.bpmn·cmq/userQuery.bpmn, 스펙 2026-10-10 §3).
                 //   search·get·save·delete·previewQuery·validate·searchUserList·searchDepts 는 위에 있다.
                 //   myList·getDef·run 은 일반 역할용 PERM_USRQ_USE 에도 같이 들어 있다(아래 insertIfAbsent).
-                "searchAssign", "saveAssign", "myList", "getDef", "run"
+                "searchAssign", "saveAssign", "myList", "getDef", "run",
+                // 2026-11-27 — 권한 작업대(services/csa/commPermBench, docs/perm-bench/decompose.md 0.3절). apply 는 위에 있다.
+                //   D13 이후 이 목록은 어휘 목록이다. 퍼미션 모델 v2 의 SYSADMIN 은 오브젝트 허용 값으로 계산하고, 이 목록은 옛 PERM_ALL
+                //   행(legacy 되돌림·r3 전 런타임)에만 들어간다. 이미 시드된 DB 는 ensurePermAllActions 가 덧붙인다.
+                "searchBench", "searchMenuTree", "explain", "searchRolePerm",
+                "loadDraft", "saveDraft", "discardDraft", "impact",
+                "searchHistory", "searchHistoryDtl",
+                // 2026-11-27 — 옛 화면 3종 새 설계(decompose.md 0.4절). commObjMng 의 searchObjPerm·searchObjMenu,
+                //   commRoleMng 의 searchFolderObj·searchRoleGroups, commPermMng 의 searchPermOne. lov 는 위에 있다.
+                "searchObjPerm", "searchObjMenu", "searchFolderObj", "searchRoleGroups", "searchPermOne"
 
                 // ── 업무 모듈을 붙일 때 여기에 해당 모듈의 OASIS action 을 추가한다 ──────────────
                 // 본 목록은 PERM_ALL 의 PERMISSION_ACTION 이며, UserPermCache 가 콤마 분할해 PermKey
@@ -198,6 +207,7 @@ public final class CoreRbacSeeder extends SeedSupport {
         insertMcmSecObjIfAbsent("commUserRoleCopy",    "사용자 권한 일괄 등록", "mcm");
 
         // TB_MCM_SEC_ROLE_MAPPING — SYSADMIN x 7 OBJECT x PERM_ALL = 7 rows
+        //   2026-11-27 perm-bench D13 — 옛 표 줄만 둔다(legacy 되돌림용). 새 TB_MCM_SEC_ROLE_PERM 에는 SYSADMIN 행을 넣지 않는다.
         for (String objId : new String[]{
                 "commObjMng", "commMenuMng", "commRoleMng", "commRoleGrpMng", "commUserMng",
                 "commPermMng", "commUserRoleCopy"}) {
@@ -239,6 +249,15 @@ public final class CoreRbacSeeder extends SeedSupport {
                 .getSingleResult();
         if (legacyExists == null || legacyExists.intValue() == 0) {
             return; // 잔존 데이터 ✗ → 무영향
+        }
+        // 2026-11-27 perm-bench c4 — 퍼미션 모델 v2 행(TB_MCM_SEC_ROLE_PERM, FK → TB_MCM_SEC_ROLE, ON DELETE 없음)을 먼저 지운다.
+        //   아래 두 갈래 모두 ROLE_SYSADMIN 역할 행을 지우거나 PK 를 바꾸므로 자식 행이 있으면 FK 오류로 기동이 멈춘다.
+        //   SYSADMIN 은 퍼미션 행 없이 계산하므로(D13) 옮기지 않고 지운다.
+        int dRp = nq(
+                "DELETE FROM MCMAPUSER.TB_MCM_SEC_ROLE_PERM WHERE ROLE_ID = 'ROLE_SYSADMIN'")
+                .executeUpdate();
+        if (dRp > 0) {
+            log.info("[DataInitializer] legacy ROLE_SYSADMIN 의 ROLE_PERM DELETE rows={}", dRp);
         }
         if (sysadminExists != null && sysadminExists.intValue() > 0) {
             // 충돌 회피 — legacy ROLE_SYSADMIN 자식 + 부모 DELETE (SYSADMIN 시드가 정본).
@@ -294,5 +313,47 @@ public final class CoreRbacSeeder extends SeedSupport {
             log.info("[DataInitializer] local — admin 로그인 잠금 해제 (PWD_FAIL_COUNT=0, USE_TP='Y')");
         }
         return updated;
+    }
+
+    /**
+     * 퍼미션 모델 v2 — 오브젝트 허용 값({@code TB_MCM_SEC_OBJ.BTN_PERM·POPUP_PERM})을 {@link ObjPermCatalog} 로 처음 채운다
+     * (2026-11-27 perm-bench c4, decompose.md D12·D13).
+     *
+     * <p>모든 시드 단계가 OBJECT 를 넣은 뒤에 부른다(DataInitializer). 칸이 비었을 때만 쓴다 — V21 이 채운 값과 관리자가 오브젝트 관리
+     * 화면에서 고친 값은 보존한다. 목록에 있지만 DB 에 없는 오브젝트는 UPDATE 0행이다. 값 = 카탈로그 ∪ 그 오브젝트의 새 퍼미션
+     * 행 토큰(SYSADMIN 제외, D12 — V21 과 같은 규칙, 토큰 정렬).
+     *
+     * <p>SYSADMIN 은 퍼미션 행 없이 「모든 사용 오브젝트 × (BTN_PERM ∪ POPUP_PERM)」으로 계산한다(D13). 그래서 SYSADMIN 의 새
+     * 퍼미션 행은 시드하지 않는다(PERM_ALL → 새 표 시드 중단). 옛 PERM_ALL 행과 SYSADMIN × OBJECT × PERM_ALL 옛 매핑은 그대로 둔다 —
+     * {@code mcm.security.perm-model=legacy} 되돌림과 런타임 전환(r3) 전 코드가 그 행을 읽는다(D10).
+     *
+     * @return 고친 칸 수
+     */
+    public int fillObjPermFromCatalog() {
+        // D12 — 허용 값 = (그 오브젝트의 새 퍼미션 행 토큰, 곧 PERM_ALL 아닌 묶음 토큰) ∪ 카탈로그 action. V21 과 같은 규칙·같은 정렬이다.
+        //   퍼미션 토큰을 빼면 시드한 MDM 퍼미션이 오브젝트 허용 값 밖(⊆ 위반, D15)이 되어 계산에서 빠지고 다시 저장할 수 없다.
+        java.util.Map<String, java.util.Set<String>> btn = new java.util.TreeMap<>();
+        java.util.Map<String, java.util.Set<String>> popup = new java.util.TreeMap<>();
+        for (String objectId : ObjPermCatalog.objectIds()) {
+            appendCsv(btn.computeIfAbsent(objectId, k -> new java.util.TreeSet<>()), ObjPermCatalog.btnPerm(objectId));
+            appendCsv(popup.computeIfAbsent(objectId, k -> new java.util.TreeSet<>()), ObjPermCatalog.popupPerm(objectId));
+        }
+        @SuppressWarnings("unchecked")
+        java.util.List<Object[]> perms = nq(
+                "SELECT OBJECT_ID, BTN_PERM, POPUP_PERM FROM MCMAPUSER.TB_MCM_SEC_ROLE_PERM " +
+                "WHERE UPPER(ROLE_ID) NOT IN ('SYSADMIN', 'ROLE_SYSADMIN')")
+                .getResultList();
+        for (Object[] p : perms) {
+            String objectId = String.valueOf(p[0]);
+            appendCsv(btn.computeIfAbsent(objectId, k -> new java.util.TreeSet<>()), p[1] == null ? null : p[1].toString());
+            appendCsv(popup.computeIfAbsent(objectId, k -> new java.util.TreeSet<>()), p[2] == null ? null : p[2].toString());
+        }
+        int n = 0;
+        for (java.util.Map.Entry<String, java.util.Set<String>> e : btn.entrySet()) {
+            java.util.Set<String> pop = popup.getOrDefault(e.getKey(), java.util.Set.of());
+            n += fillObjPermIfNull(e.getKey(), String.join(",", e.getValue()), String.join(",", pop));
+        }
+        log.info("[DataInitializer] OBJECT 허용 값 처음 채움(ObjPermCatalog {}개 + 퍼미션 토큰) — 칸 {}개", ObjPermCatalog.objectIds().size(), n);
+        return n;
     }
 }

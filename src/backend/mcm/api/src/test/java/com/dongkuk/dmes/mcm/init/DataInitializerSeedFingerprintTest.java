@@ -238,6 +238,55 @@ class DataInitializerSeedFingerprintTest {
         assertThat(hits).as("시각 값이 지문 해시에 섞였다 — TIME_COLUMNS 에 추가 필요").isEmpty();
     }
 
+    /**
+     * 2026-11-27 perm-bench c4 — 퍼미션 모델 v2 시드 규칙(decompose.md D11·D13·D14·D25). 지문 해시만으로는 어느 규칙이 깨졌는지 알 수 없어
+     * 뜻을 따로 본다.
+     */
+    @Test
+    @DisplayName("퍼미션 v2 시드 — SYSADMIN 행 없음, MDM 옛 매핑마다 새 퍼미션 1건(합집합·빈 BTN 없음), 권한 작업대 OBJECT·메뉴")
+    void permModelV2SeedRules() {
+        JdbcTemplate jdbc = new JdbcTemplate(dataSource);
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_PERM WHERE ROLE_ID IN ('SYSADMIN','ROLE_SYSADMIN')", Integer.class))
+                .as("SYSADMIN 은 퍼미션 행 없이 계산한다(D13)").isZero();
+        assertThat(jdbc.queryForList(
+                "SELECT ROLE_ID || '/' || OBJECT_ID FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID <> 'SYSADMIN'"
+                        + " MINUS SELECT ROLE_ID || '/' || OBJECT_ID FROM MCMAPUSER.TB_MCM_SEC_ROLE_PERM", String.class))
+                .as("옛 역할×오브젝트 매핑(SYSADMIN 제외)마다 새 퍼미션 행이 있다").isEmpty();
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_PERM WHERE TRIM(BTN_PERM) IS NULL", Integer.class))
+                .as("빈 BTN 퍼미션 없음(D14)").isZero();
+        // BTN = 옛 권한 세트 COMMON ∪ CUSTOM ∪ ACTION(D11). MDM 세트는 ACTION 칸만 쓴다. headerMng 담당자 = dmb 매트릭스 CONFIRM(D-144).
+        String stewardHeader = jdbc.queryForObject(
+                "SELECT BTN_PERM FROM MCMAPUSER.TB_MCM_SEC_ROLE_PERM WHERE ROLE_ID = 'MDM_STEWARD' AND OBJECT_ID = 'headerMng'", String.class);
+        String confirmActions = jdbc.queryForObject(
+                "SELECT PERMISSION_ACTION FROM MCMAPUSER.TB_MCM_SEC_PERM WHERE PERMISSION_ID = 'PERM_MDM_CONFIRM'", String.class);
+        assertThat(stewardHeader).isEqualTo(confirmActions);
+        String editActions = jdbc.queryForObject(
+                "SELECT PERMISSION_ACTION FROM MCMAPUSER.TB_MCM_SEC_PERM WHERE PERMISSION_ID = 'PERM_MDM_EDIT'", String.class);
+        assertThat(jdbc.queryForObject(
+                "SELECT BTN_PERM FROM MCMAPUSER.TB_MCM_SEC_ROLE_PERM WHERE ROLE_ID = 'MDM_STD_ADMIN' AND OBJECT_ID = 'mdmSample'", String.class))
+                .isEqualTo(editActions);
+
+        // 시드한 퍼미션 값은 오브젝트 허용 값 안에 있다(D12·D15 ⊆) — 허용 값 = 카탈로그 ∪ 퍼미션 토큰.
+        List<String> outside = new ArrayList<>();
+        jdbc.query("SELECT P.ROLE_ID, P.OBJECT_ID, P.BTN_PERM, O.BTN_PERM FROM MCMAPUSER.TB_MCM_SEC_ROLE_PERM P"
+                + " JOIN MCMAPUSER.TB_MCM_SEC_OBJ O ON O.OBJECT_ID = P.OBJECT_ID", rs -> {
+            List<String> notIn = com.dongkuk.dmes.mcm.security.perm.PermTokens.notIn(
+                    com.dongkuk.dmes.mcm.security.perm.PermTokens.parse(rs.getString(3)),
+                    com.dongkuk.dmes.mcm.security.perm.PermTokens.parse(rs.getString(4)));
+            if (!notIn.isEmpty()) outside.add(rs.getString(1) + "/" + rs.getString(2) + "=" + notIn);
+        });
+        assertThat(outside).as("오브젝트 허용 값 밖의 퍼미션 토큰").isEmpty();
+
+        assertThat(jdbc.queryForObject(
+                "SELECT SYSTEM_CODE || '|' || NVL2(BTN_PERM, 'Y', 'N') FROM MCMAPUSER.TB_MCM_SEC_OBJ WHERE OBJECT_ID = 'commPermBench'", String.class))
+                .as("권한 작업대 OBJECT(SYSTEM_CODE=mcm, 허용 값 채움)").isEqualTo("mcm|Y");
+        assertThat(jdbc.queryForObject(
+                "SELECT PARENT_MENU_ID || '|' || MENU_NM FROM MCMAPUSER.TB_MCM_SEC_MENU WHERE MENU_ID = 'commPermBench'", String.class))
+                .as("메뉴 공통관리 › 시스템관리 › 권한 작업대(D25)").isEqualTo("csa|권한 작업대");
+    }
+
     // ─────────────────────────────────────────────────────────────────────
 
     /** 표 이름순 {@code 스키마.표 → 행수:해시} + {@code __SCHEMA__ → 정의수:해시}. */

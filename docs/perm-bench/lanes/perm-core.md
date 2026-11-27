@@ -9,10 +9,10 @@
 |---|---|---|
 | c0 | 끝 | V20 DDL·column-order.json·엔티티 5개·SecObj 필드 3개·저장소 4개 |
 | c1 | 끝 | `security/perm/*` 계약 17개 파일 + PermTokensTest(10건) |
-| c2 | 남음 | V21 옮기기 + `scripts/perm/gen-obj-perm.mjs` |
-| c4 | 남음 | 시더 전환 |
-| c5 | 남음 | 옛 저장소 SQL 전환 |
-| c6 | 남음 | 칼럼 주석·ERD·ADR |
+| c2 | 끝 | V21 옮기기 + 생성기(오브젝트 62·action 303) + ObjPermCatalog 생성 + check-backfill.sql. l_main 읽기 전용 예행: 옮길 쌍 56, SYSADMIN 46줄 건너뜀, 고아 0 |
+| c4 | 끝 | SeedSupport 도우미 3개·MdmMenuSeeder 이중 쓰기·CoreRbacSeeder allActions 15개·fillObjPermFromCatalog·commPermBench 메뉴·지문 골든·seed-check |
+| c5 | 끝 | 삭제 검사 count 2개·MROLE CTE → ROLE_PERM, SecRoleMappingNativeRepository @Deprecated, ERD 힌트 |
+| c6 | 끝 | column-comments-2026-11-27.md · csa-sec-erd.md §8 · ADR-0001(PROPOSED) |
 | c3 | 남음 | PermModelParityOraTest(r2 머지 뒤) |
 
 ## 진행
@@ -31,9 +31,14 @@
 
 ## 받은 알림
 
+- 결정 9: readPreset 에 explain 추가(PermTokensTest 11건)
+- 계약 보충: PermGraphLoader.loadForRoles(default = loadAll), UserImpact 순서 유지 사본
+
 - D35: v2 계산은 USE_TP=N·유효 기간 밖을 뺀다 → c3 는 이 차이를 「의도된 차이」로 따로 적고 나머지만 판정
 - 결정 7: c2 생성기·V21·c4 allActions 에 `searchObjPerm`·`searchObjMenu`(commObjMng), `searchFolderObj`·`searchRoleGroups`(commRoleMng) 추가
 
 ## 남은 일
 
-- c0+c1 머지 완료 뒤 c2·c4·c5·c6 병렬
+- c3 PermModelParityOraTest(D35 의도된 차이 목록)
+- 질문 대기: 시더 옛 표 쓰기 유지 기간, 오브젝트 허용 값 보강 규칙(빈 칸일 때만), seed 토큰 되살아남
+- SecPermRepository 의 옛 매핑 조회 2개는 그대로(legacy 전용)

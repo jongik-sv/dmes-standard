@@ -88,9 +88,9 @@ public interface SecRoleRepository extends JpaRepository<SecRole, String> {
 
     /**
      * As-Is {@code deleteCommRole} (xml:83~86) NOT EXISTS subquery #2 정합 검증용 (V-004 서버 재검증).
-     * 본 method 는 TB_MCM_SEC_ROLE_MAPPING 의 동일 ROLE_ID row 카운트 (0 = 삭제 가능).
+     * 본 method 는 TB_MCM_SEC_ROLE_PERM (v2 퍼미션 모델) 의 동일 ROLE_ID row 카운트 (역할×오브젝트 쌍 수) (0 = 삭제 가능).
      */
-    @Query(value = "SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = :roleId",
+    @Query(value = "SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_PERM WHERE ROLE_ID = :roleId",
            nativeQuery = true)
     long countRoleMappingByRoleId(@Param("roleId") String roleId);
 }

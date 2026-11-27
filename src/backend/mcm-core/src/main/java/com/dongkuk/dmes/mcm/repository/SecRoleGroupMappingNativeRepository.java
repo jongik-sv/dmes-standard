@@ -176,7 +176,7 @@ public class SecRoleGroupMappingNativeRepository {
                 "      FROM MCMAPUSER.TB_MCM_SEC_ROLEGROUP_MAPPING RGM " +
                 "      JOIN MCMAPUSER.TB_MCM_SEC_ROLEGROUP RG ON RGM.ROLE_GROUP_ID = RG.ROLE_GROUP_ID " +
                 "      JOIN MCMAPUSER.TB_MCM_SEC_ROLE R ON RGM.ROLE_ID = R.ROLE_ID " +
-                "      JOIN MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING RM ON R.ROLE_ID = RM.ROLE_ID " +
+                "      JOIN MCMAPUSER.TB_MCM_SEC_ROLE_PERM RM ON R.ROLE_ID = RM.ROLE_ID " +
                 "      JOIN MCMAPUSER.TB_MCM_SEC_MENU MNU ON RM.OBJECT_ID = MNU.OBJECT_ID " +
                 "     WHERE RGM.ROLE_GROUP_ID = :roleGroupId " +
                 "       AND RG.USE_TP = 'Y' " +

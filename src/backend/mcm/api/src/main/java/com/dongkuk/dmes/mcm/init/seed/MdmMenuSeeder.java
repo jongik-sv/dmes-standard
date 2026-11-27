@@ -457,6 +457,8 @@ public final class MdmMenuSeeder extends SeedSupport {
                     new String[]{roleId,    objectId,    permissionId},
                     "INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID" + AUDIT_COLS + ") " +
                     "VALUES ('" + roleId + "', '" + escapeSql(objectId) + "', '" + permissionId + "'" + AUDIT_VALS + ")");
+            // 2026-11-27 perm-bench c4 — 같은 뜻의 퍼미션 모델 v2 행(TB_MCM_SEC_ROLE_PERM, D11 합집합 규칙)도 병합한다.
+            ensureRolePermFromPerm(roleId, objectId, permissionId);
         }
     }
 

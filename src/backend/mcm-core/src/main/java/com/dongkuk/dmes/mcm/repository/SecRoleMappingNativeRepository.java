@@ -43,8 +43,13 @@ import java.util.Map;
  * </ul>
  *
  * <p>본 어댑터는 read-only — INSERT / DELETE 는 {@link SecRoleMappingRepository} 의 표준 CRUD 사용.
+ *
+ * @deprecated v2 퍼미션 모델({@code mcm.security.perm-model=v2}, 기본)에서는 사용하지 않는다.
+ *             대신 {@link SecRolePermRepository} / {@code MCMAPUSER.TB_MCM_SEC_ROLE_PERM} 을 쓴다.
+ *             {@code mcm.security.perm-model=legacy} 되돌림 모드용으로만 남긴다(D10).
  */
 @Repository
+@Deprecated
 public class SecRoleMappingNativeRepository {
 
     @PersistenceContext(unitName = "default")

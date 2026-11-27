@@ -198,6 +198,9 @@ public class DataInitializer implements ApplicationRunner {
         // 2026-10-09 — 예약 작업 관리(csa/jobSchedMng) 메뉴. 시스템관리(csa) 아래 leaf 1 — 사이드바 "시스템관리 > 예약 작업 관리".
         moduleMenus.seedJobSchedMngMenu();
 
+        // 2026-11-27 — 권한 작업대(csa/commPermBench) 메뉴. 시스템관리(csa) 아래 leaf 1 — 사이드바 "시스템관리 > 권한 작업대"(perm-bench D25).
+        mcmMenu.seedPermBenchMenu();
+
         // 2026-10-10 — 맞춤 레포트 메뉴(스펙 2026-10-10-user-query-program-design §3). 폴더 cmq(맞춤 레포트) 1 +
         //   맞춤 레포트 조회(cmq/userQuery)·맞춤 레포트 관리(cmq/userQueryMng) leaf 2.
         moduleMenus.seedUserQueryMenus();
@@ -211,6 +214,10 @@ public class DataInitializer implements ApplicationRunner {
         new com.dongkuk.dmes.mcm.init.seed.UserQuerySampleSeeder(support).seedUserQuerySamples();
 
         // 확장 지점 — 신규 업무 모듈을 추가할 때 여기에 seed{Module}Menus() 를 호출한다.
+
+        // 2026-11-27 perm-bench c4 — 퍼미션 모델 v2 의 오브젝트 허용 값(TB_MCM_SEC_OBJ.BTN_PERM·POPUP_PERM)을 생성 목록(ObjPermCatalog)으로
+        //   처음 채운다. 모든 OBJECT 시드 뒤에 둔다(칸이 비었을 때만 쓴다 — 관리자 수정 보존). SYSADMIN 은 이 값으로 계산한다(D13).
+        new CoreRbacSeeder(support, passwordEncoder, environment).fillObjPermFromCatalog();
 
         // 2026-06-04 사용자 지시 — 모든 메뉴 시드 적재 후 FULL_SEQ 7자리 인코딩 강제 재계산 (멱등).
         //   결함: seedMcmSecMenuFld 의 INSERT 는 FULL_SEQ 미포함 + upgradeTbMcmSecMenuFldToFullOwner 의

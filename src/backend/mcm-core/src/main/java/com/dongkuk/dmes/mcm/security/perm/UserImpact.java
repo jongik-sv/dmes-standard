@@ -1,5 +1,7 @@
 package com.dongkuk.dmes.mcm.security.perm;
 
+import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.Set;
 
 /**
@@ -11,7 +13,7 @@ import java.util.Set;
  */
 public record UserImpact(String userId, String objectId, Set<String> gained, Set<String> lost) {
     public UserImpact {
-        gained = gained == null ? Set.of() : Set.copyOf(gained);
-        lost = lost == null ? Set.of() : Set.copyOf(lost);
+        gained = gained == null ? Set.of() : Collections.unmodifiableSet(new LinkedHashSet<>(gained));
+        lost = lost == null ? Set.of() : Collections.unmodifiableSet(new LinkedHashSet<>(lost));
     }
 }

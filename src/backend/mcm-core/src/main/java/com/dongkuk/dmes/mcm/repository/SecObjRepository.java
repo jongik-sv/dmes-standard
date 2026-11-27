@@ -96,9 +96,9 @@ public interface SecObjRepository extends JpaRepository<SecObj, String> {
 
     /**
      * As-Is {@code deleteCommObjMng} 의 {@code NOT EXISTS} subquery #2 정합 검증용.
-     * 본 method 는 {@code TB_MCM_SEC_ROLE_MAPPING} 의 동일 OBJECT_ID row 카운트 (0 = 삭제 가능).
+     * 본 method 는 {@code TB_MCM_SEC_ROLE_PERM} (v2 퍼미션 모델) 의 동일 OBJECT_ID row 카운트 (역할×오브젝트 쌍 수) (0 = 삭제 가능).
      */
-    @Query(value = "SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE OBJECT_ID = :objectId",
+    @Query(value = "SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_PERM WHERE OBJECT_ID = :objectId",
            nativeQuery = true)
     long countRoleMappingByObjectId(@Param("objectId") String objectId);
 }

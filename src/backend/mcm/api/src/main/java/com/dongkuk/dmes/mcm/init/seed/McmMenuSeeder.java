@@ -340,4 +340,38 @@ public final class McmMenuSeeder extends SeedSupport {
                 "VALUES ('DEPT_007', N'품질관리팀', 'Quality Mgmt Team', 'DEPT_001', 'Y', " +
                 "SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59'" + AUDIT_VALS + ")");
     }
+
+    /**
+     * 권한 작업대(commPermBench) 의 OASIS action — 오브젝트 허용 값 폴백(decompose.md 0.3절). {@link ObjPermCatalog} 에 commPermBench 가
+     * 없을 때(생성기가 BPMN 을 아직 못 본 때)만 쓴다. 팝업 action 은 없다.
+     */
+    static final String PERM_BENCH_ACTIONS = String.join(",",
+            "searchBench", "searchMenuTree", "explain", "searchRolePerm",
+            "loadDraft", "saveDraft", "discardDraft", "impact", "apply",
+            "searchHistory", "searchHistoryDtl");
+
+    /**
+     * 권한 작업대(csa/commPermBench) 메뉴 시드 (2026-11-27, decompose.md D25) — OBJECT 1 + 메뉴 leaf 1 + SYSADMIN × PERM_ALL 옛 매핑 1.
+     *
+     * <p>메뉴 = 공통관리(mcm) › 시스템관리(csa) › 권한 작업대. componentPath={@code csa/commPermBench} 는 m-mcm 페이지 레지스트리 키와 같다.
+     * FULL_SEQ 1020230 은 기록용 값(csa 의 예약 작업 관리 1020220 다음)이고, 시드 끝의 recomputeMenuFullSeq() 가 csa 안 순서로 다시 매긴다.
+     *
+     * <p>SYSADMIN 은 퍼미션 모델 v2 에서 퍼미션 행 없이 오브젝트 허용 값으로 계산한다(D13) — 그래서 새 TB_MCM_SEC_ROLE_PERM 행은 넣지 않고
+     * 오브젝트 BTN_PERM 을 채운다. 옛 SYSADMIN × PERM_ALL 매핑은 legacy 되돌림과 런타임 전환(r3) 전 코드용으로 형제 화면과 같이 둔다(D10).
+     * 모두 insert-if-absent·칸이 빌 때만 채움이라 재기동해도 중복 행이 생기지 않는다.
+     */
+    public void seedPermBenchMenu() {
+        final String objId = "commPermBench";
+        insertMcmSecObjIfAbsent(objId, "권한 작업대", "mcm");
+        insertMcmSecMenuIfAbsent(objId, "001", "1020230", "권한 작업대", "csa", objId);
+        insertIfAbsentComposite(
+                "TB_MCM_SEC_ROLE_MAPPING",
+                new String[]{"ROLE_ID",  "OBJECT_ID", "PERMISSION_ID"},
+                new String[]{"SYSADMIN", objId,       "PERM_ALL"},
+                "INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID" + AUDIT_COLS + ") " +
+                "VALUES ('SYSADMIN', '" + objId + "', 'PERM_ALL'" + AUDIT_VALS + ")");
+        String btn = ObjPermCatalog.btnPerm(objId);
+        fillObjPermIfNull(objId, btn != null ? btn : PERM_BENCH_ACTIONS, ObjPermCatalog.popupPerm(objId));
+        log.info("[DataInitializer] 권한 작업대 메뉴 시드 — OBJECT 1(commPermBench) + 메뉴 leaf 1(csa/commPermBench) + RBAC(SYSADMIN 옛 매핑 1)");
+    }
 }
