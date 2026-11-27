@@ -12,6 +12,10 @@ import com.dongkuk.dmes.mcm.repository.SecRoleGroupMappingRepository;
 import com.dongkuk.dmes.mcm.repository.SecRoleMappingRepository;
 import com.dongkuk.dmes.mcm.repository.SecUserMappingRepository;
 import com.dongkuk.dmes.mcm.security.dto.MyMenusRequest;
+import com.dongkuk.dmes.mcm.security.perm.PermGraph;
+import com.dongkuk.dmes.mcm.security.perm.PermGraphLoader;
+import com.dongkuk.dmes.mcm.security.perm.PermResolver;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -79,6 +83,11 @@ public class SecUserService {
     /** SYSADMIN 브레이크글라스 — true 시 메뉴/버튼 舊 전면통과 복원 (기본 false = 매핑 기반, 2026-07-30). */
     private final boolean sysadminFreepass;
 
+    /** perm-bench r3 — v2 계산(그래프 + resolver). null 이면 옛 계산(legacy). */
+    private final PermGraphLoader permGraphLoader;
+    private final PermResolver permResolver;
+
+    /** 옛 계산(legacy) 전용 — 시험과 되돌림 경로. */
     public SecUserService(SecUserMappingRepository secUserMappingRepository,
                           SecRoleGroupMappingRepository secRoleGroupMappingRepository,
                           SecRoleMappingRepository secRoleMappingRepository,
@@ -86,7 +95,27 @@ public class SecUserService {
                           MenuCatalog menuCatalog,
                           SecMenuFldLovRepository secMenuFldLovRepository,
                           SecurityIdentity securityIdentity,
-                          @Value("${mcm.security.sysadmin-freepass:false}") boolean sysadminFreepass) {
+                          boolean sysadminFreepass) {
+        this(secUserMappingRepository, secRoleGroupMappingRepository, secRoleMappingRepository, secPermRepository,
+                menuCatalog, secMenuFldLovRepository, securityIdentity, sysadminFreepass, "legacy", null, null);
+    }
+
+    /** perm-bench r3 — {@code mcm.security.perm-model=v2}(기본)이면 버튼·메뉴 거르기를 PermGraphLoader + PermResolver 로 한다(D24). */
+    @Autowired
+    public SecUserService(SecUserMappingRepository secUserMappingRepository,
+                          SecRoleGroupMappingRepository secRoleGroupMappingRepository,
+                          SecRoleMappingRepository secRoleMappingRepository,
+                          SecPermRepository secPermRepository,
+                          MenuCatalog menuCatalog,
+                          SecMenuFldLovRepository secMenuFldLovRepository,
+                          SecurityIdentity securityIdentity,
+                          @Value("${mcm.security.sysadmin-freepass:false}") boolean sysadminFreepass,
+                          @Value("${mcm.security.perm-model:v2}") String permModel,
+                          PermGraphLoader permGraphLoader,
+                          PermResolver permResolver) {
+        boolean v2 = "v2".equalsIgnoreCase(permModel == null ? "" : permModel.trim());
+        this.permGraphLoader = v2 ? permGraphLoader : null;
+        this.permResolver = v2 ? permResolver : null;
         this.secUserMappingRepository = secUserMappingRepository;
         this.secRoleGroupMappingRepository = secRoleGroupMappingRepository;
         this.secRoleMappingRepository = secRoleMappingRepository;
@@ -285,6 +314,23 @@ public class SecUserService {
             return List.of(wildcard);
         }
 
+        if (permGraphLoader != null && permResolver != null) {
+            // perm-bench r3 — v2: 오브젝트마다 효과 action 한 줄씩(줄 사이 중복 없음)
+            PermGraph graph = permGraphLoader.loadForUsers(Set.of(userId));
+            List<Map<String, Object>> rows = new ArrayList<>();
+            permResolver.actionsOf(graph, userId).forEach((objId, actions) -> {
+                for (String action : actions) {
+                    Map<String, Object> row = new LinkedHashMap<>();
+                    row.put("objId", objId);
+                    row.put("action", action);
+                    row.put("endpoint", "*");
+                    row.put("httpMethod", "*");
+                    rows.add(row);
+                }
+            });
+            return rows;
+        }
+
         Set<String> roleIds = resolveRoleIds(userId);
         if (roleIds.isEmpty()) return List.of();
 
@@ -368,16 +414,26 @@ public class SecUserService {
                     || securityIdentity.hasAuthority("SYSADMIN"))) {
             return allMenus;
         }
-        Set<String> roleIds = resolveRoleIds(userId);
-        if (roleIds.isEmpty()) return List.of();
-        if (sysadminFreepass
-                && (roleIds.contains("SYSADMIN") || roleIds.contains("ROLE_SYSADMIN"))) {
-            return allMenus;
-        }
-        List<SecRoleMapping> mappings = secRoleMappingRepository.findByRoleIdIn(roleIds);
         Set<String> allowedObjectIds = new HashSet<>();
-        for (SecRoleMapping rm : mappings) {
-            if (rm.getObjectId() != null) allowedObjectIds.add(rm.getObjectId());
+        if (permGraphLoader != null && permResolver != null) {
+            // 브레이크글라스 DB 역할 검사 — legacy 와 같게 둔다(토큰에 권한 문자열이 없어도 DB 역할이 SYSADMIN 이면 전체)
+            if (sysadminFreepass) {
+                Set<String> roleIds = resolveRoleIds(userId);
+                if (roleIds.contains("SYSADMIN") || roleIds.contains("ROLE_SYSADMIN")) return allMenus;
+            }
+            // perm-bench r3 — v2: 퍼미션 행이 있는 쓰는 오브젝트(SYSADMIN = 쓰는 오브젝트 전부). 아래 조상 규칙은 그대로
+            allowedObjectIds.addAll(permResolver.visibleObjects(permGraphLoader.loadForUsers(Set.of(userId)), userId));
+        } else {
+            Set<String> roleIds = resolveRoleIds(userId);
+            if (roleIds.isEmpty()) return List.of();
+            if (sysadminFreepass
+                    && (roleIds.contains("SYSADMIN") || roleIds.contains("ROLE_SYSADMIN"))) {
+                return allMenus;
+            }
+            List<SecRoleMapping> mappings = secRoleMappingRepository.findByRoleIdIn(roleIds);
+            for (SecRoleMapping rm : mappings) {
+                if (rm.getObjectId() != null) allowedObjectIds.add(rm.getObjectId());
+            }
         }
         if (allowedObjectIds.isEmpty()) return List.of();
 

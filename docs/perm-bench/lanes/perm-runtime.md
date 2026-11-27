@@ -10,9 +10,9 @@
 | r0 | 지금 규칙 특성 시험(UserPermCache·SecUserService) | 끝 |
 | r1 | DefaultPermResolver·DefaultImpactCalculator + 사례 시험(applyChanges 는 c1 것) | 끝(머지 d06ddda7c) |
 | r2 | V2PermGraphLoader·LegacyPermGraphLoader + `mcm.security.perm-model` + loadForRoles | 끝(리뷰 반영) |
-| r3 | 런타임 전환 + 로그인 키 빌드 시간 측정 | 대기(r1·r2, 머지는 c2·c4 뒤) |
+| r3 | 런타임 전환 + 로그인 키 빌드 시간 측정 | 끝(측정·리뷰 반영, r5 와 묶어 머지 요청) |
 | r4 | PermExplainService(explain·사람·역할 메뉴 트리, CUR/DRAFT) | 끝(리뷰 반영) |
-| r5 | PermExplainParityOraTest + searchMenuTree vs getMyMenus(조정자 지시) | 대기(r3·r4) |
+| r5 | PermExplainParityOraTest + searchMenuTree vs getMyMenus(조정자 지시) | 끝(r3 와 묶어 머지 요청) |
 
 ## 결정
 
@@ -96,8 +96,40 @@
 - 임시 `load/RoleScopedPermGraphLoader` 지움(계약 `PermGraphLoader.loadForRoles` default 가 들어옴)
 - 시험 `PermPerfCaseTest`: 최악(모두 다른 역할 조합) 단독 470ms, 모듈 전체와 같이 1,253ms(두 번 재어 짧은 쪽) · 단순 계산과 전체 결과 같음
 
+## r3 진행(2026-11-27, 재개 지점)
+
+- 통합 tip = 1de1d7806(성능 머지까지). 브랜치 = tip + wip 1개(47c9b3254, r3 코드·시험)
+- `UserPermCache`·`SecUserService`: 기존 생성자 = legacy 경로 그대로(시험·되돌림). 새 `@Autowired` 생성자 = `@Value perm-model`(기본 v2) + PermGraphLoader + PermResolver. v2 일 때만 로더·resolver 를 잡고, 아니면 null → 옛 코드
+  - `UserPermCache.build` → v2 면 `buildV2`: loadForUsers({user}) → actionsOf → PermKey(lower(trim(SYSTEM_CODE) ?: mcm), oasis, lower(trim(OBJECT_ID)), action). action 은 PermKey 가 소문자로
+  - `SecUserService.getMyButtonEndpoints` → v2 면 오브젝트마다 효과 action 한 줄씩(줄 사이 중복 없음, objId 원래 대소문자)
+  - `filterMenusByRole` → v2 면 allowedObjectIds = visibleObjects. freepass 검사·조상 규칙은 그대로
+  - 옛 표 저장소(roleMapping·permRepo·objRepo)는 v2 에서 부르지 않는다
+- 바뀌지 않는 것(조정자): 사용자 USE_TP·유효 기간은 런타임이 보지 않는다(막는 곳 = 로그인). RoleChangedEvent 는 발행 쪽이 AFTER_COMMIT → 구독(@EventListener invalidateAll)은 그대로
+- 시험: `perm/impl/RuntimeV2SwitchTest`(5) 새로 · r0 특성 시험 24건은 legacy 생성자로 그대로 통과 · mcm-core 전체 clone 1684건 통과
+- 남은 r3 일: ① 로그인 키 빌드 시간 legacy vs v2(사용자 3명: SYSADMIN·MDM_STEWARD·일반, clone PDB 에 V21 데이터 필요 — TPL_SCHEMA 는 빈 표라 시드 방법 확인) ② opus 리뷰 1회·반영 ③ squash → 머지 요청
+- 성능 메모(r3 측정 때 같이 볼 것): v2 loadForUsers 는 로그인마다 OBJ·MENU_FLD·MENU 전체를 읽는다. 느리면 로더 안 objects·menus 스냅숏 캐시(RoleChangedEvent·오브젝트·메뉴 저장 때 무효화)
+
+## r3 마무리(2026-11-27)
+
+- 측정 `load/LoginKeyBuildTimeOraTest`(clone, 합성 데이터: 오브젝트 1,000·폴더 50·메뉴 1,000·다른 사용자 2,000, 옛 표와 새 표에 같은 권한). V21 은 빈 표에 돌아 데이터가 없어 합성으로 넣었다. 두 경로 키 같음 확인
+  - 중앙값(ms) legacy → v2: SYSADMIN(키 6,000) 77.9 → 32.3 · MDM_STEWARD(2,400) 63.5 → 26.7 · 일반(180) 14.4 → 21.8
+  - v2 는 사람과 상관없이 OBJ·MENU_FLD·MENU 전체 읽기로 약 20ms 고정 비용. 작은 사용자는 7ms 느려지고 큰 사용자는 절반 → 스냅숏 캐시는 지금 두지 않는다(필요하면 MenuCatalog 스냅숏 재사용 검토)
+- opus 리뷰(꼭 고칠 것 0) 반영: `filterMenusByRole` v2 에도 freepass DB 역할 검사(legacy 와 같게) · `loadAndCache` 전역 synchronized → 사람 단위 잠금 + 무효화 세대(빌드 중 무효화면 캐시에 안 넣음) · 측정 시험 OBJECTS ≤ 1,000 주석(legacy findAllById IN 한계)
+- 그대로 둔 것: `getMyPermissions` 는 옛 SecRoleMapping 줄을 그대로 낸다(소비처 없음, 지시 범위 밖) · 모르는 perm-model 값 = 로더 빈 없음으로 기동 실패(r2 결정)
+- 시험 `RuntimeV2SwitchTest` 7(+2: freepass DB 역할 메뉴, 무효화 뒤 다시 빌드)
+
+## r5 진행(2026-11-27)
+
+- `security/perm/PermExplainParityOraTest`(clone, 3건): ① explain 허가 버튼 == UserPermCache v2 키 ② userMenuTree 보이는 줄·숨김 == getMyMenus v2 ③ v2 ↔ legacy 런타임 키·화면 메뉴·버튼 차이 = D35·SYSADMIN 만, 분류 안 된 차이 0(목록 `build/perm-parity/r5-diff.txt`, 78줄)
+- bench-be `searchMenuTree` 는 아직 통합 브랜치에 없다 → userMenuTree 를 그대로 내린다는 전제로 ② 가 대조를 맡는다
+- 비활성 사용자: mcm-core 로더·런타임은 사용자 USE_TP 를 안 본다 → 여기서 차이가 나지 않는다. bench-be explain NO_ROLE 은 그 레인 시험 몫
+
 ## 남은 일
 
-- r1: PermGraphChanges·DefaultImpactCalculator·사례 시험 작성 → 컴파일·시험 → 리뷰 → c1 머지 뒤 스텁 지우고 rebase·맞춤 → 단독 머지 요청
-- r2(c0 뒤)·r3·r4·r5 = 위 표 순서. r3 머지 요청은 c2·c4 가 통합 브랜치에 들어간 뒤
-- 커밋 = 이 PC git 신원 없음 → `git -c user.name=jongik-sv -c user.email=<기존 커밋 메일>` 로 커밋
+- r3: 위 ①②③
+- r5: PermExplainParityOraTest(explain == UserPermCache 키, 표본 SYSADMIN·MDM_STEWARD·일반) + bench-be searchMenuTree vs getMyMenus(조정자 지시). 의도된 차이 = D35(사용 안 함 역할·그룹·오브젝트), 비활성 사용자(bench-be explain 은 NO_ROLE, 런타임은 안 봄), SYSADMIN(D13)
+- 커밋 = `git -c user.name=jongik-sv -c user.email=<기존 커밋 메일>`, rebase 는 GIT_COMMITTER_NAME/EMAIL 환경 변수. Oracle 시험 = heavy --oracle --detach + `-Pdmes.ora.test=clone -Pdmes.ora.template=TPL_SCHEMA`(이 PC 에 TPL_EMPTY 없음), job id 는 `HEAVY_DETACHED id=` 만 잘라 쓴다
+- 파일 수정은 Python 으로 할 때 바이트로 읽어 CRLF→LF 로 바꾸고 `newline='
+'` 으로 쓴다(텍스트 모드 쓰기가 
+ 을 만든 적 있음). bash heredoc 안 python 은 따옴표 때문에 깨질 수 있어 스크립트를 scratchpad 파일로 둔다
+- `src/backend/NUL`(추적 안 됨, 출처 모름) = 사용자 판단 대기

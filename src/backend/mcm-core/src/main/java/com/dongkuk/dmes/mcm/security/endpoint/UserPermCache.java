@@ -9,8 +9,13 @@ import com.dongkuk.dmes.mcm.repository.SecPermRepository;
 import com.dongkuk.dmes.mcm.repository.SecRoleGroupMappingRepository;
 import com.dongkuk.dmes.mcm.repository.SecRoleMappingRepository;
 import com.dongkuk.dmes.mcm.repository.SecUserMappingRepository;
+import com.dongkuk.dmes.mcm.security.perm.ObjMeta;
+import com.dongkuk.dmes.mcm.security.perm.PermGraph;
+import com.dongkuk.dmes.mcm.security.perm.PermGraphLoader;
+import com.dongkuk.dmes.mcm.security.perm.PermResolver;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
@@ -22,6 +27,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * 사용자별 {@link PermKey} 집합을 캐시한다 — RBAC-PATH-CONVENTION 의 in-memory 캐시.
@@ -73,13 +79,40 @@ public class UserPermCache {
     private final boolean sysadminFreepass;
 
     private final Map<String, Entry> cache = new ConcurrentHashMap<>();
+    /** perm-bench r3 — 사람 단위 빌드 잠금. */
+    private final Map<String, Object> buildLocks = new ConcurrentHashMap<>();
+    /** perm-bench r3 — 무효화 세대. 빌드 시작 뒤 바뀌면 그 결과를 캐시에 넣지 않는다. */
+    private final AtomicLong generation = new AtomicLong();
 
+    /** perm-bench r3 — v2 계산(그래프 + resolver). null 이면 옛 계산(legacy). */
+    private final PermGraphLoader permGraphLoader;
+    private final PermResolver permResolver;
+
+    /** 옛 계산(legacy) 전용 — 시험과 되돌림 경로. */
     public UserPermCache(SecUserMappingRepository secUserMappingRepository,
                          SecRoleGroupMappingRepository secRoleGroupMappingRepository,
                          SecRoleMappingRepository secRoleMappingRepository,
                          SecObjRepository secObjRepository,
                          SecPermRepository secPermRepository,
-                         @Value("${mcm.security.sysadmin-freepass:false}") boolean sysadminFreepass) {
+                         boolean sysadminFreepass) {
+        this(secUserMappingRepository, secRoleGroupMappingRepository, secRoleMappingRepository, secObjRepository,
+                secPermRepository, sysadminFreepass, "legacy", null, null);
+    }
+
+    /** perm-bench r3 — {@code mcm.security.perm-model=v2}(기본)이면 PermGraphLoader + PermResolver 로 키를 만든다(D24). */
+    @Autowired
+    public UserPermCache(SecUserMappingRepository secUserMappingRepository,
+                         SecRoleGroupMappingRepository secRoleGroupMappingRepository,
+                         SecRoleMappingRepository secRoleMappingRepository,
+                         SecObjRepository secObjRepository,
+                         SecPermRepository secPermRepository,
+                         @Value("${mcm.security.sysadmin-freepass:false}") boolean sysadminFreepass,
+                         @Value("${mcm.security.perm-model:v2}") String permModel,
+                         PermGraphLoader permGraphLoader,
+                         PermResolver permResolver) {
+        boolean v2 = "v2".equalsIgnoreCase(permModel == null ? "" : permModel.trim());
+        this.permGraphLoader = v2 ? permGraphLoader : null;
+        this.permResolver = v2 ? permResolver : null;
         this.secUserMappingRepository = secUserMappingRepository;
         this.secRoleGroupMappingRepository = secRoleGroupMappingRepository;
         this.secRoleMappingRepository = secRoleMappingRepository;
@@ -101,11 +134,18 @@ public class UserPermCache {
     }
 
     /** 명시적으로 사용자 캐시 빌드 — 로그인 직후 호출 권장. */
-    public synchronized Set<PermKey> loadAndCache(String userId) {
-        Set<PermKey> built = build(userId);
-        cache.put(userId, new Entry(built, System.currentTimeMillis() + TTL_MS));
-        log.debug("[UserPermCache] user={} permKeys={}", userId, built.size());
-        return built;
+    public Set<PermKey> loadAndCache(String userId) {
+        // perm-bench r3 — 사람 단위 잠금(v2 빌드는 오브젝트·메뉴 전체를 읽어 전역 잠금이면 로그인이 줄 선다).
+        // 빌드 중 무효화가 지나가면 결과를 돌려주되 캐시에 넣지 않는다(옛 데이터가 TTL 동안 남지 않게).
+        synchronized (buildLocks.computeIfAbsent(userId, k -> new Object())) {
+            long gen = generation.get();
+            Set<PermKey> built = build(userId);
+            if (generation.get() == gen) {
+                cache.put(userId, new Entry(built, System.currentTimeMillis() + TTL_MS));
+            }
+            log.debug("[UserPermCache] user={} permKeys={}", userId, built.size());
+            return built;
+        }
     }
 
     /**
@@ -139,10 +179,13 @@ public class UserPermCache {
     }
 
     public void invalidate(String userId) {
-        if (userId != null) cache.remove(userId);
+        if (userId == null) return;
+        generation.incrementAndGet();
+        cache.remove(userId);
     }
 
     public void invalidateAll() {
+        generation.incrementAndGet();
         int n = cache.size();
         cache.clear();
         log.info("[UserPermCache] 전체 무효화 — {} 사용자 캐시 제거", n);
@@ -166,6 +209,7 @@ public class UserPermCache {
      * </ol>
      */
     private Set<PermKey> build(String userId) {
+        if (permGraphLoader != null && permResolver != null) return buildV2(userId);
         // step 1: USER → ROLE_GROUP
         List<String> roleGroupIds = secUserMappingRepository.findRoleGroupIdsByUserId(userId);
         if (roleGroupIds == null || roleGroupIds.isEmpty()) return Set.of();
@@ -219,6 +263,31 @@ public class UserPermCache {
                     result.add(new PermKey(moduleId, OASIS_SERVICE_ID, objIdLower, action));
                 } catch (IllegalArgumentException ignored) {
                     // action / objId 가 비어있으면 skip (PermKey 검증 위반)
+                }
+            }
+        }
+        return Collections.unmodifiableSet(result);
+    }
+
+    /**
+     * perm-bench r3 — v2 키 빌드. 키 모양은 옛 빌드와 같다(D26):
+     * {@code lower(trim(SYSTEM_CODE) ?: mcm)/lower(trim(OBJECT_ID))/action}.
+     * action = resolver 효과({@code (perm.BTN ∩ obj.BTN) ∪ (perm.POPUP ∩ obj.POPUP)}, SYSADMIN = 허용 값 전부).
+     */
+    private Set<PermKey> buildV2(String userId) {
+        PermGraph graph = permGraphLoader.loadForUsers(Set.of(userId));
+        Set<PermKey> result = new HashSet<>();
+        for (Map.Entry<String, Set<String>> e : permResolver.actionsOf(graph, userId).entrySet()) {
+            ObjMeta obj = graph.objects().get(e.getKey());
+            String systemCode = obj == null ? null : obj.systemCode();
+            String moduleId = (systemCode == null || systemCode.isBlank())
+                    ? DEFAULT_MODULE_ID : systemCode.trim().toLowerCase();
+            String objIdLower = e.getKey().trim().toLowerCase();
+            for (String action : e.getValue()) {
+                try {
+                    result.add(new PermKey(moduleId, OASIS_SERVICE_ID, objIdLower, action));
+                } catch (IllegalArgumentException ignored) {
+                    // 빈 objId·action = skip (옛 빌드와 같음)
                 }
             }
         }
