@@ -12,8 +12,9 @@ f0a 계약 타입·가짜 자료 → f1 shared 부품 3개 → f1-merge → f2 �
 |---|---|---|---|
 | f0a | 끝 | c6d2fb326 | `commPermBench/types.ts`·`mock.ts`·`mock.test.ts`(4 통과). m-mcm tsc = 기존 무관 TS2307 23건만(m-mdm·m-analog dist 없음), commPermBench 오류 0 |
 | f1 | 끝(리뷰 1회·지적 14건 수정) | 1712d9f50 | shared 부품 3개 + unit 시험 3파일(11 통과) + 스킬 문서 3개 + 색인. shared tsc 0, build 통과, aggrid audit 0, ui_docs coverage·check-examples 통과. 브라우저 확인 안 함(끌기·IME 런타임 미확인) |
-| f1-merge | 다음 | - | f0a+f1 squash 1커밋. 통합 tip = 1c263a0f5(c0+c1) 위로 fetch·squash·rebase |
-| f2 | 대기 | - | f1-merge 요청 뒤 시작 |
+| f1-merge | 머지 완료(11-27) | 12cd7bd23 | f0a+f1 squash 1커밋, base 1c263a0f5. shared vitest 212/3134·m-mcm vitest 95/1823 통과. 이 SHA 는 바꾸지 않는다 |
+| f4·f4b | 끝 | 2eb0e09c3·7c97afbf3 | `nav.ts`(openLegacy·readOpenWith·useReloadOnReturn·useOpenWith)·nav.test 13. pageId = `mcm:csa/<screenId>`. 받는 쪽 3화면 훅 = 이 레인 |
+| f2 | 끝·리뷰 중 | 2d8d8ec71 | 13파일 ~2,600줄. 메뉴 칸 = AgDataGrid 가상 스크롤. phase(1·2·3)·편집 자리 no-op. bench-be ①~⑤ 반영(PERM_ERROR_CODES·DraftChange camelCase). 보고 `task-f2-report.md`(미커밋, 열린 질문 8) |
 
 ### 결정
 
@@ -27,11 +28,15 @@ f0a 계약 타입·가짜 자료 → f1 shared 부품 3개 → f1-merge → f2 �
 - f4 조사 결과: 기존 화면 이동 = `window.dispatchEvent(new CustomEvent("portal-open-tab", { detail: { pageId } }))`(shared `widget/frame-context.ts` `openPortalPage`, `m-mcm/page-components/home/types.ts`). pageId 만 넘기고 항목 ID 넘기는 기존 규칙은 없음 → 보내는 쪽 계약(예: sessionStorage `dmes:open-with:<pageId>` 에 ID)을 commPermBench 에 두고, 받는 쪽(commMenuMng 등 금지 파일)은 조정에 요청. 돌아오면 다시 읽기 = `portal-tab-activated` 이벤트 `detail.tabId` 를 `TabPageContext.tabId` 와 비교(선례 `m-mdm/pages/dma/erdEdit/state/useErdStream.ts:198`)
 - 실API 모양: `createJsonApiClient` 로 POST `/api/mcm/oasis/commPermBench/{action}`, body `{ meta, params, grids }`, 응답 envelope 풀기 = `commRoleGrpMng/api.ts` `unwrapPayload` 패턴(meta.success=false 면 throw)
 
+- f3 규칙(Mac 결정 11-27): 퍼미션 줄에 오브젝트 밖 값(예 print)이 남으면 고친 줄만 초안·저장 때 밖 값을 빼고 보낸다. 그 줄에 「오브젝트에 없는 값 <코드> 는 저장 때 빠진다」 한 줄 표시. 근거 D15(저장 = ⊆ 검사, 서버 엄격). commPermMng 도 같음
+- f4b(결정 15): commUserMng·commRoleGrpMng·commMenuMng 받는 쪽 훅 = 이 레인(훅 줄 추가만). `useOpenWith` 는 nav.ts. commRoleMng = perm-fe-b, commObjMng = perm-legacy-be. 계약 = `/Users/jji/.coord/perm-bench-mac/contracts/open-with.md`
+- 커밋(f1 머지 뒤, 다음 squash 기점 = 12cd7bd23): 2eb0e09c3 f4 · 5dc852589 screens.mjs 3화면 · 7c97afbf3 f4b
+
 ### 남은 일(순서)
 
-1. f1-merge: `git fetch origin` → `origin/claude/perm-bench`(1c263a0f5) 합치기·tsc·shared 시험 → `node .claude/skills/_shared/node/squash-branch.mjs --onto origin/claude/perm-bench --subject "feat(perm-fe): 작업대 계약 타입·shared 부품 3개를 둔다" --rebase` → 머지 요청(SHA·겹칠 파일·시험·렌더 점검=shared 부품 audit 0)
-2. f2(opus/high agent): 시안 mock-v16.html 렌더 함수 colPeople 1263·colGroups 1273·colRoles 1284·colRoleAll 1295·colMenu 1329·colPerm 1368·rolePick 1394·openRoles 1406·btnWhy 1440·rightPreview 1461·render 1545, CSS 1~494. 파일 나눔 = page.tsx·api.ts(실연결, PermBenchApi)·상태 훅·칸 부품(사람·그룹·역할·메뉴)·미리보기(사람/역할 기준)·퍼미션 칸. 지금은 mock 사용 상수로 전환. 렌더 규칙 = `.claude/skills/dflow-dev/references/e2e.md` 「화면 렌더 최적화」. f3 가 편집을 붙이기 쉽게 단계 표시(1·2·3) 구조
-3. f4 → f3 → f8 → f9(screens.mjs 등록: commPermBench·commPermMng·commRoleMng·commObjMng) → fa-merge. 실연결 = Mac 조정이 b1·b5 머지를 알린 뒤
+1. 작업대 1차 머지(조정 승인, 11-27): f2·f2 리뷰 수정(9건+결정 13+반대 방향 받기)·f4·f4b·screens.mjs 3화면. e3d5cf33c 위 squash → 머지 요청. 요청 뒤 그 SHA 는 바꾸지 않는다
+2. f3(opus/high, 지시 글 = 세션 scratchpad f3-brief.md — 잃으면 이 줄과 결정 절로 다시 쓴다): useBenchState 편집 자리(toggleMember·toggleGroupRole·toggleRegister·setPermValues) 채우기, 초안 막대·현재/초안·영향·되돌리기·잃는 사람·충돌·이력. 오브젝트 밖 값 규칙·SYSADMIN 잠금
+3. f8 → f9(commPermBench 등록 = c4 메뉴 뒤, 브라우저 = 사용자 승인 대기·Mac 조정 통합 확인 몫) → 2차 머지(f3·f8·f9). 미커밋 page-registry 한 줄은 머지 요청에 적음
 
 ## perm-fe-b (Mac, 브랜치 perm/perm-fe-b, 워크트리 dmes-perm-fe-b)
 

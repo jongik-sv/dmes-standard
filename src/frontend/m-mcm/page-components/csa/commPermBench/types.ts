@@ -108,6 +108,11 @@ export interface BenchMenuRow {
   VISIBLE: YN;
   /** VISIBLE = N 일 때 이유. */
   REASON: PermDenyReason | null;
+  /**
+   * 오브젝트 사용 여부(OBJ.USE_TP). 화면 메뉴 줄에만 값이 있다. 선택 칸(BE 결정 13b) — 없으면(옛 서버·모듈·폴더)
+   * 화면이 사람 기준 트리의 REASON·explain 으로 판정한다.
+   */
+  OBJ_USE_TP?: YN | null;
 }
 
 export interface SearchMenuTreeResult {
@@ -198,8 +203,40 @@ export interface SaveDraftRequest {
   grids: { changes: { rows: PermChangeRow[] } };
 }
 
+/**
+ * 초안 CHANGES_JSON 원소. 서버 저장 모양이라 키가 camelCase 다(bench-be 계약 ⑤-2, null 포함).
+ * 요청 rows(PermChangeRow, SNAKE)와 섞지 않는다 — 바꿀 때는 toDraftChange·fromDraftChange.
+ */
+export interface DraftChange {
+  tp: PermChangeTp;
+  key1: string;
+  key2: string;
+  op: PermChangeOp;
+  btnPerm: string | null;
+  popupPerm: string | null;
+}
+
+export const toDraftChange = (r: PermChangeRow): DraftChange => ({
+  tp: r.TP,
+  key1: r.KEY1,
+  key2: r.KEY2,
+  op: r.OP,
+  btnPerm: r.BTN_PERM ?? null,
+  popupPerm: r.POPUP_PERM ?? null,
+});
+
+export const fromDraftChange = (c: DraftChange): PermChangeRow => ({
+  TP: c.tp,
+  KEY1: c.key1,
+  KEY2: c.key2,
+  OP: c.op,
+  BTN_PERM: c.btnPerm ?? null,
+  POPUP_PERM: c.popupPerm ?? null,
+});
+
+/** 초안 한 줄. 초안이 없어도 한 줄이 온다(CHANGES_JSON "[]"·CHANGE_CNT 0·U_AT null). */
 export interface DraftRow {
-  /** PermChangeRow[] 의 JSON 문자열. */
+  /** DraftChange[] 의 JSON 문자열(camelCase 키). */
   CHANGES_JSON: string;
   CHANGE_CNT: number;
   /** 마지막 저장 시각(ISO). 초안이 없으면 null. */
@@ -252,8 +289,32 @@ export interface ApplyResult {
   result: ApplyResultRow[];
 }
 
-/** apply 실패 코드(UserException). */
-export type PermApplyErrorCode = "PERM_CONFLICT" | "PERM_NEED_CONFIRM" | "PERM_NOT_IN_OBJ" | "PERM_EMPTY_BTN";
+/**
+ * 작업대 실패 코드. 서버 BusinessException 문구 = "CODE: 상세"(bench-be 계약 ①·⑤).
+ * - PERM_NO_USER = 로그인 없음 · PERM_DRAFT_BUSY = 같은 관리자의 동시 첫 저장 · PERM_DRAFT_CORRUPT = 초안 JSON 깨짐
+ * - PERM_FORBIDDEN = SYSADMIN 역할이 걸린 변경(GRP_ROLE·USER_GRP 는 SYSADMIN 사용자만, ROLE_OBJ 의 SYSADMIN ADD·UPD 는 늘 금지)
+ */
+export type PermApplyErrorCode =
+  | "PERM_CONFLICT"
+  | "PERM_NEED_CONFIRM"
+  | "PERM_NOT_IN_OBJ"
+  | "PERM_EMPTY_BTN"
+  | "PERM_NO_USER"
+  | "PERM_DRAFT_BUSY"
+  | "PERM_DRAFT_CORRUPT"
+  | "PERM_FORBIDDEN";
+
+/** 아는 실패 코드 전부(api.ts 가 문구 앞 코드를 이 목록으로 읽는다). */
+export const PERM_ERROR_CODES: readonly PermApplyErrorCode[] = [
+  "PERM_CONFLICT",
+  "PERM_NEED_CONFIRM",
+  "PERM_NOT_IN_OBJ",
+  "PERM_EMPTY_BTN",
+  "PERM_NO_USER",
+  "PERM_DRAFT_BUSY",
+  "PERM_DRAFT_CORRUPT",
+  "PERM_FORBIDDEN",
+];
 
 /** apply 실패. PERM_CONFLICT 면 scopes 에 충돌 범위(사람·그룹·역할 ID)가 온다. */
 export class PermApplyError extends Error {

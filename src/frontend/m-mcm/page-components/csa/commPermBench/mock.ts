@@ -19,6 +19,7 @@
 import {
   PERM_SYSADMIN_ROLE_ID,
   PermApplyError,
+  toDraftChange,
   type ApplyParams,
   type ApplyResult,
   type BenchGroupRoleRow,
@@ -144,7 +145,7 @@ const GROUP_DEF: Array<[string, string, string[], number, string]> = [
   ["RG_CR_OPS", "냉연 조업", ["ROLE_CR_OPERATOR", "ROLE_VIEWER"], 186, "냉연생산팀"], ["RG_GL_OPS", "도금 조업", ["ROLE_GL_OPERATOR", "ROLE_VIEWER"], 142, "도금생산팀"],
   ["RG_QC_TEAM", "품질팀", ["ROLE_QC_INSPECTOR", "ROLE_VIEWER"], 48, "품질보증팀"], ["RG_QC_LEAD", "품질 관리자", ["ROLE_QC_MANAGER"], 7, "품질보증팀"],
   ["RG_LOGI_TEAM", "물류팀", ["ROLE_LOGI_STAFF", "ROLE_VIEWER"], 64, "물류팀"], ["RG_MAINT", "설비팀", ["ROLE_MAINT", "ROLE_VIEWER"], 51, "설비팀"],
-  ["RG_LEGACY", "구 레포트 그룹", ["ROLE_OLD_REPORT"], 11, "품질보증팀"],
+  ["RG_LEGACY", "구 레포트 그룹", ["ROLE_OLD_REPORT", "ROLE_VIEWER"], 11, "품질보증팀"],
 ];
 
 type Level = "READ" | "EDIT" | "CONFIRM" | "ALL";
@@ -382,7 +383,11 @@ function menuVerdict(g: MockGraph, m: MockGraph["menus"][number], paths: RolePat
 }
 
 function menuTree(g: MockGraph, paths: RolePath[]): BenchMenuRow[] {
-  const rows: BenchMenuRow[] = g.menus.map((m) => ({ ...m, ...menuVerdict(g, m, paths) }));
+  const rows: BenchMenuRow[] = g.menus.map((m) => {
+    const o = m.OBJECT_ID ? g.objects.get(m.OBJECT_ID) : undefined;
+    // 오브젝트 사용 여부(OBJ_USE_TP) — 사람 기준·역할 기준 트리 모두 준다(BE 결정 13b)
+    return { ...m, ...menuVerdict(g, m, paths), ...(o ? { OBJ_USE_TP: o.use } : {}) };
+  });
   // 폴더·모듈 = 아래 화면이 하나라도 보이면 보인다
   const byId = new Map(rows.map((r) => [r.MENU_ID, r]));
   for (const r of rows) {
@@ -540,7 +545,7 @@ export function createMockPermBenchApi(options: MockPermBenchOptions = {}): Mock
     latency > 0 ? new Promise((res) => setTimeout(() => res(v), latency)) : Promise.resolve(v);
   const graphOf = (source: PermSource) => (source === "DRAFT" && changes.length ? applyMockChanges(cur, changes) : cur);
   const draftResult = (): DraftResult => ({
-    draft: [{ CHANGES_JSON: JSON.stringify(changes), CHANGE_CNT: changes.length, U_AT: draftAt }],
+    draft: [{ CHANGES_JSON: JSON.stringify(changes.map(toDraftChange)), CHANGE_CNT: changes.length, U_AT: draftAt }],
   });
 
   return {
@@ -590,6 +595,9 @@ export function createMockPermBenchApi(options: MockPermBenchOptions = {}): Mock
       else if (params.roleId) {
         const r = g.roles.find((x) => x.id === params.roleId);
         if (r) paths = [{ groupId: "", roleId: r.id, active: r.use === "Y", off: r.use === "Y" ? null : "ROLE_UNUSED" }];
+        // bench-be 계약 ③: 역할 기준 메뉴 트리 REASON 은 이번 회차 NO_PERM 하나.
+        const menus = menuTree(g, paths).map((m) => (m.REASON ? { ...m, REASON: "NO_PERM" as const } : m));
+        return wait({ menus });
       }
       return wait({ menus: menuTree(g, paths) });
     },
@@ -605,8 +613,8 @@ export function createMockPermBenchApi(options: MockPermBenchOptions = {}): Mock
       const rp = g.perms.get(params.roleId);
       for (const o of g.objects.values()) {
         if (f && o.folder !== f && o.mod !== f) continue;
+        // 서버(bench-be 계약 ②)는 퍼미션 없는 오브젝트도 줄로 준다. 퍼미션 있음 = BTN_PERM 이 null 이 아님.
         const p = rp?.get(o.id);
-        if (!p) continue;
         perms.push({
           ROLE_ID: params.roleId,
           OBJECT_ID: o.id,
@@ -615,8 +623,8 @@ export function createMockPermBenchApi(options: MockPermBenchOptions = {}): Mock
           OBJ_BTN_PERM: joinTokens([...o.btn].sort((a, b) => BTN_RANK(a) - BTN_RANK(b))),
           OBJ_POPUP_PERM: joinTokens(o.popup),
           OBJ_READ_PERM: joinTokens(readPreset(o.btn)),
-          BTN_PERM: joinTokens(p.btn),
-          POPUP_PERM: joinTokens(p.popup),
+          BTN_PERM: p ? joinTokens(p.btn) : null,
+          POPUP_PERM: p ? joinTokens(p.popup) : null,
           DATA_PERM: null,
         });
       }
@@ -628,6 +636,9 @@ export function createMockPermBenchApi(options: MockPermBenchOptions = {}): Mock
     },
 
     async saveDraft(request: SaveDraftRequest) {
+      // bench-be 계약 ⑤-5: ROLE_OBJ 의 SYSADMIN ADD·UPD 는 늘 금지(SYSADMIN 은 퍼미션 행 없이 모두 받는다).
+      const forbidden = request.grids.changes.rows.find((r) => r.TP === "ROLE_OBJ" && r.KEY1 === PERM_SYSADMIN_ROLE_ID && r.OP !== "DEL");
+      if (forbidden) throw new PermApplyError("PERM_FORBIDDEN", `시스템 관리자 퍼미션은 바꿀 수 없습니다: ${forbidden.KEY2}`, [forbidden.KEY1]);
       changes = request.grids.changes.rows.map((r) => ({ ...r }));
       draftAt = changes.length ? new Date().toISOString() : null;
       return wait(draftResult());

@@ -77,6 +77,7 @@ import {
   saveCmRoleGrpMap as apiSaveCmRoleGrpMap,
   searchCmRole as apiSearchCmRole,
 } from "./api";
+import { useOpenWith } from "@/page-components/csa/commPermBench/nav";
 import type {
   CommRoleGrpMngFilters,
   CommRoleGrpMngRoleMapRow,
@@ -536,6 +537,18 @@ export default function CommRoleGrpMngPage() {
   );
 
   /** 셀 변경 — Detail 폼 → 양방향 bind. PK ROLE_GROUP_ID 는 신규 행만 편집 가능. */
+  // 권한 작업대에서 열기(dmes:open-with) — 첫 조회가 끝난 뒤 받은 역할 그룹을 고르거나 신규 행을 연다.
+  useOpenWith("commRoleGrpMng", (ow, attempt) => {
+    if (ow.mode === "new") return void handleDataChange([{ __gridTempId: `__new_ow_${ow.at}`, __rowId: "" }], `__new_ow_${ow.at}`);
+    const hit = rows.find((r) => r.nativeeditor_status !== "deleted" && String(r.ROLE_GROUP_ID ?? "") === ow.id);
+    if (hit) return void setSelectedKey(getRowKey(hit));
+    if (!ow.id || attempt > 0 || hasAnyChanges) return;
+    const f = { ...filters, edt_ROLE_GROUP_ID: ow.id, cbo_USE_TP: "" };
+    setFilters(f);
+    void loadList(f, { preferGroupId: ow.id, silent: true });
+    return "wait";
+  }, !isSearching && rows.length > 0);
+
   const handleCellChange = useCallback(
     (p: { rowKey: string | number; field: string; newValue: unknown }) => {
       setRows((prev) =>

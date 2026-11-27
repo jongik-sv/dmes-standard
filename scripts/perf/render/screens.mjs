@@ -233,6 +233,47 @@ export const SCREENS = [
     formPrepare: ['[data-testid^="erd-model-"]', '.react-flow__node'],
     formInput: 'input[data-testid="erd-grid-input"]',
   },
+  // 2026-11-27 perm-fe-a f9 등록 — 퍼미션 작업대 회차(perm-bench)가 손대는 csa 화면.
+  //   메뉴 = McmMenuSeeder.java:58·60·63(PARENT_MENU_ID "csa" = 시스템관리). 셋 다 SearchArea autoSearch 라 진입하면 조회한다.
+  //   commPermBench(권한 작업대) = perm-core c4 시더가 메뉴를 정한 뒤 등록한다(지금은 빈 자리).
+  {
+    // perm-fe-b 새 설계(d02b2254f): 화면 제목 「퍼미션 관리」, 메뉴 이름은 시더 그대로 「PERMISSION 관리」.
+    // 진입 호출 = lov 등 2건(조회 제외). 상세 = PermOnePane(퍼미션 한 줄), 버튼 권한 값은 shared TokenChipInput.
+    // `/search$` 라 상세 조회 searchPermOne 은 조회 지표에 섞이지 않는다.
+    id: "commPermMng",
+    label: "퍼미션 관리",
+    trail: [/^공통관리$/, /^시스템관리$/, /^PERMISSION 관리$/],
+    breadcrumb: "공통관리 > 시스템관리 > PERMISSION 관리",
+    listPanelTitle: "퍼미션 목록",
+    /** count-renders ⑤ 상세 입력 — 버튼 권한 값 칸(TokenChipInput testId perm-one-btn-input). 퍼미션 있는 행을 골라야 보인다. 저장하지 않는다. */
+    formInput: 'input[data-testid="perm-one-btn-input-input"]',
+    searchUrlPattern: /\/api\/mcm\/oasis\/commPermMng\/search$/,
+    needsSearch: true,
+    autoSearchAtEntry: true,
+  },
+  {
+    // perm-fe-b 새 설계(d02b2254f). 진입 호출 = lov·searchCmRoleMap·searchRoleGroups·searchFolderObj 4건(둘은 Promise.all).
+    id: "commRoleMng",
+    label: "역할 관리",
+    trail: [/^공통관리$/, /^시스템관리$/, /^역할 관리$/],
+    breadcrumb: "공통관리 > 시스템관리 > 역할 관리",
+    listPanelTitle: "역할 목록",
+    /** count-renders ⑤ 상세 입력 — 역할명 칸. 저장하지 않는다. */
+    formInput: 'tr:has(th:has-text("역할명")) input',
+    searchUrlPattern: /\/api\/mcm\/oasis\/commRoleMng\/search$/,
+    needsSearch: true,
+    autoSearchAtEntry: true,
+  },
+  {
+    id: "commObjMng",
+    label: "OBJECT 관리",
+    trail: [/^공통관리$/, /^시스템관리$/, /^OBJECT 관리$/],
+    breadcrumb: "공통관리 > 시스템관리 > OBJECT 관리",
+    listPanelTitle: "OBJECT 목록",
+    searchUrlPattern: /\/api\/mcm\/oasis\/commObjMng\/search$/,
+    needsSearch: true,
+    autoSearchAtEntry: true,
+  },
   {
     id: "logViewer",
     label: "로그 뷰어(Tree 탭)",

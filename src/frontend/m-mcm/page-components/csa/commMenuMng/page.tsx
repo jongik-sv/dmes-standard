@@ -62,6 +62,7 @@ import {
   saveCmMenuFld as apiSaveCmMenuFld,
   type CommMenuMngFldRow,
 } from "./api";
+import { useOpenWith } from "@/page-components/csa/commPermBench/nav";
 import type {
   CommMenuMngFilters,
   CommMenuMngObjLovRow,
@@ -670,6 +671,19 @@ export default function CommMenuMngPage() {
     },
     [selectedTreeMenuId, setRows, setSelectedKey],
   );
+
+  // 권한 작업대에서 열기(dmes:open-with) — 첫 조회가 끝난 뒤 받은 메뉴(또는 폴더)를 고르거나 신규 행을 연다.
+  useOpenWith("commMenuMng", (ow, attempt) => {
+    if (ow.mode === "new") return void handleDataChange([{ __gridTempId: `__new_ow_${ow.at}`, __rowId: "" }], `__new_ow_${ow.at}`);
+    const hit = rows.find((r) => r.nativeeditor_status !== "deleted" && String(r.MENU_ID ?? "") === ow.id);
+    if (hit) return void handleListRowClick(hit);
+    if (treeRows.some((t) => String(t.MENU_ID ?? "") === ow.id)) return void handleTreeSelect(null, String(ow.id));
+    if (!ow.id || attempt > 0 || hasAnyChanges) return;
+    const f = { ...filters, edt_MENU_ID: ow.id, cbo_USE_TP: "" };
+    setFilters(f);
+    void loadList(f);
+    return "wait";
+  }, !isSearching && rows.length > 0 && treeRows.length > 0);
 
   /** 셀 변경 핸들러 — D-004 onkillfocus 의 MENU_SEQ 자동 조합 (V-302) 등 As-Is 룰. */
   const handleCellChange = useCallback(
