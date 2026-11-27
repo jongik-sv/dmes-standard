@@ -22,7 +22,7 @@
  *   - BPMN: services/csa/CommRoleMng.bpmn · Mapper: persistence/mappers-csa/CommRoleMngMapper.xml
  */
 
-import { memo, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { memo, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState, type CSSProperties, type Ref } from "react";
 import {
   PageLayout,
   SearchArea,
@@ -36,7 +36,7 @@ import {
   type PageButton,
 } from "@dk-oasis/shared/layout";
 import { GridPanel, AgDataGrid, type GridColumn } from "@dk-oasis/shared/grid";
-import { Badge, Button, Input, ComboBox, DatePicker, Radio } from "@dk-oasis/shared/form";
+import { Badge, Button, Input, ComboBox, DatePicker, Radio, useDetailDraft, type DetailDraftHandle } from "@dk-oasis/shared/form";
 import { CardFrame, MutedText } from "@dk-oasis/shared/card";
 import { MdmFieldLabel } from "@dk-oasis/shared/mdm-meta";
 import { useMessage } from "@dk-oasis/shared/message-provider";
@@ -56,6 +56,7 @@ import { RoleAddControls, RoleAddPickGrid } from "./RoleAddObjPanel";
 import {
   EMPTY_DRAFT,
   addFromFolder,
+  applyRoleDraft,
   draftFromRows,
   effectiveFolder,
   emptyBtnObjects,
@@ -75,6 +76,7 @@ import {
   roleOffMessage,
   viewRows,
   pickEmptyMessage,
+  withRoleField,
   type AddLevel,
   type BusinessError,
   type FolderOption,
@@ -352,6 +354,8 @@ const CHIPS: CSSProperties = { display: "flex", gap: 4, flexWrap: "wrap", alignI
 const INLINE: CSSProperties = { display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" };
 
 interface RoleDetailPanelProps {
+  /** 루트가 저장·행 전환 때 초안을 읽는 핸들(R12 — 입력 초안은 이 패널 안에만 있다). */
+  ref?: Ref<DetailDraftHandle<RoleGridRow>>;
   selected: RoleGridRow | null;
   menuLov: MenuIdLov[];
   groups: RoleGroupRow[];
@@ -360,17 +364,18 @@ interface RoleDetailPanelProps {
   userCnt: number | null;
   /** 사용 안 함 확인 문구의 퍼미션 수 — 초안 기준(불러오기 전이면 저장된 PERM_CNT). -1 = 모두. */
   permCnt: number;
-  /** 사용 안 함 확인 상자를 보인다. */
-  askUseOff: boolean;
-  onField: (field: keyof CommRoleMngRow, value: string) => void;
-  onUseChange: (value: string) => void;
-  onUseConfirm: () => void;
-  onUseCancel: () => void;
+  /** 초안을 목록 행에 반영(blur·행 전환·저장 직전). 안정된 함수를 넘긴다. */
+  onCommit: (draft: RoleGridRow) => void;
   /** 권한 작업대에서 이 역할 보기(f7). 없으면 단추를 잠근다. */
   onOpenBench?: (roleId: string) => void;
 }
 
+/**
+ * 상세 정보 — 성능(화면 성능 가이드 R12): 입력 초안은 이 패널 안(useDetailDraft)에만 있다. 한 글자 입력은 이 패널만 다시 그리고,
+ * 화면 루트·역할 목록 그리드에는 blur·행 전환·저장 직전에만 `onCommit` 으로 알린다. 사용 안 함 확인 상자 상태도 여기 둔다.
+ */
 const RoleDetailPanel = memo(function RoleDetailPanel({
+  ref,
   selected,
   menuLov,
   groups,
@@ -378,25 +383,60 @@ const RoleDetailPanel = memo(function RoleDetailPanel({
   groupsError,
   userCnt,
   permCnt,
-  askUseOff,
-  onField,
-  onUseChange,
-  onUseConfirm,
-  onUseCancel,
+  onCommit,
   onOpenBench,
 }: RoleDetailPanelProps) {
-  if (!selected) {
+  const { draft, setDraft, containerProps, handle } = useDetailDraft<RoleGridRow>(selected, {
+    onCommit: (d) => onCommit(d),
+    rowKey: getRowKey,
+  });
+  useImperativeHandle(ref, () => handle, [handle]);
+  /**
+   * 사용 안 함 확인을 기다리는 행 — 물을 때의 목록 행(selected) 참조째 둔다. 행취소·행 전환·다시 조회로 목록 행이 바뀌면
+   * 참조가 달라져 상자가 사라진다(되돌린 행에 「사용 안 함」이 다시 써지지 않게).
+   */
+  const [askUseOff, setAskUseOff] = useState<{ row: RoleGridRow | null; key: string } | null>(null);
+
+  /** 한 칸 바꾸기 — 늘 최신 초안 위에서 계산한다(연속 입력에도 낡은 값을 쓰지 않는다). */
+  const onField = useCallback(
+    (field: keyof CommRoleMngRow, value: string) => {
+      const cur = handle.getDraft();
+      if (cur) setDraft(withRoleField(cur, String(field), value));
+    },
+    [handle, setDraft],
+  );
+  const onUseChange = useCallback(
+    (v: string) => {
+      const cur = handle.getDraft();
+      if (!cur) return;
+      if (v === "N" && String(cur.USE_TP ?? "Y") !== "N" && cur.nativeeditor_status !== "inserted") {
+        setAskUseOff({ row: selected, key: getRowKey(cur) });
+        return;
+      }
+      setAskUseOff(null);
+      onField("USE_TP", v);
+    },
+    [handle, onField, selected],
+  );
+  const onUseConfirm = useCallback(() => {
+    setAskUseOff(null);
+    onField("USE_TP", "N");
+  }, [onField]);
+  const onUseCancel = useCallback(() => setAskUseOff(null), []);
+
+  if (!draft) {
     return (
       <CardFrame title="상세 정보" testId="role-detail">
         <MutedText>역할을 선택하거나 행을 추가하세요.</MutedText>
       </CardFrame>
     );
   }
-  const isNewRow = selected.nativeeditor_status === "inserted";
-  const roleId = String(selected.ROLE_ID ?? "");
-  const people = userCnt ?? Number(selected.USER_CNT ?? 0);
+  const isNewRow = draft.nativeeditor_status === "inserted";
+  const roleId = String(draft.ROLE_ID ?? "");
+  const people = userCnt ?? Number(draft.USER_CNT ?? 0);
   return (
     <CardFrame title="상세 정보" testId="role-detail">
+      <div {...containerProps}>
       <table style={DETAIL_TABLE_STYLE}>
         <tbody>
           <tr>
@@ -421,14 +461,14 @@ const RoleDetailPanel = memo(function RoleDetailPanel({
                   data={menuLov as unknown as Record<string, unknown>[]}
                   valueField="MENU_ID"
                   labelField="MENU_ID_NM"
-                  value={String(selected.MENU_ID ?? "")}
+                  value={String(draft.MENU_ID ?? "")}
                   onChange={(v) => onField("MENU_ID", v)}
                   placeholder="(선택)"
                 />
               ) : (
                 /* 기존 행의 메뉴 ID 는 ROLE_ID(PK) 구성요소라 변경 불가 — 읽기전용 표기. */
                 <Input
-                  value={menuIdLabel(String(selected.MENU_ID ?? ""), menuLov)}
+                  value={menuIdLabel(String(draft.MENU_ID ?? ""), menuLov)}
                   readOnly
                   placeholder="(미지정 — 기존 역할은 변경 불가)"
                 />
@@ -440,7 +480,7 @@ const RoleDetailPanel = memo(function RoleDetailPanel({
             <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="ID" meta={false} label="ID" required /></th>
             <td style={DETAIL_VALUE_CELL}>
               <Input
-                value={String(selected.ID ?? "")}
+                value={String(draft.ID ?? "")}
                 maxLength={100}
                 readOnly={!isNewRow}
                 onChange={(v) => onField("ID", v)}
@@ -452,7 +492,7 @@ const RoleDetailPanel = memo(function RoleDetailPanel({
             <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="ROLE_NM" label="역할명" /></th>
             <td style={DETAIL_VALUE_CELL}>
               <Input
-                value={String(selected.ROLE_NM ?? "")}
+                value={String(draft.ROLE_NM ?? "")}
                 maxLength={100}
                 onChange={(v) => onField("ROLE_NM", v)}
               />
@@ -463,7 +503,7 @@ const RoleDetailPanel = memo(function RoleDetailPanel({
             <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="ROLE_DESC" label="역할 설명" /></th>
             <td style={DETAIL_VALUE_CELL}>
               <Input
-                value={String(selected.ROLE_DESC ?? "")}
+                value={String(draft.ROLE_DESC ?? "")}
                 maxLength={100}
                 onChange={(v) => onField("ROLE_DESC", v)}
               />
@@ -475,13 +515,13 @@ const RoleDetailPanel = memo(function RoleDetailPanel({
             <td style={DETAIL_VALUE_CELL}>
               <Radio
                 name="USE_TP"
-                value={String(selected.USE_TP ?? "Y")}
+                value={String(draft.USE_TP ?? "Y")}
                 options={USE_TP_OPTIONS}
                 onChange={onUseChange}
               />
-              {askUseOff ? (
+              {askUseOff !== null && askUseOff.row === selected && askUseOff.key === getRowKey(draft) ? (
                 <div role="alert" style={ASK_BOX} data-testid="role-use-off-ask">
-                  <div>{roleOffMessage(String(selected.ROLE_NM || roleId), people, permCnt)}</div>
+                  <div>{roleOffMessage(String(draft.ROLE_NM || roleId), people, permCnt)}</div>
                   <div style={ASK_ROW}>
                     <Button size="sm" variant="danger" onClick={onUseConfirm}>
                       사용 안 함으로 두기
@@ -499,7 +539,7 @@ const RoleDetailPanel = memo(function RoleDetailPanel({
             <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="START_ACTIVE_DATE" label="유효 개시일" /></th>
             <td style={DETAIL_VALUE_CELL}>
               <DatePicker
-                value={toDateInputValue(selected.START_ACTIVE_DATE)}
+                value={toDateInputValue(draft.START_ACTIVE_DATE)}
                 onChange={(iso) => onField("START_ACTIVE_DATE", iso ?? "")}
               />
             </td>
@@ -509,7 +549,7 @@ const RoleDetailPanel = memo(function RoleDetailPanel({
             <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="END_ACTIVE_DATE" label="유효 기한일" /></th>
             <td style={DETAIL_VALUE_CELL}>
               <DatePicker
-                value={toDateInputValue(selected.END_ACTIVE_DATE)}
+                value={toDateInputValue(draft.END_ACTIVE_DATE)}
                 onChange={(iso) => onField("END_ACTIVE_DATE", iso ?? "")}
               />
             </td>
@@ -562,6 +602,7 @@ const RoleDetailPanel = memo(function RoleDetailPanel({
           </tr>
         </tbody>
       </table>
+      </div>
     </CardFrame>
   );
 });
@@ -595,8 +636,8 @@ export default function CommRoleMngPage() {
   const [picks, setPicks] = useState(NO_PICKS);
   const [addLevel, setAddLevel] = useState<AddLevel>("read");
   const [objReload, setObjReload] = useState(0);
-  /** 사용 안 함 확인을 기다리는 행 키. */
-  const [askUseOffKey, setAskUseOffKey] = useState<string | null>(null);
+  /** 상세 패널 핸들 — 입력 초안은 패널 안에만 있다(R12). 저장·행취소·작업대 열기 때 읽는다. */
+  const detailRef = useRef<DetailDraftHandle<RoleGridRow>>(null);
 
   const selected = useMemo<RoleGridRow | null>(() => {
     if (!selectedKey) return null;
@@ -930,6 +971,8 @@ export default function CommRoleMngPage() {
       setError("변경된 행이 아닙니다.");
       return;
     }
+    // 반영 전 입력도 버린다(행이 조회 값으로 돌아오면 패널이 그 값을 다시 읽는다).
+    detailRef.current?.reset(null);
     setRows((prev) => {
       if (target.nativeeditor_status === "inserted") {
         return prev.filter((r) => getRowKey(r) !== selectedKey);
@@ -940,7 +983,6 @@ export default function CommRoleMngPage() {
         getRowKey(r) === selectedKey ? (orig ?? { ...r, nativeeditor_status: "" as RowStatus }) : r,
       );
     });
-    setAskUseOffKey(null);
     if (target.nativeeditor_status === "inserted") setSelectedKey(null);
   }, [rows, selectedKey, setRows, setSelectedKey]);
 
@@ -1004,7 +1046,7 @@ export default function CommRoleMngPage() {
   useOpenWith(
     "commRoleMng",
     (ow, attempt) => {
-      const dirty = pendingRef.current > 0 || rows.some((r) => r.nativeeditor_status);
+      const dirty = pendingRef.current > 0 || rows.some((r) => r.nativeeditor_status) || !!detailRef.current?.isDirty();
       const step = openWithStep(ow, rows, getRowKey, attempt, dirty);
       if (step.kind === "new") return void handleDataChange([{ __gridTempId: `__new_ow_${ow.at}` }], `__new_ow_${ow.at}`);
       if (step.kind === "select") return void requestSelect(step.key);
@@ -1019,61 +1061,27 @@ export default function CommRoleMngPage() {
 
   const handleOpenBench = useCallback((roleId: string) => openBench("commRoleMng", roleId), []);
 
-  /**
-   * 상세 입력 → 역할 행 갱신.
-   * AsIs ds_main_oncolumnchanged (xfdl:906~916): MENU_ID 또는 ID 변경 시 ROLE_ID = "role_"+MENU_ID+"_"+ID.
-   */
-  const handleDetailField = useCallback(
-    (field: keyof CommRoleMngRow, value: string) => {
-      if (!selectedKey) return;
-      const fieldName = String(field);
-      setRows((prev) =>
-        prev.map((r) => {
-          if (getRowKey(r) !== selectedKey) return r;
-          if (r[fieldName] === value) return r;
-          const updated: RoleGridRow = { ...r, [fieldName]: value };
-          updated.nativeeditor_status = r.nativeeditor_status === "inserted" ? "inserted" : "updated";
-          if (fieldName === "MENU_ID" || fieldName === "ID") {
-            const mid = String(updated.MENU_ID ?? "");
-            const id = String(updated.ID ?? "");
-            if (mid && id) updated.ROLE_ID = `role_${mid}_${id}`;
-          }
-          return updated;
-        }),
-      );
-    },
-    [selectedKey, setRows],
+  /** 상세 초안 → 목록 행(blur·행 전환·저장 직전). 같은 행이 없으면 목록 그대로. */
+  const handleDetailCommit = useCallback(
+    (d: RoleGridRow) => setRows((prev) => applyRoleDraft(prev, d, getRowKey)),
+    [setRows],
   );
-
-  // ── 사용 여부 → N 확인(⑤) ──
-  const selectedUseTp = String(selected?.USE_TP ?? "Y");
-  const handleUseChange = useCallback(
-    (v: string) => {
-      if (v === "N" && selectedUseTp !== "N" && !isNewRow) {
-        setAskUseOffKey(selectedKey);
-        return;
-      }
-      setAskUseOffKey(null);
-      handleDetailField("USE_TP", v);
-    },
-    [selectedUseTp, isNewRow, selectedKey, handleDetailField],
-  );
-  const handleUseConfirm = useCallback(() => {
-    setAskUseOffKey(null);
-    handleDetailField("USE_TP", "N");
-  }, [handleDetailField]);
-  const handleUseCancel = useCallback(() => setAskUseOffKey(null), []);
 
   // ── 저장 (B-003): 역할 마스터(save) → 퍼미션(saveCmRoleMap) → 재조회 ──
   const handleSave = useCallback(async () => {
-    const masterDirty = rows.some((r) => r.nativeeditor_status);
+    // 아직 blur 가 안 일어난 입력까지 반영한다(저장 단추는 패널 밖에 있다).
+    const detailDraft = detailRef.current?.getDraft() ?? null;
+    const detailDirty = detailRef.current?.isDirty() ?? false;
+    detailRef.current?.commit();
+    const effective = detailDraft && detailDirty ? applyRoleDraft(rows, detailDraft, getRowKey) : rows;
+    const masterDirty = effective.some((r) => r.nativeeditor_status);
     const permSave =
       selectedRoleId && !sysAdmin && !isDeletedRow && !permLoadFailed ? saveRows(selectedRoleId, draft) : [];
     if (!masterDirty && permSave.length === 0) {
       setError("저장할 데이터가 없습니다.");
       return;
     }
-    for (const r of rows) {
+    for (const r of effective) {
       if (!r.nativeeditor_status || r.nativeeditor_status === "deleted") continue;
       // V-006 Essential — 신규 행은 메뉴 ID + ID 가 모두 있어야 ROLE_ID 가 합성된다.
       if (r.nativeeditor_status === "inserted") {
@@ -1099,12 +1107,13 @@ export default function CommRoleMngPage() {
 
     setIsSaving(true);
     setError(null);
-    const keepRoleId = String(selected?.ROLE_ID ?? "");
+    // 새 행은 ROLE_ID 가 상세 초안에서 합성되므로 반영 전 초안을 먼저 본다.
+    const keepRoleId = String((detailDraft && detailDirty ? detailDraft.ROLE_ID : selected?.ROLE_ID) ?? "");
     let roleCnt: number | null = null;
     let permRes: { cnt_merge?: number; cnt_delete?: number } | null = null;
     try {
       if (masterDirty) {
-        const payload = rows
+        const payload = effective
           .filter((r) => r.nativeeditor_status)
           .map((r) => ({
             ...stripInternal(r),
@@ -1233,11 +1242,8 @@ export default function CommRoleMngPage() {
               groupsError={groupsValid && groupInfo.error}
               userCnt={groupsValid ? groupInfo.userCnt : null}
               permCnt={detailPermCnt}
-              askUseOff={askUseOffKey !== null && askUseOffKey === selectedKey}
-              onField={handleDetailField}
-              onUseChange={handleUseChange}
-              onUseConfirm={handleUseConfirm}
-              onUseCancel={handleUseCancel}
+              ref={detailRef}
+              onCommit={handleDetailCommit}
               onOpenBench={handleOpenBench}
             />
           </ContentPanel>

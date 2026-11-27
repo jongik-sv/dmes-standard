@@ -561,3 +561,37 @@ export function openWithStep<R extends { ROLE_ID?: unknown; nativeeditor_status?
   if (!ow.id || attempt > 0 || dirty) return { kind: "skip" };
   return { kind: "search", roleId: ow.id };
 }
+
+// ── 상세 입력 초안(R12) ─────────────────────────────────────────────────────
+
+/** 상세 폼이 고치는 역할 행 모양(화면 전용 칸 포함). */
+type RoleLikeRow = Record<string, unknown> & { nativeeditor_status?: string };
+
+/**
+ * 상세 입력 한 칸 → 새 행(초안). 값이 같으면 그 행 그대로.
+ * 고친 행 = 「updated」(새 행은 「inserted」 유지). AsIs ds_main_oncolumnchanged (xfdl:906~916):
+ * MENU_ID 또는 ID 를 바꾸면 ROLE_ID = "role_" + MENU_ID + "_" + ID(둘 다 있을 때).
+ */
+export function withRoleField<T extends RoleLikeRow>(row: T, field: string, value: string): T {
+  if (row[field] === value) return row;
+  const next: RoleLikeRow = { ...row, [field]: value };
+  next.nativeeditor_status = row.nativeeditor_status === "inserted" ? "inserted" : "updated";
+  if (field === "MENU_ID" || field === "ID") {
+    const mid = String(next.MENU_ID ?? "");
+    const id = String(next.ID ?? "");
+    if (mid && id) next.ROLE_ID = `role_${mid}_${id}`;
+  }
+  return next as T;
+}
+
+/** 상세 초안을 목록 행에 반영 — 같은 키의 행만 바꾼다. 없으면 목록 그대로(같은 참조). */
+export function applyRoleDraft<T extends RoleLikeRow>(rows: T[], draft: T, keyOf: (r: T) => string): T[] {
+  const key = keyOf(draft);
+  let hit = false;
+  const next = rows.map((r) => {
+    if (keyOf(r) !== key) return r;
+    hit = true;
+    return draft;
+  });
+  return hit ? next : rows;
+}

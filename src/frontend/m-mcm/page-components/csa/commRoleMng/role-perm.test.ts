@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   ALL_FOLDERS,
+  applyRoleDraft,
+  withRoleField,
   addFromFolder,
   businessError,
   chipOptions,
@@ -331,5 +333,26 @@ describe("openWithStep (작업대에서 열기, f7)", () => {
     expect(openWithStep({ mode: "edit", id: "R9" }, rows, key, 1, false)).toEqual({ kind: "skip" });
     expect(openWithStep({ mode: "edit", id: "R9" }, rows, key, 0, true)).toEqual({ kind: "skip" });
     expect(openWithStep({ mode: "edit" }, rows, key, 0, false)).toEqual({ kind: "skip" });
+  });
+});
+
+describe("상세 입력 초안(R12, z4fix)", () => {
+  it("withRoleField: 같은 값이면 그 행, 고치면 updated, 새 행은 inserted 유지, MENU_ID·ID 로 ROLE_ID 합성", () => {
+    const r = { ROLE_ID: "R1", ROLE_NM: "가", MENU_ID: "csa", ID: "a", nativeeditor_status: "" };
+    expect(withRoleField(r, "ROLE_NM", "가")).toBe(r);
+    expect(withRoleField(r, "ROLE_NM", "나")).toMatchObject({ ROLE_NM: "나", nativeeditor_status: "updated", ROLE_ID: "R1" });
+    const n = { ROLE_ID: "", MENU_ID: "", ID: "", nativeeditor_status: "inserted" };
+    const a = withRoleField(withRoleField(n, "MENU_ID", "csa"), "ID", "x");
+    expect(a).toMatchObject({ ROLE_ID: "role_csa_x", nativeeditor_status: "inserted" });
+    expect(withRoleField(n, "MENU_ID", "csa").ROLE_ID).toBe("");
+  });
+
+  it("applyRoleDraft: 같은 키 행만 바꾸고, 없으면 같은 목록", () => {
+    const rows = [{ k: "a", v: 1 }, { k: "b", v: 2 }];
+    const keyOf = (r: { k: string }) => r.k;
+    const out = applyRoleDraft(rows, { k: "b", v: 9 }, keyOf);
+    expect(out).toEqual([{ k: "a", v: 1 }, { k: "b", v: 9 }]);
+    expect(out[0]).toBe(rows[0]);
+    expect(applyRoleDraft(rows, { k: "z", v: 0 }, keyOf)).toBe(rows);
   });
 });
