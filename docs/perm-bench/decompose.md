@@ -44,7 +44,7 @@
 | action | 단계 | 입력 params | 응답 grids(칸) |
 |---|---|---|---|
 | `searchBench` | 1 | `userQ`·`roleGroupId`·`roleId` | `users`(USER_ID·USER_NM·DEPT_NM·USE_TP) · `groups`(ROLE_GROUP_ID·ROLE_GROUP_NM·USE_TP·USER_CNT) · `roles`(ROLE_ID·ROLE_NM·MENU_ID·USE_TP·GROUP_CNT·USER_CNT·PERM_CNT) · `userGroups`(USER_ID·ROLE_GROUP_ID) · `groupRoles`(ROLE_GROUP_ID·ROLE_ID) |
-| `searchMenuTree` | 1 | `userId` 또는 `roleId` · `source`(CUR·DRAFT) | `menus`(MENU_ID·PARENT_MENU_ID·MENU_NM·OBJECT_ID·SORT_SEQ·SHOW_TP·USE_TP·VISIBLE·REASON) |
+| `searchMenuTree` | 1 | `userId` 또는 `roleId` · `source`(CUR·DRAFT) | `menus`(MENU_ID·PARENT_MENU_ID·MENU_NM·OBJECT_ID·SORT_SEQ·SHOW_TP·USE_TP·VISIBLE·REASON·OBJ_USE_TP) |
 | `explain` | 1 | `userId`·`objectId`·`source` | `buttons`(CODE·KIND·ALLOWED·GRANTED·REASON·ROLES·GROUPS) · `paths`(ROLE_GROUP_ID·ROLE_ID·BTN_PERM·POPUP_PERM) |
 | `searchRolePerm` | 1 | `roleId`·`menuFolderId`·`source` | `perms`(ROLE_ID·OBJECT_ID·OBJECT_NM·MENU_PATH·OBJ_BTN_PERM·OBJ_POPUP_PERM·OBJ_READ_PERM·BTN_PERM·POPUP_PERM·DATA_PERM) |
 | `loadDraft` | 2 | - | `draft`(CHANGES_JSON·CHANGE_CNT·U_AT) |
