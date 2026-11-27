@@ -86,7 +86,8 @@ describe("draft — 초안 차이", () => {
     expect(groupsOfUser(idx, u)).not.toContain("RG_QC_TEAM");
     const g = buildMockGraph();
     const oid = [...g.objects.keys()][0];
-    const perms = toRolePermMap((await api.searchRolePerm({ roleId: "ROLE_VIEWER", source: "CUR" })).perms);
+    // 퍼미션 없는 오브젝트 줄은 menuFolderId 를 줄 때만 온다(bench-be #13, z2 F5) — 그 오브젝트의 폴더로 읽는다
+    const perms = toRolePermMap((await api.searchRolePerm({ roleId: "ROLE_VIEWER", menuFolderId: g.objects.get(oid)!.folder, source: "CUR" })).perms);
     const base = permBaseOf(perms.get(oid));
     const d2 = setPerm(EMPTY_DRAFT, "ROLE_VIEWER", oid, base.allowedBtn, [], base);
     const view = overlayRolePerm(perms, "ROLE_VIEWER", d2);

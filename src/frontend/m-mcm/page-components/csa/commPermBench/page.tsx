@@ -67,7 +67,7 @@ export default function CommPermBenchPage() {
     },
     [showMessage],
   );
-  const { sel, data, view, draft, actions, edit, look, canEdit, canLink, isSysadmin } = useBenchState(api, { onError });
+  const { sel, data, view, draft, actions, edit, look, canEdit, canLink, isSysadmin, registerLoading, objRowState } = useBenchState(api, { onError });
   const { bench: base, benchLoading, error, menuTrees, rolePerms, explains, draftTrees, draftExplains, reload, retry, hasFailed } = data;
   const bench = view.bench;
   const rzRef = useRef<ResizableColumnsHandle>(null);
@@ -98,7 +98,8 @@ export default function CommPermBenchPage() {
   const previewTreeKey = by === "person" && userId ? userTreeKey(userId) : roleId ? roleTreeKey(roleId) : "";
   const previewFailed =
     (!!previewTreeKey && (hasFailed("t", previewTreeKey) || (cmp && hasFailed("t", previewTreeKey, "DRAFT")))) ||
-    (!!exKey && (hasFailed("e", exKey) || (cmp && by === "person" && hasFailed("e", exKey, "DRAFT"))));
+    (!!exKey && (hasFailed("e", exKey) || (cmp && by === "person" && hasFailed("e", exKey, "DRAFT")))) ||
+    objRowState === "failed";
 
   // 「오브젝트 사용 안 함」 모음 — 내용이 같으면 같은 Set 을 넘겨 메뉴 칸을 다시 펴지 않는다
   const unusedKey = useMemo(() => {
@@ -226,6 +227,7 @@ export default function CommPermBenchPage() {
       mfilter={sel.mfilter}
       unusedObjs={unusedObjs}
       canEdit={canEdit}
+      registerLoading={registerLoading}
       onSelectObject={actions.selectObject}
       onToggleOpen={actions.toggleOpen}
       onExpandAll={actions.expandAll}
@@ -252,6 +254,7 @@ export default function CommPermBenchPage() {
       explain={lookExplain}
       baseExplain={cmp ? curExplain : undefined}
       failed={previewFailed}
+      objRowState={objRowState}
       rolePerms={view.rolePerms}
       basePerms={rolePerms}
       unusedObjs={unusedObjs}

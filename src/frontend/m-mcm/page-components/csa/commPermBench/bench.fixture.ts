@@ -595,7 +595,7 @@ export function createMockPermBenchApi(options: MockPermBenchOptions = {}): Mock
           USE_TP: r.use,
           GROUP_CNT: gids.length,
           USER_CNT: people.size,
-          PERM_CNT: r.id === PERM_SYSADMIN_ROLE_ID ? g.objects.size : g.perms.get(r.id)?.size ?? 0,
+          PERM_CNT: r.id === PERM_SYSADMIN_ROLE_ID ? -1 : g.perms.get(r.id)?.size ?? 0,
         };
       });
       const ids = new Set(users.map((u) => u.USER_ID));
@@ -630,8 +630,9 @@ export function createMockPermBenchApi(options: MockPermBenchOptions = {}): Mock
       const rp = g.perms.get(params.roleId);
       for (const o of g.objects.values()) {
         if (f && o.folder !== f && o.mod !== f) continue;
-        // 서버(bench-be 계약 ②)는 퍼미션 없는 오브젝트도 줄로 준다. 퍼미션 있음 = BTN_PERM 이 null 이 아님.
+        // 서버(bench-be 계약 ②·#13)는 menuFolderId 를 줄 때만 퍼미션 없는 오브젝트도 줄로 준다. 퍼미션 있음 = BTN_PERM 이 null 이 아님.
         const p = rp?.get(o.id);
+        if (!f && !p) continue;
         perms.push({
           ROLE_ID: params.roleId,
           OBJECT_ID: o.id,

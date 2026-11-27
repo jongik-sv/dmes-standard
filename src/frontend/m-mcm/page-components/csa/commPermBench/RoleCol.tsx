@@ -4,7 +4,7 @@
 import { memo, useMemo, useState } from "react";
 import { IconPencil, IconPlus } from "@tabler/icons-react";
 import { Checkbox, Input } from "@dk-oasis/shared/form";
-import { fmtNum, rolesOfGroup } from "./model";
+import { fmtNum, permCntText, rolesOfGroup } from "./model";
 import { LegacyIconButton, Panel, RoleChip, StatusTag, useBench } from "./parts";
 import { linkDiffKind } from "./draft";
 import { PERM_SYSADMIN_ROLE_ID } from "./types";
@@ -75,7 +75,7 @@ export const RoleCol = memo(function RoleCol({ groupId, roleId, canEdit, onSelec
                   )}
                 </span>
                 <small>
-                  메뉴 {fmtNum(r.PERM_CNT)}개 · 사람 {fmtNum(r.USER_CNT)}명
+                  {permCntText(r.PERM_CNT)} · 사람 {fmtNum(r.USER_CNT)}명
                 </small>
               </button>
               {cur && <span className="pb-pick__go">›</span>}
@@ -117,7 +117,7 @@ export const RoleAllCol = memo(function RoleAllCol({ roleId, onSelect }: { roleI
                 {r.USE_TP === "N" && <StatusTag kind="block">사용 안 함</StatusTag>}
               </span>
               <small>
-                메뉴 {fmtNum(r.PERM_CNT)}개 · 사람 {fmtNum(r.USER_CNT)}명 · 그룹 {r.GROUP_CNT}개
+                {permCntText(r.PERM_CNT)} · 사람 {fmtNum(r.USER_CNT)}명 · 그룹 {r.GROUP_CNT}개
               </small>
             </button>
             {cur && <span className="pb-pick__go">›</span>}

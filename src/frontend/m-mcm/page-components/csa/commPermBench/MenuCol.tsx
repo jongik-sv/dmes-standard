@@ -43,7 +43,7 @@ function TriCheck({ state, label, disabled, onChange }: { state: "Y" | "P" | "N"
 }
 
 export const MenuCol = memo(function MenuCol({
-  roleId, objectId, menuId, tree, rolePerm, basePerm, failed, open, mfilter, unusedObjs, canEdit,
+  roleId, objectId, menuId, tree, rolePerm, basePerm, failed, open, mfilter, unusedObjs, canEdit, registerLoading = false,
   onSelectObject, onToggleOpen, onExpandAll, onCollapseAll, onFilter, onToggleRegister, onRetry,
 }: {
   roleId: string | null;
@@ -62,6 +62,8 @@ export const MenuCol = memo(function MenuCol({
   mfilter: MenuFilter;
   unusedObjs: ReadonlySet<string>;
   canEdit: boolean;
+  /** 등록 체크 전에 폴더 퍼미션 줄을 읽는 중(z2 F5). 그동안 등록 체크를 끈다. */
+  registerLoading?: boolean;
   onSelectObject: (objectId: string, menuId: string) => void;
   onToggleOpen: (menuId: string) => void;
   onExpandAll: () => void;
@@ -75,7 +77,7 @@ export const MenuCol = memo(function MenuCol({
   const [q, setQ] = useState("");
   const locked = roleId === PERM_SYSADMIN_ROLE_ID;
   /** 현재 값 퍼미션을 읽었는가(boolean 만 열 정의 deps 에 둔다 — 편집마다 열을 새로 만들지 않게). */
-  const permReady = !!basePerm;
+  const permReady = !!basePerm && !registerLoading;
   const role = roleId ? bench.roleById.get(roleId) : undefined;
   const roleUnused = role?.USE_TP === "N";
 
@@ -93,8 +95,10 @@ export const MenuCol = memo(function MenuCol({
 
   const regCount = useMemo(() => {
     if (!roleId) return null;
-    if (locked) return tree ? tree.byObject.size : role?.PERM_CNT ?? 0;
-    if (!rolePerm) return role?.PERM_CNT ?? 0;
+    // PERM_CNT -1 = SYSADMIN(z2 F3) — 수로 쓰지 않는다
+    const permCnt = Math.max(0, role?.PERM_CNT ?? 0);
+    if (locked) return tree ? tree.byObject.size : permCnt;
+    if (!rolePerm) return permCnt;
     let n = 0;
     for (const r of rolePerm.values()) if (hasPerm(r)) n += 1;
     return n;

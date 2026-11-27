@@ -10,6 +10,7 @@ import com.dongkuk.dmes.mcm.csa.commPermBench.dto.PermBenchGroupsRow;
 import com.dongkuk.dmes.mcm.csa.commPermBench.dto.PermBenchRolesRow;
 import com.dongkuk.dmes.mcm.csa.commPermBench.dto.PermBenchUserGroupsRow;
 import com.dongkuk.dmes.mcm.csa.commPermBench.dto.PermBenchUsersRow;
+import com.dongkuk.dmes.mcm.repository.CommPermQueryRepository;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import jakarta.persistence.Query;
@@ -34,6 +35,9 @@ import java.util.Optional;
 public class CommPermBenchQueryRepository {
 
     private static final String S = "MCMAPUSER.";
+
+    /** SYSADMIN 역할의 PERM_CNT — 퍼미션 없이 모든 값(commRoleMng {@code CommRoleMngService} 와 같은 값). */
+    static final long SYSADMIN_PERM_CNT = -1L;
 
     @PersistenceContext(unitName = "default")
     private EntityManager entityManager;
@@ -151,7 +155,7 @@ public class CommPermBenchQueryRepository {
         return out;
     }
 
-    /** 역할 전체 + 그룹 수·사람 수(그룹 경유, 중복 제거)·퍼미션 행 수(TB_MCM_SEC_ROLE_PERM). */
+    /** 역할 전체 + 그룹 수·사람 수(그룹 경유, 중복 제거)·퍼미션 행 수(TB_MCM_SEC_ROLE_PERM, SYSADMIN = -1). */
     @SuppressWarnings("unchecked")
     public List<PermBenchRolesRow> searchRoles() {
         String sql = "SELECT R.ROLE_ID, R.ROLE_NM, R.MENU_ID, R.USE_TP, "
@@ -166,7 +170,7 @@ public class CommPermBenchQueryRepository {
         List<PermBenchRolesRow> out = new ArrayList<>(rows.size());
         for (Object[] r : rows) {
             out.add(new PermBenchRolesRow(str(r[0]), str(r[1]), str(r[2]), str(r[3]),
-                    toLong(r[4]), toLong(r[5]), toLong(r[6])));
+                    toLong(r[4]), toLong(r[5]), rolePermCnt(str(r[0]), toLong(r[6]))));
         }
         return out;
     }
@@ -305,6 +309,11 @@ public class CommPermBenchQueryRepository {
             return odt.toLocalDateTime();
         }
         throw new IllegalStateException("날짜 형이 아닙니다: " + o.getClass().getName());
+    }
+
+    /** 역할 칸 PERM_CNT. SYSADMIN 이면 -1(퍼미션 행 수와 상관없이 모든 값 — {@link CommPermQueryRepository#isSysadmin}). */
+    static long rolePermCnt(String roleId, long permRows) {
+        return CommPermQueryRepository.isSysadmin(roleId) ? SYSADMIN_PERM_CNT : permRows;
     }
 
     static long toLong(Object o) {

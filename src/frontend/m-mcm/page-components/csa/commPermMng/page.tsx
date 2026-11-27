@@ -16,7 +16,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ContentBody, ContentPanel, PageLayout, SearchArea, SearchField } from "@dk-oasis/shared/layout";
 import { AgDataGrid, GridPanel, Pagination, type GridColumn } from "@dk-oasis/shared/grid";
-import { Badge, Button, Checkbox } from "@dk-oasis/shared/form";
+import { Badge, Button, Checkbox, ComboBox } from "@dk-oasis/shared/form";
 import { useMessage } from "@dk-oasis/shared/message-provider";
 import { useCarryRestored, useCarryState } from "@dk-oasis/shared/portal-shell";
 import { lov, saveCmPerm, searchCmPerm, searchPermOne } from "./api";
@@ -27,6 +27,7 @@ import {
   allowedOf,
   baseValue,
   entryOf,
+  deleteConfirmText,
   findEmptyBtn,
   foldSaved,
   makeValue,
@@ -40,7 +41,8 @@ import {
   type PermViewRow,
 } from "./perm-chips";
 import { PERM_MNG_CSS, PERM_MNG_STYLE_HREF } from "./perm-styles";
-import type { PermMenuLov, PermRoleLov, PermRow, PermSearchParams } from "./types";
+import { roleFilterOptions } from "./role-filter";
+import type { PermMenuLov, PermRoleLov, PermRow, PermSaveRow, PermSearchParams } from "./types";
 
 const SCREEN_ID = "commPermMng";
 /** 한 쪽 줄 수(서버 페이지). */
@@ -406,6 +408,30 @@ export default function CommPermMngPage() {
   }, [selectedKey, oneTick, showMessage]);
 
   // ── 저장 ──
+  /** 바뀐 건 저장 — 확인을 거친 뒤(또는 확인이 필요 없을 때) 부른다. */
+  const runSave = useCallback(
+    async (saved: ReadonlyMap<string, PermEntry>, saveRows: PermSaveRow[]) => {
+      savingRef.current = true;
+      setIsSaving(true);
+      try {
+        await saveCmPerm(saveRows);
+        // 저장한 값을 조회 줄에 먼저 접어 넣고 바뀐 값을 비운다 — 다시 조회가 실패해도 저장 전 값으로 돌아가 보이지 않는다.
+        setRows((prev) => foldSaved(prev, saved));
+        commitPending(new Map());
+        showMessage({ message: "저장되었습니다.", alertType: "success", toast: true });
+        const q = queryRef.current;
+        if (q) await runSearch(q);
+        setOneTick((n) => n + 1);
+      } catch (e) {
+        showMessage({ title: "오류", message: saveErrorText(e), alertType: "error" });
+      } finally {
+        savingRef.current = false;
+        setIsSaving(false);
+      }
+    },
+    [showMessage, commitPending, runSearch, setRows],
+  );
+
   const handleSave = useCallback(async () => {
     if (savingRef.current || busyRef.current) return;
     const saved = pendingRef.current;
@@ -427,24 +453,23 @@ export default function CommPermMngPage() {
       showMessage({ message: "변경된 데이터가 없습니다.", alertType: "warning" });
       return;
     }
-    savingRef.current = true;
-    setIsSaving(true);
-    try {
-      await saveCmPerm(saveRows);
-      // 저장한 값을 조회 줄에 먼저 접어 넣고 바뀐 값을 비운다 — 다시 조회가 실패해도 저장 전 값으로 돌아가 보이지 않는다.
-      setRows((prev) => foldSaved(prev, saved));
-      commitPending(new Map());
-      showMessage({ message: "저장되었습니다.", alertType: "success", toast: true });
-      const q = queryRef.current;
-      if (q) await runSearch(q);
-      setOneTick((n) => n + 1);
-    } catch (e) {
-      showMessage({ title: "오류", message: saveErrorText(e), alertType: "error" });
-    } finally {
-      savingRef.current = false;
-      setIsSaving(false);
+    // z2 F2 — 마지막 버튼 끄기·퍼미션 빼기로 지워지는 퍼미션이 있으면 묻는다(확인 = 저장, 취소 = 저장 안 함·바뀐 값 그대로).
+    const delText = deleteConfirmText(saved.values());
+    if (delText) {
+      showMessage({
+        title: "확인",
+        message: delText,
+        alertType: "confirm",
+        onConfirm: () => {
+          // 창이 열린 사이 바뀐 값·다른 저장이 생겼으면 저장하지 않는다(다시 [저장])
+          if (pendingRef.current !== saved || savingRef.current || busyRef.current) return;
+          void runSave(saved, saveRows);
+        },
+      });
+      return;
     }
-  }, [showMessage, commitPending, runSearch, rowByKey, setRows, setSelectedKey]);
+    await runSave(saved, saveRows);
+  }, [showMessage, rowByKey, setSelectedKey, runSave]);
 
   // ── 퍼미션 한 건 바꾸기 ──
   /** 지금 값에 fn 을 적용해 바뀐 건 목록을 고친다. 조회 때와 같아지면 목록에서 뺀다. */
@@ -519,13 +544,8 @@ export default function CommPermMngPage() {
   );
 
   // ── 조회 조건 ──
-  const roleOptions = useMemo(
-    () => [
-      { value: "", label: "전체" },
-      ...roles.map((r) => ({ value: r.ROLE_ID, label: r.ROLE_NM ? `${r.ROLE_NM} (${r.ROLE_ID})` : r.ROLE_ID })),
-    ],
-    [roles],
-  );
+  const roleOptions = useMemo(() => roleFilterOptions(roles), [roles]);
+  const handleRoleFilter = useCallback((v: string) => setFilters((p) => ({ ...p, roleId: v })), [setFilters]);
   const menuOptions = useMemo(
     () => [
       { value: "", label: "전체 메뉴" },
@@ -562,14 +582,16 @@ export default function CommPermMngPage() {
       </style>
 
       <SearchArea onSearch={handleSearch} autoSearch>
-        <SearchField
-          label="역할"
-          name="ROLE_ID"
-          type="select"
-          options={roleOptions}
-          value={filters.roleId}
-          onChange={(v) => setFilter("roleId", v)}
-        />
+        {/* 역할이 많아 입력해서 찾는다(z2 F4) — options·value·onChange 를 함께 넘겨 조회 기본값 대상으로 둔다(그리기는 children) */}
+        <SearchField label="역할" name="ROLE_ID" type="select" options={roleOptions} value={filters.roleId} onChange={handleRoleFilter}>
+          <ComboBox
+            data={roleOptions}
+            value={filters.roleId}
+            onChange={handleRoleFilter}
+            placeholder="역할 이름 · ROLE_ID 찾기"
+            aria-label="역할"
+          />
+        </SearchField>
         <SearchField
           label="메뉴"
           name="MENU_ID"

@@ -65,6 +65,7 @@ export interface BenchRoleRow {
   USE_TP: YN;
   GROUP_CNT: number;
   USER_CNT: number;
+  /** 퍼미션 행 수. SYSADMIN = -1(퍼미션 없이 모든 값, commRoleMng 와 같음). */
   PERM_CNT: number;
 }
 

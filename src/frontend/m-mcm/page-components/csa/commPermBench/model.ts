@@ -54,6 +54,9 @@ export const popLabel = (code: string): string => POP_LABEL[code] ?? code;
 
 export const fmtNum = (n: number): string => n.toLocaleString("ko-KR");
 
+/** 역할 칸 퍼미션 수 글(z2 F3). PERM_CNT -1 = SYSADMIN(퍼미션 없이 모든 값 — commRoleMng 와 같은 판정). */
+export const permCntText = (n: number): string => (n < 0 ? "퍼미션 모두" : `퍼미션 ${fmtNum(n)}개`);
+
 /** 역할 색 칩 번호(0~11). 역할 목록 순서로 정한다(시안 rcOf). */
 export function roleColorIndex(roleOrder: ReadonlyMap<string, number>, roleId: string): number {
   return Math.max(0, roleOrder.get(roleId) ?? 0) % 12;
@@ -338,6 +341,21 @@ export function hiddenInMenu(tree: MenuTree, m: BenchMenuRow | undefined): boole
     cur = cur.PARENT_MENU_ID ? tree.byId.get(cur.PARENT_MENU_ID) : undefined;
   }
   return false;
+}
+
+/** 미리보기 화면 열림: open = 열림·쓸 버튼 있음 · noBtn = 열림·쓸 버튼 없음 · closed = 못 엶. */
+export type PreviewOpen = "open" | "noBtn" | "closed";
+
+/**
+ * 미리보기 화면 열림(z2 F1). 정본 = 서버 메뉴 트리 화면 줄의 VISIBLE(실제 로그인 getMyMenus 와 같다 — 메뉴는 퍼미션 토큰 내용을 보지 않는다).
+ * - VISIBLE Y: 켠 버튼이 있으면 open, 없으면 noBtn(빈 효과 퍼미션 — 화면은 열리고 쓸 버튼이 없다)
+ * - VISIBLE N: closed(켠 버튼이 있어도 서버 판정을 따른다)
+ * - 줄이 없으면(트리 못 읽음·옛 자료) 켠 버튼으로 판정한다.
+ */
+export function previewOpenOf(row: BenchMenuRow | undefined, anyOn: boolean): PreviewOpen {
+  const visible = row ? row.VISIBLE === "Y" : anyOn;
+  if (!visible) return "closed";
+  return anyOn ? "open" : "noBtn";
 }
 
 /** 메뉴 칸 그리드 한 줄. */

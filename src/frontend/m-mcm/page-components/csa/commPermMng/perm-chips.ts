@@ -234,6 +234,23 @@ export function findEmptyBtn(entries: Iterable<PermEntry>): PermEntry[] {
   return out;
 }
 
+/** 저장하면 지워지는 퍼미션(조회 때 있었는데 지금 없음 — 마지막 버튼 끄기·「퍼미션 빼기」, D14). */
+export function findDeleted(entries: Iterable<PermEntry>): PermEntry[] {
+  const out: PermEntry[] = [];
+  for (const e of entries) if (e.base.has && !e.cur.has) out.push(e);
+  return out;
+}
+
+/** 지워지는 퍼미션이 있을 때 저장 전 확인 글(z2 F2). 없으면 null. */
+export function deleteConfirmText(entries: Iterable<PermEntry>): string | null {
+  const del = findDeleted(entries);
+  if (!del.length) return null;
+  const MAX = 5;
+  const list = del.slice(0, MAX).map((e) => `${e.roleId} × ${e.objectId}`).join(", ");
+  const more = del.length > MAX ? ` 외 ${del.length - MAX}건` : "";
+  return `마지막 버튼을 끄면 이 퍼미션이 지워집니다. 저장하면 퍼미션 ${del.length}건이 지워집니다: ${list}${more}. 저장하시겠습니까?`;
+}
+
 /** 오브젝트 밖 값 안내 한 줄(D15 — 바꿔 저장하면 빠진다). 밖 값이 없으면 null. */
 export function outNotice(values: readonly string[], allowed: readonly string[]): string | null {
   const out = outOfObject(values, allowed);

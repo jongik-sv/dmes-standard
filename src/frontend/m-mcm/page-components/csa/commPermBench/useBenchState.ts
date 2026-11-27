@@ -24,15 +24,17 @@ import {
   objUseOf,
   rolesOfGroup,
   rolesOfUser,
+  screenRowOf,
   type BenchBy,
   type BenchIndex,
   type BenchPhase,
   type MenuFilter,
+  type MenuTree,
   type RolePermMap,
 } from "./model";
 import { PERM_SYSADMIN_ROLE_ID, type PermBenchApi, type PermChangeRow, type PermSource } from "./types";
 import { useOpenWith, type OpenWith } from "./nav";
-import { roleTreeKey, useBenchData, userTreeKey, type BenchData } from "./useBenchData";
+import { folderPermKey, roleTreeKey, useBenchData, userTreeKey, type BenchData } from "./useBenchData";
 import {
   changeKey,
   draftRoleIds,
@@ -194,7 +196,14 @@ export interface BenchState {
    * ROLE_OBJ 의 SYSADMIN 역할 퍼미션(ADD·UPD)은 ME_SYSADMIN 과 상관없이 늘 막는다(BE 계약 ⑤-5).
    */
   isSysadmin: boolean;
+  /** 등록 체크 전에 폴더 퍼미션 줄을 읽는 중(z2 F5) — 메뉴 칸 등록 체크를 끈다. */
+  registerLoading: boolean;
+  /** 고른 화면의 오브젝트 줄이 역할 줄 전부에 없을 때 그 폴더 읽기 상태(z2 F5). 줄이 있거나 해당 없음 = null. */
+  objRowState: ObjRowState | null;
 }
+
+/** 폴더로 읽는 오브젝트 줄 상태: 읽는 중 · 다 읽었는데 줄 없음 · 읽기 실패. */
+export type ObjRowState = "loading" | "none" | "failed";
 
 export interface BenchStateOptions {
   /** 초안 저장·영향 읽기 실패 알림(화면이 메시지로 보인다). */
@@ -204,10 +213,24 @@ export interface BenchStateOptions {
 /** 서명 → 줄(draft.ts 가 방금 만든 서명이면 JSON.parse 없이, f3 리뷰 4). */
 const parseRows = (sig: string): readonly PermChangeRow[] => rowsOfSig(sig);
 
+/** 메뉴 줄 하나의 위 모듈·폴더 MENU_ID 들(가까운 쪽부터). */
+function ancestorIds(tree: MenuTree, menuId: string): string[] {
+  const out: string[] = [];
+  let p = tree.byId.get(menuId)?.PARENT_MENU_ID ?? null;
+  for (let i = 0; p && i < 64; i++) {
+    out.push(p);
+    p = tree.byId.get(p)?.PARENT_MENU_ID ?? null;
+  }
+  return out;
+}
+
 export function useBenchState(api: PermBenchApi, opts: BenchStateOptions = {}): BenchState {
   const [raw, setRaw] = useState<BenchSelection>(INITIAL);
   const data = useBenchData(api);
-  const { bench, benchLoading, menuTrees, rolePerms, epoch, ensureMenuTree, ensureRolePerms, ensureExplain, invalidateDraft } = data;
+  const { bench, benchLoading, menuTrees, rolePerms, epoch, ensureMenuTree, ensureRolePerms, ensureFolderPerms, fetchFolderPerms, ensureExplain, invalidateDraft } = data;
+  // 접힌 폴더 체크 전에 폴더 퍼미션 줄을 읽는 중(z2 F5) — 그동안 등록 체크를 끈다
+  const [registerLoading, setRegisterLoading] = useState(false);
+  const registerLoadingRef = useRef(false);
   const phaseEdit = raw.phase >= 2;
   const draft = useBenchDraft(api, { enabled: phaseEdit, onSaved: invalidateDraft, onError: opts.onError });
   // 다시 읽는 동안(benchLoading)에는 앞 현재 값이 보여 낡은 기준으로 OP 를 정하게 되므로 편집을 막는다(f3 리뷰 5). 버리는 중도 막는다(리뷰 2)
@@ -360,6 +383,25 @@ export function useBenchState(api: PermBenchApi, opts: BenchStateOptions = {}): 
   const { mutate } = draft;
   const edit = useMemo<BenchEditActions>(() => {
     const rname = (id: string) => benchRef.current?.roleById.get(id)?.ROLE_NM ?? id;
+    /** 등록·해제를 초안에 얹는다. cur = 그 역할의 현재 퍼미션 줄(폴더로 읽은 빈 줄 포함). */
+    const applyRegister = (rid: string, objectIds: readonly string[], on: boolean, cur: RolePermMap) => {
+      const baseOf = (oid: string) => permBaseOf(cur.get(oid));
+      const regIn = (x: DraftMap) => (oid: string) => {
+        const c = x.get(changeKey("ROLE_OBJ", rid, oid));
+        return c ? c.OP !== "DEL" : hasPerm(cur.get(oid));
+      };
+      // 한 번만 계산한다 — updater 가 받은 초안이 계산한 기준과 같으면 결과를 그대로 쓴다(StrictMode 두 번 부름도 싸다, f3 리뷰 4)
+      const from = draftRef.current;
+      const probe = setRegister(from, rid, objectIds, on, baseOf, regIn(from));
+      mutate((x) => (x === from ? probe.draft : setRegister(x, rid, objectIds, on, baseOf, regIn(x)).draft));
+      if (objectIds.length === 1) {
+        if (on) actions.selectObject(objectIds[0]);
+        if (probe.skipped) actions.setFlash("버튼이 없는 화면이라 등록할 수 없습니다");
+        return;
+      }
+      const skip = probe.skipped ? ` · 버튼이 없는 화면 ${probe.skipped}개는 건너뜀` : "";
+      actions.setFlash(`${rname(rid)}: 메뉴 ${probe.changed}개를 ${on ? "등록" : "등록 해제"}했습니다(초안)${skip}`);
+    };
     return {
       toggleMember: (groupId, on) => {
         const s = selRef.current;
@@ -386,25 +428,37 @@ export function useBenchState(api: PermBenchApi, opts: BenchStateOptions = {}): 
       toggleRegister: (objectIds, on) => {
         const s = selRef.current;
         const rid = s.roleId;
-        if (!canEditRef.current || !rid || rid === PERM_SYSADMIN_ROLE_ID) return;
-        const cur = curPermsRef.current.get(rid);
-        if (!cur) return;
-        const baseOf = (oid: string) => permBaseOf(cur.get(oid));
-        const regIn = (x: DraftMap) => (oid: string) => {
-          const c = x.get(changeKey("ROLE_OBJ", rid, oid));
-          return c ? c.OP !== "DEL" : hasPerm(cur.get(oid));
-        };
-        // 한 번만 계산한다 — updater 가 받은 초안이 계산한 기준과 같으면 결과를 그대로 쓴다(StrictMode 두 번 부름도 싸다, f3 리뷰 4)
-        const from = draftRef.current;
-        const probe = setRegister(from, rid, objectIds, on, baseOf, regIn(from));
-        mutate((x) => (x === from ? probe.draft : setRegister(x, rid, objectIds, on, baseOf, regIn(x)).draft));
-        if (objectIds.length === 1) {
-          if (on) actions.selectObject(objectIds[0]);
-          if (probe.skipped) actions.setFlash("버튼이 없는 화면이라 등록할 수 없습니다");
+        if (!canEditRef.current || !rid || rid === PERM_SYSADMIN_ROLE_ID || registerLoadingRef.current) return;
+        const cur0 = curPermsRef.current.get(rid);
+        if (!cur0) return;
+        // 퍼미션 없는 화면은 역할 줄 전부에 줄이 없다(bench-be #13). 등록하려면 그 화면 폴더 줄(허용 값)을 먼저 읽는다 — 조용히 건너뛰지 않는다(z2 F5)
+        const missing = on ? objectIds.filter((oid) => !cur0.has(oid)) : [];
+        if (!missing.length) {
+          applyRegister(rid, objectIds, on, cur0);
           return;
         }
-        const skip = probe.skipped ? ` · 버튼이 없는 화면 ${probe.skipped}개는 건너뜀` : "";
-        actions.setFlash(`${rname(rid)}: 메뉴 ${probe.changed}개를 ${on ? "등록" : "등록 해제"}했습니다(초안)${skip}`);
+        const tree = treesRef.current.get(roleTreeKey(rid));
+        const folders = [...new Set(missing.map((oid) => tree?.byObject.get(oid)?.PARENT_MENU_ID).filter((f): f is string => !!f))];
+        if (!folders.length) {
+          actions.setFlash("메뉴를 읽지 못해 등록하지 않았습니다. 다시 읽은 뒤 눌러 주세요");
+          return;
+        }
+        registerLoadingRef.current = true;
+        setRegisterLoading(true);
+        void fetchFolderPerms(rid, folders).then((rows) => {
+          registerLoadingRef.current = false;
+          setRegisterLoading(false);
+          // 그사이 역할을 바꿨거나 편집을 못 하게 됐으면 적용하지 않는다
+          if (rows === "stale" || selRef.current.roleId !== rid || !canEditRef.current) return;
+          if (rows === "failed") {
+            actions.setFlash("퍼미션을 읽지 못해 등록하지 않았습니다. 다시 눌러 주세요");
+            return;
+          }
+          const base = curPermsRef.current.get(rid) ?? cur0;
+          const merged = new Map(base);
+          for (const [oid, r] of rows) if (!merged.has(oid)) merged.set(oid, r);
+          applyRegister(rid, objectIds, on, merged);
+        });
       },
       setPermValues: (btn, popup) => {
         const { roleId: rid, objectId: oid } = selRef.current;
@@ -425,7 +479,7 @@ export function useBenchState(api: PermBenchApi, opts: BenchStateOptions = {}): 
         actions.setFlash("되돌렸습니다");
       },
     };
-  }, [mutate, updateRaw, actions, isSysadmin]);
+  }, [mutate, updateRaw, actions, isSysadmin, fetchFolderPerms]);
 
   // ── 다시 읽은 현재 값에 초안 맞추기(f3 리뷰 3) ──────────────
   // 현재 값(bench·역할 퍼미션)이 새로 오면 초안 줄의 OP 를 새 현재 값에 맞추고, 현재와 같아진 줄을 지운다.
@@ -490,6 +544,44 @@ export function useBenchState(api: PermBenchApi, opts: BenchStateOptions = {}): 
 
   // 첫 화면 고르기: 고른 역할의 등록 화면 중 잠긴 버튼이 있는 첫 화면, 없으면 첫 등록 화면, 없으면 첫 화면
   const rolePermMap = roleId ? rolePerms.get(roleId) : undefined;
+
+  // 퍼미션 없는 화면을 고름(z2 F5): 역할 줄 전부(menuFolderId 없음)에는 그 오브젝트 줄이 없다(bench-be #13).
+  // 그 화면의 폴더로 한 번 더 읽어 허용 값이 든 빈 줄을 얹는다 — 없으면 버튼을 읽는 중에서 멈추고 등록할 수 없다.
+  const folderTree = by === "role" ? roleTree : userId ? menuTrees.get(userTreeKey(userId)) : undefined;
+  const missingFolderId =
+    roleId && roleId !== PERM_SYSADMIN_ROLE_ID && objectId && rolePermMap && !rolePermMap.has(objectId) && folderTree
+      ? screenRowOf(folderTree, objectId, sel.menuId)?.PARENT_MENU_ID ?? null
+      : null;
+  // 메뉴 칸에서 펼친 폴더도 같다 — 폴더 체크(한꺼번에 등록)가 퍼미션 없는 화면을 「버튼 없는 화면」으로 건너뛰지 않게 한다
+  const openFolderKey =
+    by === "role" && roleId && roleId !== PERM_SYSADMIN_ROLE_ID && roleTree && rolePermMap
+      ? [...sel.open]
+          .filter((id) => (roleTree.menusUnder.get(id) ?? []).some((m) => m.PARENT_MENU_ID === id && m.OBJECT_ID && !rolePermMap.has(m.OBJECT_ID)))
+          // 위 폴더도 읽을 목록에 있으면 뺀다(서버는 폴더 아래 전부를 준다)
+          .filter((id, _i, list) => !ancestorIds(roleTree, id).some((a) => list.includes(a)))
+          .sort()
+          .join("\n")
+      : "";
+  useEffect(() => {
+    if (!roleId) return;
+    if (missingFolderId) ensureFolderPerms(roleId, missingFolderId);
+    for (const f of openFolderKey ? openFolderKey.split("\n") : []) ensureFolderPerms(roleId, f);
+  }, [epoch, roleId, missingFolderId, openFolderKey, ensureFolderPerms]);
+  // 고른 화면의 오브젝트 줄 상태(역할 줄 전부에 없을 때만): 읽는 중 · 다 읽었는데 없음 · 읽기 실패 — 화면이 「읽는 중」과 「값 없음」을 가른다
+  const folderSelKey = roleId && missingFolderId ? folderPermKey(roleId, missingFolderId) : null;
+  const { hasFailed, folderDone } = data;
+  const objRowState: ObjRowState | null =
+    !roleId || roleId === PERM_SYSADMIN_ROLE_ID || !objectId || !rolePermMap || rolePermMap.has(objectId)
+      ? null
+      : !folderTree
+        ? "loading"
+        : !folderSelKey
+          ? "none"
+          : hasFailed("p", folderSelKey)
+            ? "failed"
+            : folderDone.has(folderSelKey)
+              ? "none"
+              : "loading";
   useEffect(() => {
     if (objectId || !roleTree || !roleId) return;
     if (roleId !== PERM_SYSADMIN_ROLE_ID && !rolePermMap) return;
@@ -515,7 +607,7 @@ export function useBenchState(api: PermBenchApi, opts: BenchStateOptions = {}): 
   const view = useMemo<BenchView>(() => ({ bench: viewBench, rolePerms: viewRolePerms, menuRolePerm }), [viewBench, viewRolePerms, menuRolePerm]);
 
   return useMemo(
-    () => ({ sel, data, view, draft, actions, edit, look, canEdit, canLink: sel.phase >= 3, isSysadmin }),
-    [sel, data, view, draft, actions, edit, look, canEdit, isSysadmin],
+    () => ({ sel, data, view, draft, actions, edit, look, canEdit, canLink: sel.phase >= 3, isSysadmin, registerLoading, objRowState }),
+    [sel, data, view, draft, actions, edit, look, canEdit, isSysadmin, registerLoading, objRowState],
   );
 }

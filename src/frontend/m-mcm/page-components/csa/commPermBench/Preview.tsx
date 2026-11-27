@@ -22,10 +22,12 @@ import {
   hiddenInMenu,
   fmtNum,
   groupsGivingRole,
+  hasPerm,
   menuPathOf,
   objUseOf,
   parseTokens,
   popLabel,
+  previewOpenOf,
   btnLabel,
   REASON_SHORT,
   roleButtonWhy,
@@ -38,6 +40,7 @@ import {
   type RolePermMap,
 } from "./model";
 import { Panel, RoleChip, useBench } from "./parts";
+import type { ObjRowState } from "./useBenchState";
 import { PermCol } from "./PermCol";
 
 const BY_OPTIONS = [
@@ -78,6 +81,8 @@ export interface PreviewProps {
   baseExplain: ExplainResult | undefined;
   /** 이 화면의 메뉴 트리·explain 읽기가 실패했는가. */
   failed: boolean;
+  /** 고른 화면 오브젝트 줄이 역할 줄 전부에 없을 때 폴더 읽기 상태(z2 F5). none = 다 읽었는데 줄 없음. */
+  objRowState?: ObjRowState | null;
   /** 역할별 퍼미션 + 화면 초안(퍼미션 칸·초안 보기). */
   rolePerms: ReadonlyMap<string, RolePermMap>;
   /** 역할별 퍼미션 현재 값. */
@@ -129,7 +134,7 @@ export const Preview = memo(function Preview(p: PreviewProps) {
     [tree, p.nav, cmp, baseTree],
   );
 
-  // 사람 기준: 메뉴마다 보이게 한 역할(사용 중인 역할 중 그 화면 버튼이 하나라도 있는 역할)
+  // 사람 기준: 메뉴마다 보이게 한 역할(사용 중인 역할 중 그 화면 퍼미션 행이 있는 역할 — 서버 메뉴 판정과 같다, 토큰 내용은 보지 않는다)
   const activeRoles = useMemo(() => (!byRole && userId ? activeRolesOfUser(idx, userId) : []), [idx, byRole, userId]);
   const navRoles = useMemo(() => {
     const out = new Map<string, string[]>();
@@ -139,8 +144,7 @@ export const Preview = memo(function Preview(p: PreviewProps) {
       const oid = it.OBJECT_ID;
       const rs = activeRoles.filter((r) => {
         const row = shownPerms.get(r)?.get(oid);
-        if (r === PERM_SYSADMIN_ROLE_ID) return true;
-        return !!row && effectivePerm(r, row, allowedFromPermRow(row)).btn.length > 0;
+        return r === PERM_SYSADMIN_ROLE_ID || hasPerm(row);
       });
       if (rs.length) out.set(oid, rs);
     }
@@ -210,16 +214,31 @@ export const Preview = memo(function Preview(p: PreviewProps) {
   }, [objectId, byRole, explain, baseExplain, cmp, draftView, user, bench, roleId, allowed, shownPerms, basePerms, role, objUnused, rname]);
 
   // 역할 기준: 허용 값(퍼미션 줄)에 더해 오브젝트 사용 여부를 알아야 한다 — 메뉴 줄 OBJ_USE_TP 또는 explain
-  const loadingMain = !!objectId && !failed && (byRole ? !allowed || (rowUnused === undefined && !explain) : !explain);
-  const canOpen = tools.some((x) => x.on) || pops.some((x) => x.on);
-  // 열 수 없는 화면: 버튼 줄 대신 잠긴 이유(겹치지 않게)와 꺼진 길의 역할을 보인다
+  // 역할 기준: 폴더까지 읽었는데 오브젝트 줄이 없으면(none) 더 기다리지 않는다 — 아래에 「값 없음」을 보인다
+  const noObjRow = byRole && !allowed && p.objRowState === "none";
+  const loadingMain = !!objectId && !failed && (byRole ? (!allowed && !noObjRow) || (rowUnused === undefined && !explain) : !explain);
+  // 화면 열림 = 서버 메뉴 트리 줄 VISIBLE(z2 F1). 빈 효과 퍼미션 = 열림 · 쓸 버튼 없음
+  const anyOn = tools.some((x) => x.on) || pops.some((x) => x.on);
+  // 역할 기준 초안 보기에서 서버 초안 트리가 화면 초안을 아직 담지 않았으면(저장 전·처음 초안) 화면 초안으로 같은 규칙을 따른다:
+  // 퍼미션 줄이 있으면 보임(토큰 내용은 보지 않는다) · 역할·오브젝트·메뉴 사용 안 함이면 안 보임
+  const localRule = byRole && draftView && (!cmp || p.pending) && !!roleId && !!objectId;
+  const localOpen = (perms: ReadonlyMap<string, RolePermMap>) =>
+    roleId === PERM_SYSADMIN_ROLE_ID || (hasPerm(perms.get(roleId ?? "")?.get(objectId ?? "")) && role?.USE_TP !== "N" && !objUnused && screen?.USE_TP !== "N");
+  const openRow = localRule && screen ? { ...screen, VISIBLE: localOpen(shownPerms) ? ("Y" as const) : ("N" as const) } : screen;
+  const openState = previewOpenOf(openRow, anyOn);
+  const canOpen = openState !== "closed";
+  // 초안 보기에서 현재는 열리던 화면이 닫히는가(서버 트리 비교, 화면 초안 규칙이면 현재 퍼미션 줄)
+  const baseScreen = cmp && objectId && baseTree ? screenRowOf(baseTree, objectId, menuId) : undefined;
+  const closesInDraft = !canOpen && (localRule ? localOpen(basePerms) : baseScreen?.VISIBLE === "Y");
+  const screenReason = !localRule && screen?.VISIBLE === "N" && screen.REASON ? REASON_SHORT[screen.REASON] : "";
+  // 열 수 없는 화면: 버튼 줄 대신 잠긴 이유(서버 이유 먼저, 겹치지 않게)와 꺼진 길의 역할을 보인다
   const lockedWhy = useMemo(() => {
     const all = [...tools, ...pops];
-    const text = [...new Set(all.map((x) => x.short).filter(Boolean))].join(" · ");
+    const text = [...new Set([screenReason, ...all.map((x) => x.short)].filter(Boolean))].join(" · ");
     const roles = [...new Set(all.filter((x) => x.rolesOff).flatMap((x) => x.roles))];
     const lost = all.filter((x) => x.chg === "lose").length;
     return { text, roles, lost };
-  }, [tools, pops]);
+  }, [tools, pops, screenReason]);
 
   const tag = (r: string, off: boolean) => {
     const g = !byRole && userId ? groupsGivingRole(idx, userId, r)[0] : undefined;
@@ -341,6 +360,7 @@ export const Preview = memo(function Preview(p: PreviewProps) {
         objectId={objectId}
         objectName={objName}
         allowed={allowed}
+        allowedMissing={!allowed && p.objRowState === "none"}
         objUnused={objUnused}
         rolePerms={rolePerms}
         basePerms={basePerms}
@@ -382,6 +402,16 @@ export const Preview = memo(function Preview(p: PreviewProps) {
         <div className="pb-cantopen">버튼을 읽는 중입니다.</div>
       ) : canOpen ? (
         <>
+          {noObjRow && (
+            <div className="pb-small pb-faint" role="note">
+              이 화면의 오브젝트 버튼 값을 받지 못했습니다(서버에 오브젝트 줄이 없음). 오브젝트 관리에서 버튼 값을 확인합니다.
+            </div>
+          )}
+          {openState === "noBtn" && !noObjRow && (
+            <div className="pb-small pb-muted" role="note">
+              화면은 열림 · 쓸 수 있는 버튼 없음
+            </div>
+          )}
           <div className="pb-apptools">
             <span className="pb-lbl">버튼</span>
             {tools.map((x) => (
@@ -416,7 +446,9 @@ export const Preview = memo(function Preview(p: PreviewProps) {
       ) : (
         <div className="pb-cantopen">
           「{who}」은(는) {lookWord} 이 화면을 열 수 없습니다. 메뉴에도 보이지 않습니다.
-          {lockedWhy.lost > 0 && <div className="pb-small pb-m">초안에서 버튼 {lockedWhy.lost}개를 잃어 닫힙니다.</div>}
+          {closesInDraft && (
+            <div className="pb-small pb-m">초안에서 이 화면이 닫힙니다{lockedWhy.lost > 0 ? `(버튼 ${lockedWhy.lost}개 잃음)` : ""}.</div>
+          )}
           {lockedWhy.text && (
             <div className="pb-small" style={{ marginTop: 6 }}>
               잠긴 이유: {lockedWhy.text} {lockedWhy.roles.map((r) => tag(r, true))}

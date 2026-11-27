@@ -34,6 +34,8 @@ export interface PermColProps {
   roleId: string | null;
   objectId: string;
   objectName: string;
+  /** 다 읽었는데 오브젝트 허용 값이 없다(z2 F5 — 「읽는 중」과 가른다). */
+  allowedMissing?: boolean;
   /** 오브젝트 허용 값. 모르면 undefined(읽는 중). */
   allowed: ObjAllowed | undefined;
   objUnused: boolean;
@@ -123,7 +125,9 @@ export const PermCol = memo(function PermCol(p: PermColProps) {
               readOnly={!editable}
             />
           ) : (
-            <span className="pb-small pb-faint">오브젝트 버튼을 읽는 중입니다.</span>
+            <span className="pb-small pb-faint">
+              {p.allowedMissing ? "오브젝트 버튼 값을 받지 못했습니다(서버에 오브젝트 줄이 없음)." : "오브젝트 버튼을 읽는 중입니다."}
+            </span>
           )}
           <h5 className="pb-psub">
             팝업 권한{" "}
