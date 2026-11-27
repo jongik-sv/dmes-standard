@@ -182,6 +182,18 @@
       "types": "./dist/types/components/transfer-list/index.d.ts",
       "import": "./dist/transfer-list.js"
     },
+    "./resizable-columns": {
+      "types": "./dist/types/components/resizable-columns/index.d.ts",
+      "import": "./dist/resizable-columns.js"
+    },
+    "./token-chip-input": {
+      "types": "./dist/types/components/token-chip-input/index.d.ts",
+      "import": "./dist/token-chip-input.js"
+    },
+    "./toggle-chip-group": {
+      "types": "./dist/types/components/toggle-chip-group/index.d.ts",
+      "import": "./dist/toggle-chip-group.js"
+    },
     "./dashboard": {
       "types": "./dist/types/components/dashboard/index.d.ts",
       "import": "./dist/dashboard.js"

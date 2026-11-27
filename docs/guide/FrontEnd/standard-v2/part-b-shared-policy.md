@@ -46,6 +46,9 @@ UI(폼·모달·메시지·탭·트리·레이아웃·portal-shell·로그인 �
 | `@dk-oasis/shared/variable-table`             | SHOULD                 | 이름·형식·값 변수 표(실행 변수 안내)  | §18              |
 | `@dk-oasis/shared/card`                       | SHOULD                 | 제목 줄 카드 틀·함께 접는 카드 묶음·흐린 보조 글 | §18              |
 | `@dk-oasis/shared/transfer-list`              | SHOULD                 | 좌(가능)·우(소속) 전송 목록과 집합 함수 | §18              |
+| `@dk-oasis/shared/resizable-columns`          | SHOULD                 | 가로로 늘어선 칸의 폭을 경계 끌기·← → 키로 바꾸고 저장(가로 스크롤 칸 묶음) | §18              |
+| `@dk-oasis/shared/token-chip-input`           | SHOULD                 | 콤마로 잇는 코드 목록을 칩으로 편집·토큰 함수 | §18              |
+| `@dk-oasis/shared/toggle-chip-group`          | SHOULD                 | 켜고 끄는 칩 묶음(기준 대비 더함·뺌 표시, 모두·없음 같은 프리셋) | §18              |
 | `@dk-oasis/shared/dashboard`                  | SHOULD                 | 대시보드 격자·카드·KPI 타일·추이 선  | §18              |
 | `@dk-oasis/shared/tour`                       | SHOULD                 | 처음 둘러보기 말풍선 안내(단계별 강조·다시 보지 않기 값 전달) | §18              |
 | `@dk-oasis/shared/tabs`                       | SHOULD                 | 영역 안 밑줄형 탭 머리줄(본문 전환은 화면) | —                |

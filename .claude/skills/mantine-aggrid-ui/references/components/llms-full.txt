@@ -109,6 +109,9 @@
 - [Card](card.md): 내용 높이를 따르는 테두리 카드(`CardFrame`: 제목 줄 + 본문), 여러 카드를 제목 줄 하나로 함께 접는 묶음(`CardGroup`), 카드 안 흐린 보조 글(`MutedText`)을 그릴 때 쓴다. 편집 화면처럼 카드 여러 장을 세로로 쌓는 화면에 맞다.
 - [TransferList](transfer-list.md): 좌(가능)·우(소속) 두 목록 사이로 코드를 옮겨 소속 집합을 고칠 때 쓰는 제어형 전송 목록이다(`TransferList`). 검색·분류 필터·행 토글·Shift 범위 선택·전체선택·`>`/`>>`/`<`/`<<` 를 갖췄고, 같은 일을 하는 순수 함수(검색·분류·이동·diff 집합)도 함께 낸다.
 - [MatrixTable](matrix-table.md): "첫 열(라벨) + 동적으로 늘어나는 열 + 셀마다 직접 그린 값" 구조의 비교 매트릭스(피벗) 표를 보일 때 쓴다.
+- [ResizableColumns](resizable-columns.md): 칸 N 개를 가로 격자로 놓고 칸 사이 손잡이(10px)를 끌어 폭을 바꾸는 부품이다(`ResizableColumns`). 폭 규칙·저장 모양을 계산하는 순수 함수도 함께 낸다.
+- [TokenChipInput](token-chip-input.md): 쉼표로 이은 짧은 코드 목록(`alpha,beta,gamma`)을 칩으로 보이고 고치는 제어형 입력이다(`TokenChipInput`). 쪼개기·잇기·규칙 거르기 순수 함수도 함께 낸다.
+- [ToggleChipGroup](toggle-chip-group.md): 정해진 옵션 목록에서 여러 개를 켜고 끄는 칩 묶음이다(`ToggleChipGroup`). 칩은 `aria-pressed` 단추다. 기준과 비교한 추가·제거 모양과 일괄 선택 단추도 낸다.
 - [차트 (DonutChart · PieChart · HBarChart · LineChart · StackedBarChart · StackedColumnChart)](charts.md): 현황 대시보드에서 비율(도넛·파이), 항목별 크기(가로 막대), 추이(선), 구성 비율(누적 막대), 기간별 누적 실적과 계획선(세로 누적 막대)을 간단한 SVG 차트로 보일 때 쓴다.
 - [exportToExcel](export-to-excel.md): 화면의 목록 데이터를 엑셀(.xlsx) 파일로 내려받게 할 때 쓴다. ag-grid 의 Excel Export 는 Enterprise 기능이라 쓰지 않는다.
 - [printElementAsPage](print-element-as-page.md): 화면의 한 영역(요소 하나)을 그 크기의 한 장짜리 페이지로 인쇄할 때 쓴다. 인쇄 창에서 「PDF로 저장」을 고르면 잘림 없는 PDF 한 장이 된다. 다른 출처 iframe(외부 웹 주소, sandbox srcdoc)도 찍힌다.
@@ -7489,6 +7492,267 @@ const row: MatrixTableRow = {
 - `src/frontend/m-mdm/pages/dme/ruleSetEdit/debugger/ValueTable.tsx:43-92`: 변수 x 단계 값 표. 열 `highlight`, 행 `renderCell`, `cellStyle`(토큰 색)을 모두 쓴다.
 - `src/frontend/m-design-dummy/src/screens/DataDisplayCatalogScreen.tsx:360`: 카탈로그 샘플(`MATRIX_COLUMNS`·`MATRIX_ROWS`).
 - MES 모듈(m-mpp·m-mqc·m-mls·m-mcm)에서는 아직 사용처 없음.
+
+
+<!-- ===== resizable-columns.md ===== -->
+
+# ResizableColumns
+
+칸 N 개를 가로 격자로 놓고 칸 사이 손잡이(10px)를 끌어 폭을 바꾸는 부품이다(`ResizableColumns`). 폭 규칙·저장 모양을 계산하는 순수 함수도 함께 낸다.
+
+- import: `import { ResizableColumns, type ResizableColumnsHandle, type ResizableColumnsProps, type ResizableColumnDef } from "@dk-oasis/shared/resizable-columns";` (CSS import 없음 — 컴포넌트가 자기 `<style>` 을 넣고, 색·간격은 의미 토큰)
+- 소스: `src/frontend/shared/src/components/resizable-columns/ResizableColumns.tsx`, `column-resize.ts`
+- 저장: shared `layout/split-sizing` 의 `loadSplit`·`saveSplit`(ContentBody `resizable` 과 같은 저장소 `dmes:split:v1:{userId}:{storageKey}`)을 쓴다. 사용자 ID 는 `useCurrentUserId`.
+- Part B 허용 목록(§1): `resizable-columns` SHOULD (Part B §18 로 등록).
+
+## 언제 쓰나
+
+- 쓴다: 한 줄에 서로 독립된 패널(목록·상세·미리보기 등)을 가로로 놓고 사용자가 칸 폭을 직접 조절하게 할 때. 칸 합이 부모보다 넓어도 된다(부모가 가로 스크롤).
+- 쓰지 않는다:
+  - 좌우·상하 분할이 `ContentBody`·`ContentPanel` 안의 패널이면 → `layout` 의 `ContentBody resizable` + `storageKey`(Part B §4-3). 그쪽은 패널 크기를 남는 공간 안에서 나눈다(합이 보존된다).
+  - 그리드 열 폭 → `AgDataGrid` 가 맡는다.
+  - 격자 칸 수·크기(위젯 24열)를 고르는 일 → [grid-resize-box](grid-resize-box.md).
+- 폭 규칙: 숫자는 px, `"fr"` 은 남는 폭(`minmax(0, 1fr)`)이다. 경계 `i`(칸 i 와 i+1 사이)를 끌면 **바로 옆 px 칸 하나만** 바뀐다. 칸 i 가 px 면 그 칸이 +dx, 아니고 i+1 이 px 면 그 칸이 -dx. 합이 0 이 되는 분배가 아니다. 두 칸 다 `"fr"` 이면 아무 일도 없다.
+- 조작: 끌기(포인터 캡처, 끄는 동안 body 커서 `col-resize`, rAF 로 묶어 갱신, 놓을 때 한 번만 상태·저장), ← → 20px(Shift 80px), 손잡이 두 번 누르기 = 모든 칸 처음 폭. 손잡이는 `role="separator"`·`tabIndex=0`.
+- 저장은 `storageKey` 를 줬을 때만, px 칸 중 처음 폭과 다른 것만 `{kind:"px"}` 로 둔다. 칸 정의에서 사라진 키·`"fr"` 이 된 칸의 저장값은 무시한다. 같은 화면에 격자가 둘이면 `storageKey` 를 다르게 준다.
+- 좁은 화면에서 칸을 세로로 쌓는 동작은 없다(필요하면 화면이 처리한다).
+
+## 표준 사용
+
+```tsx
+import { useRef } from "react";
+import { Button } from "@dk-oasis/shared/form";
+import { ResizableColumns, type ResizableColumnDef, type ResizableColumnsHandle } from "@dk-oasis/shared/resizable-columns";
+
+// 칸 정의는 모듈 수준에 둔다(내용이 같으면 새 배열이어도 되지만 매 렌더 만들 이유가 없다).
+const COLUMNS: ResizableColumnDef[] = [
+  { key: "list", width: 280 },
+  { key: "detail", width: "fr" },
+  { key: "side", width: 320, minWidth: 200 },
+];
+
+export function ThreePane({ list, detail, side }: { list: React.ReactNode; detail: React.ReactNode; side: React.ReactNode }) {
+  const ref = useRef<ResizableColumnsHandle>(null);
+  return (
+    <>
+      <Button size="sm" onClick={() => ref.current?.resetAll()}>폭 초기화</Button>
+      <ResizableColumns ref={ref} columns={COLUMNS} storageKey="my-screen:three-pane">
+        {list}
+        {detail}
+        {side}
+      </ResizableColumns>
+    </>
+  );
+}
+```
+
+## Props
+
+| prop | 타입 | 기본 | 설명 |
+|---|---|---|---|
+| `columns` | `ResizableColumnDef[]` = `{ key: string; width: number \| "fr"; minWidth?: number }` | — | 칸 정의(순서대로). `key` 는 저장 키 |
+| `children` | `ReactNode` | — | 칸마다 한 요소(순서·개수는 `columns` 와 같게). `renderCell` 이 있으면 쓰지 않는다 |
+| `renderCell` | `(column, index) => ReactNode` | — | `children` 대신 칸 내용을 그린다 |
+| `storageKey` | `string` | — | 주면 px 칸 폭을 사용자별로 저장한다 |
+| `minWidth` / `maxWidth` | `number` | `150` / `2200` | 모든 칸의 최소·최대 폭(px). 칸마다 `minWidth` 로 최소를 덮어쓴다 |
+| `handleWidth` | `number` | `10` | 손잡이 칸 폭(px) |
+| `handleLabel` / `handleTitle` | `string` | 한국어 안내 | 손잡이 `aria-label`·마우스오버 설명 |
+| `onWidthsChange` | `(widths: ColumnWidth[]) => void` | — | 끌기 끝·키·초기화 뒤 현재 폭 배열로 부른다 |
+| `ref` | `Ref<ResizableColumnsHandle>` | — | `resetAll()` — 모든 칸 처음 폭, 저장값 삭제 |
+| `className` / `style` / `testId` | | `testId="resizable-columns"` | testId 조립은 아래 |
+
+testId(`{p}` = `testId`): 뿌리 `{p}`, 손잡이 `{p}-handle-{경계 번호}`, 칸 `{p}-cell-{key}`.
+
+## 순수 함수
+
+모두 입력 배열을 바꾸지 않는다.
+
+| 함수 | 하는 일 |
+|---|---|
+| `resizeColumns(base, i, dx, { min, max, mins })` | 경계 `i` 를 `dx` 만큼 옮긴 새 폭 배열(위 폭 규칙, 한계로 자름) |
+| `resizeTarget(widths, i)` | 경계 `i` 가 바꿀 칸 번호, 없으면 -1 |
+| `gridTemplate(widths, handle)` | CSS `grid-template-columns` 문자열(칸 사이 손잡이 칸 포함) |
+| `widthsToSaved(columns, widths)` / `applySaved(columns, saved, limits)` | 저장 모양 ↔ 폭 배열(없어진 키 무시·한계로 자름) |
+| `keyDelta(key, shift)` | ←/→ 키의 이동 폭, 다른 키는 `null` |
+| `defaultWidths`, `sameWidths` | 처음 폭 배열, 폭 배열 비교 |
+
+기본값 상수: `DEFAULT_HANDLE_WIDTH`(손잡이 폭 10px), `DEFAULT_MIN_COLUMN_WIDTH`(칸 최소 폭), `DEFAULT_MAX_COLUMN_WIDTH`(칸 최대 폭). props 를 안 주면 이 값을 쓴다.
+
+## 흔한 실수
+
+| 실수 | 바로잡기 |
+|---|---|
+| `children` 개수가 `columns` 와 다름 | 칸마다 한 요소. 조건부 칸은 `null` 대신 빈 요소를 두거나 `columns` 도 함께 바꾼다 |
+| 두 칸 다 `"fr"` 로 두고 끌어 보려 함 | 폭이 바뀌는 칸은 px 칸뿐이다. 조절할 쪽을 px 로 둔다 |
+| 같은 화면 격자 둘이 같은 `storageKey` | 서로 다른 키를 준다 |
+| 「폭 초기화」 단추를 화면이 직접 저장소를 지워 만듦 | `ref.current?.resetAll()` |
+| ContentBody 분할 대신 이 부품으로 화면 본체를 나눔 | 화면 본체 분할은 `ContentBody resizable`(Part B §4-3) |
+
+
+<!-- ===== token-chip-input.md ===== -->
+
+# TokenChipInput
+
+쉼표로 이은 짧은 코드 목록(`alpha,beta,gamma`)을 칩으로 보이고 고치는 제어형 입력이다(`TokenChipInput`). 쪼개기·잇기·규칙 거르기 순수 함수도 함께 낸다.
+
+- import: `import { TokenChipInput, type TokenChipInputProps, parseTokens, joinTokens } from "@dk-oasis/shared/token-chip-input";` (CSS import 없음 — 컴포넌트가 자기 `<style>` 을 넣고, 색·간격은 의미 토큰)
+- 소스: `src/frontend/shared/src/components/token-chip-input/TokenChipInput.tsx`, `token-set.ts`
+- 내부 구현: 칩 안에 둔 기본 `<input>` 한 칸(고정폭 글꼴). Mantine `TagsInput`·`PillsInput` 은 쓰지 않는다.
+- Part B 허용 목록(§1): `token-chip-input` SHOULD (Part B §18 로 등록).
+
+## 언제 쓰나
+
+- 쓴다: 값이 영문 코드 몇 개인 칸을 쉼표 글 대신 칩으로 편집할 때(예: 기능 코드 목록). 한 번에 여러 개를 붙여 넣어도 된다.
+- 쓰지 않는다:
+  - 정해진 후보 중에서만 고르기 → 후보가 적으면 [toggle-chip-group](toggle-chip-group.md), 많으면 [MultiSelectComboBox](multi-select-combo-box.md).
+  - 후보 목록 사이 이동 → [transfer-list](transfer-list.md).
+  - 사람이 읽는 문장·이름(공백 포함) → `Input`. 이 부품은 공백·쉼표를 토큰 구분자로 본다.
+- 제어형이다. `value`(`string[]`)를 부모가 쥔다. 쉼표 글이 필요하면 `parseTokens(text)` 로 읽고 `joinTokens(list)` 로 쓴다.
+- 입력: Enter·쉼표·공백·칸을 벗어날 때 칩이 되고, 칩 ×가 지우고, 빈 칸에서 Backspace 는 마지막 칩을 지운다. 한글 조합 중 Enter 는 칩으로 만들지 않는다.
+- 규칙: `pattern`(기본 `/^[A-Za-z][A-Za-z0-9_]*$/`, `null` 이면 안 봄)·`allowed`·`maxLength`(쉼표로 이은 글 전체 글자 수)·중복. 어긋난 입력은 칩이 되지 않고 작은 안내 글(`role="alert"`)에 이유와 토큰이 보인다(다음 입력에서 사라진다). 한글 조합 중에는 칩으로 만들지 않고, 조합이 끝난 뒤 구분 글자를 다시 확인한다.
+- `readOnly`·`disabled` 면 입력 칸이 없으므로 묶음(`role="group"`)이 `aria-label` 을 가진다.
+- `allowed` 를 주면 기본(`rejectOutside`)은 밖의 입력을 거절한다. `rejectOutside={false}` 면 받되 목록 밖 칩을 잘못된 모양(위험색 테두리)으로 보인다. 이미 `value` 에 들어 있는 목록 밖 값은 어느 쪽이든 잘못된 칩으로 보인다.
+- `readOnly`·`disabled` 면 입력 칸과 ×가 없다.
+
+## 표준 사용
+
+```tsx
+import { useState } from "react";
+import { TokenChipInput, joinTokens, parseTokens } from "@dk-oasis/shared/token-chip-input";
+
+const ALLOWED = ["alpha", "beta", "gamma", "delta"];
+
+export function CodeListField({ csv, onCsv }: { csv: string; onCsv: (csv: string) => void }) {
+  return (
+    <TokenChipInput
+      aria-label="코드 목록"
+      placeholder="코드를 쓰고 Enter"
+      value={parseTokens(csv)}
+      onChange={(next) => onCsv(joinTokens(next))}
+      allowed={ALLOWED}
+    />
+  );
+}
+```
+
+## Props
+
+| prop | 타입 | 기본 | 설명 |
+|---|---|---|---|
+| `value` | `readonly string[]` | — | 지금 토큰(제어형) |
+| `onChange` | `(next: string[]) => void` | — | 더하거나 지울 때 새 배열로 부른다 |
+| `allowed` | `readonly string[]` | — | 허용 목록 |
+| `rejectOutside` | `boolean` | `true` | true 면 목록 밖 입력 거절, false 면 받고 잘못된 칩으로 보임 |
+| `pattern` | `RegExp \| null` | 영문자로 시작하는 영문·숫자·밑줄 | 입력 토큰 모양(`g`·`y` 깃발이 있어도 매번 되돌려 시험한다) |
+| `maxLength` | `number` | 없음 | 쉼표로 이은 글 전체 글자 수 상한 |
+| `readOnly` / `disabled` | `boolean` | `false` | 입력·× 없음 |
+| `placeholder` | `string` | — | 칩이 하나도 없을 때만 보인다 |
+| `aria-label` | `string` | — | 입력 칸 라벨 |
+| `messages` | `Partial<Record<"pattern"\|"outside"\|"duplicate"\|"maxLength", string>>` | 한국어 문구 | 거절 안내 문구(뒤에 `: 토큰들` 이 붙는다) |
+| `removeLabel` / `invalidTitle` | `string` | `삭제` / `허용 목록에 없는 값` | × 의 `aria-label` 뒷부분, 잘못된 칩 설명 |
+| `className` / `testId` | | `testId="token-chip-input"` | testId 조립은 아래 |
+
+testId(`{p}` = `testId`): 뿌리 `{p}`, 입력 `{p}-input`, 칩 `{p}-chip-{토큰}`, × `{p}-remove-{토큰}`, 안내 `{p}-message`.
+
+## 순수 함수
+
+| 함수 | 하는 일 |
+|---|---|
+| `parseTokens(text)` | 쉼표·공백·줄바꿈으로 쪼개 다듬고 빈 것 버림, 순서 유지, 중복은 처음 것만 |
+| `joinTokens(list)` | 쉼표(공백 없이)로 잇는다 |
+| `filterTokens(list, { allowed, pattern, existing, maxLength })` | `{ accepted, rejected: { token, reason }[] }` — 이유는 `pattern`·`outside`·`duplicate`·`maxLength` |
+| `addTokens(value, text, options)` | 글을 쪼개 걸러 받아들인 것만 `value` 뒤에 붙인 `{ next, rejected }` |
+
+`DEFAULT_TOKEN_PATTERN` = `pattern` 을 안 줄 때 쓰는 코드 규칙(영문자로 시작, 영문·숫자·`_`).
+
+## 흔한 실수
+
+| 실수 | 바로잡기 |
+|---|---|
+| 쉼표 글을 그대로 `value` 에 넘김 | `parseTokens(csv)` 로 배열을 만든다. 렌더마다 새 배열이어도 된다 |
+| 저장 전 형식 검사를 화면이 또 만듦 | `pattern`·`allowed` 와 `filterTokens` 를 쓴다. 서버 검증은 별개로 남긴다 |
+| 허용 목록 밖 값을 저장하려 함(`rejectOutside={false}`) | 잘못된 칩이 남아 있으면 화면이 저장을 막거나 사용자에게 알린다 |
+
+
+<!-- ===== toggle-chip-group.md ===== -->
+
+# ToggleChipGroup
+
+정해진 옵션 목록에서 여러 개를 켜고 끄는 칩 묶음이다(`ToggleChipGroup`). 칩은 `aria-pressed` 단추다. 기준과 비교한 추가·제거 모양과 일괄 선택 단추도 낸다.
+
+- import: `import { ToggleChipGroup, type ToggleChipGroupProps, type ToggleChipOption, type ToggleChipPreset, toggleValue, chipDiffState } from "@dk-oasis/shared/toggle-chip-group";` (CSS import 없음 — 컴포넌트가 자기 `<style>` 을 넣고, 색·간격은 의미 토큰)
+- 소스: `src/frontend/shared/src/components/toggle-chip-group/ToggleChipGroup.tsx`, `chip-state.ts`
+- Part B 허용 목록(§1): `toggle-chip-group` SHOULD (Part B §18 로 등록).
+
+## 언제 쓰나
+
+- 쓴다: 옵션이 열 개 안팎으로 정해져 있고 켜짐·꺼짐을 한눈에 봐야 할 때(예: 사용할 기능 모음). 저장 전 초안과 저장본을 비교해 보일 때(`baseValue`).
+- 쓰지 않는다:
+  - 한 개만 고르기 → `Radio`·`Select`.
+  - 옵션이 많거나 검색이 필요 → [MultiSelectComboBox](multi-select-combo-box.md)·[transfer-list](transfer-list.md).
+  - 사용자가 코드를 직접 타이핑 → [token-chip-input](token-chip-input.md).
+  - 단순 체크 하나 → `Checkbox`.
+- 제어형이다. `value`(켜진 값)를 부모가 쥐고, `onChange(next)` 의 `next` 는 항상 `options` 순서다(옵션 밖 값은 뒤에 남는다).
+- `baseValue` 를 주면 칩이 기준과 다를 때 모양이 바뀐다: 추가(켜졌는데 기준엔 없음) = 켜진 모양 + 점선 경고색 테두리, 제거(꺼졌는데 기준엔 있음) = 점선 + 취소선 + 경고 배경. 마우스오버에 `diffTitles` 문구가 붙는다.
+- `presets` 는 칩 뒤 일괄 단추(모두·일부만·없음 등)다. 문구와 `pick(all)` 규칙은 화면이 정한다. `readOnly` 면 숨는다. 같은 문구가 둘이면 `id` 를 줘 key·testId 로 쓴다. `disabled` 옵션은 일괄 선택으로도 바뀌지 않는다(현재 상태 유지).
+- `readOnly` 칩은 `aria-disabled` 이고, 추가·제거 상태는 화면 읽기 프로그램용 숨은 글(`(추가됨)`·`(빠짐)`)로도 알린다.
+- `disabled` 옵션은 눌러도 바뀌지 않는다.
+
+## 표준 사용
+
+```tsx
+import { useState } from "react";
+import { ToggleChipGroup, type ToggleChipOption, type ToggleChipPreset } from "@dk-oasis/shared/toggle-chip-group";
+
+const OPTIONS: ToggleChipOption[] = [
+  { value: "alpha", title: "첫째" }, { value: "beta" }, { value: "gamma" }, { value: "delta", disabled: true },
+];
+const PRESETS: ToggleChipPreset[] = [
+  { label: "모두", pick: (all) => all },
+  { label: "하나만", pick: () => ["alpha"] },
+  { label: "없음", pick: () => [] },
+];
+
+export function FeaturePicker({ saved }: { saved: string[] }) {
+  const [draft, setDraft] = useState(saved);
+  return <ToggleChipGroup aria-label="사용할 기능" options={OPTIONS} value={draft} onChange={setDraft} baseValue={saved} presets={PRESETS} />;
+}
+```
+
+## Props
+
+| prop | 타입 | 기본 | 설명 |
+|---|---|---|---|
+| `options` | `ToggleChipOption[]` = `{ value; label?: ReactNode; title?; disabled? }` | — | 옵션(이 순서로 그린다). `label` 이 없으면 `value` |
+| `value` | `readonly string[]` | — | 켜진 값(제어형) |
+| `onChange` | `(next: string[]) => void` | — | `options` 순서로 새 목록을 준다 |
+| `baseValue` | `readonly string[]` | — | 비교 기준. 주면 추가·제거 모양을 보인다 |
+| `readOnly` | `boolean` | `false` | 바꿀 수 없다(모양 유지, 일괄 단추 숨김) |
+| `size` | `"xs" \| "sm" \| "md"` | `"sm"` | 칩 높이·글자 크기 |
+| `presets` | `ToggleChipPreset[]` = `{ id?; label; pick(all); title? }` | — | 칩 뒤 일괄 선택 단추 |
+| `diffTitles` | `{ added?; removed? }` | `추가됨` / `빠짐` | 추가·제거 칩 설명 |
+| `aria-label` | `string` | — | 묶음 라벨(`role="group"`) |
+| `className` / `testId` | | `testId="toggle-chip-group"` | testId 조립은 아래 |
+
+testId(`{p}` = `testId`): 뿌리 `{p}`, 칩 `{p}-chip-{value}`, 일괄 단추 `{p}-preset-{id ?? label}`. 칩에는 `data-state`(`on`·`off`·`added`·`removed`)가 붙는다.
+
+## 순수 함수
+
+| 함수 | 하는 일 |
+|---|---|
+| `toggleValue(value, v, order)` | `v` 를 켜거나 끈 새 목록(`order` 순서) |
+| `orderValues(values, order)` | `order` 순서로 맞춤(중복 제거, 밖의 값은 뒤에) |
+| `applyPreset(picked, current, options)` | 일괄 선택 결과를 옵션 순서로 맞추되 `disabled` 옵션은 현재 상태 유지 |
+| `chipDiffState(v, value, base?)` | `"on"`·`"off"`·`"added"`·`"removed"` |
+
+## 흔한 실수
+
+| 실수 | 바로잡기 |
+|---|---|
+| `onChange` 결과 순서가 화면마다 다름 | 부품이 `options` 순서로 준다. 화면에서 다시 정렬하지 않는다 |
+| 초안과 저장본을 비교하는 모양을 화면이 CSS 로 덮어씀 | `baseValue` 에 저장본을 준다 |
+| 일괄 단추를 화면이 칩 옆에 따로 만듦 | `presets` |
+| 렌더마다 `options`·`presets` 를 새로 만듦 | 모듈 수준 상수로 둔다 |
 
 
 <!-- ===== charts.md ===== -->
