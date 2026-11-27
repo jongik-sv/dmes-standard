@@ -13,7 +13,7 @@
 | c4 | 끝 | SeedSupport 도우미 3개·MdmMenuSeeder 이중 쓰기·CoreRbacSeeder allActions 15개·fillObjPermFromCatalog·commPermBench 메뉴·지문 골든·seed-check |
 | c5 | 끝 | 삭제 검사 count 2개·MROLE CTE → ROLE_PERM, SecRoleMappingNativeRepository @Deprecated, ERD 힌트 |
 | c6 | 끝 | column-comments-2026-11-27.md · csa-sec-erd.md §8 · ADR-0001(PROPOSED) |
-| c3 | 남음 | PermModelParityOraTest(r2 머지 뒤) |
+| c3 | 끝 | PermModelParityOraTest 2건(본 대조 + SYSADMIN 대소문자 가장자리). 다른 키 83 전부 의도된 범주, 분류 안 됨 0. V21 SYSADMIN 비교를 정확 일치로 고침 |
 
 ## 진행
 
@@ -39,6 +39,6 @@
 
 ## 남은 일
 
-- c3 PermModelParityOraTest(D35 의도된 차이 목록)
+- 질문: 팝업만 있는 옛 묶음은 V21 에서 빠져 팝업 키를 잃는다(D14)
 - 질문 대기: 시더 옛 표 쓰기 유지 기간, 오브젝트 허용 값 보강 규칙(빈 칸일 때만), seed 토큰 되살아남
 - SecPermRepository 의 옛 매핑 조회 2개는 그대로(legacy 전용)
