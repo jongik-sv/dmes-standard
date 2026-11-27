@@ -4,7 +4,9 @@
  * 호출 패턴: POST /api/mcm/oasis/commObjMng/{action} (BPMN action 3 enum — As-Is 보존)
  *   - searchCmObj — OBJECT 그리드 조회
  *   - saveCmObj   — OBJECT 일괄 저장 (status 분기) + 후속 재조회
- *   - lov         — MENU ID 1 dataset (To-Be 정책 #1 — APP_HOST 폐기)
+ *   - lov         — MENU ID 1 dataset (To-Be 정책 #1 — APP_HOST 폐기). 조회 조건 「메뉴 폴더」 옵션으로도 쓴다
+ *   - searchObjPerm — 이 오브젝트의 퍼미션(역할별, 읽기 전용) + 사람 수 (퍼미션 모델 v2)
+ *   - searchObjMenu — 이 오브젝트를 가리키는 메뉴 (퍼미션 모델 v2)
  *
  * 분석리포트 §6 (SQL ID) / §8 (BPMN) / BPMN설계서 §1.1 + §2 인용.
  *
@@ -12,7 +14,14 @@
  * 무조건 OASIS (`/api/mcm/oasis/...`) 만 사용 (docs/guide/FrontEnd/standard-v2/frontend-standard/01-rules-decisions-files.md §2-2-1-A).
  */
 import { createJsonApiClient } from "@/lib/http/json-api-client";
-import type { CommObjMngFilters, CommObjMngRow, MenuIdLov } from "./types";
+import type {
+  CommObjMngFilters,
+  CommObjMngRow,
+  MenuIdLov,
+  ObjMenuRow,
+  ObjPermRow,
+  SaveImpactRow,
+} from "./types";
 
 const api = createJsonApiClient();
 
@@ -25,6 +34,18 @@ interface SearchCmObjPayload {
 interface SaveCmObjPayload {
   cnt_merge?: number;
   ds_main?: CommObjMngRow[];
+  /** 뺀 BTN·POPUP 값, USE_TP Y→N 이 퍼미션에 미친 영향(없으면 빈 목록). */
+  impacts?: SaveImpactRow[];
+}
+
+interface SearchObjPermPayload {
+  perms?: ObjPermRow[];
+  /** 이 오브젝트를 쓰는 사람 수(역할 겹침을 뺀 distinct). */
+  USER_CNT?: number | string;
+}
+
+interface SearchObjMenuPayload {
+  menus?: ObjMenuRow[];
 }
 
 interface LovPayload {
@@ -97,6 +118,7 @@ export async function searchCommObjMng(filters: CommObjMngFilters): Promise<Sear
   return callAction<SearchCmObjPayload>("search", {
     edtOBJECTID: filters.edt_OBJECT_ID,
     cboUSETP: filters.cbo_USE_TP,
+    menuFolderId: filters.menuFolderId,
   });
 }
 
@@ -127,4 +149,21 @@ export async function searchSystemLov(): Promise<SearchSystemLovPayload> {
   return callAction<SearchSystemLovPayload>("searchSystemLov", {});
 }
 
-export type { SearchCmObjPayload, SaveCmObjPayload, LovPayload, SearchSystemLovPayload };
+/** action=searchObjPerm — 이 오브젝트의 퍼미션(역할별 허용 값·효과 값·받은 사람 수). 읽기 전용. */
+export async function searchObjPerm(objectId: string): Promise<SearchObjPermPayload> {
+  return callAction<SearchObjPermPayload>("searchObjPerm", { objectId });
+}
+
+/** action=searchObjMenu — 이 오브젝트를 가리키는 메뉴. */
+export async function searchObjMenu(objectId: string): Promise<SearchObjMenuPayload> {
+  return callAction<SearchObjMenuPayload>("searchObjMenu", { objectId });
+}
+
+export type {
+  SearchCmObjPayload,
+  SaveCmObjPayload,
+  LovPayload,
+  SearchSystemLovPayload,
+  SearchObjPermPayload,
+  SearchObjMenuPayload,
+};

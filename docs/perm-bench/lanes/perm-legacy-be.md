@@ -2,7 +2,7 @@
 
 - 레인 = perm-legacy-be · 브랜치 `perm/perm-legacy-be` · 워크트리 `/Users/jji/project/dmes-perm-legacy` · Mac 조정 `dmes-standard-9a`
 - 착수 지시 = `/Users/jji/.coord/perm-bench-mac/lanes/perm-legacy-be/brief.md`(지시 perm-legacy-be-1)
-- 갱신: 2026-11-27 리뷰 지적 수정 3099ef160·l7 bd1e46eb7 끝. 통합 d06ddda7c(f1·r1 포함) 합침 7ccefdda2. 다음 = lb-merge
+- 갱신: 2026-11-27 lb-merge 끝(91535e95b), l6·l8 끝. 통합 aec22600c 합침. 다음 = lf-merge 머지 요청
 
 ## 진행
 
@@ -15,9 +15,9 @@
 | l2 | 끝 | 127920264·3099ef160 | 시험 14/14 |
 | l5 | 끝 | 위 커밋 | 리뷰 수정 뒤 4종 + MenuChangedEventPublishTest = 58 통과, mcm/api MenuCatalogOasisSaveIntegrationTest 3 통과(clone) |
 | l7 | 끝 | bd1e46eb7 | 8개 설계서에 퍼미션 절 덧붙임 |
-| lb-merge | | | |
-| l6 | 대기 l3·f1 | | |
-| l8 | 대기 l6 | | |
+| lb-merge | 끝 | 91535e95b | 통합 머지 완료(ff) |
+| l6 | 끝 | 5db38bfe4·위 fix | 리뷰(opus/high) MED 2·LOW 10 고침(Excel 숨은 칸 내보내기·aria-describedby 2건 남김). useOpenWith 받는 쪽·openBench 보내는 쪽 |
+| l8 | 끝 | | 규칙 점검·audit 의심 0·screens.mjs 등록 정보 조정에 보냄. 프로파일링 = 회차 마감 |
 | lf-merge | | | |
 
 ## 1. 받은 결정(조정)
