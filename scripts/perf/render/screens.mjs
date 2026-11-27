@@ -257,7 +257,8 @@ export const SCREENS = [
     id: "commPermMng",
     label: "퍼미션 관리",
     trail: [/^공통관리$/, /^시스템관리$/, /^PERMISSION 관리$/],
-    breadcrumb: "공통관리 > 시스템관리 > PERMISSION 관리",
+    // breadcrumb = 화면 제목 기준 「퍼미션 관리」(메뉴 트리 이름 「PERMISSION 관리」와 다르다, z4 실서버 확인)
+    breadcrumb: "공통관리 > 시스템관리 > 퍼미션 관리",
     listPanelTitle: "퍼미션 목록",
     /** count-renders ⑤ 상세 입력 — 버튼 권한 값 칸(TokenChipInput testId perm-one-btn-input). 퍼미션 있는 행을 골라야 보인다. 저장하지 않는다. */
     formInput: 'input[data-testid="perm-one-btn-input-input"]',
