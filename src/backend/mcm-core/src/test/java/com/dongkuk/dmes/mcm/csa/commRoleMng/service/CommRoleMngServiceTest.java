@@ -78,6 +78,50 @@ class CommRoleMngServiceTest extends CommSecMngJpaTestBase {
     }
 
     @Test
+    void saveCmRole_blankRoleNm_rejected_nothingWritten() {
+        fx.role("R1", "Y");
+
+        // 맞는 줄이 앞에 있어도 하나라도 역할명이 비면 아무것도 쓰지 않는다(z2fix2 d)
+        assertThatThrownBy(() -> inTx(() -> service.saveCmRole(List.of(
+                row("rowStatus", "inserted", "ROLE_ID", "R_OK", "ROLE_NM", "새 역할", "USE_TP", "Y"),
+                row("rowStatus", "inserted", "ROLE_ID", "R_NEW", "ROLE_NM", "  ", "USE_TP", "Y")))))
+                .isInstanceOf(BusinessException.class).hasMessageStartingWith("ROLE_NM_REQUIRED: ").hasMessageContaining("R_NEW");
+        assertThatThrownBy(() -> inTx(() -> service.saveCmRole(List.of(
+                row("rowStatus", "updated", "ROLE_ID", "R1", "USE_TP", "N")))))
+                .isInstanceOf(BusinessException.class).hasMessageStartingWith("ROLE_NM_REQUIRED: ");
+
+        assertThat(roleRepo.existsById("R_OK")).isFalse();
+        assertThat(roleRepo.existsById("R_NEW")).isFalse();
+        assertThat(roleRepo.findById("R1")).get().extracting(r -> r.getUseTp()).isEqualTo("Y");
+        assertThat(events.roleEvents()).isEmpty();
+    }
+
+    @Test
+    void saveCmRole_existingRoleRename_updatesSameRoleId_noNewRow() {
+        fx.role("role_MN_MPP_WORK_VIEW", "Y");
+        long before = roleRepo.count();
+
+        // 검색 줄 ID = ROLE_ID 전체를 그대로 실어 보내도 ROLE_ID 를 다시 합성하지 않는다(z2fix2 c)
+        inTx(() -> service.saveCmRole(List.of(
+                row("rowStatus", "updated", "ROLE_ID", "role_MN_MPP_WORK_VIEW", "ID", "role_MN_MPP_WORK_VIEW",
+                        "MENU_ID", "MN_MPP", "ROLE_NM", "작업 조회(새 이름)", "USE_TP", "Y"))));
+
+        assertThat(roleRepo.count()).isEqualTo(before);
+        assertThat(roleRepo.findById("role_MN_MPP_WORK_VIEW")).get().extracting(r -> r.getRoleNm()).isEqualTo("작업 조회(새 이름)");
+        assertThat(roleRepo.existsById("role_MN_MPP_role_MN_MPP_WORK_VIEW")).isFalse();
+    }
+
+    @Test
+    void searchCmRole_idIsWholeRoleId() {
+        fx.role("role_MN_MPP_WORK_VIEW", "Y");
+
+        Map<String, Object> out = inTx(() -> service.searchCmRole(new CommRoleMngSearchRequest()));
+
+        // 옛 「마지막 _ 이후」(VIEW) 가 아니라 ROLE_ID 전체(z2fix2 c)
+        assertThat(byKey(grid(out, "ds_main"), "ROLE_ID").get("role_MN_MPP_WORK_VIEW")).containsEntry("ID", "role_MN_MPP_WORK_VIEW");
+    }
+
+    @Test
     void saveCmRole_delete_blockedByNewPerm_silentSkip() {
         fx.role("R1", "Y");
         fx.obj("csa::a", "Y", "search", null);

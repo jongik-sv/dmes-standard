@@ -16,7 +16,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ContentBody, ContentPanel, PageLayout, SearchArea, SearchField } from "@dk-oasis/shared/layout";
 import { AgDataGrid, GridPanel, Pagination, type GridColumn } from "@dk-oasis/shared/grid";
-import { Badge, Button, Checkbox, ComboBox } from "@dk-oasis/shared/form";
+import { Badge, Button, Checkbox } from "@dk-oasis/shared/form";
 import { useMessage } from "@dk-oasis/shared/message-provider";
 import { useCarryRestored, useCarryState } from "@dk-oasis/shared/portal-shell";
 import { lov, saveCmPerm, searchCmPerm, searchPermOne } from "./api";
@@ -42,6 +42,7 @@ import {
 } from "./perm-chips";
 import { PERM_MNG_CSS, PERM_MNG_STYLE_HREF } from "./perm-styles";
 import { roleFilterOptions } from "./role-filter";
+import { RoleFilterCombo } from "./RoleFilterCombo";
 import type { PermMenuLov, PermRoleLov, PermRow, PermSaveRow, PermSearchParams } from "./types";
 
 const SCREEN_ID = "commPermMng";
@@ -584,13 +585,7 @@ export default function CommPermMngPage() {
       <SearchArea onSearch={handleSearch} autoSearch>
         {/* 역할이 많아 입력해서 찾는다(z2 F4) — options·value·onChange 를 함께 넘겨 조회 기본값 대상으로 둔다(그리기는 children) */}
         <SearchField label="역할" name="ROLE_ID" type="select" options={roleOptions} value={filters.roleId} onChange={handleRoleFilter}>
-          <ComboBox
-            data={roleOptions}
-            value={filters.roleId}
-            onChange={handleRoleFilter}
-            placeholder="역할 이름 · ROLE_ID 찾기"
-            aria-label="역할"
-          />
+          <RoleFilterCombo options={roleOptions} value={filters.roleId} onChange={handleRoleFilter} />
         </SearchField>
         <SearchField
           label="메뉴"

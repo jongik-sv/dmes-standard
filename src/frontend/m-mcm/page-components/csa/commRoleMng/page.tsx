@@ -77,6 +77,8 @@ import {
   viewRows,
   pickEmptyMessage,
   withRoleField,
+  firstMissingRoleNm,
+  keepSavedRole,
   type AddLevel,
   type BusinessError,
   type FolderOption,
@@ -479,8 +481,9 @@ const RoleDetailPanel = memo(function RoleDetailPanel({
           <tr>
             <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="ID" meta={false} label="ID" required /></th>
             <td style={DETAIL_VALUE_CELL}>
+              {/* 기존 역할 = ROLE_ID 전체(z2fix2 c — 마지막 _ 이후만 보이던 것을 없앴다). 새 역할 = 입력한 ID */}
               <Input
-                value={String(draft.ID ?? "")}
+                value={isNewRow ? String(draft.ID ?? "") : roleId}
                 maxLength={100}
                 readOnly={!isNewRow}
                 onChange={(v) => onField("ID", v)}
@@ -489,7 +492,7 @@ const RoleDetailPanel = memo(function RoleDetailPanel({
           </tr>
 
           <tr>
-            <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="ROLE_NM" label="역할명" /></th>
+            <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="ROLE_NM" label="역할명" required /></th>
             <td style={DETAIL_VALUE_CELL}>
               <Input
                 value={String(draft.ROLE_NM ?? "")}
@@ -766,13 +769,14 @@ export default function CommRoleMngPage() {
   const loadList = useCallback(
     async (
       f: CommRoleMngFilters,
-      opts?: { preferRoleId?: string; silent?: boolean },
+      opts?: { preferRoleId?: string; silent?: boolean; saved?: readonly RoleRow[] },
     ): Promise<string | null> => {
       setIsSearching(true);
       setError(null);
       try {
         const payload = await apiSearchCmRole(f);
-        const list = (payload.ds_main ?? []).map((r, i) => ({
+        // 저장 뒤: 저장한 역할이 조건에 안 걸려 빠졌으면 저장 응답의 그 줄을 맨 위에 붙여 고른 채로 둔다(z2fix2 e)
+        const list = keepSavedRole(payload.ds_main ?? [], opts?.preferRoleId, opts?.saved).map((r, i) => ({
           ...withSyntheticId(r, i),
           nativeeditor_status: "" as RowStatus,
         }));
@@ -1099,6 +1103,13 @@ export default function CommRoleMngPage() {
         return;
       }
     }
+    // 역할명 필수(메뉴 ID·ID 검사 뒤, z2fix2 d — BE 도 ROLE_NM_REQUIRED 로 거절)
+    const noName = firstMissingRoleNm(effective);
+    if (noName) {
+      const id = String(noName.ROLE_ID ?? "").trim();
+      setError(`역할명은 필수 입력입니다.${id ? ` (${id})` : ""}`);
+      return;
+    }
     const emptyBtn = emptyBtnObjects(permSave);
     if (emptyBtn.length > 0) {
       setError(`버튼 권한이 빈 퍼미션이 있습니다(${emptyBtn.join(", ")}). 버튼을 하나 이상 켜거나 「빼기」를 누르세요.`);
@@ -1110,6 +1121,7 @@ export default function CommRoleMngPage() {
     // 새 행은 ROLE_ID 가 상세 초안에서 합성되므로 반영 전 초안을 먼저 본다.
     const keepRoleId = String((detailDraft && detailDirty ? detailDraft.ROLE_ID : selected?.ROLE_ID) ?? "");
     let roleCnt: number | null = null;
+    let savedRoles: RoleRow[] | undefined;
     let permRes: { cnt_merge?: number; cnt_delete?: number } | null = null;
     try {
       if (masterDirty) {
@@ -1121,6 +1133,7 @@ export default function CommRoleMngPage() {
           })) as unknown as CommRoleMngRow[];
         const res = await apiSaveCmRole(payload);
         roleCnt = res.cnt_merge ?? 0;
+        savedRoles = res.ds_main;
       }
       let permErr: string | null = null;
       if (permSave.length > 0) {
@@ -1141,7 +1154,7 @@ export default function CommRoleMngPage() {
       }
       showMessage({ message: saveDoneMessage(roleCnt, permRes) });
       // 현재 조건으로 다시 조회하고 보던 역할을 유지한다(집계 칸이 바뀐다).
-      const kept = await loadList(filters, { preferRoleId: keepRoleId || undefined, silent: true });
+      const kept = await loadList(filters, { preferRoleId: keepRoleId || undefined, silent: true, saved: savedRoles });
       // loadList 가 오류를 지우므로 퍼미션 저장 실패는 재조회 뒤에 보인다.
       if (permErr) setError(permErr);
       // 같은 역할이 남으면 ROLE_ID 가 그대로라 퍼미션 조회 effect 가 돌지 않는다 → 퍼미션을 저장했을 때만 직접 다시 부른다.

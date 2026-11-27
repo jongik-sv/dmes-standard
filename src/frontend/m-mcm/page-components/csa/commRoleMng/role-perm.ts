@@ -576,7 +576,8 @@ export function withRoleField<T extends RoleLikeRow>(row: T, field: string, valu
   if (row[field] === value) return row;
   const next: RoleLikeRow = { ...row, [field]: value };
   next.nativeeditor_status = row.nativeeditor_status === "inserted" ? "inserted" : "updated";
-  if (field === "MENU_ID" || field === "ID") {
+  // 합성은 새 행만(z2fix2 c — 기존 행 ID 는 ROLE_ID 전체라 다시 합치면 role_ 접두가 겹친다)
+  if (row.nativeeditor_status === "inserted" && (field === "MENU_ID" || field === "ID")) {
     const mid = String(next.MENU_ID ?? "");
     const id = String(next.ID ?? "");
     if (mid && id) next.ROLE_ID = `role_${mid}_${id}`;
@@ -594,4 +595,23 @@ export function applyRoleDraft<T extends RoleLikeRow>(rows: T[], draft: T, keyOf
     return draft;
   });
   return hit ? next : rows;
+}
+
+/** 저장할 줄 중 역할명이 빈 첫 줄(삭제 줄은 보지 않는다, z2fix2 d). 없으면 null. */
+export function firstMissingRoleNm<T extends RoleLikeRow>(rows: readonly T[]): T | null {
+  for (const r of rows) {
+    if (!r.nativeeditor_status || r.nativeeditor_status === "deleted") continue;
+    if (!String(r.ROLE_NM ?? "").trim()) return r;
+  }
+  return null;
+}
+
+/**
+ * 저장 뒤 다시 조회한 목록에 저장한 역할이 없으면(조회 조건에 안 걸림) 저장 응답의 그 역할 줄을 맨 위에 붙인다(z2fix2 e).
+ * 있으면 목록 그대로(같은 참조). saved = 저장 응답 ds_main(역할 전부).
+ */
+export function keepSavedRole<T extends RoleLikeRow>(list: T[], roleId: string | undefined, saved: readonly T[] | undefined): T[] {
+  if (!roleId || list.some((r) => String(r.ROLE_ID ?? "") === roleId)) return list;
+  const row = saved?.find((r) => String(r.ROLE_ID ?? "") === roleId);
+  return row ? [row, ...list] : list;
 }

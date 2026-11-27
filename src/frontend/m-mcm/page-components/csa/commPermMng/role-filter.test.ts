@@ -6,6 +6,7 @@ import { MantineProvider } from "@mantine/core";
 import { ComboBox } from "@dk-oasis/shared/form";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { roleFilterOptions } from "./role-filter";
+import { RoleFilterCombo } from "./RoleFilterCombo";
 import type { PermRoleLov } from "./types";
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
@@ -78,5 +79,30 @@ describe("역할 콤보 — 입력으로 거르고 고른다", () => {
       opt.click();
     });
     expect(onChange).toHaveBeenLastCalledWith("SYSADMIN", expect.objectContaining({ value: "SYSADMIN" }));
+  });
+});
+
+describe("역할 콤보 지우기 단추(z2fix2 F4b)", () => {
+  const mountCombo = (value: string, onChange: (v: string) => void) => {
+    host = document.createElement("div");
+    document.body.appendChild(host);
+    root = createRoot(host);
+    act(() => {
+      root!.render(createElement(MantineProvider, null, createElement(RoleFilterCombo, { options: roleFilterOptions(ROLES), value, onChange })));
+    });
+  };
+  const clearBtn = () => host!.querySelector("button[aria-label='역할 조건 지우기']") as HTMLButtonElement | null;
+
+  it("값이 있으면 지우기 단추가 보이고, 누르면 빈 값(전체)을 넘긴다", () => {
+    const onChange = vi.fn();
+    mountCombo("SYSADMIN", onChange);
+    expect(clearBtn()).not.toBeNull();
+    act(() => clearBtn()!.click());
+    expect(onChange).toHaveBeenCalledWith("");
+  });
+
+  it("빈 값(전체)이면 지우기 단추가 없다", () => {
+    mountCombo("", vi.fn());
+    expect(clearBtn()).toBeNull();
   });
 });

@@ -37,6 +37,8 @@ interface SearchCmRolePayload {
 
 interface SaveCmRolePayload {
   cnt_merge?: number;
+  /** 저장 뒤 역할 전부(BE 재조회, 조회 조건 없음) — 조건에 안 걸리는 새 역할을 목록에 남길 때 쓴다(z2fix2 e). */
+  ds_main?: RoleRow[];
 }
 
 interface SearchRoleGroupsPayload {

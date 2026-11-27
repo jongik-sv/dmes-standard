@@ -143,7 +143,7 @@ public class CommRoleMngService {
      * <p>처리:
      * <ol>
      *   <li>{@link SecRoleRepository#searchByFilter(String, String, String)} — 본 8 컬럼 (To-Be 정책 #1 — BIZ_SYSTEM_CODE 제거) 검색</li>
-     *   <li>각 row 에 ROLE_GROUP_ID scalar subquery + ID (마지막 `_` 이후 토큰 — As-Is xml:20 SUBSTR/INSTR(_,-1,1) 등가) 부착</li>
+     *   <li>각 row 에 ROLE_GROUP_ID scalar subquery + ID (= ROLE_ID 전체, z2fix2 — 옛 마지막 `_` 자르기 없앰) 부착</li>
      *   <li>{@code ds_main} key 의 List&lt;Map&gt; 반환 → cactus 가 {@code grids.ds_main.rows} 로 응답</li>
      * </ol>
      *
@@ -193,6 +193,7 @@ public class CommRoleMngService {
      * <p>반환: {@code cnt_merge} (성공 행 수) + {@code ds_main} (재조회 결과 — As-Is fn_callBack saveCmRole 의 fn_search 자동 재호출 정합).
      */
     public Map<String, Object> saveCmRole(List<Map<String, Object>> master) {
+        requireRoleNames(master);
         int cnt = 0;
         Set<String> changedRoleIds = new LinkedHashSet<>(); // 캐시 무효화 대상(USE_TP·유효 기간 변경·삭제)
         if (master != null) {
@@ -642,7 +643,7 @@ public class CommRoleMngService {
 
     /**
      * As-Is {@code selectCommRole} (xml:7~37) 응답 row 조립 — 본 7 컬럼 (BIZ_SYSTEM_CODE 폐기) +
-     * ROLE_GROUP_ID (scalar subquery) + ID (ROLE_ID 의 마지막 `_` 이후 — As-Is SUBSTR/INSTR(_,-1,1) 등가).
+     * ROLE_GROUP_ID (scalar subquery) + ID (= ROLE_ID 전체, z2fix2).
      *
      * <p>응답 컬럼명 (SNAKE_CASE) 은 As-Is dataset 컬럼명 (분석 §3.8 DS-002) 보존.
      */
@@ -657,20 +658,31 @@ public class CommRoleMngService {
         row.put("END_ACTIVE_DATE", r.getEndActiveDate());
         // ROLE_GROUP_ID scalar subquery — As-Is xml:14~18
         row.put("ROLE_GROUP_ID", secRoleRepository.findOneRoleGroupIdByRoleId(r.getRoleId()));
-        // ID = ROLE_ID 의 마지막 "_" 이후 — As-Is xml:20 SUBSTR/INSTR(_,-1,1)+1 등가
-        row.put("ID", extractIdFromRoleId(r.getRoleId()));
+        // ID = ROLE_ID 전체(z2fix2 c — 옛 「마지막 _ 이후」 자르기는 role_MN_MPP_WORK_VIEW 를 VIEW 로 보여 없앴다)
+        row.put("ID", r.getRoleId());
         return row;
     }
 
     /**
-     * As-Is {@code SUBSTR(A.ROLE_ID, INSTR(A.ROLE_ID,'_',-1,1)+1, LENGTH(A.ROLE_ID))} (xml:20) Java 등가.
-     * <p>ROLE_ID 의 <b>마지막</b> '_' 이후 토큰 추출. '_' 없으면 전체 반환 (As-Is INSTR 0 → SUBSTR(_, 2, _) 와 mismatch — Java 보수 처리).
+     * 저장 전 검사(z2fix2 d): 추가·수정 줄은 ROLE_NM 이 있어야 한다. 하나라도 비면 아무것도 쓰지 않고
+     * {@code ROLE_NM_REQUIRED: 상세} 로 거절한다(메시지 앞 코드로 FE 가 구분). 삭제 줄·ROLE_ID 없는 줄(건너뜀)은 보지 않는다.
      */
-    private static String extractIdFromRoleId(String roleId) {
-        if (roleId == null) return null;
-        int idx = roleId.lastIndexOf('_');
-        if (idx < 0) return roleId;
-        return roleId.substring(idx + 1);
+    private static void requireRoleNames(List<Map<String, Object>> master) {
+        if (master == null) return;
+        for (Map<String, Object> row : master) {
+            if (row == null) continue;
+            String status = strOf(row.get("rowStatus"));
+            if (status == null || status.isBlank()) {
+                status = strOf(row.get("!nativeeditor_status"));
+            }
+            boolean write = "inserted".equals(status) || "C".equals(status) || "updated".equals(status) || "U".equals(status);
+            String roleId = strOf(row.get("ROLE_ID"));
+            if (!write || roleId == null || roleId.isBlank()) continue;
+            String roleNm = strOf(row.get("ROLE_NM"));
+            if (roleNm == null || roleNm.isBlank()) {
+                throw new BusinessException(ErrorCode.BUSINESS_ERROR, "ROLE_NM_REQUIRED: 역할명은 필수 입력입니다 (" + roleId + ")");
+            }
+        }
     }
 
 }
