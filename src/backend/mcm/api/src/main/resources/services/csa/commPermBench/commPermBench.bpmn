@@ -1,0 +1,433 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+                  xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+                  xmlns:camunda="http://camunda.org/schema/1.0/bpmn"
+                  id="Definitions_commPermBench"
+                  targetNamespace="http://bpmn.io/schema/bpmn">
+
+  <!--
+    권한 작업대 — commPermBench BPMN (csa 그룹 / mcm 모듈) — b1 뼈대 (11 action)
+
+    정본: docs/perm-bench/decompose.md §0.3. 1단계 = searchBench·searchMenuTree·explain·searchRolePerm,
+    2단계 = loadDraft·saveDraft·discardDraft·impact·apply·searchHistory·searchHistoryDtl.
+
+    OASIS executor 가 actionGateway 의 input='action' 으로 분기(sequenceFlow name = action 이름).
+    serviceTask 는 Spring bean 'commPermBenchService' 의 method 호출. grid 하나인 action 은 List 반환 + output="<grid>"
+    (menus·perms·draft·result·his·dtl), grid 여럿인 searchBench·explain·impact 는 Map 반환 + output="result"(가이드 6-D-1).
+    saveDraft 의 변경 목록은 grids.changes.rows → method param 'changes' 자동 binding (params 에 배열 금지, 가이드 §6-E-2).
+    트랜잭션: 쓰기 action 은 OASIS 가 process 단위로 txBiz 를 자동으로 씌운다(가이드 02 §6-B-2, Service @Transactional 금지).
+    process 에 tx=txBiz 를 명시한다(BPMN 설계서 §1.3·§2.5) — cactus 기본 주입값과 같아 다른 action 의 동작은 같고, apply 의
+    한 트랜잭션(초안 잠금 → 범위 잠금 → 검사 → 쓰기 → 이력 → 초안 삭제, 커밋 뒤 RoleChangedEvent)이 눈에 보이게 한다.
+    serviceTask 에는 tx 를 둘 수 없다(OASIS NamedObjectJavaServiceTaskExecutable 이 받지 않는 속성 = PropertyException).
+  -->
+
+  <bpmn:process id="commPermBench" name="권한 작업대" isExecutable="true">
+    <bpmn:extensionElements>
+      <camunda:properties>
+        <camunda:property name="tx" value="txBiz" />
+      </camunda:properties>
+    </bpmn:extensionElements>
+
+    <bpmn:startEvent id="start">
+      <bpmn:outgoing>flow_to_gw</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:sequenceFlow id="flow_to_gw" sourceRef="start" targetRef="actionGateway" />
+
+    <bpmn:exclusiveGateway id="actionGateway">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="input" value="action" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_to_gw</bpmn:incoming>
+      <bpmn:outgoing>flow_searchBench</bpmn:outgoing>
+      <bpmn:outgoing>flow_searchMenuTree</bpmn:outgoing>
+      <bpmn:outgoing>flow_explain</bpmn:outgoing>
+      <bpmn:outgoing>flow_searchRolePerm</bpmn:outgoing>
+      <bpmn:outgoing>flow_loadDraft</bpmn:outgoing>
+      <bpmn:outgoing>flow_saveDraft</bpmn:outgoing>
+      <bpmn:outgoing>flow_discardDraft</bpmn:outgoing>
+      <bpmn:outgoing>flow_impact</bpmn:outgoing>
+      <bpmn:outgoing>flow_apply</bpmn:outgoing>
+      <bpmn:outgoing>flow_searchHistory</bpmn:outgoing>
+      <bpmn:outgoing>flow_searchHistoryDtl</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- ─────────── action: searchBench — 사람·그룹·역할 목록과 연결(users·groups·roles·userGroups·groupRoles) ─────────── -->
+    <bpmn:sequenceFlow id="flow_searchBench" name="searchBench" sourceRef="actionGateway" targetRef="searchBenchTask" />
+    <bpmn:serviceTask id="searchBenchTask" name="작업대 기본 조회" camunda:class="commPermBenchService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="searchBench" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mcm.csa.commPermBench.dto.CommPermBenchSearchBenchRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_searchBench</bpmn:incoming>
+      <bpmn:outgoing>flow_searchBench_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="flow_searchBench_end" sourceRef="searchBenchTask" targetRef="endSearchBench" />
+    <bpmn:endEvent id="endSearchBench">
+      <bpmn:incoming>flow_searchBench_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- ─────────── action: searchMenuTree — 메뉴 트리(menus) — source=CUR|DRAFT ─────────── -->
+    <bpmn:sequenceFlow id="flow_searchMenuTree" name="searchMenuTree" sourceRef="actionGateway" targetRef="searchMenuTreeTask" />
+    <bpmn:serviceTask id="searchMenuTreeTask" name="메뉴 트리 조회" camunda:class="commPermBenchService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="searchMenuTree" />
+          <camunda:property name="output" value="menus" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mcm.csa.commPermBench.dto.CommPermBenchSearchMenuTreeRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_searchMenuTree</bpmn:incoming>
+      <bpmn:outgoing>flow_searchMenuTree_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="flow_searchMenuTree_end" sourceRef="searchMenuTreeTask" targetRef="endSearchMenuTree" />
+    <bpmn:endEvent id="endSearchMenuTree">
+      <bpmn:incoming>flow_searchMenuTree_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- ─────────── action: explain — 버튼별 허용·사유(buttons·paths) ─────────── -->
+    <bpmn:sequenceFlow id="flow_explain" name="explain" sourceRef="actionGateway" targetRef="explainTask" />
+    <bpmn:serviceTask id="explainTask" name="권한 설명" camunda:class="commPermBenchService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="explain" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mcm.csa.commPermBench.dto.CommPermBenchExplainRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_explain</bpmn:incoming>
+      <bpmn:outgoing>flow_explain_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="flow_explain_end" sourceRef="explainTask" targetRef="endExplain" />
+    <bpmn:endEvent id="endExplain">
+      <bpmn:incoming>flow_explain_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- ─────────── action: searchRolePerm — 역할×오브젝트 퍼미션(perms) ─────────── -->
+    <bpmn:sequenceFlow id="flow_searchRolePerm" name="searchRolePerm" sourceRef="actionGateway" targetRef="searchRolePermTask" />
+    <bpmn:serviceTask id="searchRolePermTask" name="역할 퍼미션 조회" camunda:class="commPermBenchService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="searchRolePerm" />
+          <camunda:property name="output" value="perms" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mcm.csa.commPermBench.dto.CommPermBenchSearchRolePermRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_searchRolePerm</bpmn:incoming>
+      <bpmn:outgoing>flow_searchRolePerm_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="flow_searchRolePerm_end" sourceRef="searchRolePermTask" targetRef="endSearchRolePerm" />
+    <bpmn:endEvent id="endSearchRolePerm">
+      <bpmn:incoming>flow_searchRolePerm_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- ─────────── action: loadDraft — 내 초안 읽기(draft) ─────────── -->
+    <bpmn:sequenceFlow id="flow_loadDraft" name="loadDraft" sourceRef="actionGateway" targetRef="loadDraftTask" />
+    <bpmn:serviceTask id="loadDraftTask" name="초안 읽기" camunda:class="commPermBenchService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="loadDraft" />
+          <camunda:property name="output" value="draft" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_loadDraft</bpmn:incoming>
+      <bpmn:outgoing>flow_loadDraft_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="flow_loadDraft_end" sourceRef="loadDraftTask" targetRef="endLoadDraft" />
+    <bpmn:endEvent id="endLoadDraft">
+      <bpmn:incoming>flow_loadDraft_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- ─────────── action: saveDraft — 초안 저장(draft) — 변경 목록은 grids.changes ─────────── -->
+    <bpmn:sequenceFlow id="flow_saveDraft" name="saveDraft" sourceRef="actionGateway" targetRef="saveDraftTask" />
+    <bpmn:serviceTask id="saveDraftTask" name="초안 저장" camunda:class="commPermBenchService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="saveDraft" />
+          <camunda:property name="output" value="draft" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_saveDraft</bpmn:incoming>
+      <bpmn:outgoing>flow_saveDraft_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="flow_saveDraft_end" sourceRef="saveDraftTask" targetRef="endSaveDraft" />
+    <bpmn:endEvent id="endSaveDraft">
+      <bpmn:incoming>flow_saveDraft_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- ─────────── action: discardDraft — 초안 버리기 ─────────── -->
+    <bpmn:sequenceFlow id="flow_discardDraft" name="discardDraft" sourceRef="actionGateway" targetRef="discardDraftTask" />
+    <bpmn:serviceTask id="discardDraftTask" name="초안 버리기" camunda:class="commPermBenchService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="discardDraft" />
+          <camunda:property name="output" value="result" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_discardDraft</bpmn:incoming>
+      <bpmn:outgoing>flow_discardDraft_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="flow_discardDraft_end" sourceRef="discardDraftTask" targetRef="endDiscardDraft" />
+    <bpmn:endEvent id="endDiscardDraft">
+      <bpmn:incoming>flow_discardDraft_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- ─────────── action: impact — 저장된 초안의 영향(summary·impacts) ─────────── -->
+    <bpmn:sequenceFlow id="flow_impact" name="impact" sourceRef="actionGateway" targetRef="impactTask" />
+    <bpmn:serviceTask id="impactTask" name="영향 계산" camunda:class="commPermBenchService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="impact" />
+          <camunda:property name="output" value="result" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_impact</bpmn:incoming>
+      <bpmn:outgoing>flow_impact_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="flow_impact_end" sourceRef="impactTask" targetRef="endImpact" />
+    <bpmn:endEvent id="endImpact">
+      <bpmn:incoming>flow_impact_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- ─────────── action: apply — 초안 적용(result) — PERM_CONFLICT·PERM_NEED_CONFIRM·PERM_NOT_IN_OBJ·PERM_EMPTY_BTN ─────────── -->
+    <bpmn:sequenceFlow id="flow_apply" name="apply" sourceRef="actionGateway" targetRef="applyTask" />
+    <bpmn:serviceTask id="applyTask" name="초안 적용" camunda:class="commPermBenchService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="apply" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mcm.csa.commPermBench.dto.CommPermBenchApplyRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_apply</bpmn:incoming>
+      <bpmn:outgoing>flow_apply_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="flow_apply_end" sourceRef="applyTask" targetRef="endApply" />
+    <bpmn:endEvent id="endApply">
+      <bpmn:incoming>flow_apply_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- ─────────── action: searchHistory — 적용 이력(his) ─────────── -->
+    <bpmn:sequenceFlow id="flow_searchHistory" name="searchHistory" sourceRef="actionGateway" targetRef="searchHistoryTask" />
+    <bpmn:serviceTask id="searchHistoryTask" name="적용 이력 조회" camunda:class="commPermBenchService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="searchHistory" />
+          <camunda:property name="output" value="his" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mcm.csa.commPermBench.dto.CommPermBenchSearchHistoryRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_searchHistory</bpmn:incoming>
+      <bpmn:outgoing>flow_searchHistory_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="flow_searchHistory_end" sourceRef="searchHistoryTask" targetRef="endSearchHistory" />
+    <bpmn:endEvent id="endSearchHistory">
+      <bpmn:incoming>flow_searchHistory_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- ─────────── action: searchHistoryDtl — 적용 이력 줄(dtl) ─────────── -->
+    <bpmn:sequenceFlow id="flow_searchHistoryDtl" name="searchHistoryDtl" sourceRef="actionGateway" targetRef="searchHistoryDtlTask" />
+    <bpmn:serviceTask id="searchHistoryDtlTask" name="적용 이력 줄 조회" camunda:class="commPermBenchService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="searchHistoryDtl" />
+          <camunda:property name="output" value="dtl" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mcm.csa.commPermBench.dto.CommPermBenchSearchHistoryDtlRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_searchHistoryDtl</bpmn:incoming>
+      <bpmn:outgoing>flow_searchHistoryDtl_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="flow_searchHistoryDtl_end" sourceRef="searchHistoryDtlTask" targetRef="endSearchHistoryDtl" />
+    <bpmn:endEvent id="endSearchHistoryDtl">
+      <bpmn:incoming>flow_searchHistoryDtl_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+  </bpmn:process>
+
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="commPermBench">
+      <bpmndi:BPMNShape id="start_di" bpmnElement="start">
+        <dc:Bounds x="152" y="482" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="actionGateway_di" bpmnElement="actionGateway" isMarkerVisible="true">
+        <dc:Bounds x="245" y="475" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="searchBenchTask_di" bpmnElement="searchBenchTask">
+        <dc:Bounds x="370" y="40" width="220" height="60" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endSearchBench_di" bpmnElement="endSearchBench">
+        <dc:Bounds x="640" y="52" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="searchMenuTreeTask_di" bpmnElement="searchMenuTreeTask">
+        <dc:Bounds x="370" y="120" width="220" height="60" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endSearchMenuTree_di" bpmnElement="endSearchMenuTree">
+        <dc:Bounds x="640" y="132" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="explainTask_di" bpmnElement="explainTask">
+        <dc:Bounds x="370" y="200" width="220" height="60" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endExplain_di" bpmnElement="endExplain">
+        <dc:Bounds x="640" y="212" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="searchRolePermTask_di" bpmnElement="searchRolePermTask">
+        <dc:Bounds x="370" y="280" width="220" height="60" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endSearchRolePerm_di" bpmnElement="endSearchRolePerm">
+        <dc:Bounds x="640" y="292" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="loadDraftTask_di" bpmnElement="loadDraftTask">
+        <dc:Bounds x="370" y="360" width="220" height="60" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endLoadDraft_di" bpmnElement="endLoadDraft">
+        <dc:Bounds x="640" y="372" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="saveDraftTask_di" bpmnElement="saveDraftTask">
+        <dc:Bounds x="370" y="440" width="220" height="60" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endSaveDraft_di" bpmnElement="endSaveDraft">
+        <dc:Bounds x="640" y="452" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="discardDraftTask_di" bpmnElement="discardDraftTask">
+        <dc:Bounds x="370" y="520" width="220" height="60" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endDiscardDraft_di" bpmnElement="endDiscardDraft">
+        <dc:Bounds x="640" y="532" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="impactTask_di" bpmnElement="impactTask">
+        <dc:Bounds x="370" y="600" width="220" height="60" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endImpact_di" bpmnElement="endImpact">
+        <dc:Bounds x="640" y="612" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="applyTask_di" bpmnElement="applyTask">
+        <dc:Bounds x="370" y="680" width="220" height="60" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endApply_di" bpmnElement="endApply">
+        <dc:Bounds x="640" y="692" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="searchHistoryTask_di" bpmnElement="searchHistoryTask">
+        <dc:Bounds x="370" y="760" width="220" height="60" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endSearchHistory_di" bpmnElement="endSearchHistory">
+        <dc:Bounds x="640" y="772" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="searchHistoryDtlTask_di" bpmnElement="searchHistoryDtlTask">
+        <dc:Bounds x="370" y="840" width="220" height="60" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endSearchHistoryDtl_di" bpmnElement="endSearchHistoryDtl">
+        <dc:Bounds x="640" y="852" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="flow_to_gw_di" bpmnElement="flow_to_gw">
+        <di:waypoint x="188" y="500" />
+        <di:waypoint x="245" y="500" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_searchBench_di" bpmnElement="flow_searchBench">
+        <di:waypoint x="270" y="475" />
+        <di:waypoint x="270" y="70" />
+        <di:waypoint x="370" y="70" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_searchBench_end_di" bpmnElement="flow_searchBench_end">
+        <di:waypoint x="590" y="70" />
+        <di:waypoint x="640" y="70" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_searchMenuTree_di" bpmnElement="flow_searchMenuTree">
+        <di:waypoint x="270" y="475" />
+        <di:waypoint x="270" y="150" />
+        <di:waypoint x="370" y="150" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_searchMenuTree_end_di" bpmnElement="flow_searchMenuTree_end">
+        <di:waypoint x="590" y="150" />
+        <di:waypoint x="640" y="150" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_explain_di" bpmnElement="flow_explain">
+        <di:waypoint x="270" y="475" />
+        <di:waypoint x="270" y="230" />
+        <di:waypoint x="370" y="230" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_explain_end_di" bpmnElement="flow_explain_end">
+        <di:waypoint x="590" y="230" />
+        <di:waypoint x="640" y="230" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_searchRolePerm_di" bpmnElement="flow_searchRolePerm">
+        <di:waypoint x="270" y="475" />
+        <di:waypoint x="270" y="310" />
+        <di:waypoint x="370" y="310" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_searchRolePerm_end_di" bpmnElement="flow_searchRolePerm_end">
+        <di:waypoint x="590" y="310" />
+        <di:waypoint x="640" y="310" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_loadDraft_di" bpmnElement="flow_loadDraft">
+        <di:waypoint x="270" y="475" />
+        <di:waypoint x="270" y="390" />
+        <di:waypoint x="370" y="390" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_loadDraft_end_di" bpmnElement="flow_loadDraft_end">
+        <di:waypoint x="590" y="390" />
+        <di:waypoint x="640" y="390" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_saveDraft_di" bpmnElement="flow_saveDraft">
+        <di:waypoint x="270" y="475" />
+        <di:waypoint x="270" y="470" />
+        <di:waypoint x="370" y="470" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_saveDraft_end_di" bpmnElement="flow_saveDraft_end">
+        <di:waypoint x="590" y="470" />
+        <di:waypoint x="640" y="470" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_discardDraft_di" bpmnElement="flow_discardDraft">
+        <di:waypoint x="270" y="475" />
+        <di:waypoint x="270" y="550" />
+        <di:waypoint x="370" y="550" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_discardDraft_end_di" bpmnElement="flow_discardDraft_end">
+        <di:waypoint x="590" y="550" />
+        <di:waypoint x="640" y="550" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_impact_di" bpmnElement="flow_impact">
+        <di:waypoint x="270" y="475" />
+        <di:waypoint x="270" y="630" />
+        <di:waypoint x="370" y="630" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_impact_end_di" bpmnElement="flow_impact_end">
+        <di:waypoint x="590" y="630" />
+        <di:waypoint x="640" y="630" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_apply_di" bpmnElement="flow_apply">
+        <di:waypoint x="270" y="475" />
+        <di:waypoint x="270" y="710" />
+        <di:waypoint x="370" y="710" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_apply_end_di" bpmnElement="flow_apply_end">
+        <di:waypoint x="590" y="710" />
+        <di:waypoint x="640" y="710" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_searchHistory_di" bpmnElement="flow_searchHistory">
+        <di:waypoint x="270" y="475" />
+        <di:waypoint x="270" y="790" />
+        <di:waypoint x="370" y="790" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_searchHistory_end_di" bpmnElement="flow_searchHistory_end">
+        <di:waypoint x="590" y="790" />
+        <di:waypoint x="640" y="790" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_searchHistoryDtl_di" bpmnElement="flow_searchHistoryDtl">
+        <di:waypoint x="270" y="475" />
+        <di:waypoint x="270" y="870" />
+        <di:waypoint x="370" y="870" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_searchHistoryDtl_end_di" bpmnElement="flow_searchHistoryDtl_end">
+        <di:waypoint x="590" y="870" />
+        <di:waypoint x="640" y="870" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>
