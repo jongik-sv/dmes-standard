@@ -2,6 +2,8 @@
 
 ## perm-fe-a (Mac `dmes-perm-mac`, 브랜치 `perm/perm-fe`)
 
+**완료(2026-11-28)**: f0a~f10·z4·z4fix 모두 통합에 들어감. z4 렌더 위반 0(`docs/perm-bench/z4-render-profile.md`). 레인 닫힘 — z2·z3 등 다음 일은 새 세션이 이 메모로 이어 간다.
+
 ### 할 일
 
 f0a 계약 타입·가짜 자료 → f1 shared 부품 3개 → f1-merge → f2 작업대 1단계 → f4 3단계 링크 → f3 2단계 → f8 vitest → f9 렌더 점검·screens.mjs → fa-merge
@@ -18,7 +20,9 @@ f0a 계약 타입·가짜 자료 → f1 shared 부품 3개 → f1-merge → f2 �
 | f3 | 끝(2차 머지 요청 998f1fec7, push perm/perm-fe-5) | 998f1fec7 squash | 2단계 편집·초안 자동 저장 0.6초·막대·현재/초안·영향·되돌리기·잃는 사람·충돌·이력. BENCH_PHASE=3. USE_MOCK=true. 리뷰 14건 중 13 고침·#7 부분(NOT_FOUND 줄 강조 없음). bench-be 7·9·10·11번 반영. commPermBench 11파일/133, m-mcm 108/2013 |
 | f8 | 끝(2차) | 998f1fec7 squash | 시험 3파일 58건, commPermBench 8파일/97 |
 | f9 | 등록 끝(2차) | 998f1fec7 squash | screens.mjs commPermBench·commPermMng·commRoleMng·commObjMng(새 설계). 브라우저 렌더 점검 = 사용자 승인 대기(Mac 조정 통합 확인 몫) |
-| f10 | 끝(3차 머지 요청, 부모 5c9075d4b) | 머지 요청 SHA | 실연결: USE_MOCK·mock 분기 삭제, `mock.ts` → 시험 고정 자료 `bench.fixture.ts`(시험만 import). isSysadmin = searchBench `data.result.me[0].ME_SYSADMIN` 만. BE 5c9075d4b 대조 차이 8건 고침(보고 `task-f10-contract-diff.md`, 미커밋). commPermBench 11/140, m-mcm 108/2020, tsc 기준선 외 0, eslint 0, audit 0 |
+| f10 | 끝(3차 머지 완료) | d0c310a6d | 실연결: USE_MOCK·mock 분기 삭제, `mock.ts` → 시험 고정 자료 `bench.fixture.ts`(시험만 import). isSysadmin = searchBench `data.result.me[0].ME_SYSADMIN` 만. BE 5c9075d4b 대조 차이 8건 고침(보고 `task-f10-contract-diff.md`, 미커밋). commPermBench 11/140, m-mcm 108/2020, tsc 기준선 외 0, eslint 0, audit 0 |
+| z4 | 끝(머지) | 945f4a214 | 화면 프로파일링(4화면 count-renders)·실서버 첫 확인(ego-browser, clone L_PERM_Z4). 위반 1(commRoleMng 상세 입력 루트 1회/글자). screens.mjs commPermMng breadcrumb = 「퍼미션 관리」 |
+| z4fix | 끝(머지) | baa044070 | commRoleMng 상세 초안 → RoleDetailPanel 안 useDetailDraft(R12). 재측정 6.6→1.0커밋/글자, 루트·그리드 0. 리뷰 🟡1·🔵1 고침(확인 상자 닫기) |
 
 ### 결정
 
@@ -39,10 +43,22 @@ f0a 계약 타입·가짜 자료 → f1 shared 부품 3개 → f1-merge → f2 �
 - f10 실응답 대조(BE 5c9075d4b): 그리드 하나 action = 맨 위 `grids.<칸>.rows`(data.grids 아님), 여러 칸 = `data.result.<칸>` 줄 배열. 실패 = HTTP 200 + meta.success=false "CODE: 상세". PERM_CONFLICT 범위 = 상세 「group:G,role:R,user:U」(따로 칸 없음) → scopes 접두째, scopeNames 가 종류별로 찾음. 이력 기간 = 양 끝 포함 366일(BE between+1). U_AT = 「yyyy-MM-dd HH:mm:ss」. 새 코드 VALIDATION_ERROR·PERM_REQUIRED·PERM_BAD_SOURCE·PERM_NOT_READY·PERM_DRAFT_NOT_READY. PERM_NEED_CONFIRM 상세 = 잃는 사람 수 → 「잃는 사람 N명」. SORT_SEQ = 글, explain ROLES·GROUPS = null 가능, impact GAINED·LOST 없으면 ""
 - contracts/bench-be.md 와 BE 다른 곳(조정에 보고): 4(data.grids → 맨 위 grids), 7(HTTP 400 → 200), 9(양 끝 포함), 5(U_AT 형식), 2(퍼미션 없는 오브젝트 줄 = menuFolderId 줄 때만), 11(USE_TP=N 폴더·화면 = VISIBLE=N·MENU_HIDDEN 누락), 12(쓰기 단계 충돌도 범위 옴)
 
-### 남은 일(순서)
+### 남은 일
 
-1. f10(3차) 머지 완료 알림 대기. 요청 뒤 그 SHA 는 바꾸지 않는다
-2. 열린 것(bench-be 에 전함): 이력 366일 경계 셈, 탭 닫기 직전 0.6초 편집 keepalive(후속 후보). 브라우저 렌더 점검 = 사용자 승인 뒤 Mac 조정 통합 확인 몫. 재개 자료 = 워크트리 task-f2/f3/f4/f8-*.md(미커밋 보고)
+없음(레인 완료).
+
+### 후속 후보(조정 판단)
+
+- 진입 렌더 시간 합이 참고 기준 20ms 초과 — commPermBench 41.5ms·commPermMng 40.7ms·commRoleMng 49.5ms·commObjMng 68.7ms(profiling 1회 값, z4·z4fix)
+- 작업대 탭 닫기 직전 0.6초 안 편집 = 초안 자동 저장 전이라 사라질 수 있음 → keepalive 저장(fetch keepalive·sendBeacon)
+- shared json-api-client 가 non-2xx 때 Cactus envelope `meta.message`("CODE: 상세")를 버림 → 공용 client 가 읽게 하면 commPermBench api.ts 의 얇은 fetch 래퍼를 걷을 수 있음
+- f3 리뷰 #7 남은 몫: 적용 NOT_FOUND 때 해당 바꾼 것 줄 강조 없음(지금은 문구만)
+- 이력 366일 경계는 f10 에서 BE(양 끝 포함)에 맞춤 — 끝남. contracts/bench-be.md 차이 7건은 조정이 win30 에 전함
+
+### 재개 자료
+
+- 워크트리 미추적 `task-f2/f3/f4/f4b/f8/f10-*.md`(보고·리뷰·계약 대조). 지우지 않음
+- z4 캡처·renders.json = `~/.coord/perm-bench-mac/lanes/perm-fe-a/z4/`
 
 ## perm-fe-b (Mac, 브랜치 perm/perm-fe-b, 워크트리 dmes-perm-fe-b)
 
