@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildMockGraph, createMockPermBenchApi, parseTokens, readPreset } from "./mock";
+import { buildMockGraph, createMockPermBenchApi, parseTokens, readPreset } from "./bench.fixture";
 import { PermApplyError } from "./types";
 
 describe("commPermBench 가짜 자료", () => {

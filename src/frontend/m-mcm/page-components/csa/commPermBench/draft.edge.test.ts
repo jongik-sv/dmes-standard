@@ -336,5 +336,7 @@ describe("draft — 실패 문구(benchErrorText) · 충돌 범위 이름", () =
   it("scopeNames: 사람·그룹·역할 이름으로 바꾸고 모르는 ID 는 그대로", () => {
     const idx = indexBench(bench);
     expect(scopeNames(["u1", "G1", "R1", "zzz"], idx)).toEqual(["사람 김민준", "그룹 품질팀", "역할 조회 전용", "zzz"]);
+    // 서버 범위 = 접두째(f10). 접두가 있으면 그 종류에서만 찾고, 같은 이름은 한 번만
+    expect(scopeNames(["user:u1", "group:G1", "role:R1", "role:u1", "user:u1"], idx)).toEqual(["사람 김민준", "그룹 품질팀", "역할 조회 전용", "역할 u1"]);
   });
 });

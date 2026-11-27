@@ -1,10 +1,10 @@
 /**
  * commPermBench 실연결 API — POST /api/mcm/oasis/commPermBench/{action}, body `{ meta, params, grids }`.
  *
- * 모양 = types.ts `PermBenchApi`(mock.ts 와 같다). 화면은 인터페이스만 안다.
+ * 모양 = types.ts `PermBenchApi`(시험 가짜 API bench.fixture.ts 와 같다). 화면은 인터페이스만 안다.
  * D36: 목록 입력은 params 배열이 아니라 grids 로 보낸다(saveDraft = `grids.changes.rows`, 응답 `grids.draft`).
  * 응답 envelope 풀기 = commRoleGrpMng/api.ts `unwrapPayload` 와 같은 규칙(meta.success=false 면 throw).
- * HTTP 400 등 2xx 가 아닌 응답도 본문(meta.message "CODE: 설명")을 읽어야 해서 공용 json-api-client 대신 fetch 를 부른다(readResponse).
+ * 실패 = 보통 HTTP 200 + meta.success=false(meta.message "CODE: 설명"). 예외 경로의 HTTP 400 등 2xx 가 아닌 응답도 본문을 읽어야 해서 공용 json-api-client 대신 fetch 를 부른다(readResponse).
  */
 import {
   PERM_ERROR_CODES,
@@ -43,7 +43,8 @@ const APPLY_CODES = PERM_ERROR_CODES;
 /**
  * 실패 envelope 를 오류로 바꾼다. 서버 BusinessException 문구 = "CODE: 설명"(BE 계약).
  * 앞 코드가 PermApplyErrorCode 면 PermApplyError(code, 설명), 아니면 일반 Error.
- * 충돌 범위(scopes)는 data.scopes 가 오면 쓴다(서버 칸 이름 미확정).
+ * 충돌 범위(scopes): BE 는 칸을 따로 주지 않고 상세에 「group:G,role:R,user:U」 로 싣는다(PermDraftFingerprint.scopeKeys).
+ * failureFromMessage 가 그 목록을 접두째 읽는다(scopeNames 가 종류별로 이름을 찾는다). data.scopes 가 오면 그것을 먼저 쓴다(예비).
  */
 export function failureOf(env: CactusEnvelope): Error {
   const message = env.meta?.message?.trim() || "요청이 거부되었습니다.";
@@ -52,12 +53,22 @@ export function failureOf(env: CactusEnvelope): Error {
   return failureFromMessage(message, scopes);
 }
 
+const SCOPE_RE = /^(?:user|group|role):\S.*$/;
+
+/** PERM_CONFLICT 상세 「group:G,role:R,user:U」 → ["group:G","role:R","user:U"](접두 유지, 같은 ID 가 종류만 달라도 가른다). 모든 항목이 그 모양일 때만, 아니면 []. */
+export function scopesOfDetail(detail: string): string[] {
+  const items = detail.split(",").map((s) => s.trim()).filter(Boolean);
+  return items.length && items.every((s) => SCOPE_RE.test(s)) ? items : [];
+}
+
 /** "CODE: 설명" 문구 → 아는 코드면 PermApplyError, 아니면 일반 Error. */
 export function failureFromMessage(message: string, scopes: string[] = []): Error {
   const m = /^([A-Z][A-Z0-9_]*)\s*:\s*([\s\S]*)$/.exec(message.trim());
   const code = m ? APPLY_CODES.find((c) => c === m[1]) : undefined;
   if (!code || !m) return new Error(message);
-  return new PermApplyError(code, m[2].trim() || message, scopes);
+  const detail = m[2].trim();
+  const sc = scopes.length || code !== "PERM_CONFLICT" ? scopes : scopesOfDetail(detail);
+  return new PermApplyError(code, detail || message, sc);
 }
 
 /** HTTP 상태별 기본 문구(서버가 문구를 주지 않을 때). json-api-client 와 같은 말. */
@@ -79,7 +90,7 @@ export const NETWORK_ERROR_TEXT = "서버에 연결하지 못했습니다. 네�
 /**
  * HTTP 응답 → 본문. 2xx 가 아니어도 본문을 읽는다.
  * 공용 json-api-client 는 2xx 가 아니면 `error.message`·`message` 만 읽어 Cactus envelope 의 `meta.message`("NOT_FOUND: …")를 잃는다.
- * 그래서 이 화면은 fetch 를 직접 부르고, 실패 envelope 를 failureOf 로 바꾼다(BE 400 INVALID_VALUE 의 "NOT_FOUND: …" 도 코드로 읽는다).
+ * 그래서 이 화면은 fetch 를 직접 부르고, 실패 envelope 를 failureOf 로 바꾼다(2xx 가 아닌 응답의 "NOT_FOUND: …" 도 코드로 읽는다).
  */
 export async function readResponse(res: Response): Promise<unknown> {
   const body = (await res.json().catch(() => null)) as (CactusEnvelope & { message?: string; error?: { message?: string } }) | null;
@@ -96,10 +107,10 @@ const rowsIfGrid = (v: unknown): unknown =>
   v && typeof v === "object" && !Array.isArray(v) && Array.isArray((v as { rows?: unknown }).rows) ? (v as { rows: unknown[] }).rows : v;
 
 /**
- * 응답 모양(BE 확인, 가이드 6-D-1):
- *   - 그리드 하나 action(searchMenuTree·searchRolePerm·loadDraft·saveDraft·apply·searchHistory·searchHistoryDtl) = `data.grids.<칸>.rows`
- *   - 여러 칸 action(searchBench·explain·impact) = `data.result.<칸>`(Map)
- *   - 맨 위 `grids.<칸>.rows` 도 받아 둔다(예전 모양 대비).
+ * 응답 모양(BE 5c9075d4b 대조, f10):
+ *   - 그리드 하나 action(searchMenuTree·searchRolePerm·loadDraft·saveDraft·apply·searchHistory·searchHistoryDtl) = 맨 위 `grids.<칸>.rows`
+ *   - 여러 칸 action(searchBench·explain·impact) = `data.result.<칸>`(줄 배열)
+ *   - `data.grids.<칸>.rows` 도 받아 둔다(예비).
  * apply 의 칸 이름이 `result` 라 data.result(Map) 를 먼저 펴고 그리드 칸이 덮어쓴다.
  */
 export function unwrapPayload<T>(res: unknown): T {

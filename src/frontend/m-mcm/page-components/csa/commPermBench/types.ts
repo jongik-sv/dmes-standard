@@ -5,7 +5,7 @@
  * 결정 D36(win30): 목록 입력은 OASIS params 배열이 아니라 grids 로 보낸다.
  *   → saveDraft 요청 = `grids.changes.rows`(칸 TP·KEY1·KEY2·OP·BTN_PERM·POPUP_PERM), 응답 = `grids.draft`.
  *
- * 호출 = POST /api/mcm/oasis/commPermBench/{action}. 실연결 전에는 mock.ts 의 가짜 API 가 같은 모양으로 답한다.
+ * 호출 = POST /api/mcm/oasis/commPermBench/{action}. 시험은 bench.fixture.ts 의 가짜 API 가 같은 모양으로 답한다.
  */
 
 /** 단계 1·2 공통: 현재 값(CUR)으로 답할지, 저장된 초안을 얹은 값(DRAFT)으로 답할지. */
@@ -107,7 +107,8 @@ export interface BenchMenuRow {
   MENU_NM: string;
   /** 화면 메뉴만 값이 있다. 모듈·폴더는 null. */
   OBJECT_ID: string | null;
-  SORT_SEQ: number;
+  /** 서버는 FULL_SEQ 를 글로 준다(없으면 null). 줄 순서는 서버 순서를 따르고 이 값으로 정렬하지 않는다. */
+  SORT_SEQ: string | null;
   SHOW_TP: YN;
   USE_TP: YN;
   /** 그 사람(역할)이 메뉴에서 이 화면을 보는지. */
@@ -141,10 +142,10 @@ export interface ExplainButtonRow {
   /** 이 사람이 실제로 쓰는지(런타임 게이트와 같은 계산). */
   GRANTED: YN;
   REASON: PermReason;
-  /** 이 값을 켠 역할 ID 들(콤마). */
-  ROLES: string;
-  /** 그 역할을 준 그룹 ID 들(콤마). */
-  GROUPS: string;
+  /** 이 값을 켠 역할 ID 들(콤마). 없으면 null. */
+  ROLES: string | null;
+  /** 그 역할을 준 그룹 ID 들(콤마). 없으면 null. */
+  GROUPS: string | null;
 }
 
 export interface ExplainPathRow {
@@ -245,7 +246,7 @@ export interface DraftRow {
   /** DraftChange[] 의 JSON 문자열(camelCase 키). */
   CHANGES_JSON: string;
   CHANGE_CNT: number;
-  /** 마지막 저장 시각(ISO). 초안이 없으면 null. */
+  /** 마지막 저장 시각(「yyyy-MM-dd HH:mm:ss」, 서버 시간대). 초안이 없으면 null. */
   U_AT: string | null;
 }
 
@@ -266,9 +267,9 @@ export interface ImpactRow {
   USER_NM: string;
   OBJECT_ID: string;
   OBJECT_NM: string;
-  /** 얻는 action(콤마). */
+  /** 얻는 action(콤마). 없으면 빈 글("") — 옛 응답 대비 null 도 받는다. */
   GAINED: string | null;
-  /** 잃는 action(콤마). */
+  /** 잃는 action(콤마). 없으면 빈 글(""). */
   LOST: string | null;
 }
 
@@ -299,11 +300,13 @@ export interface ApplyResult {
  * 작업대 실패 코드. 서버 BusinessException 문구 = "CODE: 상세"(bench-be 계약 ①·⑤).
  * - PERM_NO_USER = 로그인 없음 · PERM_DRAFT_BUSY = 같은 관리자의 동시 첫 저장 · PERM_DRAFT_CORRUPT = 초안 JSON 깨짐
  * - PERM_FORBIDDEN = SYSADMIN 역할이 걸린 변경(GRP_ROLE·USER_GRP 는 SYSADMIN 사용자만, ROLE_OBJ 의 SYSADMIN ADD·UPD 는 늘 금지)
- * - NOT_FOUND = 변경 대상(사람·그룹·역할·오브젝트)이 없음. 서버는 HTTP 400(INVALID_VALUE)으로 "NOT_FOUND: 변경 대상이 없습니다: {key}" 를 준다
+ * - NOT_FOUND = 변경 대상(사람·그룹·역할·오브젝트)이 없음. 서버는 HTTP 200 + meta.success=false 로 "NOT_FOUND: 변경 대상이 없습니다: {key}" 를 준다
  * - PERM_DRAFT_BUSY 는 초안 동시 저장의 잠금 충돌에도 온다
  * - PERM_DRAFT_CORRUPT 는 초안 범위가 기준 지문(base fingerprint)에 없을 때도 온다 → 「초안 버리기」로 이끈다
- * - PERM_BAD_VALUE = 입력 값 형식 오류(이력 기간 형식·366일 넘음 등)
+ * - PERM_BAD_VALUE = 입력 값 형식 오류(이력 기간 형식·양 끝 포함 366일 넘음 등)
  * - PERM_BUSY = 잠금 대기 5초 넘음·교착·APPLY_ID 충돌 → 잠시 뒤 다시 시도
+ * - VALIDATION_ERROR(적용할 초안 없음·메모 1,000자 넘음)·PERM_REQUIRED·PERM_BAD_SOURCE·PERM_NOT_READY·PERM_DRAFT_NOT_READY = 서버 상세 글을 그대로 보인다(f10 실응답 대조)
+ * - PERM_CONFLICT 상세 = 범위 목록 「group:G,role:R,user:U」(쓰기 단계 제약 위반도 같은 모양). api.ts 가 접두를 떼어 scopes 로 읽는다
  */
 export type PermApplyErrorCode =
   | "PERM_CONFLICT"
@@ -316,7 +319,12 @@ export type PermApplyErrorCode =
   | "PERM_FORBIDDEN"
   | "PERM_BAD_VALUE"
   | "PERM_BUSY"
-  | "NOT_FOUND";
+  | "NOT_FOUND"
+  | "VALIDATION_ERROR"
+  | "PERM_REQUIRED"
+  | "PERM_BAD_SOURCE"
+  | "PERM_NOT_READY"
+  | "PERM_DRAFT_NOT_READY";
 
 /** 아는 실패 코드 전부(api.ts 가 문구 앞 코드를 이 목록으로 읽는다). */
 export const PERM_ERROR_CODES: readonly PermApplyErrorCode[] = [
@@ -331,6 +339,11 @@ export const PERM_ERROR_CODES: readonly PermApplyErrorCode[] = [
   "PERM_BAD_VALUE",
   "PERM_BUSY",
   "NOT_FOUND",
+  "VALIDATION_ERROR",
+  "PERM_REQUIRED",
+  "PERM_BAD_SOURCE",
+  "PERM_NOT_READY",
+  "PERM_DRAFT_NOT_READY",
 ];
 
 /** apply 실패. PERM_CONFLICT 면 scopes 에 충돌 범위(사람·그룹·역할 ID)가 온다. */
@@ -386,7 +399,7 @@ export interface SearchHistoryDtlResult {
 
 // ── 화면이 쓰는 API 모양 ─────────────────────────────────────
 
-/** api.ts(실연결)와 mock.ts(가짜 자료)가 함께 따르는 모양. 화면은 이 인터페이스만 안다. */
+/** api.ts(실연결)와 bench.fixture.ts(시험 가짜 API)가 함께 따르는 모양. 화면은 이 인터페이스만 안다. */
 export interface PermBenchApi {
   searchBench(params: SearchBenchParams): Promise<SearchBenchResult>;
   searchMenuTree(params: SearchMenuTreeParams): Promise<SearchMenuTreeResult>;

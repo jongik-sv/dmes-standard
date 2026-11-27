@@ -79,7 +79,7 @@ export interface BenchIndex {
   groupRoles: Map<string, string[]>;
   /** ROLE_ID → ROLE_GROUP_ID[] */
   roleGroups: Map<string, string[]>;
-  /** 로그인한 관리자가 SYSADMIN 인가(searchBench me[0].ME_SYSADMIN === "Y"). 칸이 없으면(옛 서버·mock 밖) false 로 본다. */
+  /** 로그인한 관리자가 SYSADMIN 인가(searchBench me[0].ME_SYSADMIN === "Y"). 칸이 없으면 false 로 본다. */
   meSysadmin?: boolean;
 }
 

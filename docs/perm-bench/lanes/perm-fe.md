@@ -15,9 +15,10 @@ f0a 계약 타입·가짜 자료 → f1 shared 부품 3개 → f1-merge → f2 �
 | f1-merge | 머지 완료(11-27) | 12cd7bd23 | f0a+f1 squash 1커밋, base 1c263a0f5. shared vitest 212/3134·m-mcm vitest 95/1823 통과. 이 SHA 는 바꾸지 않는다 |
 | f4·f4b | 끝(1차 머지) | fa7e04b59 squash | `nav.ts`(openLegacy·readOpenWith·useReloadOnReturn·useOpenWith)·nav.test 13. pageId = `mcm:csa/<screenId>`. 받는 쪽 3화면 훅 = 이 레인 |
 | f2 | 끝(1차 머지 a2276717d) | fa7e04b59 squash | 13파일 ~2,600줄. 메뉴 칸 = AgDataGrid 가상 스크롤. phase(1·2·3)·편집 자리 no-op. bench-be ①~⑤ 반영(PERM_ERROR_CODES·DraftChange camelCase). 보고 `task-f2-report.md`(미커밋, 열린 질문 8) |
-| f3 | 끝·리뷰 수정 중(opus) | 6ae43cbde | 2단계 편집·초안 자동 저장 0.6초·막대·현재/초안·영향·되돌리기·잃는 사람·충돌·이력. BENCH_PHASE=3. USE_MOCK=true(b1~b6 머지 뒤 실연결 = 다음 커밋). 리뷰 14건(중4·하10) + bench-be 7·9·10번(`task-f3-contract-adds.md`) |
-| f8 | 끝 | f566c65d1 | 시험 3파일 58건, commPermBench 8파일/97 |
-| f9 | 등록 끝 | ea9e95ef5·7700a7e90 | screens.mjs commPermBench·commPermMng·commRoleMng·commObjMng(새 설계). 브라우저 렌더 점검 = 사용자 승인 대기(Mac 조정 통합 확인 몫) |
+| f3 | 끝(2차 머지 요청 998f1fec7, push perm/perm-fe-5) | 998f1fec7 squash | 2단계 편집·초안 자동 저장 0.6초·막대·현재/초안·영향·되돌리기·잃는 사람·충돌·이력. BENCH_PHASE=3. USE_MOCK=true. 리뷰 14건 중 13 고침·#7 부분(NOT_FOUND 줄 강조 없음). bench-be 7·9·10·11번 반영. commPermBench 11파일/133, m-mcm 108/2013 |
+| f8 | 끝(2차) | 998f1fec7 squash | 시험 3파일 58건, commPermBench 8파일/97 |
+| f9 | 등록 끝(2차) | 998f1fec7 squash | screens.mjs commPermBench·commPermMng·commRoleMng·commObjMng(새 설계). 브라우저 렌더 점검 = 사용자 승인 대기(Mac 조정 통합 확인 몫) |
+| f10 | 끝(3차 머지 요청, 부모 5c9075d4b) | 머지 요청 SHA | 실연결: USE_MOCK·mock 분기 삭제, `mock.ts` → 시험 고정 자료 `bench.fixture.ts`(시험만 import). isSysadmin = searchBench `data.result.me[0].ME_SYSADMIN` 만. BE 5c9075d4b 대조 차이 8건 고침(보고 `task-f10-contract-diff.md`, 미커밋). commPermBench 11/140, m-mcm 108/2020, tsc 기준선 외 0, eslint 0, audit 0 |
 
 ### 결정
 
@@ -35,11 +36,13 @@ f0a 계약 타입·가짜 자료 → f1 shared 부품 3개 → f1-merge → f2 �
 - f4b(결정 15): commUserMng·commRoleGrpMng·commMenuMng 받는 쪽 훅 = 이 레인(훅 줄 추가만). `useOpenWith` 는 nav.ts. commRoleMng = perm-fe-b, commObjMng = perm-legacy-be. 계약 = `/Users/jji/.coord/perm-bench-mac/contracts/open-with.md`
 - 결정(11-27): api.ts 는 shared json-api-client 대신 같은 헤더·credentials 의 얇은 fetch 래퍼(client 가 non-2xx 때 meta.message 를 버림 — 다음 회차 후보). SYSADMIN = searchBench data.result.me[0].ME_SYSADMIN(실연결 때), 그전 상수 false. apply 캐시 무효화 = BE b4 몫. 작업대 머지 2회 분할(조정 승인)
 
+- f10 실응답 대조(BE 5c9075d4b): 그리드 하나 action = 맨 위 `grids.<칸>.rows`(data.grids 아님), 여러 칸 = `data.result.<칸>` 줄 배열. 실패 = HTTP 200 + meta.success=false "CODE: 상세". PERM_CONFLICT 범위 = 상세 「group:G,role:R,user:U」(따로 칸 없음) → scopes 접두째, scopeNames 가 종류별로 찾음. 이력 기간 = 양 끝 포함 366일(BE between+1). U_AT = 「yyyy-MM-dd HH:mm:ss」. 새 코드 VALIDATION_ERROR·PERM_REQUIRED·PERM_BAD_SOURCE·PERM_NOT_READY·PERM_DRAFT_NOT_READY. PERM_NEED_CONFIRM 상세 = 잃는 사람 수 → 「잃는 사람 N명」. SORT_SEQ = 글, explain ROLES·GROUPS = null 가능, impact GAINED·LOST 없으면 ""
+- contracts/bench-be.md 와 BE 다른 곳(조정에 보고): 4(data.grids → 맨 위 grids), 7(HTTP 400 → 200), 9(양 끝 포함), 5(U_AT 형식), 2(퍼미션 없는 오브젝트 줄 = menuFolderId 줄 때만), 11(USE_TP=N 폴더·화면 = VISIBLE=N·MENU_HIDDEN 누락), 12(쓰기 단계 충돌도 범위 옴)
+
 ### 남은 일(순서)
 
-1. f3 리뷰 수정(opus/high) 결과 확인 → 커밋
-2. 2차 머지: fetch → 최신 tip 위로 rebase(또는 merge) → m-mcm 전체 시험(heavy)·tsc·audit → squash(page-registry 로컬 변경 있으면 먼저 치움) → 머지 요청(f3·f8·f9·mdm-e2e.ts 주석)
-3. 그 뒤: bench-be b1~b6 머지 알림 → USE_MOCK=false 실연결 새 커밋. ME_SYSADMIN 으로 SYSADMIN 잠금 풀기. CURRENT_USER_IS_SYSADMIN 상수 제거
+1. f10(3차) 머지 완료 알림 대기. 요청 뒤 그 SHA 는 바꾸지 않는다
+2. 열린 것(bench-be 에 전함): 이력 366일 경계 셈, 탭 닫기 직전 0.6초 편집 keepalive(후속 후보). 브라우저 렌더 점검 = 사용자 승인 뒤 Mac 조정 통합 확인 몫. 재개 자료 = 워크트리 task-f2/f3/f4/f8-*.md(미커밋 보고)
 
 ## perm-fe-b (Mac, 브랜치 perm/perm-fe-b, 워크트리 dmes-perm-fe-b)
 

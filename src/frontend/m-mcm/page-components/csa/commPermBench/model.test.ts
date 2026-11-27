@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { buildMenuTree, flattenMenuRows, flattenNav, indexBench, menuPathOf, peopleList, unusedObjectsOf } from "./model";
-import { createMockPermBenchApi } from "./mock";
+import { createMockPermBenchApi } from "./bench.fixture";
 import type { BenchMenuRow } from "./types";
 
 const m = (id: string, parent: string | null, name: string, obj: string | null, extra: Partial<BenchMenuRow> = {}): BenchMenuRow => ({
-  MENU_ID: id, PARENT_MENU_ID: parent, MENU_NM: name, OBJECT_ID: obj, SORT_SEQ: 1, SHOW_TP: "Y", USE_TP: "Y", VISIBLE: "Y", REASON: null, ...extra,
+  MENU_ID: id, PARENT_MENU_ID: parent, MENU_NM: name, OBJECT_ID: obj, SORT_SEQ: "1", SHOW_TP: "Y", USE_TP: "Y", VISIBLE: "Y", REASON: null, ...extra,
 });
 
 describe("commPermBench model", () => {

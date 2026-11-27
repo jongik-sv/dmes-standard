@@ -59,14 +59,6 @@ import { useBenchDraft, type BenchDraft } from "./useBenchDraft";
  */
 export const BENCH_PHASE: BenchPhase = 3;
 
-/**
- * 지금 로그인한 관리자가 SYSADMIN 인가(기본 값). SYSADMIN 이 걸린 소속 변경(GRP_ROLE·USER_GRP)은 SYSADMIN 사용자만 한다(BE PERM_FORBIDDEN).
- * 화면은 searchBench 응답 `me[0].ME_SYSADMIN === "Y"`(BenchIndex.meSysadmin)이면 그 잠금을 푼다. 칸이 없으면(옛 서버) 이 값(false)으로 본다.
- * TODO(실연결): USE_MOCK = false 로 붙인 뒤 BE 가 ME_SYSADMIN 을 주는지 확인하고, 이 상수를 지운다(ME_SYSADMIN 만 본다).
- * ROLE_OBJ 의 SYSADMIN 역할 퍼미션(ADD·UPD)은 ME_SYSADMIN 과 상관없이 늘 막는다(BE 계약 ⑤-5).
- */
-export const CURRENT_USER_IS_SYSADMIN = false;
-
 export interface BenchSelection {
   phase: BenchPhase;
   by: BenchBy;
@@ -196,7 +188,11 @@ export interface BenchState {
   canEdit: boolean;
   /** 원래 프로그램 링크를 쓸 수 있는가(3단계부터). */
   canLink: boolean;
-  /** 로그인한 관리자가 SYSADMIN 인가(ME_SYSADMIN, 모르면 CURRENT_USER_IS_SYSADMIN). */
+  /**
+   * 로그인한 관리자가 SYSADMIN 인가 = searchBench `data.result.me[0].ME_SYSADMIN === "Y"`(BenchIndex.meSysadmin). 칸이 없으면 false.
+   * SYSADMIN 이 걸린 소속 변경(GRP_ROLE·USER_GRP)은 SYSADMIN 사용자만 한다(BE PERM_FORBIDDEN).
+   * ROLE_OBJ 의 SYSADMIN 역할 퍼미션(ADD·UPD)은 ME_SYSADMIN 과 상관없이 늘 막는다(BE 계약 ⑤-5).
+   */
   isSysadmin: boolean;
 }
 
@@ -216,8 +212,7 @@ export function useBenchState(api: PermBenchApi, opts: BenchStateOptions = {}): 
   const draft = useBenchDraft(api, { enabled: phaseEdit, onSaved: invalidateDraft, onError: opts.onError });
   // 다시 읽는 동안(benchLoading)에는 앞 현재 값이 보여 낡은 기준으로 OP 를 정하게 되므로 편집을 막는다(f3 리뷰 5). 버리는 중도 막는다(리뷰 2)
   const canEdit = phaseEdit && draft.status === "ready" && !draft.discarding && !benchLoading;
-  // TODO(ME_SYSADMIN): 실연결 뒤 CURRENT_USER_IS_SYSADMIN 을 지우고 bench.meSysadmin 만 본다
-  const isSysadmin = CURRENT_USER_IS_SYSADMIN || bench?.meSysadmin === true;
+  const isSysadmin = bench?.meSysadmin === true;
 
   // 초안을 얹은 값 — 소속 변경·역할별 퍼미션 변경의 서명으로 memo 해서, 칩 하나를 바꿔도 작업대 색인은 그대로 둔다
   const d = draft.draft;

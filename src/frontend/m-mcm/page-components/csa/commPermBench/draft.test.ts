@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildMockGraph, createMockPermBenchApi } from "./mock";
+import { buildMockGraph, createMockPermBenchApi } from "./bench.fixture";
 import { indexBench, toRolePermMap, groupsOfUser } from "./model";
 import { PermApplyError, type RolePermRow } from "./types";
 import {

@@ -1,14 +1,14 @@
 /** api.ts 실패 문구 읽기·응답 풀기 보충 시험(f8). 기존 draft.test.ts 의 NOT_FOUND·PERM_DRAFT_BUSY 시험과 겹치지 않는 것만. */
 import { describe, expect, it } from "vitest";
-import { NETWORK_ERROR_TEXT, createPermBenchApi, failureFromMessage, failureOf, readResponse, unwrapPayload } from "./api";
+import { NETWORK_ERROR_TEXT, createPermBenchApi, failureFromMessage, failureOf, readResponse, scopesOfDetail, unwrapPayload } from "./api";
 import { PERM_ERROR_CODES, PermApplyError } from "./types";
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
 
 describe("api — 실패 문구 → 오류", () => {
-  it("아는 코드 목록 = 계약 전부(bench-be f3 추가 PERM_BAD_VALUE·PERM_BUSY 포함)", () => {
+  it("아는 코드 목록 = 계약 전부(bench-be f3 추가 PERM_BAD_VALUE·PERM_BUSY, f10 실응답 대조 추가 5개 포함)", () => {
     expect([...PERM_ERROR_CODES].sort()).toEqual(
-      ["NOT_FOUND", "PERM_BAD_VALUE", "PERM_BUSY", "PERM_CONFLICT", "PERM_DRAFT_BUSY", "PERM_DRAFT_CORRUPT", "PERM_EMPTY_BTN", "PERM_FORBIDDEN", "PERM_NEED_CONFIRM", "PERM_NOT_IN_OBJ", "PERM_NO_USER"].sort(),
+      ["NOT_FOUND", "PERM_BAD_VALUE", "PERM_BUSY", "PERM_CONFLICT", "PERM_DRAFT_BUSY", "PERM_DRAFT_CORRUPT", "PERM_EMPTY_BTN", "PERM_FORBIDDEN", "PERM_NEED_CONFIRM", "PERM_NOT_IN_OBJ", "PERM_NO_USER", "VALIDATION_ERROR", "PERM_REQUIRED", "PERM_BAD_SOURCE", "PERM_NOT_READY", "PERM_DRAFT_NOT_READY"].sort(),
     );
   });
 
@@ -109,5 +109,41 @@ describe("api — 새 코드·상태 문구·네트워크 실패(f3 리뷰 14 ·
     expect(a.me).toEqual([{ ME_SYSADMIN: "Y" }]);
     const b = await createPermBenchApi(() => Promise.resolve(body())).searchBench({});
     expect("me" in b).toBe(false);
+  });
+});
+
+describe("api — 실응답 모양(f10, BE 5c9075d4b)", () => {
+  it("PERM_CONFLICT 상세 「group:G,role:R,user:U」 → scopes = 접두째 목록", () => {
+    const e = failureOf({ meta: { success: false, message: "PERM_CONFLICT: group:RG_A,role:R_VIEW,user:U1" } }) as PermApplyError;
+    expect(e.code).toBe("PERM_CONFLICT");
+    expect(e.scopes).toEqual(["group:RG_A", "role:R_VIEW", "user:U1"]);
+    expect(scopesOfDetail("다른 글")).toEqual([]);
+    expect(scopesOfDetail("role:R1, 설명")).toEqual([]);
+    // data.scopes 가 오면 그것이 먼저
+    expect((failureOf({ meta: { success: false, message: "PERM_CONFLICT: role:R1" }, data: { scopes: ["X"] } }) as PermApplyError).scopes).toEqual(["X"]);
+  });
+
+  it("BE 가 새로 내는 코드(VALIDATION_ERROR 등)도 코드로 읽고 상세만 남긴다", () => {
+    for (const c of ["VALIDATION_ERROR", "PERM_REQUIRED", "PERM_BAD_SOURCE", "PERM_NOT_READY", "PERM_DRAFT_NOT_READY"]) {
+      const e = failureFromMessage(`${c}: 상세`) as PermApplyError;
+      expect(e).toBeInstanceOf(PermApplyError);
+      expect(e.message).toBe("상세");
+    }
+  });
+
+  it("그리드 하나 action = 맨 위 grids, 여러 칸 action = data.result(줄 배열), me[0].ME_SYSADMIN 을 읽는다", async () => {
+    const calls: string[] = [];
+    const fetchImpl = (async (url: string) => {
+      calls.push(url);
+      if (url.endsWith("/searchBench"))
+        return json({ meta: { success: true }, data: { result: { users: [{ USER_ID: "U1" }], groups: [], roles: [], userGroups: [], groupRoles: [], me: [{ ME_SYSADMIN: "Y" }] } } });
+      return json({ meta: { success: true }, grids: { draft: { rows: [{ CHANGES_JSON: "[]", CHANGE_CNT: 0, U_AT: "2026-11-27 14:05:09" }] } } });
+    }) as unknown as typeof fetch;
+    const api = createPermBenchApi(fetchImpl);
+    const b = await api.searchBench({});
+    expect(b.users).toEqual([{ USER_ID: "U1" }]);
+    expect(b.me?.[0].ME_SYSADMIN).toBe("Y");
+    expect((await api.loadDraft()).draft[0].U_AT).toBe("2026-11-27 14:05:09");
+    expect(calls).toEqual(["/api/mcm/oasis/commPermBench/searchBench", "/api/mcm/oasis/commPermBench/loadDraft"]);
   });
 });

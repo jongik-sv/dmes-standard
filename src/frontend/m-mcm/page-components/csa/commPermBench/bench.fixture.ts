@@ -1,5 +1,5 @@
 /**
- * commPermBench 가짜 자료 + 가짜 API — 실연결(perm-bench-be b1·b5) 전까지 화면이 쓴다.
+ * commPermBench 시험 고정 자료 + 가짜 API — 시험만 쓴다(화면은 api.ts 실연결만 쓴다, f10).
  *
  * 표본 = docs/perm-bench/mock-v16.html 생성 코드를 옮긴 것(화면 1,004 · 역할 12 · 그룹 11 · 사람 554).
  * 계산 규칙 = decompose.md §0.2(정본):
@@ -171,12 +171,12 @@ export function buildMockGraph(): MockGraph {
 
   MOD_DEF.forEach(([mid, mname, folders], mi) => {
     modNames.set(mid, mname);
-    menus.push({ MENU_ID: mid, PARENT_MENU_ID: null, MENU_NM: mname, OBJECT_ID: null, SORT_SEQ: (mi + 1) * 100, SHOW_TP: "Y", USE_TP: "Y" });
+    menus.push({ MENU_ID: mid, PARENT_MENU_ID: null, MENU_NM: mname, OBJECT_ID: null, SORT_SEQ: String((mi + 1) * 100), SHOW_TP: "Y", USE_TP: "Y" });
     folders.forEach(([fname, cnt], fi) => {
       const fid = `${mid}-${fi}`;
       folderNames.set(fid, fname);
       folderKey.set(`${mid}|${fname}`, fid);
-      menus.push({ MENU_ID: fid, PARENT_MENU_ID: mid, MENU_NM: fname, OBJECT_ID: null, SORT_SEQ: (fi + 1) * 100, SHOW_TP: "Y", USE_TP: "Y" });
+      menus.push({ MENU_ID: fid, PARENT_MENU_ID: mid, MENU_NM: fname, OBJECT_ID: null, SORT_SEQ: String((fi + 1) * 100), SHOW_TP: "Y", USE_TP: "Y" });
       for (let i = 0; i < cnt; i++) {
         seq += 1;
         const sid = `${mid}${String(seq).padStart(4, "0")}`;
@@ -191,7 +191,7 @@ export function buildMockGraph(): MockGraph {
           : mid === "mcm" && fname === "인터페이스" ? ["ifLogPop"] : POP_BY_MOD[mid] ?? [];
         const popup = btn.includes("save") ? pops : pops.slice(0, 1);
         objects.set(sid, { id: sid, name, mod: mid, folder: fid, btn, popup, use: "Y" });
-        menus.push({ MENU_ID: `MN_${sid}`, PARENT_MENU_ID: fid, MENU_NM: name, OBJECT_ID: sid, SORT_SEQ: (i + 1) * 10, SHOW_TP: "Y", USE_TP: "Y" });
+        menus.push({ MENU_ID: `MN_${sid}`, PARENT_MENU_ID: fid, MENU_NM: name, OBJECT_ID: sid, SORT_SEQ: String((i + 1) * 10), SHOW_TP: "Y", USE_TP: "Y" });
       }
     });
   });
@@ -723,7 +723,7 @@ export function createMockPermBenchApi(options: MockPermBenchOptions = {}): Mock
     },
 
     async searchHistory(params: SearchHistoryParams) {
-      // bench-be b5: 기본 기간 toDt = 오늘, fromDt = toDt − 30일(둘 다 포함). 형식이 틀리거나 366일을 넘으면 PERM_BAD_VALUE.
+      // bench-be b5: 기본 기간 toDt = 오늘, fromDt = toDt − 30일(둘 다 포함). 형식이 틀리거나 양 끝 포함 366일을 넘으면 PERM_BAD_VALUE.
       // his = APPLY_AT 내림차순 앞 500줄.
       const toDt = params.toDt || localDate();
       const fromDt = params.fromDt || minusDays(toDt, HISTORY_DEFAULT_DAYS);

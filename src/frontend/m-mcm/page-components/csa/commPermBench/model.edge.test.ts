@@ -1,4 +1,4 @@
-/** model.ts·mock.ts 순수 함수 보충 시험(f8) — 토큰 거르기·효과 계산·오브젝트 밖 값·버튼 이유 글. */
+/** model.ts·bench.fixture.ts 순수 함수 보충 시험(f8) — 토큰 거르기·효과 계산·오브젝트 밖 값·버튼 이유 글. */
 import { parseTokens as sharedParse } from "@dk-oasis/shared/token-chip-input";
 import { describe, expect, it } from "vitest";
 import {
@@ -13,7 +13,7 @@ import {
   roleButtonWhy,
   toRolePermMap,
 } from "./model";
-import { joinTokens, parseTokens as mockParse, readPreset } from "./mock";
+import { joinTokens, parseTokens as mockParse, readPreset } from "./bench.fixture";
 import type { ExplainButtonRow, ExplainResult, RolePermRow } from "./types";
 
 const row = (over: Partial<RolePermRow> = {}): RolePermRow => ({
@@ -34,7 +34,7 @@ describe("토큰 거르기 — 입력 코드", () => {
     expect(parseTokens("Search,search")).toEqual(["Search", "search"]);
   });
 
-  it("가짜 서버(mock.ts)의 parseTokens 는 공용(shared)과 같은 결과를 낸다", () => {
+  it("시험 가짜 API(bench.fixture.ts)의 parseTokens 는 공용(shared)과 같은 결과를 낸다", () => {
     for (const s of [" find, save,,find  send ", "a\nb,a", "", null, undefined, "x"]) expect(mockParse(s)).toEqual(sharedParse(s));
   });
 

@@ -14,6 +14,7 @@ import {
   linkSig,
   localDate,
   minusDays,
+  needConfirmText,
   parseYmd,
   permBaseOf,
   permSig,
@@ -23,6 +24,7 @@ import {
   type DraftMap,
 } from "./draft";
 import { indexBench, toRolePermMap, type RolePermMap } from "./model";
+import { fmtTime } from "./DraftParts";
 import { PermApplyError, type PermChangeRow, type RolePermRow } from "./types";
 
 const link = (TP: "USER_GRP" | "GRP_ROLE", KEY1: string, KEY2: string, OP: "ADD" | "DEL"): PermChangeRow => ({ TP, KEY1, KEY2, OP, BTN_PERM: null, POPUP_PERM: null });
@@ -150,13 +152,35 @@ describe("이력 기간(bench-be b5)", () => {
     expect(localDate(new Date(2026, 10, 27, 0, 30))).toBe("2026-11-27");
   });
 
-  it("형식·없는 날짜·시작 > 종료·366일 넘음을 막는다(366일은 된다)", () => {
+  it("형식·없는 날짜·시작 > 종료·양 끝 포함 366일 넘음을 막는다(366일은 된다, BE between+1)", () => {
     expect(parseYmd("2026-02-30")).toBeNull();
     expect(historyRangeError("2026/11/01", "2026-11-27")).toContain("YYYY-MM-DD");
     expect(historyRangeError("", "2026-11-27")).not.toBeNull();
     expect(historyRangeError("2026-11-28", "2026-11-27")).toContain("늦습니다");
-    expect(historyRangeError(minusDays("2026-11-27", HISTORY_MAX_DAYS), "2026-11-27")).toBeNull();
-    expect(historyRangeError(minusDays("2026-11-27", HISTORY_MAX_DAYS + 1), "2026-11-27")).toContain("366");
+    expect(historyRangeError(minusDays("2026-11-27", HISTORY_MAX_DAYS - 1), "2026-11-27")).toBeNull();
+    expect(historyRangeError(minusDays("2026-11-27", HISTORY_MAX_DAYS), "2026-11-27")).toContain("366");
     expect(historyRangeError("2026-11-27", "2026-11-27")).toBeNull();
+  });
+});
+
+describe("실응답 대조(f10) — 잃는 사람 확인 글·서버 시각", () => {
+  it("PERM_NEED_CONFIRM 상세가 숫자뿐이면 「잃는 사람 N명」", () => {
+    expect(needConfirmText("1204")).toBe("잃는 사람 1,204명");
+    expect(needConfirmText(" 다른 글 ")).toBe("다른 글");
+    expect(benchErrorText(new PermApplyError("PERM_NEED_CONFIRM", "3")).message).toContain("(잃는 사람 3명)");
+  });
+
+  it("PERM_CONFLICT 는 범위를 읽었으면 원문 범위 목록을 붙이지 않는다", () => {
+    expect(benchErrorText(new PermApplyError("PERM_CONFLICT", "role:R1", ["R1"])).message).not.toContain("role:");
+    expect(benchErrorText(new PermApplyError("PERM_CONFLICT", "겹침")).message).toContain("(겹침)");
+  });
+
+  it("VALIDATION_ERROR 는 서버 상세 글을 괄호로 보인다", () => {
+    expect(benchErrorText(new PermApplyError("VALIDATION_ERROR", "적용할 초안이 없습니다.")).message).toContain("(적용할 초안이 없습니다.)");
+  });
+
+  it("fmtTime 은 서버 「yyyy-MM-dd HH:mm:ss」 와 ISO 둘 다 읽는다", () => {
+    expect(fmtTime("2026-11-27 14:05:09")).toBe("11-27 14:05:09");
+    expect(fmtTime("2026-11-27T14:05:09")).toBe("11-27 14:05:09");
   });
 });

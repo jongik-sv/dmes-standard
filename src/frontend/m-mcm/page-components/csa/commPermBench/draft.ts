@@ -19,7 +19,7 @@ import {
   type PermChangeTp,
   type RolePermRow,
 } from "./types";
-import { hasPerm, type BenchIndex, type RolePermMap } from "./model";
+import { fmtNum, hasPerm, type BenchIndex, type RolePermMap } from "./model";
 
 /** 초안 = 키 → 변경 한 줄(넣은 순서 유지). */
 export type DraftMap = ReadonlyMap<string, PermChangeRow>;
@@ -415,15 +415,22 @@ export function impactPeople(rows: readonly ImpactRow[]): ImpactPerson[] {
 
 // ── 실패 안내 ────────────────────────────────────────────────
 
+/** PERM_NEED_CONFIRM 상세 → 사람이 읽는 글. 서버 상세 = 잃는 사람 수(숫자)뿐이면 「잃는 사람 N명」. */
+export function needConfirmText(detail: string): string {
+  const t = detail.trim();
+  return /^\d+$/.test(t) ? `잃는 사람 ${fmtNum(+t)}명` : t;
+}
+
 /** 실패를 사람이 읽는 글로. reload = 「현재 값 다시 읽기」를 권할지. */
 export function benchErrorText(e: unknown): { message: string; reload: boolean } {
   if (!(e instanceof PermApplyError)) return { message: e instanceof Error ? e.message : "요청을 처리하지 못했습니다.", reload: false };
   const d = e.message;
   switch (e.code) {
     case "PERM_CONFLICT":
-      return { message: `다른 관리자가 먼저 바꾼 범위가 있습니다. 현재 값을 다시 읽고 초안을 확인한 뒤 다시 적용합니다. (${d})`, reload: true };
+      // 범위를 읽었으면(scopes) 상세 「group:G,…」 원문은 붙이지 않는다 — 범위 이름은 충돌 막대가 보인다
+      return { message: `다른 관리자가 먼저 바꾼 범위가 있습니다. 현재 값을 다시 읽고 초안을 확인한 뒤 다시 적용합니다.${e.scopes.length || !d ? "" : ` (${d})`}`, reload: true };
     case "PERM_NEED_CONFIRM":
-      return { message: `버튼을 잃는 사람이 있어 한 번 더 확인합니다. (${d})`, reload: false };
+      return { message: `버튼을 잃는 사람이 있어 한 번 더 확인합니다. (${needConfirmText(d)})`, reload: false };
     case "PERM_NOT_IN_OBJ":
       return { message: `오브젝트에 없는 값이 있어 저장하지 못했습니다. 그 퍼미션의 칩을 다시 고릅니다. (${d})`, reload: false };
     case "PERM_EMPTY_BTN":
@@ -445,13 +452,23 @@ export function benchErrorText(e: unknown): { message: string; reload: boolean }
       return { message: d.includes("다시 시도") ? d : `${d.trim().replace(/[.。]?$/, ".")} 잠시 뒤 다시 시도해 주세요.`, reload: false };
     case "NOT_FOUND":
       return { message: `변경 대상이 없습니다. 다른 화면에서 지웠을 수 있습니다. 현재 값을 다시 읽거나 그 변경을 되돌립니다. (${d})`, reload: true };
+    case "VALIDATION_ERROR":
+      // 적용할 초안 없음·메모 1,000자 넘음 등 — 서버 설명이 사람이 읽는 글이다
+      return { message: `값을 확인한 뒤 다시 시도합니다. (${d})`, reload: false };
+    case "PERM_REQUIRED":
+      return { message: `필요한 값이 빠졌습니다. (${d})`, reload: false };
+    case "PERM_BAD_SOURCE":
+      return { message: `보기 기준(현재·초안) 값이 맞지 않습니다. (${d})`, reload: false };
+    case "PERM_NOT_READY":
+    case "PERM_DRAFT_NOT_READY":
+      return { message: `서버에 작업대 기능이 아직 준비되지 않았습니다. 시스템 담당자에게 알립니다. (${d})`, reload: false };
     default:
       return { message: d, reload: false };
   }
 }
 
 /**
- * 적용 충돌(PERM_CONFLICT) 막대 글. 범위 이름이 있으면 붙이고, 없으면(쓰기 단계 제약 위반 등 서버가 범위를 주지 않음) 일반 안내만.
+ * 적용 충돌(PERM_CONFLICT) 막대 글. 범위 이름이 있으면 붙이고, 없으면(범위를 읽지 못함) 일반 안내만.
  * 어느 쪽이든 초안은 두고 「현재 값 다시 읽기」를 권한다.
  */
 export function conflictText(names: readonly string[]): string {
@@ -459,9 +476,20 @@ export function conflictText(names: readonly string[]): string {
   return `${head} 초안은 그대로 둡니다. 현재 값을 다시 읽고 초안을 확인한 뒤 다시 적용합니다.`;
 }
 
-/** 충돌 범위 ID → 「사람 홍길동」·「그룹 냉연 조업」·「역할 냉연 조업자」. 모르는 ID 는 그대로. */
+/**
+ * 충돌 범위 → 「사람 홍길동」·「그룹 냉연 조업」·「역할 냉연 조업자」. 모르는 ID 는 그대로.
+ * 서버 범위 = 「user:ID」·「group:ID」·「role:ID」(접두가 있으면 그 종류에서만 찾는다). 접두 없는 ID 는 사람 → 그룹 → 역할 순.
+ */
 export function scopeNames(scopes: readonly string[], idx: BenchIndex): string[] {
-  return scopes.map((id) => {
+  const names = scopes.map((scope) => {
+    const m = /^(user|group|role):(.+)$/.exec(scope);
+    if (m) {
+      const id = m[2].trim();
+      if (m[1] === "user") return `사람 ${idx.userById.get(id)?.USER_NM ?? id}`;
+      if (m[1] === "group") return `그룹 ${idx.groupById.get(id)?.ROLE_GROUP_NM ?? id}`;
+      return `역할 ${idx.roleById.get(id)?.ROLE_NM ?? id}`;
+    }
+    const id = scope;
     const u = idx.userById.get(id);
     if (u) return `사람 ${u.USER_NM}`;
     const g = idx.groupById.get(id);
@@ -470,13 +498,14 @@ export function scopeNames(scopes: readonly string[], idx: BenchIndex): string[]
     if (r) return `역할 ${r.ROLE_NM}`;
     return id;
   });
+  return [...new Set(names)];
 }
 
 // ── 적용 이력 기간(bench-be b5) ──────────────────────────────
 
 /** 이력 기본 기간(일). toDt = 오늘, fromDt = toDt − 30일(둘 다 포함). */
 export const HISTORY_DEFAULT_DAYS = 30;
-/** 이력 기간 최대 길이(일, toDt − fromDt). 넘으면 서버가 PERM_BAD_VALUE. */
+/** 이력 기간 최대 길이(일, fromDt·toDt 양 끝 포함). 넘으면 서버가 PERM_BAD_VALUE(BE between+1 > 366). */
 export const HISTORY_MAX_DAYS = 366;
 /** 이력 최대 줄 수(APPLY_AT 내림차순 앞 500줄). */
 export const HISTORY_MAX_ROWS = 500;
@@ -514,6 +543,6 @@ export function historyRangeError(fromDt: string, toDt: string): string | null {
   const b = parseYmd(toDt);
   if (a === null || b === null) return "기간은 YYYY-MM-DD 모양의 날짜로 넣습니다.";
   if (a > b) return "시작일이 종료일보다 늦습니다.";
-  if ((b - a) / DAY_MS > HISTORY_MAX_DAYS) return `기간은 ${HISTORY_MAX_DAYS}일까지 볼 수 있습니다. 기간을 좁혀 주세요.`;
+  if ((b - a) / DAY_MS + 1 > HISTORY_MAX_DAYS) return `기간은 ${HISTORY_MAX_DAYS}일까지 볼 수 있습니다. 기간을 좁혀 주세요.`;
   return null;
 }

@@ -4,7 +4,7 @@ import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { TabPageContext } from "@dk-oasis/shared/portal-shell";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createMockPermBenchApi } from "./mock";
+import { createMockPermBenchApi } from "./bench.fixture";
 import { openBench } from "./nav";
 import { useBenchState, type BenchState } from "./useBenchState";
 import { roleTreeKey } from "./useBenchData";

@@ -1,6 +1,6 @@
 /** f3 리뷰 고침 시험 — 가짜 API 의 이력 기간·ME_SYSADMIN·메뉴 판정(bench-be #11) + 메뉴 숨김 표시(model). */
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createMockPermBenchApi } from "./mock";
+import { createMockPermBenchApi } from "./bench.fixture";
 import { buildMenuTree, flattenNav, hiddenInMenu, indexBench, isHidden } from "./model";
 import { PermApplyError, type BenchMenuRow, type HistoryRow } from "./types";
 
@@ -81,7 +81,7 @@ describe("mock — 메뉴 판정(bench-be #11 런타임 PermExplainService)", ()
 });
 
 const row = (MENU_ID: string, PARENT_MENU_ID: string | null, OBJECT_ID: string | null, extra: Partial<BenchMenuRow> = {}): BenchMenuRow => ({
-  MENU_ID, PARENT_MENU_ID, MENU_NM: MENU_ID, OBJECT_ID, SORT_SEQ: 1, SHOW_TP: "Y", USE_TP: "Y", VISIBLE: "Y", REASON: null, ...extra,
+  MENU_ID, PARENT_MENU_ID, MENU_NM: MENU_ID, OBJECT_ID, SORT_SEQ: "1", SHOW_TP: "Y", USE_TP: "Y", VISIBLE: "Y", REASON: null, ...extra,
 });
 
 describe("model — 메뉴 숨김 표시(bench-be #11)", () => {
@@ -114,7 +114,7 @@ describe("model — 메뉴 숨김 표시(bench-be #11)", () => {
   });
 
   it("buildMenuTree 는 SORT_SEQ 로 다시 정렬하지 않는다(서버 순서 그대로)", () => {
-    const t = buildMenuTree([row("M", null, null), row("B", "M", "ob", { SORT_SEQ: 9 }), row("A", "M", "oa", { SORT_SEQ: 1 })]);
+    const t = buildMenuTree([row("M", null, null), row("B", "M", "ob", { SORT_SEQ: "9" }), row("A", "M", "oa", { SORT_SEQ: "1" })]);
     expect((t.children.get("M") ?? []).map((m) => m.MENU_ID)).toEqual(["B", "A"]);
   });
 });

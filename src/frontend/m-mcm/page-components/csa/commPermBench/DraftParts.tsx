@@ -15,10 +15,10 @@ import { changeText, conflictText, impactPeople, keyOf, permBaseOf, type ChangeN
 import type { DraftStatus } from "./useBenchDraft";
 import { useBench } from "./parts";
 
-/** ISO 시각 → 「11-27 14:05:09」. */
+/** 서버 시각(「yyyy-MM-dd HH:mm:ss」 또는 ISO 「…T…」) → 「11-27 14:05:09」. */
 export function fmtTime(iso: string | null): string {
   if (!iso) return "";
-  const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})/.exec(iso);
+  const m = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2}):(\d{2})/.exec(iso);
   if (!m) return iso;
   // 서버가 「Z」 붙은 UTC 로 주면 보는 사람의 시각으로 바꾼다
   if (/Z$|[+-]\d{2}:?\d{2}$/.test(iso)) {

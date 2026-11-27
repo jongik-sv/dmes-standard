@@ -15,12 +15,11 @@ import { PageLayout, type PageButton } from "@dk-oasis/shared/layout";
 import { Button } from "@dk-oasis/shared/form";
 import { useMessage } from "@dk-oasis/shared/message-provider";
 import { ResizableColumns, type ResizableColumnDef, type ResizableColumnsHandle } from "@dk-oasis/shared/resizable-columns";
-import { createMockPermBenchApi } from "./mock";
 import { createPermBenchApi } from "./api";
 import { useReloadOnReturn } from "./nav";
 import { fmtNum, screenRowOf, unusedObjectsOf } from "./model";
 import { PermApplyError, type YN } from "./types";
-import { benchErrorText, scopeNames } from "./draft";
+import { benchErrorText, needConfirmText, scopeNames } from "./draft";
 import { BenchContext, type BenchCtx } from "./parts";
 import { PeopleCol } from "./PeopleCol";
 import { GroupCol } from "./GroupCol";
@@ -35,9 +34,6 @@ import { DraftSaveError } from "./useBenchDraft";
 import { explainKey, roleTreeKey, userTreeKey } from "./useBenchData";
 
 const SCREEN_ID = "commPermBench";
-
-/** 가짜 자료로 볼지. 서버 작업대 API(bench-be b1·b5)를 붙이면 false. */
-const USE_MOCK = true;
 
 /** 칸 폭(시안 WD0). 숫자 = px. */
 const PERSON_COLUMNS: ResizableColumnDef[] = [
@@ -58,7 +54,7 @@ const ROLE_COLUMNS: ResizableColumnDef[] = [
 const PHASE_TEXT = { 1: "1단계 · 보기만", 2: "2단계 · 편집과 시뮬레이션", 3: "3단계 · 편집 · 원래 프로그램 링크" } as const;
 
 export default function CommPermBenchPage() {
-  const api = useMemo(() => (USE_MOCK ? createMockPermBenchApi({ latencyMs: 0 }) : createPermBenchApi()), []);
+  const api = useMemo(() => createPermBenchApi(), []);
   const { showMessage } = useMessage();
   const onError = useCallback(
     (e: unknown) => {
@@ -181,7 +177,7 @@ export default function CommPermBenchPage() {
         showMessage({ message: `초안 ${fmtNum(row?.CHANGE_CNT ?? 0)}건을 적용했습니다.${row?.APPLY_ID ? ` (${row.APPLY_ID})` : ""}`, alertType: "success" });
         return { kind: "done" };
       } catch (e) {
-        if (e instanceof PermApplyError && e.code === "PERM_NEED_CONFIRM") return { kind: "confirm", message: e.message };
+        if (e instanceof PermApplyError && e.code === "PERM_NEED_CONFIRM") return { kind: "confirm", message: needConfirmText(e.message) };
         if (e instanceof PermApplyError && e.code === "PERM_CONFLICT") {
           setConflict(base ? scopeNames(e.scopes, base) : e.scopes);
           return { kind: "done" };
