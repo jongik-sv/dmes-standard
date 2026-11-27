@@ -352,7 +352,7 @@ class DefaultPermResolverTest {
         }
 
         @Test
-        @DisplayName("조상 폴더가 숨김·사용 안 함이면 MENU_HIDDEN, 게이트는 그대로")
+        @DisplayName("조상 폴더가 숨김·사용 안 함이어도 explain 은 보임(줄마다 숨김 — 런타임·메뉴 트리와 같은 답), 게이트도 그대로")
         void hiddenParentFolder() {
             PermGraph base = graph().user("u1", "G1").group("G1", "R1")
                     .obj("objA", "search", "").perm("R1", "objA", "search", "").build();
@@ -363,8 +363,8 @@ class DefaultPermResolverTest {
             PermGraph g = new PermGraph(base.userGroups(), base.groupRoles(), base.roles(), base.groups(),
                     base.objects(), base.rolePerms(), menus);
             Explain e = resolver.explain(g, "u1", "objA");
-            assertThat(e.visible()).isFalse();
-            assertThat(e.objectReason()).isEqualTo(DenyReason.MENU_HIDDEN);
+            assertThat(e.visible()).isTrue();
+            assertThat(e.objectReason()).isNull();
             assertThat(resolver.actionsOf(g, "u1")).containsKey("objA");
         }
 
@@ -422,6 +422,22 @@ class DefaultPermResolverTest {
             assertThat(e.buttons()).isEmpty();
             assertThat(e.visible()).isFalse();
             assertThat(e.objectReason()).isEqualTo(DenyReason.OBJ_UNUSED);
+        }
+    }
+
+    @Nested
+    @DisplayName("r2 리뷰 보강")
+    class FolderUseTp {
+        @Test
+        @DisplayName("폴더 USE_TP 가 비면 보인다(N 만 끔), 화면 줄은 Y 만")
+        void folderNullUseTp() {
+            PermGraph base = graph().user("u1", "G1").group("G1", "R1")
+                    .obj("objA", "search", "").perm("R1", "objA", "search", "").build();
+            PermGraph g = new PermGraph(base.userGroups(), base.groupRoles(), base.roles(), base.groups(),
+                    base.objects(), base.rolePerms(), List.of(
+                            new MenuNode("F", null, null, true, null),
+                            new MenuNode("M", "F", "objA", true, "Y")));
+            assertThat(resolver.explain(g, "u1", "objA").visible()).isTrue();
         }
     }
 }

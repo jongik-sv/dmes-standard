@@ -8,11 +8,11 @@
 | id | 내용 | 상태 |
 |---|---|---|
 | r0 | 지금 규칙 특성 시험(UserPermCache·SecUserService) | 끝 |
-| r1 | DefaultPermResolver·DefaultImpactCalculator + 사례 시험(applyChanges 는 c1 것) | 리뷰 반영 끝·머지 요청 |
-| r2 | V2PermGraphLoader·LegacyPermGraphLoader + `mcm.security.perm-model` | 대기(c0) |
+| r1 | DefaultPermResolver·DefaultImpactCalculator + 사례 시험(applyChanges 는 c1 것) | 끝(머지 d06ddda7c) |
+| r2 | V2PermGraphLoader·LegacyPermGraphLoader + `mcm.security.perm-model` + loadForRoles | 끝(리뷰 반영) |
 | r3 | 런타임 전환 + 로그인 키 빌드 시간 측정 | 대기(r1·r2, 머지는 c2·c4 뒤) |
-| r4 | PermExplainService | 대기(r1·r2) |
-| r5 | PermExplainParityOraTest | 대기(r3·r4) |
+| r4 | PermExplainService(explain·사람·역할 메뉴 트리, CUR/DRAFT) | 끝(리뷰 반영) |
+| r5 | PermExplainParityOraTest + searchMenuTree vs getMyMenus(조정자 지시) | 대기(r3·r4) |
 
 ## 결정
 
@@ -62,6 +62,28 @@
 - 영향 계산 = action 차이만 센다. 효과가 빈 행 추가·삭제(보임만 바뀜)는 줄이 없다 → b3 쪽 화면 수 계산은 visibleObjects 로 따로 봐야 한다
 - 계약 요청(perm-core c9 로 지시됨): `UserImpact` 의 `Set.copyOf` 는 순서가 JVM 마다 달라진다 → `unmodifiableSet(new LinkedHashSet<>(..))` 요청. 그전까지 소비 쪽이 정렬
 - impl 시험 40건 통과 · mcm-core 전체 시험(-Pdmes.ora.test=clone -Pdmes.ora.template=TPL_SCHEMA, 이 PC 에 TPL_EMPTY 없음) 통과
+
+## r2 진행(2026-11-27)
+
+- `load/AbstractPermGraphLoader`(공통: 사람·그룹·역할·메타·메뉴, 범위 좁히기, IN 900개 나눔, EntityManager 네이티브 쿼리) + `V2PermGraphLoader` + `LegacyPermGraphLoader`. 기존 repository 는 손대지 않는다(D27 perm-core 소유)
+- 범위: loadForUsers = 사람·그룹·역할·퍼미션만 좁히고 objects·menus 는 전체(조정자 지시). loadForRoles = 그 역할이 든 그룹의 사람 전부 + 사람 없는 역할의 메타·행. 계약에 loadForRoles 가 들어오면 @Override 를 단다
+- 메뉴 = SEC_MENU_FLD(폴더) + SEC_MENU(화면). visible = MENU_VIEW_YN≠N
+- legacy: (역할, 오브젝트) = 행 하나, BTN = COMMON ∪ CUSTOM ∪ ACTION, POPUP = POPUP_BTN(D11). 오브젝트 허용 값 = 그 오브젝트의 옛 줄 전체 합집합(교집합이 옛 계산과 같도록). 퍼미션 USE_TP 는 보지 않는다. 읽을 때마다 옛 줄 전체를 한 번 읽는다(되돌림 전용이라 감수)
+- 빈: `@ConditionalOnProperty(mcm.security.perm-model)` v2(기본·값 없음)·legacy. 값은 대소문자를 가리지 않고, 모르는 값이면 로더가 없어 기동이 실패한다. `mcm/api/application.yml` 에 `perm-model: v2` 한 줄
+- 시험: `PermGraphLoaderOraTest`(8, clone) · `PermModelBeanSelectionTest`(6)
+- 리뷰 반영: legacy = 역할·그룹·오브젝트 USE_TP·유효 기간을 「쓰는 중」으로 싣는다(옛 동작, `keepUsage()=false`) · 없는 퍼미션 줄도 (역할, 오브젝트) 행(토큰 없음, 메뉴 보임) · SEC_PERM 한 번 + 좁은 매핑 읽기 · 공백 SYSTEM_CODE = null · null 범위 = 빈 범위
+- 조정자 답: 초안 영향 = loadAll(b3), loadForRoles = 역할 메뉴 트리(CUR)용만. 임시 `load/RoleScopedPermGraphLoader` 는 c9 머지 뒤 지운다
+- r3 몫으로 남김: v2 loadForUsers 는 로그인마다 OBJ·MENU_FLD·MENU 전체 읽기 → legacy 와 시간 비교, 필요하면 objects·menus 스냅숏 캐시(RoleChangedEvent AFTER_COMMIT 무효화)
+
+## r4 진행(2026-11-27)
+
+- `security/perm/PermExplainService`(@Service, readOnly): explain · userMenuTree · roleMenuTree. 인자 draft = 변경 목록(null·빈 = CUR). 초안 저장·읽기는 작업대 몫
+- 범위: CUR 사람 = loadForUsers, CUR 역할 = loadForRoles, DRAFT = loadAll().applyChanges
+- 메뉴 트리 = `SecUserService.getMyMenus` 를 그대로 옮김: 화면 줄(USE_TP=Y)끼리 부모 타기 → 보이는 화면의 부모부터 폴더 줄끼리 부모 타기 → 폴더 USE_TP≠N. 폴더·화면 구분 = 읽은 표(MenuLabel.folder). hidden = 줄 자신의 MENU_VIEW_YN(SHOW_TP)
+- 역할 트리 = 가상 사용자·그룹(#ROLE_PROBE_USER#) → 그 역할. 이유는 resolver explain 이 고른다. 모르는 역할 = NO_ROLE
+- explain 의 MENU_HIDDEN 도 줄 자신만 본다(조상 폴더 안 봄)로 바꿨다(r1 리뷰 때 조상까지 보게 했던 것을 되돌림) — 트리·런타임과 같은 답
+- 줄 이유: 폴더 USE_TP=N·화면 USE_TP≠Y·숨김 줄 = MENU_HIDDEN(enum 이 계약이라 따로 두지 않음, 호출 쪽은 useTp·hidden 칸으로 구분)
+- 시험 `PermExplainServiceTest`(9)
 
 ## 남은 일
 

@@ -136,6 +136,7 @@ mcm:
     # false(기본) = SYSADMIN 도 TB_MCM_SEC_ROLE_MAPPING 멤버십으로 판정.
     # true = 舊 전면통과 복원 (긴급 복구 전용 — JVM: -Dmcm.security.sysadmin-freepass=true)
     sysadmin-freepass: false
+    perm-model: v2          # 권한 계산 모델(perm-bench D10). v2 = TB_MCM_SEC_ROLE_PERM, legacy = 옛 ROLE_MAPPING·SEC_PERM(되돌림)
   password:
     expiry-days: 0          # 만료 검증 끔
     history-count: 0        # 마지막 N개 비교 끔

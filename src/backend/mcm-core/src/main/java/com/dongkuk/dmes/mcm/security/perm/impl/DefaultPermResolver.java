@@ -16,8 +16,6 @@ import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -34,7 +32,7 @@ import java.util.Set;
  * <ul>
  *   <li>buttons = 오브젝트 BTN·POPUP 허용 값 전부 + 퍼미션에는 있으나 오브젝트에서 빠진 값(NOT_IN_OBJ, D15)</li>
  *   <li>paths = 쓰는 그룹→쓰는 역할 중 이 오브젝트 행이 있는(또는 SYSADMIN) 경로. 토큰 = 그 경로의 효과 값</li>
- *   <li>visible = 행이 보이고, 이 오브젝트를 가리키는 메뉴가 있으면 그중 하나라도 자기·조상 폴더가 모두 표시·사용 중. 아니면 MENU_HIDDEN</li>
+ *   <li>visible = 행이 보이고, 이 오브젝트를 가리키는 메뉴가 있으면 그중 하나라도 자기 줄이 표시·사용 중(조상 폴더는 안 봄). 아니면 MENU_HIDDEN</li>
  * </ul>
  */
 @Component
@@ -198,29 +196,18 @@ public class DefaultPermResolver implements PermResolver {
     }
 
     /**
-     * 이 오브젝트를 가리키는 메뉴가 없으면 true. 있으면 그중 하나라도 자기와 조상 폴더 전부가 표시·사용 중(USE_TP=Y)이어야 true.
-     * 그래프에 없는 부모 = 끝(뿌리)으로 본다.
+     * 이 오브젝트를 가리키는 화면 메뉴가 없으면 true. 있으면 그중 하나라도 자기 줄이 표시(MENU_VIEW_YN≠N)·사용 중(USE_TP=Y)이어야 true.
+     * 조상 폴더의 숨김은 보지 않는다 — 런타임 사이드바(getMyMenus)가 숨김을 줄마다 따로 내려주는 것과 같게 한다(작업대 메뉴 트리와 같은 답).
      */
     private static boolean menuShown(PermGraph graph, String objectId) {
         if (objectId == null) return false;
-        Map<String, MenuNode> byId = new HashMap<>();
-        for (MenuNode m : graph.menus()) if (m != null && m.menuId() != null) byId.putIfAbsent(m.menuId(), m);
         boolean any = false;
         for (MenuNode m : graph.menus()) {
             if (m == null || !objectId.equals(m.objectId())) continue;
             any = true;
-            if (chainShown(m, byId)) return true;
+            if (m.visible() && "Y".equals(m.useTp())) return true;
         }
         return !any;
-    }
-
-    private static boolean chainShown(MenuNode leaf, Map<String, MenuNode> byId) {
-        Set<String> seen = new HashSet<>();
-        for (MenuNode n = leaf; n != null; n = n.parentMenuId() == null ? null : byId.get(n.parentMenuId())) {
-            if (!seen.add(n.menuId())) return false; // 순환 = 보이지 않음
-            if (!n.visible() || !"Y".equals(n.useTp())) return false;
-        }
-        return true;
     }
 
     private static List<String> intersect(List<String> perm, List<String> allowed) {
