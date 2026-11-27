@@ -3,13 +3,17 @@ package com.dongkuk.dmes.mcm.csa;
 import com.dongkuk.dmes.mcm.common.event.MenuChangedEvent;
 import com.dongkuk.dmes.mcm.common.event.RoleChangedEvent;
 import com.dongkuk.dmes.mcm.csa.commMenuMng.service.CommMenuMngService;
+import com.dongkuk.dmes.mcm.csa.commObjMng.query.CommObjMngQuery;
 import com.dongkuk.dmes.mcm.csa.commObjMng.service.CommObjMngService;
+import com.dongkuk.dmes.mcm.entity.SecObj;
 import com.dongkuk.dmes.mcm.entity.SecRoleMapping;
+import com.dongkuk.dmes.mcm.repository.CommPermQueryRepository;
 import com.dongkuk.dmes.mcm.repository.SecMenuFldLovRepository;
 import com.dongkuk.dmes.mcm.repository.SecMenuNativeRepository;
 import com.dongkuk.dmes.mcm.repository.SecMenuRepository;
 import com.dongkuk.dmes.mcm.repository.SecObjRepository;
 import com.dongkuk.dmes.mcm.repository.SecRoleMappingRepository;
+import com.dongkuk.dmes.mcm.repository.SecRolePermRepository;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -42,7 +46,8 @@ class MenuChangedEventPublishTest {
 
     final CommMenuMngService menuService = new CommMenuMngService(menuRepo, nativeRepo, publisher);
     final CommObjMngService objService =
-            new CommObjMngService(objRepo, mock(SecMenuFldLovRepository.class), roleMappingRepo, publisher);
+            new CommObjMngService(objRepo, mock(SecMenuFldLovRepository.class), roleMappingRepo,
+                    mock(SecRolePermRepository.class), mock(CommPermQueryRepository.class), mock(CommObjMngQuery.class), publisher);
 
     @Test
     @DisplayName("메뉴 저장 — 저장한 행이 있으면 MENU 이벤트 하나, 없으면 내지 않는다")
@@ -86,10 +91,12 @@ class MenuChangedEventPublishTest {
     }
 
     @Test
-    @DisplayName("OBJECT 저장 — SYSADMIN 매핑이 이미 있어 역할 이벤트가 없는 update 도 OBJECT 이벤트는 낸다")
+    @DisplayName("OBJECT 저장 — 역할 이벤트가 없는 update 도 OBJECT 이벤트는 낸다")
     void saveCmObjUpdateWithoutRbacChange() {
-        when(objRepo.findById("O1")).thenReturn(Optional.empty());
-        when(roleMappingRepo.existsById(any(SecRoleMapping.PK.class))).thenReturn(true);
+        // 있는 OBJECT 의 update — 허용 값·USE_TP·SYSTEM_CODE·유효 기간이 그대로라 역할 이벤트는 없다
+        SecObj existing = new SecObj();
+        existing.setObjectId("O1");
+        when(objRepo.findById("O1")).thenReturn(Optional.of(existing));
 
         objService.saveCmObj(List.of(row("rowStatus", "U", "OBJECT_ID", "O1")));
 
@@ -97,13 +104,13 @@ class MenuChangedEventPublishTest {
     }
 
     @Test
-    @DisplayName("OBJECT 저장 — 매핑을 새로 만들면 역할 이벤트와 OBJECT 이벤트를 모두 내고, 막힌 삭제만 있으면 아무것도 내지 않는다")
+    @DisplayName("OBJECT 저장 — insert 는 SYSADMIN 역할 이벤트와 OBJECT 이벤트를 내고(D30·D13), 막힌 삭제만 있으면 아무것도 내지 않는다")
     void saveCmObjInsertAndBlockedDelete() {
         when(objRepo.findById("O1")).thenReturn(Optional.empty());
-        when(roleMappingRepo.existsById(any(SecRoleMapping.PK.class))).thenReturn(false);
         objService.saveCmObj(List.of(row("rowStatus", "C", "OBJECT_ID", "O1")));
         assertThat(events).hasSize(2);
         assertThat(events.get(0)).isInstanceOf(RoleChangedEvent.class);
+        assertThat(((RoleChangedEvent) events.get(0)).getRoleIds()).containsExactly("SYSADMIN");
         assertThat(events.get(1)).isEqualTo(new MenuChangedEvent(MenuChangedEvent.OBJECT));
 
         events.clear();
@@ -114,7 +121,7 @@ class MenuChangedEventPublishTest {
     }
 
     @Test
-    @DisplayName("OBJECT 저장 — 매핑 없는 OBJECT 를 지우면 OBJECT 이벤트만 낸다")
+    @DisplayName("OBJECT 저장 — 매핑 없는 OBJECT 를 지우면 SYSADMIN 역할 이벤트와 OBJECT 이벤트를 낸다")
     void saveCmObjDeleteWithoutMapping() {
         when(objRepo.countMenuByObjectId("O3")).thenReturn(0L);
         when(roleMappingRepo.findByObjectId("O3")).thenReturn(List.of());
@@ -123,7 +130,9 @@ class MenuChangedEventPublishTest {
         objService.saveCmObj(List.of(row("rowStatus", "D", "OBJECT_ID", "O3")));
 
         verify(objRepo).deleteById("O3");
-        assertThat(events).containsExactly(new MenuChangedEvent(MenuChangedEvent.OBJECT));
+        assertThat(events).hasSize(2);
+        assertThat(((RoleChangedEvent) events.get(0)).getRoleIds()).containsExactly("SYSADMIN");
+        assertThat(events.get(1)).isEqualTo(new MenuChangedEvent(MenuChangedEvent.OBJECT));
     }
 
     @Test

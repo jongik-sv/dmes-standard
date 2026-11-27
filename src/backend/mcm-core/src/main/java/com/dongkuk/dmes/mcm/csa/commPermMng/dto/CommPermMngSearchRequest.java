@@ -1,46 +1,60 @@
 /*
  * 작성자: @junhwan-park
  * 작성일: 2026-06-01
- * 내용: commPermMng searchCmPerm 액션의 입력 DTO — 조회 조건 (To-Be 정책 #1 폐기 후 3 파라미터)
+ * 내용: commPermMng search 액션의 입력 DTO — 퍼미션(역할×오브젝트) 조회 조건
+ *       2026-11-27 @jongik-sv: 퍼미션 모델 v2 로 조건 교체(옛 PERMISSION_ID 묶음 조건 삭제)
  */
 package com.dongkuk.dmes.mcm.csa.commPermMng.dto;
 
 /**
- * commPermMng {@code searchCmPerm} action 의 입력 DTO.
+ * commPermMng {@code search} action(메서드 {@code searchCmPerm})의 입력 DTO.
  *
- * <p>As-Is {@code fn_run("searchCmPerm")} 의 sArgument =
- * {@code gfn_scanOpenerComponent(div_search.form)} 자동 수집 (xfdl:301):
- * <ul>
- *   <li>{@code edt_PERMISSION_ID} — S-002 (UPPER LIKE PERMISSION_ID)</li>
- *   <li>{@code edt_PERMISSION_NM} — S-003 (UPPER LIKE PERMISSION_NM)</li>
- *   <li>{@code cbo_USE_TP} — S-004 (USE_TP 일치)</li>
- *   <li>{@code cbo_bizSystemCode} — S-001 (As-Is BIZ_SYSTEM_CODE) — <b>To-Be 정책 #1 폐기</b></li>
- * </ul>
- *
- * <p>BPMN serviceTask {@code searchCmPermTask} 의 dto property — OASIS executor 가 CactusRequest body 의
- * {@code params} 를 본 DTO 로 변환.
- *
- * <p>인용: 분석리포트 §3.2 / §4.4 #5 / §6 #1 / BPMN설계서 §5.1.
+ * <p>OASIS 가 CactusRequest {@code params} 를 필드 이름 그대로 이 DTO 로 바꾼다(Gson).
+ * {@code pageNo}·{@code pageSize} 는 숫자로 와도 받도록 문자열로 두고 서비스가 해석한다.
  */
 public class CommPermMngSearchRequest {
 
-    /** S-002 — PERMISSION ID UPPER LIKE 부분 일치 (xml:27). */
-    private String edtPERMISSIONID;
+    /** 역할 ID — 같음. 빈 값 = 전체(SYSADMIN 제외). */
+    private String roleId;
 
-    /** S-003 — PERMISSION 명 UPPER LIKE 부분 일치 (xml:30). */
-    private String edtPERMISSIONNM;
+    /** 메뉴 ID(모듈 또는 폴더) — 그 아래 메뉴가 가리키는 오브젝트만. 빈 값 = 전체. */
+    private String menuId;
 
-    /** S-004 — 사용 여부 (Y/N) 일치 (xml:33). */
-    private String cboUSETP;
+    /** 오브젝트 ID·이름 부분 일치(대소문자 무시). */
+    private String objectQ;
+
+    /** 버튼·팝업 코드 부분 일치(대소문자 무시). */
+    private String codeQ;
+
+    /** Y = 고른 역할의 퍼미션 없는 오브젝트도 줄로 낸다(roleId 가 비면 무시). */
+    private String showEmpty;
+
+    /** 1부터. 빈 값 = 1. */
+    private String pageNo;
+
+    /** 빈 값 = 100, 최대 1000. */
+    private String pageSize;
 
     public CommPermMngSearchRequest() {}
 
-    public String getEdtPERMISSIONID() { return edtPERMISSIONID; }
-    public void setEdtPERMISSIONID(String edtPERMISSIONID) { this.edtPERMISSIONID = edtPERMISSIONID; }
+    public String getRoleId() { return roleId; }
+    public void setRoleId(String roleId) { this.roleId = roleId; }
 
-    public String getEdtPERMISSIONNM() { return edtPERMISSIONNM; }
-    public void setEdtPERMISSIONNM(String edtPERMISSIONNM) { this.edtPERMISSIONNM = edtPERMISSIONNM; }
+    public String getMenuId() { return menuId; }
+    public void setMenuId(String menuId) { this.menuId = menuId; }
 
-    public String getCboUSETP() { return cboUSETP; }
-    public void setCboUSETP(String cboUSETP) { this.cboUSETP = cboUSETP; }
+    public String getObjectQ() { return objectQ; }
+    public void setObjectQ(String objectQ) { this.objectQ = objectQ; }
+
+    public String getCodeQ() { return codeQ; }
+    public void setCodeQ(String codeQ) { this.codeQ = codeQ; }
+
+    public String getShowEmpty() { return showEmpty; }
+    public void setShowEmpty(String showEmpty) { this.showEmpty = showEmpty; }
+
+    public String getPageNo() { return pageNo; }
+    public void setPageNo(String pageNo) { this.pageNo = pageNo; }
+
+    public String getPageSize() { return pageSize; }
+    public void setPageSize(String pageSize) { this.pageSize = pageSize; }
 }

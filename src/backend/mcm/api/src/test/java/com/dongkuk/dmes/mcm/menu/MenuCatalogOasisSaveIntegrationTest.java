@@ -18,10 +18,13 @@ import com.dongkuk.dmes.mcm.common.event.MenuChangedEvent;
 import com.dongkuk.dmes.mcm.common.event.RoleChangedEvent;
 import com.dongkuk.dmes.mcm.common.security.SecurityIdentity;
 import com.dongkuk.dmes.mcm.csa.commMenuMng.service.CommMenuMngService;
+import com.dongkuk.dmes.mcm.csa.commObjMng.query.CommObjMngQuery;
 import com.dongkuk.dmes.mcm.csa.commObjMng.service.CommObjMngService;
 import com.dongkuk.dmes.mcm.entity.SecMenu;
 import com.dongkuk.dmes.mcm.entity.SecObj;
 import com.dongkuk.dmes.mcm.entity.SecRoleMapping;
+import com.dongkuk.dmes.mcm.entity.SecRolePerm;
+import com.dongkuk.dmes.mcm.repository.CommPermQueryRepository;
 import com.dongkuk.dmes.mcm.repository.SecMenuFldLovRepository;
 import com.dongkuk.dmes.mcm.repository.SecMenuNativeRepository;
 import com.dongkuk.dmes.mcm.repository.SecMenuRepository;
@@ -29,6 +32,7 @@ import com.dongkuk.dmes.mcm.repository.SecObjRepository;
 import com.dongkuk.dmes.mcm.repository.SecPermRepository;
 import com.dongkuk.dmes.mcm.repository.SecRoleGroupMappingRepository;
 import com.dongkuk.dmes.mcm.repository.SecRoleMappingRepository;
+import com.dongkuk.dmes.mcm.repository.SecRolePermRepository;
 import com.dongkuk.dmes.mcm.repository.SecUserMappingRepository;
 import com.dongkuk.dmes.mcm.security.dto.MyMenusRequest;
 import com.dongkuk.dmes.mcm.security.service.SecUserService;
@@ -188,7 +192,7 @@ class MenuCatalogOasisSaveIntegrationTest {
 
         assertThat(res.getMeta().success()).as("응답 %s %s", res.getMeta().code(), res.getMeta().message()).isTrue();
         assertThat(myMenu("M_USER")).containsEntry("sysCd", "mcs").containsEntry("objNm", "사용자 관리 화면(바뀜)");
-        assertThat(probe.roleEvents.get()).as("SYSADMIN 매핑이 이미 있어 역할 이벤트는 없다").isZero();
+        assertThat(probe.roleEvents.get()).as("D30 — SYSTEM_CODE 가 바뀐 OBJECT 저장은 RoleChangedEvent 도 낸다").isEqualTo(1);
         assertThat(probe.syncActiveAtPublish).containsExactly(true);
         assertThat(probe.afterCommitStrict.get()).isEqualTo(1);
         assertThat(probe.refilledObjectsBeforeCommit)
@@ -356,9 +360,11 @@ class MenuCatalogOasisSaveIntegrationTest {
     @EnableJpaRepositories(
             basePackageClasses = SecMenuRepository.class,
             includeFilters = @ComponentScan.Filter(type = FilterType.ASSIGNABLE_TYPE, classes = {
-                    SecMenuRepository.class, SecObjRepository.class, SecRoleMappingRepository.class}),
+                    SecMenuRepository.class, SecObjRepository.class, SecRoleMappingRepository.class,
+                    SecRolePermRepository.class}),
             transactionManagerRef = "transactionManager")
-    @Import({SecMenuNativeRepository.class, SecMenuFldLovRepository.class})
+    @Import({SecMenuNativeRepository.class, SecMenuFldLovRepository.class,
+            CommPermQueryRepository.class, CommObjMngQuery.class})
     static class Config {
 
         @Bean(destroyMethod = "close")
@@ -370,7 +376,8 @@ class MenuCatalogOasisSaveIntegrationTest {
         LocalContainerEntityManagerFactoryBean entityManagerFactory(DataSource dataSource) {
             // 운영 JpaConfig 와 같은 구성(OracleDialect·ddl none). 네이티브 저장소의 @PersistenceContext(unitName = "default").
             return McmOraTestDb.entityManagerFactory(dataSource, "default",
-                    SecMenu.class.getName(), SecObj.class.getName(), SecRoleMapping.class.getName());
+                    SecMenu.class.getName(), SecObj.class.getName(), SecRoleMapping.class.getName(),
+                    SecRolePerm.class.getName());
         }
 
         /** OASIS 기본 매니저 txBiz = 운영의 primary JPA 매니저({@code transactionManager}) 별칭. */
@@ -392,8 +399,10 @@ class MenuCatalogOasisSaveIntegrationTest {
 
         @Bean
         CommObjMngService commObjMngService(SecObjRepository objs, SecMenuFldLovRepository fld,
-                                            SecRoleMappingRepository mappings, ApplicationEventPublisher publisher) {
-            return new CommObjMngService(objs, fld, mappings, publisher);
+                                            SecRoleMappingRepository mappings, SecRolePermRepository rolePerms,
+                                            CommPermQueryRepository permQuery, CommObjMngQuery objQuery,
+                                            ApplicationEventPublisher publisher) {
+            return new CommObjMngService(objs, fld, mappings, rolePerms, permQuery, objQuery, publisher);
         }
 
         /** 내 메뉴 — SYSADMIN 브레이크글라스(권한 매핑 해석 없이 전체 leaf)로 카탈로그 경로만 본다. */

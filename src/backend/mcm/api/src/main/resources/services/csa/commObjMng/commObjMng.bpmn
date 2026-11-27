@@ -15,6 +15,10 @@
       - saveCmObj   — OBJECT 일괄 저장 (insertCommObjMng / updateCommObjMng / deleteCommObjMng status 자동 분기)
       - lov         — MENU_ID 1 dataset (To-Be 정책 #1: As-Is APP_HOST_ID 폐기 → selectMenuId 1 SQL 만)
 
+    퍼미션 모델 v2 추가 action (2026-11-27):
+      - searchObjPerm — objectId 로 직무별 퍼미션(TB_MCM_SEC_ROLE_PERM) 조회, 효과 값 포함
+      - searchObjMenu — objectId 를 가리키는 메뉴(TB_MCM_SEC_MENU) 조회
+
     To-Be 미사용 action (가이드 표준 6 enum 매핑 — BPMN §2.4):
       - search / searchDetail / save / saveDetail / delete / deleteDetail → 미신설 (As-Is enum 보존)
 
@@ -46,6 +50,8 @@
       <bpmn:outgoing>flow_saveCmObj</bpmn:outgoing>
       <bpmn:outgoing>flow_lov</bpmn:outgoing>
       <bpmn:outgoing>flow_searchSystemLov</bpmn:outgoing>
+      <bpmn:outgoing>flow_searchObjPerm</bpmn:outgoing>
+      <bpmn:outgoing>flow_searchObjMenu</bpmn:outgoing>
     </bpmn:exclusiveGateway>
 
     <!-- ─────────── action: searchCmObj ─────────── -->
@@ -115,6 +121,42 @@
     <bpmn:sequenceFlow id="flow_searchSystemLov_end" sourceRef="searchSystemLovTask" targetRef="endSearchSystemLov" />
     <bpmn:endEvent id="endSearchSystemLov">
       <bpmn:incoming>flow_searchSystemLov_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- ─────────── action: searchObjPerm — objectId 로 TB_MCM_SEC_ROLE_PERM 조회 (D7·D15) ─────────── -->
+    <bpmn:sequenceFlow id="flow_searchObjPerm" name="searchObjPerm" sourceRef="actionGateway" targetRef="searchObjPermTask" />
+    <bpmn:serviceTask id="searchObjPermTask" name="오브젝트 퍼미션 조회 (직무별 BTN·POPUP·DATA + 효과 값)" camunda:class="commObjMngService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="searchObjPerm" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mcm.csa.commObjMng.dto.CommObjMngObjRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_searchObjPerm</bpmn:incoming>
+      <bpmn:outgoing>flow_searchObjPerm_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="flow_searchObjPerm_end" sourceRef="searchObjPermTask" targetRef="endSearchObjPerm" />
+    <bpmn:endEvent id="endSearchObjPerm">
+      <bpmn:incoming>flow_searchObjPerm_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- ─────────── action: searchObjMenu — objectId 로 TB_MCM_SEC_MENU 조회 ─────────── -->
+    <bpmn:sequenceFlow id="flow_searchObjMenu" name="searchObjMenu" sourceRef="actionGateway" targetRef="searchObjMenuTask" />
+    <bpmn:serviceTask id="searchObjMenuTask" name="오브젝트 메뉴 조회 (이 오브젝트를 가리키는 메뉴)" camunda:class="commObjMngService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="searchObjMenu" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mcm.csa.commObjMng.dto.CommObjMngObjRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_searchObjMenu</bpmn:incoming>
+      <bpmn:outgoing>flow_searchObjMenu_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="flow_searchObjMenu_end" sourceRef="searchObjMenuTask" targetRef="endSearchObjMenu" />
+    <bpmn:endEvent id="endSearchObjMenu">
+      <bpmn:incoming>flow_searchObjMenu_end</bpmn:incoming>
     </bpmn:endEvent>
 
   </bpmn:process>
@@ -189,6 +231,36 @@
       <bpmndi:BPMNEdge id="flow_searchSystemLov_end_di" bpmnElement="flow_searchSystemLov_end">
         <di:waypoint x="550" y="560" />
         <di:waypoint x="600" y="560" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="searchObjPermTask_di" bpmnElement="searchObjPermTask">
+        <dc:Bounds x="370" y="640" width="180" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endSearchObjPerm_di" bpmnElement="endSearchObjPerm">
+        <dc:Bounds x="600" y="662" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="flow_searchObjPerm_di" bpmnElement="flow_searchObjPerm">
+        <di:waypoint x="270" y="265" />
+        <di:waypoint x="270" y="680" />
+        <di:waypoint x="370" y="680" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_searchObjPerm_end_di" bpmnElement="flow_searchObjPerm_end">
+        <di:waypoint x="550" y="680" />
+        <di:waypoint x="600" y="680" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="searchObjMenuTask_di" bpmnElement="searchObjMenuTask">
+        <dc:Bounds x="370" y="760" width="180" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endSearchObjMenu_di" bpmnElement="endSearchObjMenu">
+        <dc:Bounds x="600" y="782" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="flow_searchObjMenu_di" bpmnElement="flow_searchObjMenu">
+        <di:waypoint x="270" y="265" />
+        <di:waypoint x="270" y="800" />
+        <di:waypoint x="370" y="800" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_searchObjMenu_end_di" bpmnElement="flow_searchObjMenu_end">
+        <di:waypoint x="550" y="800" />
+        <di:waypoint x="600" y="800" />
       </bpmndi:BPMNEdge>
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>

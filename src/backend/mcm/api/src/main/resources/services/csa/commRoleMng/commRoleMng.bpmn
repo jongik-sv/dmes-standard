@@ -22,6 +22,12 @@
                               commonDynamic_onload "csa::CommMenuMng/commonList" 본 namespace 내재화 —
                               selectMenuObjPop 의 TB_MCM_SEC_OBJ WHERE USE_TP='Y' AND UPPER LIKE)
         ~~- searchCmRoleMapPnt — 부모역할 부여 조회 (As-Is xfdl 주석 / 분석 §11 #11)~~
+
+    퍼미션 모델 v2 (2026-11-27, TB_MCM_SEC_ROLE_PERM):
+      - searchCmRoleMap  — params roleId → grids perms (옛 ds_roleMap 대체)
+      - saveCmRoleMap    — params roleId(dto) + grids perms.rows → method param `perms` (MERGE|DEL)
+      - searchRoleGroups — params roleId → grids groups + data USER_CNT (새)
+      - searchFolderObj  — params roleId·menuFolderId → grids objs (새)
         ~~- pntRoleIdPop      — 부모 역할 POPUP (As-Is xfdl 주석 / 분석 §11 #11)~~
 
     As-Is 결함 To-Be 정정 (BPMN §6.1):
@@ -32,9 +38,9 @@
     Spring bean 'commRoleMngService' 의 method 호출 → 결과 Map 을 process variable 로 누적.
 
     가이드 §6-C/D/E 정합 (W1·W2 정본 패턴):
-      - grid property 사용 ✗ (saveCmRole / saveCmRoleMap 는 grids.master.rows → method param `master` 자동 매핑)
+      - grid property 사용 ✗ (saveCmRole 는 grids.master.rows → method param `master`, saveCmRoleMap 는 grids.perms.rows → `perms` 자동 매핑)
       - output="result" 명시 (응답 누락 결함 회피 — 가이드 §6-D)
-      - dto property: searchCmRole / searchCmRoleMap / searchCmPerm 3 action 만 (params → DTO 변환)
+      - dto property: searchCmRole / searchCmRoleMap / searchCmPerm / searchObjectLov / saveCmRoleMap / searchRoleGroups / searchFolderObj (params → DTO 변환)
       - <conditionExpression> 미사용 — sequenceFlow `name` 만으로 분기
   -->
 
@@ -59,6 +65,8 @@
       <bpmn:outgoing>flow_searchCmPerm</bpmn:outgoing>
       <bpmn:outgoing>flow_lov</bpmn:outgoing>
       <bpmn:outgoing>flow_searchObjectLov</bpmn:outgoing>
+      <bpmn:outgoing>flow_searchRoleGroups</bpmn:outgoing>
+      <bpmn:outgoing>flow_searchFolderObj</bpmn:outgoing>
     </bpmn:exclusiveGateway>
 
     <!-- ─────────── action: searchCmRole — 역할 마스터 그리드 조회 ─────────── -->
@@ -96,9 +104,9 @@
       <bpmn:incoming>flow_saveCmRole_end</bpmn:incoming>
     </bpmn:endEvent>
 
-    <!-- ─────────── action: searchCmRoleMap — 선택 역할의 현재 권한 조회 (3-table JOIN) ─────────── -->
+    <!-- ─────────── action: searchCmRoleMap — 이 역할의 퍼미션 조회 (TB_MCM_SEC_ROLE_PERM, 2026-11-27) ─────────── -->
     <bpmn:sequenceFlow id="flow_searchCmRoleMap" name="searchCmRoleMap" sourceRef="actionGateway" targetRef="searchCmRoleMapTask" />
-    <bpmn:serviceTask id="searchCmRoleMapTask" name="역할 부여 조회 (3-table JOIN)" camunda:class="commRoleMngService">
+    <bpmn:serviceTask id="searchCmRoleMapTask" name="이 역할의 퍼미션 조회 (TB_MCM_SEC_ROLE_PERM)" camunda:class="commRoleMngService">
       <bpmn:extensionElements>
         <camunda:properties>
           <camunda:property name="method" value="searchCmRoleMap" />
@@ -114,13 +122,14 @@
       <bpmn:incoming>flow_searchCmRoleMap_end</bpmn:incoming>
     </bpmn:endEvent>
 
-    <!-- ─────────── action: saveCmRoleMap — INSERT/DELETE 분기 (UPDATE ✗ / Q-011 closed) ─────────── -->
+    <!-- ─────────── action: saveCmRoleMap — params roleId(dto) + grids.perms.rows → method param `perms` (MERGE|DEL, 2026-11-27) ─────────── -->
     <bpmn:sequenceFlow id="flow_saveCmRoleMap" name="saveCmRoleMap" sourceRef="actionGateway" targetRef="saveCmRoleMapTask" />
-    <bpmn:serviceTask id="saveCmRoleMapTask" name="역할 부여 저장 (INSERT/DELETE) + 후속 재조회" camunda:class="commRoleMngService">
+    <bpmn:serviceTask id="saveCmRoleMapTask" name="이 역할의 퍼미션 저장 (MERGE/DEL, TB_MCM_SEC_ROLE_PERM)" camunda:class="commRoleMngService">
       <bpmn:extensionElements>
         <camunda:properties>
           <camunda:property name="method" value="saveCmRoleMap" />
           <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mcm.csa.commRoleMng.dto.CommRoleMngRoleRequest" />
         </camunda:properties>
       </bpmn:extensionElements>
       <bpmn:incoming>flow_saveCmRoleMap</bpmn:incoming>
@@ -184,6 +193,42 @@
       <bpmn:incoming>flow_searchObjectLov_end</bpmn:incoming>
     </bpmn:endEvent>
 
+    <!-- ─────────── action: searchRoleGroups — 이 역할이 들어 있는 그룹 (2026-11-27) ─────────── -->
+    <bpmn:sequenceFlow id="flow_searchRoleGroups" name="searchRoleGroups" sourceRef="actionGateway" targetRef="searchRoleGroupsTask" />
+    <bpmn:serviceTask id="searchRoleGroupsTask" name="들어 있는 그룹 조회" camunda:class="commRoleMngService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="searchRoleGroups" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mcm.csa.commRoleMng.dto.CommRoleMngRoleRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_searchRoleGroups</bpmn:incoming>
+      <bpmn:outgoing>flow_searchRoleGroups_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="flow_searchRoleGroups_end" sourceRef="searchRoleGroupsTask" targetRef="endSearchRoleGroups" />
+    <bpmn:endEvent id="endSearchRoleGroups">
+      <bpmn:incoming>flow_searchRoleGroups_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- ─────────── action: searchFolderObj — 메뉴 폴더의 오브젝트 (「메뉴에서 오브젝트 추가」 후보, 2026-11-27) ─────────── -->
+    <bpmn:sequenceFlow id="flow_searchFolderObj" name="searchFolderObj" sourceRef="actionGateway" targetRef="searchFolderObjTask" />
+    <bpmn:serviceTask id="searchFolderObjTask" name="메뉴 폴더 오브젝트 조회" camunda:class="commRoleMngService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="searchFolderObj" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mcm.csa.commRoleMng.dto.CommRoleMngRoleRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_searchFolderObj</bpmn:incoming>
+      <bpmn:outgoing>flow_searchFolderObj_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="flow_searchFolderObj_end" sourceRef="searchFolderObjTask" targetRef="endSearchFolderObj" />
+    <bpmn:endEvent id="endSearchFolderObj">
+      <bpmn:incoming>flow_searchFolderObj_end</bpmn:incoming>
+    </bpmn:endEvent>
+
   </bpmn:process>
 
   <bpmndi:BPMNDiagram id="BPMNDiagram_1">
@@ -235,6 +280,18 @@
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="endSearchObjectLov_di" bpmnElement="endSearchObjectLov">
         <dc:Bounds x="640" y="962" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="searchRoleGroupsTask_di" bpmnElement="searchRoleGroupsTask">
+        <dc:Bounds x="370" y="1100" width="220" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endSearchRoleGroups_di" bpmnElement="endSearchRoleGroups">
+        <dc:Bounds x="640" y="1122" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="searchFolderObjTask_di" bpmnElement="searchFolderObjTask">
+        <dc:Bounds x="370" y="1260" width="220" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endSearchFolderObj_di" bpmnElement="endSearchFolderObj">
+        <dc:Bounds x="640" y="1282" width="36" height="36" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNEdge id="flow_to_gw_di" bpmnElement="flow_to_gw">
         <di:waypoint x="188" y="500" />
@@ -301,6 +358,24 @@
       <bpmndi:BPMNEdge id="flow_searchObjectLov_end_di" bpmnElement="flow_searchObjectLov_end">
         <di:waypoint x="590" y="980" />
         <di:waypoint x="640" y="980" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_searchRoleGroups_di" bpmnElement="flow_searchRoleGroups">
+        <di:waypoint x="270" y="525" />
+        <di:waypoint x="270" y="1140" />
+        <di:waypoint x="370" y="1140" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_searchRoleGroups_end_di" bpmnElement="flow_searchRoleGroups_end">
+        <di:waypoint x="590" y="1140" />
+        <di:waypoint x="640" y="1140" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_searchFolderObj_di" bpmnElement="flow_searchFolderObj">
+        <di:waypoint x="270" y="525" />
+        <di:waypoint x="270" y="1300" />
+        <di:waypoint x="370" y="1300" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_searchFolderObj_end_di" bpmnElement="flow_searchFolderObj_end">
+        <di:waypoint x="590" y="1300" />
+        <di:waypoint x="640" y="1300" />
       </bpmndi:BPMNEdge>
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>

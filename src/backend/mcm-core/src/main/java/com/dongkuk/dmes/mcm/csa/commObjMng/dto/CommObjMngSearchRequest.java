@@ -29,6 +29,9 @@ public class CommObjMngSearchRequest {
     /** S-003 — 사용 여부 (Y/N) 일치. */
     private String cboUSETP;
 
+    /** 메뉴 폴더 MENU_ID — 비면 전체, 값이 있으면 그 폴더(하위 포함)의 메뉴가 가리키는 오브젝트만(퍼미션 모델 v2). */
+    private String menuFolderId;
+
     public CommObjMngSearchRequest() {}
 
     public String getEdtOBJECTID() { return edtOBJECTID; }
@@ -36,4 +39,7 @@ public class CommObjMngSearchRequest {
 
     public String getCboUSETP() { return cboUSETP; }
     public void setCboUSETP(String cboUSETP) { this.cboUSETP = cboUSETP; }
+
+    public String getMenuFolderId() { return menuFolderId; }
+    public void setMenuFolderId(String menuFolderId) { this.menuFolderId = menuFolderId; }
 }

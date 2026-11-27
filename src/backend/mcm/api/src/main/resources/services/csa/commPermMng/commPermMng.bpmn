@@ -1,48 +1,33 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
-                  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
-                  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
-                  xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
-                  xmlns:camunda="http://camunda.org/schema/1.0/bpmn"
-                  id="Definitions_commPermMng"
-                  targetNamespace="http://bpmn.io/schema/bpmn">
-
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:camunda="http://camunda.org/schema/1.0/bpmn" id="Definitions_commPermMng" targetNamespace="http://bpmn.io/schema/bpmn">
   <!--
-    PERMISSION 관리 — commPermMng BPMN (csa 그룹 / mcm 모듈 / W6)
+    퍼미션 관리 — commPermMng BPMN (csa 그룹 / mcm 모듈)
 
-    분석리포트 §8 + BPMN설계서 §2 의 As-Is 3 action → To-Be 2 action (cross-cutting 정책 #1):
-      - searchCmPerm — PERMISSION 그리드 조회 (selectCommPermMng + ROLE_ID scalar subquery)
-      - saveCmPerm   — PERMISSION 일괄 저장 (insertCommPermMng / updateCommPermMng / deleteCommPermMng
-                       status 자동 분기 + NOT EXISTS 안전장치) + 후속 자동 재조회
+    2026-11-27 퍼미션 모델 v2: 한 줄 = 역할 × 오브젝트 퍼미션 한 건(TB_MCM_SEC_ROLE_PERM).
+    옛 PERMISSION_ID 묶음(TB_MCM_SEC_PERM) CRUD 는 이 화면에서 뺐다(옛 표는 남기고 쓰지 않음, D10).
 
-    To-Be 폐기 action (cross-cutting 정책 #1, 2026-05-31):
-      - lov (As-Is Task_08v4ryn / CommObjMngMapper.selectAppHostId cross-module 호출) — BIZ_SYSTEM_CODE
-        컬럼 폐기로 BIZ SYSTEM 콤보 (S-001 / D-008) 자체가 제거되므로 호출 불요
+    action 4개(= sequenceFlow name = 게이트 토큰):
+      - lov           — params 없음 → grids roles(ROLE_ID·ROLE_NM·USE_TP, SYSADMIN 제외) · menus(모듈·폴더)
+      - search        — params roleId·menuId·objectQ·codeQ·showEmpty·pageNo·pageSize (dto CommPermMngSearchRequest)
+                        → grids perms + TOTAL_CNT
+      - searchPermOne — params roleId·objectId (dto CommPermMngPermOneRequest)
+                        → grids others · groups + USER_CNT
+      - save          — grids.perms.rows → method param `perms`(ROLE_ID·OBJECT_ID·BTN_PERM·POPUP_PERM·DATA_PERM·OP_TP MERGE|DEL)
+                        → cnt_merge · cnt_delete. 거절 = UserException(메시지 앞 코드)
+                        PERM_EMPTY_BTN · PERM_NOT_IN_OBJ · PERM_SYSADMIN · PERM_NO_ROLE · PERM_NO_OBJ · PERM_TOO_LONG · PERM_BAD_ROW
+                        전부 검사 뒤 쓰기. 쓴 역할이 있으면 RoleChangedEvent(D30)
 
-    To-Be 미사용 action (가이드 표준 6 enum 매핑 — BPMN §3.3):
-      - search / save / delete / popup / export / lov → 미신설 (As-Is enum 보존, popup 은 클라이언트 전용)
-
-    As-Is BPMN 잔존 식별자 정정 (분석 §11.1 / §12):
-      - process id: "sample1" → "commPermMng"
-      - process name: "menuInfor" (다른 화면 잔존) → "PERMISSION 관리"
-
-    OASIS executor 가 actionGateway 의 input='action' 으로 분기. serviceTask 별
-    Spring bean 'commPermMngService' 의 method 호출 → 결과 Map 을 process variable 로 누적.
-
-    가이드 §6-C/D/E 정합 (W1~W5 정본 패턴):
-      - grid property 사용 ✗ (saveCmPerm 는 grids.master.rows → method param `master` 자동 매핑)
-      - output="result" 명시 (응답 누락 결함 회피)
-      - dto property 는 searchCmPerm 만 (params → DTO 변환)
-      - <conditionExpression> 미사용 — sequenceFlow `name` 만으로 분기
+    OASIS executor 가 actionGateway 의 input='action' 으로 분기한다. serviceTask 는
+    Spring bean 'commPermMngService' 의 method 를 부르고 결과 Map 을 output="result" 로 낸다.
+      - 목록 입력 = grids(D36): grids.<key>.rows → 같은 이름의 method param
+      - params 입력 = dto property(params → DTO 변환)
+      - 조건식 없이 sequenceFlow `name` 만으로 분기
   -->
-
-  <bpmn:process id="commPermMng" name="PERMISSION 관리" isExecutable="true">
-
+  <bpmn:process id="commPermMng" name="퍼미션 관리" isExecutable="true">
     <bpmn:startEvent id="start">
       <bpmn:outgoing>flow_to_gw</bpmn:outgoing>
     </bpmn:startEvent>
     <bpmn:sequenceFlow id="flow_to_gw" sourceRef="start" targetRef="actionGateway" />
-
     <bpmn:exclusiveGateway id="actionGateway">
       <bpmn:extensionElements>
         <camunda:properties>
@@ -52,11 +37,11 @@
       <bpmn:incoming>flow_to_gw</bpmn:incoming>
       <bpmn:outgoing>flow_searchCmPerm</bpmn:outgoing>
       <bpmn:outgoing>flow_saveCmPerm</bpmn:outgoing>
+      <bpmn:outgoing>flow_lov</bpmn:outgoing>
+      <bpmn:outgoing>flow_searchPermOne</bpmn:outgoing>
     </bpmn:exclusiveGateway>
-
-    <!-- ─────────── action: searchCmPerm ─────────── -->
     <bpmn:sequenceFlow id="flow_searchCmPerm" name="search" sourceRef="actionGateway" targetRef="searchCmPermTask" />
-    <bpmn:serviceTask id="searchCmPermTask" name="PERMISSION 그리드 조회" camunda:class="commPermMngService">
+    <bpmn:serviceTask id="searchCmPermTask" name="퍼미션 목록 조회 (필터·페이지)" camunda:class="commPermMngService">
       <bpmn:extensionElements>
         <camunda:properties>
           <camunda:property name="method" value="searchCmPerm" />
@@ -71,10 +56,8 @@
     <bpmn:endEvent id="endSearchCmPerm">
       <bpmn:incoming>flow_searchCmPerm_end</bpmn:incoming>
     </bpmn:endEvent>
-
-    <!-- ─────────── action: saveCmPerm — input grid: grids.master.rows → method param `master` ─────────── -->
     <bpmn:sequenceFlow id="flow_saveCmPerm" name="save" sourceRef="actionGateway" targetRef="saveCmPermTask" />
-    <bpmn:serviceTask id="saveCmPermTask" name="PERMISSION 일괄 저장 (status 분기) + 후속 재조회" camunda:class="commPermMngService">
+    <bpmn:serviceTask id="saveCmPermTask" name="퍼미션 일괄 저장 (MERGE·DEL)" camunda:class="commPermMngService">
       <bpmn:extensionElements>
         <camunda:properties>
           <camunda:property name="method" value="saveCmPerm" />
@@ -88,9 +71,38 @@
     <bpmn:endEvent id="endSaveCmPerm">
       <bpmn:incoming>flow_saveCmPerm_end</bpmn:incoming>
     </bpmn:endEvent>
-
+    <bpmn:serviceTask id="lovTask" name="역할·메뉴 폴더 고르기 목록" camunda:class="commPermMngService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="lov" />
+          <camunda:property name="output" value="result" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_lov</bpmn:incoming>
+      <bpmn:outgoing>flow_lov_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="endLov">
+      <bpmn:incoming>flow_lov_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="flow_lov" name="lov" sourceRef="actionGateway" targetRef="lovTask" />
+    <bpmn:sequenceFlow id="flow_lov_end" sourceRef="lovTask" targetRef="endLov" />
+    <bpmn:serviceTask id="searchPermOneTask" name="퍼미션 한 건 곁 정보 조회" camunda:class="commPermMngService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="searchPermOne" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mcm.csa.commPermMng.dto.CommPermMngPermOneRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_searchPermOne</bpmn:incoming>
+      <bpmn:outgoing>flow_searchPermOne_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="endSearchPermOne">
+      <bpmn:incoming>flow_searchPermOne_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="flow_searchPermOne" name="searchPermOne" sourceRef="actionGateway" targetRef="searchPermOneTask" />
+    <bpmn:sequenceFlow id="flow_searchPermOne_end" sourceRef="searchPermOneTask" targetRef="endSearchPermOne" />
   </bpmn:process>
-
   <bpmndi:BPMNDiagram id="BPMNDiagram_1">
     <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="commPermMng">
       <bpmndi:BPMNShape id="start_di" bpmnElement="start">
@@ -133,6 +145,43 @@
         <di:waypoint x="550" y="240" />
         <di:waypoint x="600" y="240" />
       </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="lovTask_di" bpmnElement="lovTask">
+        <dc:Bounds x="370" y="360" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endLov_di" bpmnElement="endLov">
+        <dc:Bounds x="600" y="382" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="flow_lov_di" bpmnElement="flow_lov">
+        <di:waypoint x="270" y="185" />
+        <di:waypoint x="270" y="400" />
+        <di:waypoint x="370" y="400" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="300" y="168" width="24" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_lov_end_di" bpmnElement="flow_lov_end">
+        <di:waypoint x="470" y="400" />
+        <di:waypoint x="600" y="400" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="searchPermOneTask_di" bpmnElement="searchPermOneTask">
+        <dc:Bounds x="370" y="520" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endSearchPermOne_di" bpmnElement="endSearchPermOne">
+        <dc:Bounds x="600" y="542" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="flow_searchPermOne_di" bpmnElement="flow_searchPermOne">
+        <di:waypoint x="270" y="185" />
+        <di:waypoint x="270" y="560" />
+        <di:waypoint x="370" y="560" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="300" y="168" width="104" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_searchPermOne_end_di" bpmnElement="flow_searchPermOne_end">
+        <di:waypoint x="470" y="560" />
+        <di:waypoint x="600" y="560" />
+      </bpmndi:BPMNEdge>
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>
 </bpmn:definitions>
+

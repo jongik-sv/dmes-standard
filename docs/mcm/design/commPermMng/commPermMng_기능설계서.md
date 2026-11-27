@@ -9,6 +9,8 @@ moduleGroup: csa
 
 # mcm — PERMISSION 관리 기능설계서
 
+> **퍼미션 모델 v2 (2026-11-27)**: 이 화면의 권한 모델이 바뀌었다. 문서 맨 끝 "퍼미션 (퍼미션 모델 v2)" 절이 아래 본문보다 우선한다. 본문의 옛 `TB_MCM_SEC_ROLE_MAPPING`·PERMISSION_ID 서술은 이력이다.
+
 > **인용 정본**: 본 문서의 모든 본문은 `commPermMng_분석리포트.md` 의 §1~§13 인용. 자체 추가 ✗. 행수 / ID / 표시명 / SQL ID / BPMN flow / action enum 모두 분석리포트와 1byte 일치.
 > **환경 제약**: 분석리포트 §0 인용 — Runner / R14-Step0 / manifest 미적용 (사용자 결정). WinForms 전제 항목은 mui 등가물로 매핑.
 > **cross-cutting 정책 #1 적용 (2026-05-31)**: BIZ_SYSTEM_CODE 컬럼 폐기 — As-Is S-001 / D-007 / D-008 / G-008 (Detail Combo Essential + Search Combo + Grid 컬럼) / DS-003 / Bind item10 / lov action / Task_08v4ryn / SequenceFlow_1dd2kqv·0xqzbh4 / fn_lov / fn_callBack 의 lov 분기 / cross-module `CommObjMngMapper.selectAppHostId` 모두 **To-Be 폐기**. As-Is 인용은 보존.
@@ -429,3 +431,93 @@ moduleGroup: csa
 | 4 | 임의 합리화? | No — Q-001 (DMES Excel DDL) 은 분석리포트 §2 / §9 / §12 명시. 본 기능설계서는 분석리포트 §9 카탈로그 인용. BIZ_SYSTEM_CODE 폐기 / Entity SecPerm 명명 결정은 분석리포트 §11 / §12 cross-cutting 정책 항목 인용 |
 
 > 4 질문 모두 No. Phase 2 통과 (cross-cutting 정책 #1·#6 적용 2026-05-31).
+
+
+---
+
+## 퍼미션 (퍼미션 모델 v2, 2026-11-27)
+
+> 이 절은 위 본문보다 우선한다. 위 본문은 옛 PERMISSION_ID 묶음 모델(분석 시점)을 설명한다.
+> 근거: `docs/perm-bench/decompose.md` D7·D8·D13·D14·D15·D18·D30, §0.4. 구현: 커밋 59d06cda3.
+> 이름 규칙: 화면 이름 `commPermMng` 은 그대로 둔다. 화면이 다루는 것은 PERMISSION_ID 묶음이 아니라 "역할 × 오브젝트" 한 건이다.
+
+### P.1 화면 뜻 변경
+
+| 항목 | 옛 (위 본문) | 새 (퍼미션 모델 v2) |
+|---|---|---|
+| 한 줄의 뜻 | PERMISSION_ID 하나 = 버튼 권한 묶음 (`TB_MCM_SEC_PERM`) | 역할 하나 × 오브젝트 하나 = 퍼미션 한 건 (`TB_MCM_SEC_ROLE_PERM`) |
+| 키 | PERMISSION_ID | ROLE_ID + OBJECT_ID |
+| 값 | PERMISSION_COMMON·CUSTOM·POPUP_BTN·ACTION 4칸 | BTN_PERM · POPUP_PERM · DATA_PERM 3칸 (코드 목록, 쉼표 구분) |
+| 허용 범위 | 제한 없음 | 오브젝트의 BTN_PERM·POPUP_PERM 안의 값만 허용 (⊆ 검사, D15) |
+| 역할 연결 | `TB_MCM_SEC_ROLE_MAPPING` 에서 PERMISSION_ID 로 간접 연결 | 퍼미션 행이 역할을 직접 가진다 |
+
+- BTN_PERM 코드는 OASIS action 이름이다 (D7). 버튼의 `action` 과 API action 과 게이트 토큰이 같은 이름이다.
+- POPUP_PERM 은 오브젝트 안에서 팝업을 여는 action 코드다 (D8). 계산은 BTN 과 합친다.
+- DATA_PERM 은 정규화만 한다 (값 검사 없음).
+- 값 정규화: 앞뒤 공백 제거, 빈 값 제거, 중복 제거, 순서 유지. 한 칸은 1000자까지다.
+- 옛 서술 중 아래 절은 더 쓰지 않는다. 이력으로만 둔다.
+  - §3 조회조건 PERMISSION ID·PERMISSION 명 (새 조건은 P.2).
+  - §4 상세 폼 PERMISSION_* 칸 전부.
+  - §5 B-002·B-003 공통·CUSTOM 버튼 권한 선택 팝업 (칩 편집기로 바뀐다. 화면은 FE 설계서 참고).
+  - §6.2·§6.3 ROLE 매핑 존재 검증과 `deleteCommPermMng` 안전장치 (새 삭제 규칙은 P.4).
+  - §11 데이터 흐름 (새 흐름은 P.3).
+  - §12 중 `SecPerm`·`SecPermRepository`·`TB_MCM_SEC_ROLE_MAPPING` 항목. 새 표는 `TB_MCM_SEC_ROLE_PERM` 이다.
+
+### P.2 조회 조건 (action `search`)
+
+| 조건 | params 이름 | 의미 |
+|---|---|---|
+| 역할 | `roleId` | 같은 ROLE_ID 만 본다. 비면 전체 |
+| 메뉴 폴더 | `menuId` | 그 폴더와 하위 폴더의 메뉴가 가리키는 오브젝트만 본다 |
+| 오브젝트 검색어 | `objectQ` | OBJECT_ID·OBJECT_NM 부분 일치. 대소문자 무시 |
+| 코드 검색어 | `codeQ` | 퍼미션 줄은 BTN·POPUP 값, 빈 줄은 오브젝트 허용 BTN·POPUP 값에서 부분 일치 |
+| 빈 줄 포함 | `showEmpty` | `Y` 이고 `roleId` 가 있으면 그 역할의 퍼미션이 없는 오브젝트도 `HAS_PERM=N` 줄로 보인다. USE_TP 는 보지 않는다 |
+| 페이지 | `pageNo`·`pageSize` | 기본 1페이지·100건. 한 번에 1000건까지 |
+
+- 정렬: ROLE_ID → 메뉴 트리 순서 (메뉴 없는 오브젝트는 뒤) → OBJECT_ID.
+- 필터·정렬·페이지는 서버 메모리에서 한다. 오브젝트 약 1,000개 × 역할 약 20개 규모를 가정한다.
+- SYSADMIN 줄은 나오지 않는다 (P.5).
+
+### P.3 액션 흐름 (표 정본은 BPMN설계서 P.1)
+
+1. 화면을 열면 `lov` 를 한 번 부른다. 역할 목록과 메뉴 폴더 목록을 받는다.
+2. 조회 버튼은 `search` 를 부른다. 결과는 `perms` 그리드와 `TOTAL_CNT` 다.
+3. 줄을 고르면 `searchPermOne` 을 부른다. 같은 오브젝트의 다른 역할 퍼미션과, 이 역할이 속한 그룹을 받는다.
+   - 사람 수 `USER_CNT` 는 `USE_TP='Y'` 인 역할만 센다. 사용 안 함 역할은 0 이다.
+   - 그룹 줄의 `USER_CNT` 는 그룹이 `USE_TP='N'` 이면 0 이다.
+4. 저장 버튼은 `save` 를 부른다. 바뀐 줄만 `perms.rows` 로 보낸다. 응답에는 목록이 없다. 화면이 `search` 를 다시 부른다.
+
+### P.4 저장 규칙과 삭제
+
+- 줄마다 `OP_TP` 가 `MERGE` 또는 `DEL` 이다. 그 밖의 값은 거절한다.
+- `MERGE` 는 ROLE_ID + OBJECT_ID 를 키로 넣거나 고친다.
+- `DEL` 은 그 줄을 지운다. 없는 줄을 지워도 오류가 아니다. 지운 건수에 세지 않는다.
+- 삭제 차단 검사는 없다. 옛 "연결된 역할이 존재합니다" 검증(§6.2)은 사라졌다. 퍼미션 줄은 어디에서도 참조되지 않는다.
+- 저장 전에 모든 줄을 먼저 검사한다. 줄 하나라도 틀리면 아무것도 쓰지 않는다 (전부 또는 없음).
+- 검사 항목은 아래 순서다. 처음 걸린 줄에서 멈춘다.
+  1. ROLE_ID 또는 OBJECT_ID 가 비었다: `PERM_BAD_ROW`.
+  2. ROLE_ID 가 `SYSADMIN` 또는 `ROLE_SYSADMIN` 이다: `PERM_SYSADMIN` (`MERGE` 와 `DEL` 모두).
+  3. 같은 (ROLE_ID, OBJECT_ID) 가 한 번에 두 줄 이상이다: `PERM_BAD_ROW` (`MERGE` 와 `DEL` 이 섞여도 같다).
+  4. `OP_TP` 가 `MERGE`·`DEL` 이 아니다: `PERM_BAD_ROW`.
+  5. `MERGE` 인데 역할이 없다: `PERM_NO_ROLE`. 오브젝트가 없다: `PERM_NO_OBJ`.
+  6. `MERGE` 인데 정규화한 BTN_PERM 이 비었다: `PERM_EMPTY_BTN` (D14). 버튼 없는 퍼미션은 만들지 않는다.
+  7. BTN_PERM 또는 POPUP_PERM 에 오브젝트 허용 값 밖의 값이 있다: `PERM_NOT_IN_OBJ` (D15). 밖의 값이 하나라도 있으면 거절한다.
+  8. 어느 칸이든 1000자를 넘는다: `PERM_TOO_LONG`.
+- 오류 메시지 형식은 `CODE: 상세` 다. FE 는 메시지를 그대로 보여 준다.
+- 저장 응답은 `cnt_merge`(넣거나 고친 건수)와 `cnt_delete`(실제로 지운 건수)다.
+- 쓰기가 있었으면 쓴 역할 ID 들로 `RoleChangedEvent` 를 한 번 발행한다 (D30). 권한 캐시가 비워진다.
+- POPUP_PERM·DATA_PERM 이 비면 NULL 로 저장한다.
+
+### P.5 SYSADMIN 처리
+
+- SYSADMIN 은 퍼미션 행 없이 계산한다 (D13). 모든 사용 오브젝트의 허용 값 전부를 가진다.
+- SYSADMIN 판정은 ROLE_ID 가 `SYSADMIN` 이거나 런타임 별칭 `ROLE_SYSADMIN` 인 경우다. 4개 화면이 같은 규칙을 쓴다.
+- `lov` 의 역할 목록과 `search` 결과에서 SYSADMIN 을 뺀다.
+- SYSADMIN 줄을 저장하려 하면 `PERM_SYSADMIN` 으로 거절한다.
+- 옛 SYSADMIN 매핑 줄은 새 표로 옮기지 않았다.
+
+### P.6 설계 메모 (구현과 계약의 차이)
+
+- 계약에 없던 오류 코드 `PERM_NO_ROLE`·`PERM_NO_OBJ`·`PERM_TOO_LONG`·`PERM_BAD_ROW` 를 구현이 더했다.
+- `search` 의 필터·정렬·페이지는 SQL 이 아니라 메모리에서 한다. 규모가 커지면 SQL 페이지로 옮긴다.
+- `SecPermRepository`(옛 PERMISSION_ID 표)는 이 화면에서 더 쓰지 않는다.

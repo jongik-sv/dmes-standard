@@ -9,6 +9,8 @@ moduleGroup: csa
 
 # mcm — OBJECT 관리 기능설계서
 
+> **퍼미션 모델 v2 (2026-11-27)**: 이 화면의 권한 모델이 바뀌었다. 문서 맨 끝 "퍼미션 (퍼미션 모델 v2)" 절이 아래 본문보다 우선한다. 본문의 옛 `TB_MCM_SEC_ROLE_MAPPING`·PERMISSION_ID 서술은 이력이다.
+
 > **인용 정본**: 본 문서의 모든 본문은 `commObjMng_분석리포트.md` 의 §1~§14 인용. 자체 추가 ✗. 행수 / ID / 표시명 / SQL ID / BPMN flow / action enum 모두 분석리포트와 1byte 일치.
 > **환경 제약**: 분석리포트 §0 인용 — Runner / R14-Step0 / manifest 미적용 (사용자 결정). WinForms 전제 항목은 mui 등가물로 매핑.
 
@@ -347,3 +349,109 @@ As-Is 코드 (xfdl + Mapper.xml) 내에 명시적 권한 체크 호출 없음 (`
 | 4. 임의 합리화? | **No** — As-Is action 실 호출 3 enum 그대로. 4 enum "해당 없음" 명시. |
 
 > Phase 2 모두 No → Phase 3 진입.
+
+
+---
+
+## 퍼미션 (퍼미션 모델 v2, 2026-11-27)
+
+> 이 절은 위 본문보다 우선한다. 위 본문에서 `TB_MCM_SEC_ROLE_MAPPING` 을 역할 연결로 다룬 서술은 옛 모델의 것이다.
+> 근거: `docs/perm-bench/decompose.md` D7·D8·D13·D14·D15·D18·D30, §0.4. 구현: 커밋 030d656b2.
+> OBJECT 마스터(OBJECT_ID·OBJECT_NM·접속 경로 등) 편집은 그대로다. 바뀐 것은 허용 값, 영향 보기, 퍼미션 연결이다.
+
+### P.1 화면 뜻 변경
+
+- 오브젝트는 "어떤 버튼·팝업 action 이 있는가"를 목록으로 가진다. 이 목록이 허용 값이다.
+- 역할에게 줄 수 있는 퍼미션 값은 이 허용 값의 부분집합이다 (D15).
+- 아래 옛 서술은 더 쓰지 않는다. 이력으로만 둔다.
+  - 삭제 차단 사유가 "메뉴 참조 + 옛 `TB_MCM_SEC_ROLE_MAPPING` 매핑" 두 가지뿐이라는 서술 (새 사유 추가, P.5).
+  - 옛 `TB_MCM_SEC_ROLE_MAPPING` 을 역할 연결의 정본으로 보는 서술 전부. 새 정본은 `TB_MCM_SEC_ROLE_PERM` 이다.
+- 위 본문에는 쓰이지 않았지만 코드에 있던 동작이 있다. OBJECT 저장 때 `SYSADMIN` 역할에 `PERM_ALL` 을 자동 매핑하던 동작이다. D13 에서 삭제했다 (P.7).
+
+### P.2 허용 값 칼럼 3개
+
+| 칸 | 의미 | 저장 규칙 |
+|---|---|---|
+| `BTN_PERM` | 이 오브젝트의 버튼 action 코드 목록 (D7) | 쉼표 구분. 정규화한다 |
+| `POPUP_PERM` | 이 오브젝트 안에서 팝업을 여는 action 코드 목록 (D8) | 같음 |
+| `DATA_PERM` | 데이터 범위 값 목록 | 같음 |
+
+- 정규화: 앞뒤 공백 제거, 빈 값 제거, 중복 제거, 순서 유지. 값이 비면 NULL 로 저장한다.
+- 한 칸은 1000자까지다. 넘으면 `PERM_TOO_LONG` 으로 거절한다. 모든 줄을 먼저 검사하므로 한 줄이라도 넘으면 아무것도 쓰지 않는다.
+- 그리드와 저장 줄에 칸 3개가 들어간다. 행에 칸이 없으면 그 칸은 건드리지 않는다.
+
+### P.3 조회 (action `search`)
+
+- 조회 조건을 하나 더했다.
+
+| 조건 | params 이름 | 의미 |
+|---|---|---|
+| 메뉴 폴더 | `menuFolderId` | 그 폴더와 하위 폴더의 메뉴가 가리키는 오브젝트만 본다. 비면 전체. 하위 폴더는 SQL 재귀로 펴므로 폴더 수 제한(IN 1000개)이 없다 |
+
+- 옛 조건 `edtOBJECTID`·`cboUSETP` 는 그대로다.
+- 그리드에 칸을 더했다.
+
+| 칸 | 의미 |
+|---|---|
+| `BTN_PERM` · `POPUP_PERM` · `DATA_PERM` | 허용 값 |
+| `MENU_CNT` | 이 오브젝트를 가리키는 메뉴 수 |
+| `PERM_CNT` | 이 오브젝트에 퍼미션을 가진 역할 수 |
+
+### P.4 값 빼기 영향 (action `save`)
+
+- 허용 값은 저장할 때 함께 저장한다.
+- 수정으로 BTN·POPUP 값이 빠지거나 `USE_TP` 가 `Y` → `N` 이 되면, 영향을 응답 `impacts` 로 알려 준다.
+- 퍼미션 행은 고치지 않는다 (D15). 퍼미션의 값은 남고, 계산에서만 빠진다 (오브젝트 허용 값과의 교집합). 값을 다시 넣으면 원래대로 돌아온다.
+- 영향 줄은 값마다 한 줄이다. 칸은 아래와 같다.
+
+| 칸 | 의미 |
+|---|---|
+| `OBJECT_ID` | 바뀐 오브젝트 |
+| `KIND` | `BTN` · `POPUP` · `USE_TP` |
+| `CODE` | 빠진 값. `USE_TP` 줄은 `N` |
+| `PERM_CNT` | 영향받는 퍼미션 줄 수 |
+| `USER_CNT` | 그 역할을 받는 사람 수 (그룹 겹침 제외). `USE_TP='Y'` 인 역할만 센다 |
+
+- 영향받는 퍼미션이 0 이면 줄을 만들지 않는다.
+- 새로 만드는 오브젝트에는 영향이 없다.
+- 저장은 `impacts` 가 있어도 끝난다. `impacts` 는 알림용이다. 화면이 보여 주는 방식은 FE 설계서가 정한다.
+- `USE_TP` `N` 은 "사용 안 함" 이다. `USE_TP` 줄의 `USER_CNT` 는 사용 안 함으로 바꿔도 되는지 확인하는 숫자다.
+
+### P.5 삭제 검사
+
+- 오브젝트 삭제는 아래 셋이 모두 0 일 때만 된다. 하나라도 있으면 그 줄을 조용히 건너뛴다 (오류 없음).
+
+| 검사 | 표 |
+|---|---|
+| 이 오브젝트를 가리키는 메뉴 수 | `TB_MCM_SEC_MENU` |
+| 비-SYSADMIN 옛 매핑 수 (옛 검사 유지) | `TB_MCM_SEC_ROLE_MAPPING` |
+| 새 퍼미션 수 (새로 더한 검사) | `TB_MCM_SEC_ROLE_PERM` |
+
+- SYSADMIN 의 옛 매핑 줄은 차단 사유가 아니다. 삭제할 때 함께 지운다. 옛 줄이 남아 있는 DB 를 위한 처리다.
+
+### P.6 이 오브젝트의 퍼미션과 메뉴 (actions `searchObjPerm` · `searchObjMenu`)
+
+- 오브젝트를 고르면 화면이 두 곳을 채운다.
+- 「이 오브젝트의 퍼미션」(`searchObjPerm`): 이 오브젝트를 가진 역할마다 한 줄.
+  - 칸: ROLE_ID · ROLE_NM · ROLE_USE_TP · BTN_PERM · POPUP_PERM · DATA_PERM · EFF_BTN_PERM · EFF_POPUP_PERM · USER_CNT.
+  - `EFF_*` 는 역할의 값과 오브젝트 허용 값의 교집합이다. 역할 값의 순서를 따른다.
+  - `USER_CNT` 는 역할마다 받는 사람 수다. 합계 `USER_CNT` 는 그룹 겹침을 뺀 사람 수다. `USE_TP='Y'` 인 역할만 센다. 사용 안 함 역할은 0 이다.
+- 「가리키는 메뉴」(`searchObjMenu`): 이 오브젝트를 가리키는 메뉴마다 한 줄.
+  - 칸: MENU_ID · MENU_NM · PARENT_MENU_ID · MENU_PATH · MENU_TP · MENU_VIEW_YN · USE_TP.
+  - 정렬은 WEB 메뉴를 먼저, 그다음 MENU_ID 순이다.
+- 역할이나 메뉴 화면으로 이동하는 훅은 별도 계약(`open-with`)을 따른다. 이 문서의 범위가 아니다.
+
+### P.7 SYSADMIN 자동 매핑 삭제 (D13)
+
+- 오브젝트를 저장해도 SYSADMIN 에게 `PERM_ALL` 을 자동으로 붙이지 않는다.
+- SYSADMIN 은 퍼미션 행 없이 모든 사용 오브젝트 × 허용 값 전부로 계산한다.
+- `PERM_ALL` 시드는 중단했다.
+
+### P.8 캐시 무효화 (D30)
+
+- 아래 경우에 `RoleChangedEvent` 를 한 번 발행한다. 대상은 SYSADMIN 과 그 오브젝트에 퍼미션을 가진 역할들이다. 오브젝트에 퍼미션 줄이 없어도 발행한다.
+  - 오브젝트를 새로 만들었다.
+  - 오브젝트를 지웠다.
+  - 수정에서 `BTN_PERM`·`POPUP_PERM`·`USE_TP`·`SYSTEM_CODE`·`START_ACTIVE_DATE`·`END_ACTIVE_DATE` 중 하나가 바뀌었다.
+- SYSADMIN 은 퍼미션 행 없이 사용 오브젝트 전부로 계산한다 (D13). 그래서 오브젝트가 바뀌면 SYSADMIN 의 계산도 바뀐다.
+- 오브젝트를 저장하거나 지우면 `MenuChangedEvent(OBJECT)` 를 발행한다. 메뉴 카탈로그를 비운다.

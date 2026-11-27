@@ -3,19 +3,30 @@
  * 작성일: 2026-06-01
  * 내용: commRoleMng OASIS BPMN serviceTask entry point — 6 action (W3)
  *       searchCmRole / saveCmRole / searchCmRoleMap / saveCmRoleMap / searchCmPerm / lov
+ * 수정: 2026-11-27 @jongik-sv — 퍼미션 모델 v2(TB_MCM_SEC_ROLE_PERM). 집계 칸·searchRoleGroups·searchFolderObj 추가,
+ *       searchCmRoleMap·saveCmRoleMap 을 새 퍼미션 표로 바꿈(옛 매핑 표 쓰기 중단), lov 에 폴더 목록 추가
  */
 package com.dongkuk.dmes.mcm.csa.commRoleMng.service;
 
 import com.dongkuk.dmes.mcm.common.event.RoleChangedEvent;
+import com.dongkuk.dmes.mcm.csa.commRoleMng.dto.CommRoleMngRoleRequest;
 import com.dongkuk.dmes.mcm.csa.commRoleMng.dto.CommRoleMngSearchObjectLovRequest;
 import com.dongkuk.dmes.mcm.csa.commRoleMng.dto.CommRoleMngSearchPermRequest;
 import com.dongkuk.dmes.mcm.csa.commRoleMng.dto.CommRoleMngSearchRequest;
 import com.dongkuk.dmes.mcm.csa.commRoleMng.dto.CommRoleMngSearchRoleMapRequest;
+import com.dongkuk.dmes.mcm.csa.commRoleMng.query.CommRoleMngQuery;
+import com.dongkuk.dmes.mcm.entity.SecObj;
 import com.dongkuk.dmes.mcm.entity.SecRole;
-import com.dongkuk.dmes.mcm.entity.SecRoleMapping;
+import com.dongkuk.dmes.mcm.entity.SecRolePerm;
+import com.dongkuk.dmes.mcm.entity.SecRolePermId;
+import com.dongkuk.dmes.mcm.repository.CommPermQueryRepository;
+import com.dongkuk.dmes.mcm.repository.SecObjRepository;
 import com.dongkuk.dmes.mcm.repository.SecRoleMappingNativeRepository;
-import com.dongkuk.dmes.mcm.repository.SecRoleMappingRepository;
+import com.dongkuk.dmes.mcm.repository.SecRolePermRepository;
 import com.dongkuk.dmes.mcm.repository.SecRoleRepository;
+import com.dongkuk.dmes.mcm.security.perm.PermTokens;
+import com.dongkuk.dmes.mcm.common.exception.BusinessException;
+import com.dongkuk.dmes.mcm.common.exception.ErrorCode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationEventPublisher;
@@ -23,10 +34,15 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import static com.dongkuk.dmes.mcm.common.util.McmValues.strOf;
 import static com.dongkuk.dmes.mcm.common.util.McmValues.parseLocalDateTime;
@@ -40,8 +56,10 @@ import static com.dongkuk.dmes.mcm.common.util.McmValues.parseLocalDateTime;
  * <ol>
  *   <li>{@code searchCmRole}     → {@link #searchCmRole(CommRoleMngSearchRequest)} — 역할 마스터 그리드 조회 (selectCommRole)</li>
  *   <li>{@code saveCmRole}       → {@link #saveCmRole(List)} — 역할 마스터 일괄 저장 (rowStatus 분기 inserted/updated/deleted) + NOT EXISTS 검증</li>
- *   <li>{@code searchCmRoleMap}  → {@link #searchCmRoleMap(CommRoleMngSearchRoleMapRequest)} — 선택 역할의 현재 권한 조회 (3-table JOIN)</li>
- *   <li>{@code saveCmRoleMap}    → {@link #saveCmRoleMap(List)} — 현재 권한 일괄 저장 (INSERT/DELETE 분기 / UPDATE 분기 ✗ — Q-011 closed)</li>
+ *   <li>{@code searchCmRoleMap}  → {@link #searchCmRoleMap(CommRoleMngSearchRoleMapRequest)} — 이 역할의 퍼미션(TB_MCM_SEC_ROLE_PERM, 2026-11-27)</li>
+ *   <li>{@code saveCmRoleMap}    → {@link #saveCmRoleMap(CommRoleMngRoleRequest, List)} — 이 역할의 퍼미션 저장 MERGE|DEL (2026-11-27)</li>
+ *   <li>{@code searchRoleGroups} → {@link #searchRoleGroups(CommRoleMngRoleRequest)} — 들어 있는 그룹 (2026-11-27)</li>
+ *   <li>{@code searchFolderObj}  → {@link #searchFolderObj(CommRoleMngRoleRequest)} — 메뉴 폴더의 오브젝트 (2026-11-27)</li>
  *   <li>{@code searchCmPerm}     → {@link #searchCmPerm(CommRoleMngSearchPermRequest)} — 전체 권한 표시 (2026-06-03 사용자 결정 — NOT EXISTS 제거 / 권한 부여 무관 모든 권한 항상 표시)</li>
  *   <li>{@code lov}              → {@link #lov()} — MENU_ID lov (To-Be 정책 #1: As-Is APP_HOST_ID 폐기 → MENU_ID 1 dataset 만)</li>
  *   <li>{@code searchObjectLov}  → {@link #searchObjectLov(CommRoleMngSearchObjectLovRequest)} — sub2 OBJECT-LoV
@@ -59,9 +77,10 @@ import static com.dongkuk.dmes.mcm.common.util.McmValues.parseLocalDateTime;
  * OASIS executor {@code SpringTransactionHandler} 가 BPMN process 단위로 자동 wrap.
  *
  * <p>가이드 §6-A-1 (Entity 본 컬럼만) — selectCommRole 의 ROLE_GROUP_ID scalar subquery / ID(SUBSTR/INSTR) 계산 /
- * selectCommRoleMapList 의 3-table JOIN / selectCommPerm NOT EXISTS / selectMenuId lov 는 모두 read-only →
+ * selectCommPerm NOT EXISTS / selectMenuId lov 는 모두 read-only →
  * {@link SecRoleMappingNativeRepository} native query 어댑터 + Service 후처리로 처리.
- * Entity {@link SecRole} / {@link SecRoleMapping} 는 save / delete 트랜잭션에만 사용.
+ * 퍼미션 모델 v2 읽기(2026-11-27)는 {@link CommPermQueryRepository}(공용) · {@link CommRoleMngQuery}(이 화면) 가 맡는다.
+ * Entity {@link SecRole} / {@link SecRolePerm} 는 save / delete 트랜잭션에만 사용(2026-11-27 옛 SecRoleMapping 쓰기 중단).
  *
  * <p>audit 9 컬럼 (C_USR_ID / C_AT / C_SVC_ID / C_PGM_ID / U_USR_ID / U_AT / U_SVC_ID / U_PGM_ID / VER) 은
  * mcm-core {@code McmAuditListener} 가 JPA PrePersist / PreUpdate 콜백으로 자동 채움 — service body 미설정.
@@ -84,18 +103,33 @@ public class CommRoleMngService {
     private static final LocalDateTime END_OF_TIME =
             LocalDateTime.of(9999, 12, 31, 0, 0, 0);
 
+    /** 퍼미션 값(BTN·POPUP·DATA) 최대 길이 — TB_MCM_SEC_ROLE_PERM VARCHAR(1000). */
+    private static final int PERM_VALUE_MAX = 1000;
+
+    /** SYSADMIN 퍼미션 수 표시 값(= 「모두」, 퍼미션 행 없이 계산 — D13). */
+    private static final long SYSADMIN_PERM_CNT = -1L;
+
     private final SecRoleRepository secRoleRepository;
-    private final SecRoleMappingRepository secRoleMappingRepository;
     private final SecRoleMappingNativeRepository secRoleMappingNativeRepository;
+    private final SecRolePermRepository secRolePermRepository;
+    private final SecObjRepository secObjRepository;
+    private final CommPermQueryRepository commPermQueryRepository;
+    private final CommRoleMngQuery commRoleMngQuery;
     private final ApplicationEventPublisher eventPublisher;
 
     public CommRoleMngService(SecRoleRepository secRoleRepository,
-                              SecRoleMappingRepository secRoleMappingRepository,
                               SecRoleMappingNativeRepository secRoleMappingNativeRepository,
+                              SecRolePermRepository secRolePermRepository,
+                              SecObjRepository secObjRepository,
+                              CommPermQueryRepository commPermQueryRepository,
+                              CommRoleMngQuery commRoleMngQuery,
                               ApplicationEventPublisher eventPublisher) {
         this.secRoleRepository = secRoleRepository;
-        this.secRoleMappingRepository = secRoleMappingRepository;
         this.secRoleMappingNativeRepository = secRoleMappingNativeRepository;
+        this.secRolePermRepository = secRolePermRepository;
+        this.secObjRepository = secObjRepository;
+        this.commPermQueryRepository = commPermQueryRepository;
+        this.commRoleMngQuery = commRoleMngQuery;
         this.eventPublisher = eventPublisher;
     }
 
@@ -114,6 +148,9 @@ public class CommRoleMngService {
      * </ol>
      *
      * <p>응답 row 컬럼명 (SNAKE_CASE) 은 As-Is dataset 컬럼명 (분석 §3.8 DS-002) 보존 — FE 가 As-Is {@code ds_main} 의 컬럼명을 사용.
+     *
+     * <p>2026-11-27 집계 칸 추가: GROUP_CNT(들어 있는 그룹 수) · USER_CNT(받는 사람 수, 그룹 겹침 제외) ·
+     * PERM_CNT(퍼미션 수, SYSADMIN = -1). 집계는 호출마다 한 번씩만 읽는다.
      */
     public Map<String, Object> searchCmRole(CommRoleMngSearchRequest request) {
         String pRoleId = request != null ? request.getEdtROLEID() : null;
@@ -121,13 +158,8 @@ public class CommRoleMngService {
         String pUseTp  = request != null ? request.getCboUSETP()  : null;
 
         List<SecRole> rows = secRoleRepository.searchByFilter(pRoleId, pRoleNm, pUseTp);
-        List<Map<String, Object>> outRows = new ArrayList<>(rows.size());
-        for (SecRole r : rows) {
-            outRows.add(toSearchRow(r));
-        }
-
         Map<String, Object> out = new LinkedHashMap<>();
-        out.put("ds_main", outRows);
+        out.put("ds_main", toSearchRows(rows));
         return out;
     }
 
@@ -154,11 +186,15 @@ public class CommRoleMngService {
      * {@link SecRoleRepository#countRoleGroupMappingByRoleId(String)} == 0 AND
      * {@link SecRoleRepository#countRoleMappingByRoleId(String)} == 0 일 때만 실제 삭제.
      * 위반 시 silent skip (As-Is 동작 보존 — W1 commObjMng 정본 패턴).
+     * 2026-11-27 새 퍼미션 검사 덧붙임: {@link SecRolePermRepository#countByRoleId(String)} &gt; 0 이어도 silent skip.
+     *
+     * <p>캐시(D30): 기존 역할의 USE_TP·유효 기간이 바뀌었거나 실제로 지운 역할이 있으면 {@link RoleChangedEvent} 를 발행한다.
      *
      * <p>반환: {@code cnt_merge} (성공 행 수) + {@code ds_main} (재조회 결과 — As-Is fn_callBack saveCmRole 의 fn_search 자동 재호출 정합).
      */
     public Map<String, Object> saveCmRole(List<Map<String, Object>> master) {
         int cnt = 0;
+        Set<String> changedRoleIds = new LinkedHashSet<>(); // 캐시 무효화 대상(USE_TP·유효 기간 변경·삭제)
         if (master != null) {
             for (Map<String, Object> row : master) {
                 if (row == null) continue;
@@ -177,19 +213,25 @@ public class CommRoleMngService {
                     // NOT EXISTS 이중 검증 (xml:80~86 — V-003 / V-004 서버 재검증)
                     long roleGrpCnt = secRoleRepository.countRoleGroupMappingByRoleId(roleId);
                     long roleMapCnt = secRoleRepository.countRoleMappingByRoleId(roleId);
-                    if (roleGrpCnt > 0 || roleMapCnt > 0) {
-                        log.warn("[commRoleMng.saveCmRole] delete blocked — ROLE_ID={} roleGroupMapping={} roleMapping={} (silent skip)",
-                                 roleId, roleGrpCnt, roleMapCnt);
+                    long rolePermCnt = secRolePermRepository.countByRoleId(roleId); // 새 퍼미션 표(v2)
+                    if (roleGrpCnt > 0 || roleMapCnt > 0 || rolePermCnt > 0) {
+                        log.warn("[commRoleMng.saveCmRole] delete blocked — ROLE_ID={} roleGroupMapping={} roleMapping={} rolePerm={} (silent skip)",
+                                 roleId, roleGrpCnt, roleMapCnt, rolePermCnt);
                         continue;
                     }
                     if (secRoleRepository.existsById(roleId)) {
                         secRoleRepository.deleteById(roleId);
                         cnt++;
+                        changedRoleIds.add(roleId);
                     }
                 } else if ("inserted".equals(status) || "C".equals(status)
                            || "updated".equals(status) || "U".equals(status)) {
                     SecRole entity = secRoleRepository.findById(roleId).orElseGet(SecRole::new);
                     boolean isNew = entity.getRoleId() == null;
+                    // 바뀌기 전 값(엔티티가 영속 상태라 setter 가 덮어쓰므로 먼저 잡는다)
+                    String oldUseTp = entity.getUseTp();
+                    LocalDateTime oldStart = entity.getStartActiveDate();
+                    LocalDateTime oldEnd = entity.getEndActiveDate();
                     entity.setRoleId(roleId);
                     entity.setRoleNm(strOf(row.get("ROLE_NM")));
                     entity.setRoleDesc(strOf(row.get("ROLE_DESC")));
@@ -203,139 +245,245 @@ public class CommRoleMngService {
                     // 신규 행은 null 유지 / 기존 행은 보존
                     secRoleRepository.save(entity);
                     cnt++;
+                    if (!isNew && (!Objects.equals(oldUseTp, entity.getUseTp())
+                                   || !Objects.equals(oldStart, entity.getStartActiveDate())
+                                   || !Objects.equals(oldEnd, entity.getEndActiveDate()))) {
+                        changedRoleIds.add(roleId);
+                    }
                 } else {
                     log.warn("[commRoleMng.saveCmRole] unknown status={} — skip", status);
                 }
             }
         }
+        if (!changedRoleIds.isEmpty()) {
+            eventPublisher.publishEvent(new RoleChangedEvent(changedRoleIds));
+        }
         // 저장 후 후속 search 재조회 (As-Is xfdl:472~477 fn_msgSuccessSave → fn_search() 재호출 정합)
         List<SecRole> rows = secRoleRepository.findAll();
-        List<Map<String, Object>> outRows = new ArrayList<>(rows.size());
-        for (SecRole r : rows) {
-            outRows.add(toSearchRow(r));
-        }
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("cnt_merge", cnt);
-        out.put("ds_main", outRows);
+        out.put("ds_main", toSearchRows(rows));
         return out;
     }
 
     // ────────────────────────────────────────────────────────────────
-    // action: searchCmRoleMap — 선택 역할의 현재 권한 조회 (3-table JOIN)
+    // action: searchRoleGroups — 이 역할이 들어 있는 그룹(퍼미션 모델 v2, 2026-11-27)
     // ────────────────────────────────────────────────────────────────
 
     /**
-     * action {@code searchCmRoleMap} 진입점. As-Is {@code selectCommRoleMapList} (xml:89~110) 호출.
+     * action {@code searchRoleGroups} 진입점. params {@code roleId}.
      *
-     * <p>응답: {@code ds_roleMap} (As-Is dataset 이름 보존 / 분석 §3.8 DS-003).
-     * 10 컬럼: PERMISSION_ID / PERMISSION_NM / PERMISSION_COMMON / PERMISSION_CUSTOM / POPUP_BTN /
-     * OBJECT_ID / OBJECT_NM / SYSTEM_CODE / SERVICE / ROLE_ID.
+     * <p>응답: grids {@code groups}(ROLE_GROUP_ID · ROLE_GROUP_NM · USE_TP · USER_CNT, 그룹 USE_TP 무관) +
+     * data {@code USER_CNT}(사용 중 그룹 기준, 그룹 겹침 뺀 사람 수). 빈 roleId = 빈 목록 · 0.
+     */
+    public Map<String, Object> searchRoleGroups(CommRoleMngRoleRequest request) {
+        String roleId = request != null ? request.getRoleId() : null;
+        boolean blank = roleId == null || roleId.isBlank();
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("groups", blank ? new ArrayList<>() : commPermQueryRepository.groupsOfRole(roleId));
+        out.put("USER_CNT", blank ? 0L : commPermQueryRepository.distinctUserCnt(List.of(roleId)));
+        return out;
+    }
+
+    // ────────────────────────────────────────────────────────────────
+    // action: searchCmRoleMap — 이 역할의 퍼미션(TB_MCM_SEC_ROLE_PERM, 2026-11-27 옛 3-table JOIN 대체)
+    // ────────────────────────────────────────────────────────────────
+
+    /**
+     * action {@code searchCmRoleMap} 진입점. params {@code roleId}(옛 키 {@code ROLE_ID} 도 받는다).
+     *
+     * <p>응답: grids {@code perms} — ROLE_ID · OBJECT_ID · OBJECT_NM · MENU_FOLDER_ID · MENU_PATH · MENU_NM ·
+     * OBJ_BTN_PERM · OBJ_POPUP_PERM · OBJ_READ_PERM · BTN_PERM · POPUP_PERM · DATA_PERM.
+     * MENU_* = 오브젝트의 대표 메뉴({@link CommPermQueryRepository#objMenus()}). 정렬 = 메뉴 트리 순서(메뉴 없는 것 끝) → OBJECT_ID.
+     * 옛 {@code ds_roleMap} 은 더 내지 않는다. SYSADMIN 은 퍼미션 행이 없어 빈 목록이다(D13).
      */
     public Map<String, Object> searchCmRoleMap(CommRoleMngSearchRoleMapRequest request) {
-        String roleId = request != null ? request.getROLE_ID() : null;
-        List<Map<String, Object>> rows = (roleId == null || roleId.isBlank())
-                ? new ArrayList<>()
-                : secRoleMappingNativeRepository.searchCmRoleMap(roleId);
+        String roleId = trimToNull(request != null ? request.getRoleId() : null);
         Map<String, Object> out = new LinkedHashMap<>();
-        out.put("ds_roleMap", rows);
+        out.put("perms", rolePermRows(roleId));
         return out;
     }
 
     // ────────────────────────────────────────────────────────────────
-    // action: saveCmRoleMap — 현재 권한 일괄 저장 (INSERT/DELETE 분기 — UPDATE ✗ / Q-011 closed)
+    // action: saveCmRoleMap — 이 역할의 퍼미션 저장 MERGE|DEL (2026-11-27 옛 매핑 INSERT/DELETE 대체)
     // ────────────────────────────────────────────────────────────────
 
     /**
-     * action {@code saveCmRoleMap} 진입점. As-Is BPMN Task_0weig4p {@code CommonMultiSaveTask}
-     * (insertSqlKey / ~~updateSqlKey~~ / deleteSqlKey 자동 분기) 의 row.{@code !nativeeditor_status} 분기를
-     * To-Be Service for-loop 의 명시 분기로 변환.
+     * action {@code saveCmRoleMap} 진입점. params {@code roleId} + grids {@code perms}
+     * (ROLE_ID · OBJECT_ID · BTN_PERM · POPUP_PERM · DATA_PERM · OP_TP MERGE|DEL, D36).
      *
-     * <p>As-Is updateCommRoleMap no-op (SELECT 'X' FROM DUAL) → To-Be 폐기 (Q-011 closed / 분석 §11 #20).
-     * ds_roleMap rowType=4 행 자체가 발생하지 않으므로 status="updated" 분기 미정의.
-     *
-     * <p>입력: {@code master} = {@code List<Map>} — As-Is xfdl 의 {@code ds_roleMap:U} (변경 행만, rowStatus 포함).
-     *
-     * <p>status 분기:
+     * <p>모든 줄을 먼저 검사하고, 하나라도 틀리면 아무것도 쓰지 않고 {@link BusinessException} 을 던진다.
+     * BusinessException 은 메시지만 받으므로 메시지가 오류 코드로 시작한다.
      * <ul>
-     *   <li>"inserted" / "C" → INSERT (BS-002 btn_left 추가 — JPA save() PK 미존재 시 INSERT)</li>
-     *   <li>"deleted"  / "D" → DELETE (BS-001 btn_right 삭제 — 복합 PK deleteById)</li>
+     *   <li>params roleId 빔 · OBJECT_ID 빔 · OP_TP 모름 · 같은 PK 두 줄 → {@code PERM_BAD_ROW}</li>
+     *   <li>줄의 ROLE_ID ≠ params roleId → {@code PERM_ROLE_MISMATCH}</li>
+     *   <li>없는 역할 → {@code PERM_NO_ROLE} · 없는 오브젝트(MERGE) → {@code PERM_NO_OBJ}</li>
+     *   <li>SYSADMIN 역할 → {@code PERM_SYSADMIN}(퍼미션 행 없이 계산 — D13)</li>
+     *   <li>정규화한 BTN 빔(MERGE) → {@code PERM_EMPTY_BTN}(D14)</li>
+     *   <li>BTN ⊄ 오브젝트 BTN 허용 값 · POPUP ⊄ 오브젝트 POPUP 허용 값 → {@code PERM_NOT_IN_OBJ}(D15)</li>
+     *   <li>값 1000자 초과 → {@code PERM_TOO_LONG}</li>
      * </ul>
+     * ROLE_ID·OBJECT_ID 는 앞뒤 공백을 지운다. MERGE = PK(ROLE_ID, OBJECT_ID) upsert, DEL = 있으면 지움. 옛 {@code TB_MCM_SEC_ROLE_MAPPING} 에는 쓰지 않는다(D10).
      *
-     * <p>반환: {@code cnt_merge} (성공 행 수) + {@code ds_roleMap} (재조회 결과 — As-Is xfdl:504~511 fn_run("searchCmRoleMap") + fn_run("searchCmPerm") 재호출 정합).
-     * 단 본 method 는 ds_roleMap 만 반환 — ds_perm 재조회는 FE 가 별도 action(searchCmPerm) 호출 (As-Is 패턴).
+     * <p>반환: data {@code cnt_merge} · {@code cnt_delete}. 바뀐 것이 있으면 {@link RoleChangedEvent}({roleId}) 발행(D30).
      */
-    public Map<String, Object> saveCmRoleMap(List<Map<String, Object>> master) {
-        int cnt = 0;
-        int skipped = 0;                                  // 서버가 조용히 건너뛴 행 수 (FE 가 사유를 알 수 있게 응답에 실어 보낸다)
-        Set<String> touchedRoleIds = new LinkedHashSet<>(); // 캐시 무효화 대상
-        String lastRoleId = null; // 후속 재조회용 ROLE_ID 추출
-        if (master != null) {
-            for (Map<String, Object> row : master) {
-                if (row == null) continue;
-                String status = strOf(row.get("rowStatus"));
-                if (status == null || status.isBlank()) {
-                    status = strOf(row.get("!nativeeditor_status"));
-                }
-                String roleId = strOf(row.get("ROLE_ID"));
-                String objectId = strOf(row.get("OBJECT_ID"));
-                String permissionId = strOf(row.get("PERMISSION_ID"));
-                if (roleId == null || roleId.isBlank()
-                    || objectId == null || objectId.isBlank()
-                    || permissionId == null || permissionId.isBlank()) {
-                    log.warn("[commRoleMng.saveCmRoleMap] PK null — skip row "
-                           + "(status={} ROLE_ID={} OBJECT_ID={} PERMISSION_ID={})",
-                            status, roleId, objectId, permissionId);
-                    skipped++;
-                    continue;
-                }
-                lastRoleId = roleId;
-                SecRoleMapping.PK pk = new SecRoleMapping.PK(roleId, objectId, permissionId);
+    public Map<String, Object> saveCmRoleMap(CommRoleMngRoleRequest request, List<Map<String, Object>> perms) {
+        String roleId = trimToNull(request != null ? request.getRoleId() : null);
+        if (roleId == null) {
+            throw new BusinessException(ErrorCode.BUSINESS_ERROR, "PERM_BAD_ROW: params roleId 가 비었습니다");
+        }
+        if (CommPermQueryRepository.isSysadmin(roleId)) {
+            throw new BusinessException(ErrorCode.BUSINESS_ERROR, "PERM_SYSADMIN: " + roleId + " 역할은 퍼미션 없이 모든 권한을 가집니다(저장 불가)");
+        }
+        if (!secRoleRepository.existsById(roleId)) {
+            throw new BusinessException(ErrorCode.BUSINESS_ERROR, "PERM_NO_ROLE: 없는 역할입니다 (" + roleId + ")");
+        }
 
-                if ("deleted".equals(status) || "D".equals(status)) {
-                    if (secRoleMappingRepository.existsById(pk)) {
-                        secRoleMappingRepository.deleteById(pk);
-                        cnt++;
-                        touchedRoleIds.add(roleId);
-                    } else {
-                        skipped++;
+        // 1) 검사 — 쓰기 전에 모든 줄을 본다. 값 null = DEL, 아니면 MERGE 할 줄. 같은 PK 두 줄 = PERM_BAD_ROW
+        Map<SecRolePermId, SecRolePerm> ops = new LinkedHashMap<>();
+        Map<String, SecObj> objCache = new HashMap<>();
+        if (perms != null) {
+            for (Map<String, Object> row : perms) {
+                if (row == null) continue;
+                String rowRoleId = trimToNull(strOf(row.get("ROLE_ID")));
+                String objectId = trimToNull(strOf(row.get("OBJECT_ID")));
+                String opTp = strOf(row.get("OP_TP"));
+                if (!roleId.equals(rowRoleId)) {
+                    throw new BusinessException(ErrorCode.BUSINESS_ERROR, "PERM_ROLE_MISMATCH: 줄 ROLE_ID=" + rowRoleId + " ≠ params roleId=" + roleId);
+                }
+                if (objectId == null) {
+                    throw new BusinessException(ErrorCode.BUSINESS_ERROR, "PERM_BAD_ROW: " + roleId + " 줄의 OBJECT_ID 가 비었습니다");
+                }
+                String key = roleId + "/" + objectId;
+                SecRolePermId pk = new SecRolePermId(roleId, objectId);
+                if (ops.containsKey(pk)) {
+                    throw new BusinessException(ErrorCode.BUSINESS_ERROR, "PERM_BAD_ROW: 같은 ROLE_ID·OBJECT_ID 가 한 번에 두 번 왔습니다 (" + key + ")");
+                }
+                String op = opTp == null ? "" : opTp.trim().toUpperCase(Locale.ROOT);
+                if ("DEL".equals(op)) {
+                    ops.put(pk, null);
+                } else if ("MERGE".equals(op)) {
+                    SecObj obj = objCache.computeIfAbsent(objectId, id -> secObjRepository.findById(id).orElse(null));
+                    if (obj == null) {
+                        throw new BusinessException(ErrorCode.BUSINESS_ERROR, "PERM_NO_OBJ: " + key + " 오브젝트가 없습니다");
                     }
-                } else if ("inserted".equals(status) || "C".equals(status)) {
-                    // 중복 PK 차단 (Q-004 해소 — Service 레이어 책임)
-                    if (secRoleMappingRepository.existsById(pk)) {
-                        log.warn("[commRoleMng.saveCmRoleMap] insert blocked — duplicate PK "
-                               + "(ROLE_ID={} OBJECT_ID={} PERMISSION_ID={}) silent skip",
-                                roleId, objectId, permissionId);
-                        skipped++;
-                        continue;
+                    List<String> btn = PermTokens.parse(strOf(row.get("BTN_PERM")));
+                    List<String> popup = PermTokens.parse(strOf(row.get("POPUP_PERM")));
+                    List<String> data = PermTokens.parse(strOf(row.get("DATA_PERM")));
+                    if (btn.isEmpty()) {
+                        throw new BusinessException(ErrorCode.BUSINESS_ERROR, "PERM_EMPTY_BTN: " + key + " 버튼 권한이 비었습니다");
                     }
-                    SecRoleMapping entity = new SecRoleMapping();
-                    entity.setRoleId(roleId);
-                    entity.setObjectId(objectId);
-                    entity.setPermissionId(permissionId);
-                    secRoleMappingRepository.save(entity);
-                    cnt++;
-                    touchedRoleIds.add(roleId);
+                    List<String> badBtn = PermTokens.notIn(btn, PermTokens.parse(obj.getBtnPerm()));
+                    List<String> badPopup = PermTokens.notIn(popup, PermTokens.parse(obj.getPopupPerm()));
+                    if (!badBtn.isEmpty() || !badPopup.isEmpty()) {
+                        throw new BusinessException(ErrorCode.BUSINESS_ERROR, "PERM_NOT_IN_OBJ: " + key + " btn=" + badBtn + " popup=" + badPopup);
+                    }
+                    String btnStr = checkLength(key, "BTN_PERM", PermTokens.join(btn));
+                    String popupStr = checkLength(key, "POPUP_PERM", PermTokens.join(popup));
+                    String dataStr = checkLength(key, "DATA_PERM", PermTokens.join(data));
+                    ops.put(pk, new SecRolePerm(roleId, objectId, btnStr,
+                            popupStr.isEmpty() ? null : popupStr, dataStr.isEmpty() ? null : dataStr));
                 } else {
-                    // updated / 기타 — As-Is updateCommRoleMap no-op 폐기 (Q-011)
-                    log.warn("[commRoleMng.saveCmRoleMap] unsupported status={} — skip (UPDATE 분기 폐기 / Q-011)", status);
-                    skipped++;
+                    throw new BusinessException(ErrorCode.BUSINESS_ERROR, "PERM_BAD_ROW: " + key + " OP_TP=" + opTp + " (MERGE|DEL)");
                 }
             }
         }
-        // 2026-09-04 fix — 역할↔권한 매핑이 바뀌면 UserPermCache(TTL 10분)를 즉시 비운다.
-        // 이 이벤트가 없어 "권한을 부여했는데 최대 10분간 403" / "회수했는데 계속 통과" 가 발생했다.
-        // (RoleChangedEvent 발행처가 commObjMng 한 곳뿐이었다 — RoleChangedEvent javadoc 이 규정한 발행처 누락)
-        if (!touchedRoleIds.isEmpty()) {
-            eventPublisher.publishEvent(new RoleChangedEvent(touchedRoleIds));
+
+        // 2) 쓰기 — 검사를 모두 통과한 뒤에만(전부 또는 없음)
+        int cntMerge = 0;
+        int cntDelete = 0;
+        boolean changed = false;
+        for (Map.Entry<SecRolePermId, SecRolePerm> e : ops.entrySet()) {
+            SecRolePerm m = e.getValue();
+            if (m == null) {
+                if (secRolePermRepository.existsById(e.getKey())) {
+                    secRolePermRepository.deleteById(e.getKey());
+                    cntDelete++;
+                    changed = true;
+                }
+                continue;
+            }
+            SecRolePerm entity = secRolePermRepository.findById(m.id()).orElse(null);
+            if (entity == null) {
+                secRolePermRepository.save(m);
+                changed = true;
+            } else {
+                if (!Objects.equals(entity.getBtnPerm(), m.getBtnPerm())
+                    || !Objects.equals(entity.getPopupPerm(), m.getPopupPerm())
+                    || !Objects.equals(entity.getDataPerm(), m.getDataPerm())) {
+                    changed = true;
+                }
+                entity.setBtnPerm(m.getBtnPerm());
+                entity.setPopupPerm(m.getPopupPerm());
+                entity.setDataPerm(m.getDataPerm());
+                secRolePermRepository.save(entity);
+            }
+            cntMerge++;
         }
-        // 후속 ds_roleMap 재조회 (As-Is xfdl:504~511 — fn_run("searchCmRoleMap") 자동 재호출 정합)
-        List<Map<String, Object>> rows = (lastRoleId == null || lastRoleId.isBlank())
-                ? new ArrayList<>()
-                : secRoleMappingNativeRepository.searchCmRoleMap(lastRoleId);
+        if (changed) {
+            eventPublisher.publishEvent(new RoleChangedEvent(Set.of(roleId)));
+        }
         Map<String, Object> out = new LinkedHashMap<>();
-        out.put("cnt_merge", cnt);
-        out.put("cnt_skip", skipped);
-        out.put("ds_roleMap", rows);
+        out.put("cnt_merge", cntMerge);
+        out.put("cnt_delete", cntDelete);
+        return out;
+    }
+
+    // ────────────────────────────────────────────────────────────────
+    // action: searchFolderObj — 메뉴 폴더의 오브젝트(「메뉴에서 오브젝트 추가」 후보, 2026-11-27)
+    // ────────────────────────────────────────────────────────────────
+
+    /**
+     * action {@code searchFolderObj} 진입점. params {@code roleId} · {@code menuFolderId}.
+     *
+     * <p>폴더와 그 아래 모든 폴더 바로 밑 화면 메뉴가 가리키는 오브젝트({@link CommRoleMngQuery#folderObjects(String)}).
+     * 빈 menuFolderId = 빈 목록. MENU_NM·MENU_PATH = 고른 폴더 안의 대표 메뉴(WEB 먼저).
+     *
+     * <p>응답: grids {@code objs} — OBJECT_ID · OBJECT_NM · MENU_NM · MENU_FOLDER_ID · MENU_PATH · OBJ_BTN_PERM · OBJ_POPUP_PERM ·
+     * OBJ_READ_PERM · USE_TP · HAS_PERM(Y = 이 역할에 퍼미션 있음). 정렬 = 메뉴 트리 순서 → OBJECT_ID.
+     */
+    public Map<String, Object> searchFolderObj(CommRoleMngRoleRequest request) {
+        String roleId = trimToNull(request != null ? request.getRoleId() : null);
+        String menuFolderId = trimToNull(request != null ? request.getMenuFolderId() : null);
+        List<Map<String, Object>> objs = new ArrayList<>();
+        List<Map<String, Object>> raw = commRoleMngQuery.folderObjects(menuFolderId); // 하위 트리는 SQL 안에서 푼다
+        if (!raw.isEmpty()) {
+            // 폴더 경로·트리 순서 = folderLov 순서(트리 순서로 정렬되어 온다)
+            Map<String, String> folderPath = new HashMap<>();
+            Map<String, Integer> folderOrder = new HashMap<>();
+            List<Map<String, Object>> folders = commPermQueryRepository.folderLov();
+            for (int i = 0; i < folders.size(); i++) {
+                String id = strOf(folders.get(i).get("MENU_ID"));
+                folderPath.put(id, strOf(folders.get(i).get("MENU_PATH")));
+                folderOrder.put(id, i);
+            }
+            Set<String> permObjIds = new HashSet<>();
+            if (roleId != null) {
+                for (SecRolePerm p : secRolePermRepository.findByRoleId(roleId)) permObjIds.add(p.getObjectId());
+            }
+            raw.sort(Comparator
+                    .comparing((Map<String, Object> r) -> folderOrder.getOrDefault(strOf(r.get("MENU_FOLDER_ID")), Integer.MAX_VALUE))
+                    .thenComparing(r -> Objects.toString(r.get("MENU_SORT"), ""))
+                    .thenComparing(r -> Objects.toString(r.get("OBJECT_ID"), "")));
+            for (Map<String, Object> r : raw) {
+                String objectId = strOf(r.get("OBJECT_ID"));
+                String objBtn = strOf(r.get("OBJ_BTN_PERM"));
+                Map<String, Object> m = new LinkedHashMap<>();
+                m.put("OBJECT_ID", objectId);
+                m.put("OBJECT_NM", r.get("OBJECT_NM"));
+                m.put("MENU_NM", r.get("MENU_NM"));
+                m.put("MENU_FOLDER_ID", r.get("MENU_FOLDER_ID"));
+                m.put("MENU_PATH", folderPath.get(strOf(r.get("MENU_FOLDER_ID"))));
+                m.put("OBJ_BTN_PERM", objBtn);
+                m.put("OBJ_POPUP_PERM", r.get("OBJ_POPUP_PERM"));
+                m.put("OBJ_READ_PERM", readPreset(objBtn));
+                m.put("USE_TP", r.get("USE_TP"));
+                m.put("HAS_PERM", permObjIds.contains(objectId) ? "Y" : "N");
+                objs.add(m);
+            }
+        }
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("objs", objs);
         return out;
     }
 
@@ -372,11 +520,15 @@ public class CommRoleMngService {
      *
      * <p>처리: {@link SecRoleMappingNativeRepository#findAllMenuIdLov()} 호출 후
      * {@code ds_lovMenuId} key 의 List&lt;Map&gt; 반환 → cactus 가 {@code grids.ds_lovMenuId.rows} 로 응답.
+     *
+     * <p>2026-11-27 grids {@code menus} 추가 — 메뉴 폴더 고르기 목록({@link CommPermQueryRepository#folderLov()},
+     * MENU_ID · MENU_NM · PARENT_MENU_ID · MENU_LV · MENU_PATH).
      */
     public Map<String, Object> lov() {
         List<Map<String, Object>> menuLov = secRoleMappingNativeRepository.findAllMenuIdLov();
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("ds_lovMenuId", menuLov);
+        out.put("menus", commPermQueryRepository.folderLov());
         return out;
     }
 
@@ -409,6 +561,84 @@ public class CommRoleMngService {
     // ────────────────────────────────────────────────────────────────
     // row mapping helpers — As-Is selectCommRole SELECT 결과 컬럼명 (SNAKE_CASE) 보존
     // ────────────────────────────────────────────────────────────────
+
+    /** 역할 목록 → 응답 줄. 집계 3종(그룹 수·사람 수·퍼미션 수)은 여기서 한 번씩만 읽는다. */
+    private List<Map<String, Object>> toSearchRows(List<SecRole> roles) {
+        Map<String, Long> groupCnt = commPermQueryRepository.groupCntByRole();
+        Map<String, Long> userCnt = commPermQueryRepository.userCntByRole();
+        Map<String, Long> permCnt = commPermQueryRepository.permCntByRole();
+        List<Map<String, Object>> outRows = new ArrayList<>(roles.size());
+        for (SecRole r : roles) {
+            Map<String, Object> row = toSearchRow(r);
+            String roleId = r.getRoleId();
+            row.put("GROUP_CNT", groupCnt.getOrDefault(roleId, 0L));
+            row.put("USER_CNT", userCnt.getOrDefault(roleId, 0L));
+            row.put("PERM_CNT", CommPermQueryRepository.isSysadmin(roleId) ? SYSADMIN_PERM_CNT : permCnt.getOrDefault(roleId, 0L));
+            outRows.add(row);
+        }
+        return outRows;
+    }
+
+    /**
+     * 역할 한 개의 퍼미션 줄(searchCmRoleMap 응답). 메뉴 칸은 대표 메뉴, 정렬 = 메뉴 트리 순서(메뉴 없는 것 끝) → OBJECT_ID.
+     * 퍼미션 값 칸은 토큰 정규화한다(commPermMng 와 같음, null = "").
+     */
+    private List<Map<String, Object>> rolePermRows(String roleId) {
+        List<Map<String, Object>> raw = commRoleMngQuery.rolePerms(roleId);
+        if (raw.isEmpty()) return raw;
+        Map<String, CommPermQueryRepository.ObjMenu> menus = commPermQueryRepository.objMenus();
+        List<Map<String, Object>> out = new ArrayList<>(raw.size());
+        for (Map<String, Object> r : raw) {
+            String objectId = strOf(r.get("OBJECT_ID"));
+            CommPermQueryRepository.ObjMenu menu = menus.get(objectId);
+            String objBtn = strOf(r.get("OBJ_BTN_PERM"));
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("ROLE_ID", r.get("ROLE_ID"));
+            m.put("OBJECT_ID", objectId);
+            m.put("OBJECT_NM", r.get("OBJECT_NM"));
+            m.put("MENU_FOLDER_ID", menu != null ? menu.folderId() : null);
+            m.put("MENU_PATH", menu != null ? menu.folderPath() : null);
+            m.put("MENU_NM", menu != null ? menu.menuNm() : null);
+            m.put("OBJ_BTN_PERM", norm(objBtn));
+            m.put("OBJ_POPUP_PERM", norm(strOf(r.get("OBJ_POPUP_PERM"))));
+            m.put("OBJ_READ_PERM", readPreset(objBtn));
+            m.put("BTN_PERM", norm(strOf(r.get("BTN_PERM"))));
+            m.put("POPUP_PERM", norm(strOf(r.get("POPUP_PERM"))));
+            m.put("DATA_PERM", norm(strOf(r.get("DATA_PERM"))));
+            out.add(m);
+        }
+        out.sort(Comparator
+                .comparing((Map<String, Object> m) -> {
+                    CommPermQueryRepository.ObjMenu menu = menus.get(strOf(m.get("OBJECT_ID")));
+                    return menu == null || menu.sortKey() == null ? null : menu.sortKey();
+                }, Comparator.nullsLast(Comparator.naturalOrder()))
+                .thenComparing(m -> Objects.toString(m.get("OBJECT_ID"), "")));
+        return out;
+    }
+
+    /** 「조회만」 프리셋(D18) = 오브젝트 BTN 허용 값 중 읽기 이름 규칙에 맞는 것. */
+    private static String readPreset(String objBtnPerm) {
+        return PermTokens.join(PermTokens.readPreset(PermTokens.parse(objBtnPerm)));
+    }
+
+    /** 토큰 정규화(trim·빈 값·중복 제거). null·빈 값 = "". */
+    private static String norm(String csv) {
+        return PermTokens.join(PermTokens.parse(csv));
+    }
+
+    private static String trimToNull(String v) {
+        if (v == null) return null;
+        String s = v.trim();
+        return s.isEmpty() ? null : s;
+    }
+
+    /** 정규화한 퍼미션 값 길이 검사(1000자). */
+    private static String checkLength(String key, String column, String value) {
+        if (value.length() > PERM_VALUE_MAX) {
+            throw new BusinessException(ErrorCode.BUSINESS_ERROR, "PERM_TOO_LONG: " + key + " " + column + " 가 " + PERM_VALUE_MAX + "자를 넘습니다(" + value.length() + "자)");
+        }
+        return value;
+    }
 
     /**
      * As-Is {@code selectCommRole} (xml:7~37) 응답 row 조립 — 본 7 컬럼 (BIZ_SYSTEM_CODE 폐기) +

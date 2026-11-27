@@ -9,6 +9,8 @@ moduleGroup: csa
 
 # mcm — 역할 그룹 관리 BPMN설계서
 
+> **퍼미션 모델 v2 (2026-11-27)**: 메뉴 미리보기의 원천 표가 바뀌었다. 문서 맨 끝 "퍼미션 (퍼미션 모델 v2)" 절이 아래 본문보다 우선한다.
+
 > **BackEnd / BPMN 측 확정 값**:
 > - 프로세스 ID: `commRoleGrpMng` (= serviceId, As-Is bpmn process id = `CommRoleGrpMng`)
 > - **프로세스 name: "역할 그룹 관리"** (As-Is `"부모역할 부여 조회"` 부정확 정정 — Q-011 해소)
@@ -590,3 +592,52 @@ POST /oasis/commRoleGrpMng/searchCmRoleGrpMenu
 | 4 | 임의 합리화? | No — 가이드 §외 임의 신설 없음. Java UserTask 부재 사유 §3 명시 |
 
 > 4 질문 모두 통과 → Phase 4 BPMN설계서 작성 완료. **2026-05-31 갱신 적용 — Q 12 건 해소 / action 6 enum / process name 정정 / Task_1erud76 폐기 / PARENT_ROLE_ID SELECT 추가**.
+
+
+---
+
+## 퍼미션 (퍼미션 모델 v2, 2026-11-27)
+
+> 이 절은 위 본문보다 우선한다. 바뀐 것은 `searchCmRoleGrpMenu` 의 원천 표 하나다. action 이름·입력·출력 칸은 그대로다.
+> 근거: `docs/perm-bench/decompose.md` D13·D30, §0.4. 구현: 커밋 0bf34f72b. 정본 파일: `src/backend/mcm/api/src/main/resources/services/csa/commRoleGrpMng/commRoleGrpMng.bpmn` (이번 회차에 BPMN 은 바뀌지 않았다).
+
+### P.1 searchCmRoleGrpMenu 원천 표 변경
+
+| 항목 | 옛 (§2.7·§5.7) | 새 |
+|---|---|---|
+| 원천 표 | `TB_MCM_SEC_ROLE_MAPPING` (옛 매핑) | `TB_MCM_SEC_ROLE_PERM` (역할 × 오브젝트 퍼미션) |
+| 쿼리 위치 | `SecRoleGroupMappingNativeRepository.searchCmRoleGrpMenu` / `selectMenuObjTree` | `CommPermQueryRepository.roleGroupMenu` (공용 쿼리) |
+| 호출 | 옛 Native 저장소 | 서비스 `CommRoleGrpMngService.searchCmRoleGrpMenu` 가 `CommPermQueryRepository` 를 부른다 |
+| 입력 | params `ROLE_GROUP_ID` | 같음 |
+| 출력 | grids `ds_menuTreeList` 8칸 (MENU_ID · MENU_SEQ · MENU_NM · LEV · PARENT_MENU_ID · ROW_SEQ · OBJECT_ID · MENU_VIEW_YN) | 같음 |
+
+- 옛 §2.7 의 SQL 그림(MROLE 5 테이블 implicit join, `CONNECT BY`)은 이력이다. 새 쿼리는 ANSI 재귀 WITH 다.
+- 옛 저장소 메서드 `searchCmRoleGrpMenu` 는 이 서비스가 더 부르지 않는다. 메서드 자체는 다른 소유자(c5) 파일에 있어서 지우지 않았다.
+
+### P.2 새 쿼리의 규칙
+
+- 그룹이 가진 역할 중 `USE_TP='Y'` 인 역할만 본다. 그룹·메뉴도 `USE_TP='Y'` 여야 한다. 메뉴는 `MENU_TP='WEB'` 만 본다.
+- 오브젝트도 `USE_TP='Y'` 여야 한다. 일반 역할과 SYSADMIN 두 갈래 모두 같다. 사용 안 함 오브젝트의 메뉴는 나오지 않는다.
+- 일반 역할: 그 역할의 퍼미션 줄이 가리키는 오브젝트(`OBJECT_ID`)를 가진 메뉴가 나온다.
+- `SYSADMIN` 역할(`SYSADMIN` 또는 런타임 별칭 `ROLE_SYSADMIN`): 퍼미션 행이 없다. 사용 중(`USE_TP='Y'`) 오브젝트를 가리키는 모든 메뉴가 나온다 (D13).
+- 잎 메뉴에서 시작해 폴더(`TB_MCM_SEC_MENU_FLD`)로 올라가며 대상 노드를 모은다. 그다음 뿌리(부모가 대상에 없는 노드)에서 내려가며 `LEV` 를 매긴다.
+- `LEV` 는 뿌리가 0 이고 깊을수록 커진다.
+- 같은 노드가 여러 깊이로 닿으면 가장 얕은 `LEV` 한 줄만 낸다.
+- 정렬은 `MENU_SEQ`, `MENU_ID` 순이다. 출력 `MENU_SEQ` 는 숫자를 30자리로 앞에 0 을 채운 문자열이다. 재귀는 32단계까지다.
+
+### P.3 옛 쿼리 결함 수정
+
+- 옛 쿼리는 화면 메뉴(잎, `TB_MCM_SEC_MENU`)의 ID 를 폴더 표(`TB_MCM_SEC_MENU_FLD`)에서 찾아 트리를 시작했다. 그래서 결과가 늘 비었다.
+- 새 쿼리는 잎 메뉴(`OBJECT_ID` 있음)에서 시작해 폴더로 올라가 대상 노드를 모은다. 이 결함이 고쳐졌다.
+- 화면 쪽 변경은 없다. 미리보기 트리가 비지 않고 나온다.
+
+### P.4 캐시와 이벤트
+
+- `saveCmRoleGrpMap` 이 `RoleChangedEvent` 를 발행하는 동작은 이미 있었고 그대로다 (D30).
+- 이 화면은 새 퍼미션 표에 쓰지 않는다. 읽기만 한다.
+- 그 밖에 옛 매핑 표를 참조하는 곳은 이 화면에 없다.
+
+### P.5 계약과 구현의 차이
+
+- 계약(`perm-legacy-be.md` §3 commRoleGrpMng)은 "칸 8개 그대로"다. 구현도 같다.
+- 계약에 없던 점: 옛 쿼리 결함(항상 빈 트리)을 함께 고쳤다.

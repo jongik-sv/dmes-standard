@@ -11,6 +11,7 @@ import com.dongkuk.dmes.mcm.csa.commRoleGrpMng.dto.CommRoleGrpMngSearchMapReques
 import com.dongkuk.dmes.mcm.csa.commRoleGrpMng.dto.CommRoleGrpMngSearchRequest;
 import com.dongkuk.dmes.mcm.entity.SecRoleGroup;
 import com.dongkuk.dmes.mcm.entity.SecRoleGroupMapping;
+import com.dongkuk.dmes.mcm.repository.CommPermQueryRepository;
 import com.dongkuk.dmes.mcm.repository.SecRoleGroupMappingNativeRepository;
 import com.dongkuk.dmes.mcm.repository.SecRoleGroupMappingRepository;
 import com.dongkuk.dmes.mcm.repository.SecRoleGroupRepository;
@@ -80,16 +81,19 @@ public class CommRoleGrpMngService {
     private final SecRoleGroupRepository secRoleGroupRepository;
     private final SecRoleGroupMappingRepository secRoleGroupMappingRepository;
     private final SecRoleGroupMappingNativeRepository secRoleGroupMappingNativeRepository;
+    private final CommPermQueryRepository commPermQueryRepository;
 
     private final ApplicationEventPublisher eventPublisher;
 
     public CommRoleGrpMngService(SecRoleGroupRepository secRoleGroupRepository,
                                  SecRoleGroupMappingRepository secRoleGroupMappingRepository,
                                  SecRoleGroupMappingNativeRepository secRoleGroupMappingNativeRepository,
+                                 CommPermQueryRepository commPermQueryRepository,
                                  ApplicationEventPublisher eventPublisher) {
         this.secRoleGroupRepository = secRoleGroupRepository;
         this.secRoleGroupMappingRepository = secRoleGroupMappingRepository;
         this.secRoleGroupMappingNativeRepository = secRoleGroupMappingNativeRepository;
+        this.commPermQueryRepository = commPermQueryRepository;
         this.eventPublisher = eventPublisher;
     }
 
@@ -375,13 +379,14 @@ public class CommRoleGrpMngService {
      * <p>응답: {@code ds_menuTreeList} (As-Is dataset 이름 보존 / 분석 §3.8 DS-004).
      * 8 컬럼: MENU_ID / MENU_SEQ / MENU_NM / LEV / PARENT_MENU_ID / ROW_SEQ / OBJECT_ID / MENU_VIEW_YN.
      *
-     * <p>Oracle CTE + CONNECT BY → ANSI 재귀 WITH 변환 ({@link SecRoleGroupMappingNativeRepository#searchCmRoleGrpMenu}).
+     * <p>Oracle CTE + CONNECT BY → ANSI 재귀 WITH 변환. 원천 = 새 퍼미션 {@code TB_MCM_SEC_ROLE_PERM}
+     * ({@link CommPermQueryRepository#roleGroupMenu}, perm-bench l4 — 옛 매핑 표를 더 읽지 않는다. SYSADMIN = 사용 중 오브젝트 전부).
      */
     public Map<String, Object> searchCmRoleGrpMenu(CommRoleGrpMngSearchMapRequest request) {
         String roleGroupId = request != null ? request.getROLE_GROUP_ID() : null;
         List<Map<String, Object>> rows = (roleGroupId == null || roleGroupId.isBlank())
                 ? new ArrayList<>()
-                : secRoleGroupMappingNativeRepository.searchCmRoleGrpMenu(roleGroupId);
+                : commPermQueryRepository.roleGroupMenu(roleGroupId);
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("ds_menuTreeList", rows);
         return out;

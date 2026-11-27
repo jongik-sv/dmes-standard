@@ -9,6 +9,8 @@ moduleGroup: csa
 
 # mcm — PERMISSION 관리 BPMN설계서
 
+> **퍼미션 모델 v2 (2026-11-27)**: 이 화면의 권한 모델이 바뀌었다. 문서 맨 끝 "퍼미션 (퍼미션 모델 v2)" 절이 아래 본문보다 우선한다. 본문의 옛 `TB_MCM_SEC_ROLE_MAPPING`·PERMISSION_ID 서술은 이력이다.
+
 > **BackEnd / BPMN 측 확정 값**:
 > - 프로세스 ID: `commPermMng` (= serviceId, As-Is bpmn process id = `sample1` / name = `menuInfor` — 다른 화면 잔존 오타. To-Be 정정)
 > - Bean명: `commPermMngService`
@@ -373,3 +375,68 @@ POST /oasis/commPermMng/save   (UI→BFF)  →  /oasis/commPermMng/save   (BFF�
 | 4 | 임의 합리화? | No — action 6 enum 매핑 (§3.3) 에서 본 화면 사용 = **As-Is 3 (search / save / lov) → To-Be 2 (search / save)** — lov 폐기 후 delete / popup / export 4 미사용. CommonMultiSaveTask 의 status 분기로 delete 통합 |
 
 > 4 질문 모두 No. action 6 enum 일치 (As-Is 3 사용 / To-Be 2 사용 — lov 폐기 명시). Phase 4 통과 (cross-cutting 정책 #1·#6 적용 2026-05-31).
+
+
+---
+
+## 퍼미션 (퍼미션 모델 v2, 2026-11-27)
+
+> 이 절은 위 본문보다 우선한다. 위 본문(§1~§8)은 옛 PERMISSION_ID 묶음 모델의 `searchCmPerm`·`saveCmPerm`·`lov(BIZ SYSTEM)` 흐름이다.
+> 근거: `docs/perm-bench/decompose.md` D7·D13·D14·D15·D18·D30, §0.4. 구현: 커밋 59d06cda3. 정본 파일: `src/backend/mcm/api/src/main/resources/services/csa/commPermMng/commPermMng.bpmn`.
+> 서비스: `commPermMngService` (`com.dongkuk.dmes.mcm.csa.commPermMng.service`).
+
+### P.1 action 표
+
+action 이름 = BPMN sequenceFlow `name` = 게이트 토큰이다. URL 은 `POST /oasis/commPermMng/{action}` 이다.
+
+| action (flow name) | service method | 입력 | 출력 grids / data | 오류 코드 |
+|---|---|---|---|---|
+| `lov` | `lov` | 없음 | grids `roles` (ROLE_ID · ROLE_NM · USE_TP, SYSADMIN 제외) · grids `menus` (MENU_ID · MENU_NM · PARENT_MENU_ID · MENU_LV · MENU_PATH, 모듈·폴더만) | 없음 |
+| `search` | `searchCmPerm` | params `roleId` · `menuId` · `objectQ` · `codeQ` · `showEmpty` · `pageNo` · `pageSize` (dto `CommPermMngSearchRequest`) | grids `perms` (ROLE_ID · ROLE_NM · OBJECT_ID · OBJECT_NM · MENU_PATH · MENU_NM · OBJ_BTN_PERM · OBJ_POPUP_PERM · OBJ_READ_PERM · BTN_PERM · POPUP_PERM · DATA_PERM · HAS_PERM) · data `TOTAL_CNT` | 없음 |
+| `searchPermOne` | `searchPermOne` | params `roleId` · `objectId` (dto `CommPermMngPermOneRequest`) | grids `others` (ROLE_ID · ROLE_NM · BTN_PERM · POPUP_PERM) · grids `groups` (ROLE_GROUP_ID · ROLE_GROUP_NM · USER_CNT) · data `USER_CNT` | 없음 |
+| `save` | `saveCmPerm` | grids `perms.rows` (ROLE_ID · OBJECT_ID · BTN_PERM · POPUP_PERM · DATA_PERM · OP_TP `MERGE`\|`DEL`) | data `cnt_merge` · `cnt_delete` | `PERM_BAD_ROW` · `PERM_SYSADMIN` · `PERM_NO_ROLE` · `PERM_NO_OBJ` · `PERM_EMPTY_BTN` · `PERM_NOT_IN_OBJ` · `PERM_TOO_LONG` |
+
+- `search` 의 `HAS_PERM` 은 `Y`(퍼미션 있음) 또는 `N`(빈 줄, `showEmpty=Y` 일 때만)이다.
+- `HAS_PERM=N` 줄의 BTN_PERM · POPUP_PERM · DATA_PERM 은 빈 문자열이다.
+- `OBJ_BTN_PERM`·`OBJ_POPUP_PERM` 은 오브젝트가 허용하는 값이다.
+- `OBJ_READ_PERM` 은 "조회만" 프리셋이다 (D18). 서버가 `PermTokens.readPreset` 으로 계산해 내려 준다.
+- `searchPermOne` 의 `others` 는 같은 오브젝트에서 다른 역할이 가진 퍼미션이다 (ROLE_ID 순).
+- `searchPermOne` 의 `groups` 는 그 역할이 들어 있는 그룹이다. `USER_CNT` 는 그룹 겹침을 뺀 사람 수다.
+- `searchPermOne` 의 합계 `USER_CNT` 는 `USE_TP='Y'` 인 역할만 센다. 사용 안 함 역할은 0 이다.
+- `groups` 의 줄마다 `USER_CNT` 는 그룹이 `USE_TP='N'` 이면 0 이다.
+- 입력은 모두 문자열이다. `pageNo`·`pageSize` 는 서버가 숫자로 바꾼다. 바꾸지 못하면 기본값 (1, 100) 을 쓴다. `pageSize` 상한은 1000이다.
+
+### P.2 BPMN 구조
+
+- 노드: `start` → `actionGateway` (`input=action`) → serviceTask 4개 → end 4개.
+- 조건식은 쓰지 않는다. sequenceFlow `name` 만으로 분기한다.
+- serviceTask 4개는 모두 `camunda:class="commPermMngService"` 다. `method` 속성이 service method 를 고른다.
+- `search`·`searchPermOne` 은 `dto` 속성으로 params 를 DTO 에 담는다. `save` 는 grids `perms` 를 method 인자로 받는다. `lov` 는 입력이 없다.
+- 위 §3 의 옛 flow 이름 `searchCmPerm`·`saveCmPerm` 은 더 쓰지 않는다. 지금 flow 이름은 `search`·`save`·`lov`·`searchPermOne` 이다.
+- 옛 `CommonSelectTask`·`CommonMultiSaveTask` 와 `selectCommPermMng`·`insertCommPermMng`·`updateCommPermMng`·`deleteCommPermMng` SQL 은 쓰지 않는다.
+- 새 표 `TB_MCM_SEC_ROLE_PERM` 은 JPA(`SecRolePermRepository`)와 `CommPermQueryRepository` 로 읽고 쓴다.
+
+### P.3 저장 처리 순서 (`save`)
+
+1. 모든 줄을 검사한다. 검사 순서와 오류 코드는 기능설계서 "퍼미션" 절 P.4 와 같다. 같은 (ROLE_ID, OBJECT_ID) 가 두 줄이면 `PERM_BAD_ROW` 다.
+2. 틀린 줄이 하나라도 있으면 `BusinessException(BUSINESS_ERROR, "CODE: 상세")` 로 끝낸다. 아무것도 쓰지 않는다.
+3. 모두 통과하면 `MERGE` 줄을 넣거나 고치고, `DEL` 줄을 지운다. 지울 줄이 없으면 건너뛴다.
+4. 쓴 역할 ID 모음으로 `RoleChangedEvent` 를 한 번 발행한다 (D30).
+5. `cnt_merge`·`cnt_delete` 를 돌려준다.
+
+- 오류는 `BusinessException` 이다. 메시지가 오류 코드로 시작한다. FE 는 메시지를 그대로 보여 준다.
+- 서비스에 `@Transactional` 을 두지 않는다. OASIS executor 가 process 단위로 감싼다.
+- 검사를 모두 마친 뒤에 쓰므로 검사 오류로 일부만 저장되는 일은 없다.
+
+### P.4 SYSADMIN 과 이벤트
+
+- SYSADMIN 은 퍼미션 행이 없다 (D13). `lov` 와 `search` 에서 뺀다. `save` 에서 `PERM_SYSADMIN` 으로 거절한다.
+- SYSADMIN 은 `SYSADMIN` 또는 런타임 별칭 `ROLE_SYSADMIN` 이다.
+- `RoleChangedEvent` 는 쓴 역할이 있을 때만 발행한다. 구독처가 권한 캐시를 비운다.
+
+### P.5 계약과 구현의 차이
+
+- 계약(`perm-legacy-be.md` §3)의 거절 코드는 `PERM_NOT_IN_OBJ`·`PERM_EMPTY_BTN`·`PERM_SYSADMIN` 이다.
+- 구현이 `PERM_NO_ROLE`·`PERM_NO_OBJ`·`PERM_TOO_LONG`·`PERM_BAD_ROW` 를 더했다.
+- 계약은 오류를 UserException 으로 적었다. 구현은 `BusinessException` 이다. 메시지 형식은 `CODE: 상세` 다.
+- 계약의 SYSADMIN 거절은 `MERGE` 줄만 말한다. 구현은 `DEL` 줄도 거절한다.

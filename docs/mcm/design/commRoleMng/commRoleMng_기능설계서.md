@@ -10,6 +10,8 @@ moduleGroup: csa
 
 # mcm — 역할 관리 기능설계서
 
+> **퍼미션 모델 v2 (2026-11-27)**: 이 화면의 권한 모델이 바뀌었다. 문서 맨 끝 "퍼미션 (퍼미션 모델 v2)" 절이 아래 본문보다 우선한다. 본문의 옛 `TB_MCM_SEC_ROLE_MAPPING`·PERMISSION_ID 서술은 이력이다.
+
 ## §0. 환경 제약 (분석리포트 §0 동일)
 
 | 항목 | 결정 | 사유 |
@@ -430,3 +432,100 @@ ds_main rowStatus (ST-003):
 4. **임의 합리화?** — 없음.
 
 → Phase 2 통과 (갱신 2026-05-31 — Q 활성 0).
+
+
+---
+
+## 퍼미션 (퍼미션 모델 v2, 2026-11-27)
+
+> 이 절은 위 본문보다 우선한다. 위 본문은 옛 모델(역할 × 오브젝트 × PERMISSION_ID, `TB_MCM_SEC_ROLE_MAPPING`)의 서술이다.
+> 근거: `docs/perm-bench/decompose.md` D7·D8·D13·D14·D15·D18·D30, §0.4. 구현: 커밋 127920264.
+> 역할 마스터(ROLE_ID·ROLE_NM 등) 편집은 그대로다. 바뀐 것은 역할이 가진 권한을 보여 주고 고치는 부분이다.
+
+### P.1 화면 뜻 변경
+
+| 항목 | 옛 (위 본문) | 새 (퍼미션 모델 v2) |
+|---|---|---|
+| 역할의 권한 표 | `ds_roleMap` = ROLE_MAPPING + OBJ + PERM 3-table JOIN | `TB_MCM_SEC_ROLE_PERM` 한 표 (역할 × 오브젝트 한 건) |
+| 권한 값 | PERMISSION_ID 하나를 골라 붙인다 | 줄마다 BTN_PERM · POPUP_PERM · DATA_PERM 을 직접 고른다 |
+| 화면 칸 | 오브젝트 칸, 권한 후보 칸, 할당 칸 (세 칸) | 「이 역할의 퍼미션」 한 칸 (옛 세 칸 대체) |
+| 후보 오브젝트 | OBJECT LoV 팝업 | 메뉴 폴더를 고르면 그 폴더의 오브젝트를 후보로 보여 준다 |
+| 역할 목록의 수치 | 없음 | 그룹 수·사람 수·퍼미션 수 3칸 |
+
+- 옛 서술 중 아래는 더 쓰지 않는다. 이력으로만 둔다.
+  - §4.2 라인 필드(서브 그리드)와 §5 의 BS-001·BS-002 (권한 후보 추가·해제) 동작.
+  - `searchCmPerm`(PERMISSION 후보 조회)과 `searchObjectLov`(OBJECT LoV)를 쓰는 흐름. 두 action 은 이번 회차에 남기고, FE 가 안 쓰면 다음 회차에 뺀다.
+  - `PERMISSION_ID` 외래키를 가정한 검증.
+- BTN_PERM·POPUP_PERM 값은 오브젝트가 허용하는 값 안에서만 고른다 (⊆ 검사, D15).
+- BTN_PERM 이 비면 저장하지 않는다 (D14).
+
+### P.2 역할 목록 (action `search`)
+
+- 옛 `ds_main` 칸에 집계 칸 3개를 더했다.
+
+| 칸 | 의미 |
+|---|---|
+| `GROUP_CNT` | 이 역할이 들어 있는 역할 그룹 수 |
+| `USER_CNT` | 이 역할을 받는 사람 수. 그룹이 겹쳐도 한 번만 센다. `USE_TP='Y'` 인 역할만 센다. 사용 안 함 역할은 0 이다 |
+| `PERM_CNT` | 이 역할의 퍼미션 줄 수. SYSADMIN 은 `-1` (퍼미션 행이 없다는 뜻) |
+
+- 화면은 SYSADMIN 의 `PERM_CNT=-1` 을 "전체"로 보여 준다. 숫자 `-1` 로 보이지 않게 한다.
+- 조회 조건(ROLE_ID·ROLE_NM·USE_TP)은 그대로다.
+- `save` 응답의 `ds_main` 에도 집계 3칸이 들어 있다.
+
+### P.3 들어 있는 그룹 (action `searchRoleGroups`)
+
+- 역할을 고르면 그 역할이 들어 있는 그룹 목록을 보여 준다.
+- 칸: ROLE_GROUP_ID · ROLE_GROUP_NM · USE_TP · USER_CNT.
+- 합계 `USER_CNT` 는 그룹 겹침을 뺀 사람 수다. 역할을 지우거나 못 쓰게 하기 전에 영향을 볼 때 쓴다. 사용 안 함 역할은 0 이다.
+- 그룹 줄의 `USER_CNT` 는 그룹이 `USE_TP='N'` 이면 0 이다.
+- 역할을 고르지 않았으면 빈 목록과 `USER_CNT=0` 을 돌려준다.
+
+### P.4 이 역할의 퍼미션 (actions `searchCmRoleMap` · `saveCmRoleMap`)
+
+- 조회는 역할의 퍼미션 줄을 오브젝트마다 한 줄로 보여 준다. BTN_PERM·POPUP_PERM·DATA_PERM 은 정규화해서 내린다 (비면 빈 문자열).
+- 칸: OBJECT_ID · OBJECT_NM · 메뉴 위치(MENU_PATH·MENU_NM) · 허용 값(OBJ_BTN_PERM·OBJ_POPUP_PERM) · 조회만 프리셋(OBJ_READ_PERM) · 내 값(BTN_PERM·POPUP_PERM·DATA_PERM).
+- 정렬: 메뉴 트리 순서 (메뉴 없는 오브젝트는 뒤) → OBJECT_ID.
+- "조회만" 프리셋 `OBJ_READ_PERM` 은 서버가 계산한다 (D18). 오브젝트 허용 BTN 중 이름이 `search*`·`find*`·`get*`·`list*`·`lov*`·`*Lov`·`view`·`query` 규칙에 맞는 값이다.
+- 줄 편집: 줄을 추가하면 `MERGE`, 줄을 빼면 `DEL` 이다. 값 칸은 허용 값 칩을 켜고 끄는 방식이다.
+- 버튼 없는 퍼미션은 저장하지 않는다 (D14). 마지막 BTN 을 끄는 동작은 FE 설계서가 정한다.
+- 저장은 바뀐 줄만 보낸다. 역할 하나만 한 번에 저장한다.
+- SYSADMIN 을 고르면 퍼미션 줄이 없다. 편집 칸을 비활성으로 둔다. 서버도 `PERM_SYSADMIN` 으로 거절한다.
+- 저장 검사는 전부 먼저 하고, 하나라도 틀리면 아무것도 쓰지 않는다. 오류 코드는 BPMN설계서 "퍼미션" 절 P.1 에 있다. commPermMng 와 같은 코드를 쓴다.
+- 같은 오브젝트가 한 번에 두 줄 오면 `PERM_BAD_ROW` 로 거절한다.
+- 역할이 없으면 `PERM_NO_ROLE` 이다. 지우기(`DEL`)만 보낸 저장에서도 검사한다.
+- 쓰기가 있었으면 `RoleChangedEvent` 를 발행한다 (D30).
+
+### P.5 메뉴 폴더에서 오브젝트 추가 (actions `lov` · `searchFolderObj`)
+
+1. 화면을 열면 `lov` 가 메뉴 폴더 목록 `menus` 를 준다. 칸: MENU_ID · MENU_NM · PARENT_MENU_ID · MENU_LV · MENU_PATH.
+2. 사용자가 폴더를 고른다. 화면이 `searchFolderObj` 를 부른다 (역할 `roleId` + 폴더 `menuFolderId`).
+3. 서버는 고른 폴더와 하위 폴더의 화면 메뉴가 가리키는 오브젝트를 돌려준다.
+4. `HAS_PERM=Y` 인 오브젝트는 이미 이 역할에 퍼미션이 있다는 뜻이다. 후보 목록에서 구분해 보여 준다.
+5. 사용자가 오브젝트를 골라 「이 역할의 퍼미션」 에 줄로 더한다. 값은 처음에 비어 있고, 사용자가 BTN 을 하나 이상 켠다.
+6. `USE_TP='N'` 오브젝트도 목록에 나온다. 칸 `USE_TP` 로 구분한다.
+
+- 폴더를 고르지 않으면 빈 목록이다.
+- 칸: OBJECT_ID · OBJECT_NM · MENU_NM · MENU_FOLDER_ID · MENU_PATH · OBJ_BTN_PERM · OBJ_POPUP_PERM · OBJ_READ_PERM · USE_TP · HAS_PERM.
+- `MENU_NM`·`MENU_PATH` 는 고른 폴더 안의 대표 메뉴 값이다 (WEB 메뉴를 먼저 쓴다).
+
+### P.6 USE_TP N 영향과 삭제 검사 (action `save`)
+
+- 역할의 USE_TP 가 바뀌면 `RoleChangedEvent` 를 발행한다 (D30). 이전에는 이 경우 이벤트가 없었다.
+- 유효 기간(START_ACTIVE_DATE·END_ACTIVE_DATE)이 바뀌거나 역할을 지울 때도 같은 이벤트를 발행한다.
+- 새 역할을 만들 때는 이벤트가 없다.
+- 역할 삭제는 아래 셋이 모두 0 일 때만 된다. 하나라도 있으면 그 줄을 조용히 건너뛴다 (오류 없음).
+
+| 검사 | 표 |
+|---|---|
+| 역할 그룹에 들어 있는 수 | `TB_MCM_SEC_ROLEGROUP_MAPPING` |
+| 옛 매핑 줄 수 (옛 검사 유지) | `TB_MCM_SEC_ROLE_MAPPING` |
+| 새 퍼미션 줄 수 (새로 더한 검사) | `TB_MCM_SEC_ROLE_PERM` |
+
+- 옛 `TB_MCM_SEC_ROLE_MAPPING` 에는 외래키가 없다. 옛 줄이 남아 있어도 DB 오류는 없다. 위 검사가 막을 뿐이다.
+
+### P.7 SYSADMIN 처리
+
+- SYSADMIN 은 퍼미션 행 없이 모든 권한을 가진다 (D13). ROLE_ID 가 `SYSADMIN` 또는 런타임 별칭 `ROLE_SYSADMIN` 이면 SYSADMIN 이다.
+- `PERM_CNT` 는 `-1` 이다. `searchCmRoleMap` 은 빈 목록이다. `saveCmRoleMap` 은 `PERM_SYSADMIN` 으로 거절한다.
+- 옛 SYSADMIN 매핑 줄은 새 표로 옮기지 않았다.

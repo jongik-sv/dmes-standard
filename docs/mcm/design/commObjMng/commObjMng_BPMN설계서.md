@@ -9,6 +9,8 @@ moduleGroup: csa
 
 # mcm — OBJECT 관리 BPMN설계서
 
+> **퍼미션 모델 v2 (2026-11-27)**: 이 화면의 권한 모델이 바뀌었다. 문서 맨 끝 "퍼미션 (퍼미션 모델 v2)" 절이 아래 본문보다 우선한다. 본문의 옛 `TB_MCM_SEC_ROLE_MAPPING`·PERMISSION_ID 서술은 이력이다.
+
 > **BackEnd / BPMN 측 확정 값**:
 > - 프로세스 ID: `commObjMng` (= serviceId, As-Is bpmn process id = `CommObjMng`)
 > - Bean명: `commObjMngService`
@@ -456,3 +458,82 @@ POST /oasis/commObjMng/lov
 | 4. 임의 합리화? | **No** — As-Is action 이름 (searchCmObj / saveCmObj) 그대로. 가이드 표준 (search / save) rename 은 사용자 결정 위임 명시. |
 
 > Phase 4 모두 No → Phase 5 진입.
+
+
+---
+
+## 퍼미션 (퍼미션 모델 v2, 2026-11-27)
+
+> 이 절은 위 본문보다 우선한다. 위 본문에서 `TB_MCM_SEC_ROLE_MAPPING` 을 역할 연결로 다룬 서술은 옛 모델의 것이다.
+> 근거: `docs/perm-bench/decompose.md` D7·D8·D13·D15·D18·D30, §0.4. 구현: 커밋 030d656b2. 정본 파일: `src/backend/mcm/api/src/main/resources/services/csa/commObjMng/commObjMng.bpmn`.
+> 서비스: `commObjMngService` (`com.dongkuk.dmes.mcm.csa.commObjMng.service`). 생성자는 7인자다 (`SecRolePermRepository`·`CommPermQueryRepository`·`CommObjMngQuery` 추가).
+
+### P.1 action 표
+
+action 이름 = BPMN sequenceFlow `name` = 게이트 토큰이다. URL 은 `POST /oasis/commObjMng/{action}` 이다.
+
+| action (flow name) | 구분 | service method | 입력 | 출력 grids / data | 오류 코드 |
+|---|---|---|---|---|---|
+| `search` | 바뀜 | `searchCmObj` | params `edtOBJECTID` · `cboUSETP` · `menuFolderId` (새, 빈 값 = 전체) (dto `CommObjMngSearchRequest`) | grids `ds_main` (옛 칸 + `BTN_PERM` · `POPUP_PERM` · `DATA_PERM` · `MENU_CNT` · `PERM_CNT`) | 없음 |
+| `save` | 바뀜 | `saveCmObj` | grids `master.rows` (옛 칸 + `BTN_PERM` · `POPUP_PERM` · `DATA_PERM`) | data `cnt_merge` · grids `ds_main` (재조회) · grids `impacts` (OBJECT_ID · KIND `BTN`\|`POPUP`\|`USE_TP` · CODE · PERM_CNT · USER_CNT) | `PERM_TOO_LONG` (삭제 차단은 조용히 건너뜀) |
+| `searchObjPerm` | 새 | `searchObjPerm` | params `objectId` (dto `CommObjMngObjRequest`) | grids `perms` (ROLE_ID · ROLE_NM · ROLE_USE_TP · BTN_PERM · POPUP_PERM · DATA_PERM · EFF_BTN_PERM · EFF_POPUP_PERM · USER_CNT) · data `USER_CNT` | 없음 |
+| `searchObjMenu` | 새 | `searchObjMenu` | params `objectId` (dto `CommObjMngObjRequest`) | grids `menus` (MENU_ID · MENU_NM · PARENT_MENU_ID · MENU_PATH · MENU_TP · MENU_VIEW_YN · USE_TP) | 없음 |
+| `lov` | 옛 | `lov` | 없음 | grids `ds_lovMenuId` | 없음 |
+| `searchSystemLov` | 옛 | `searchSystemLov` | 없음 | grids `ds_systemLov` | 없음 |
+
+- 새 action 은 2개(`searchObjPerm`·`searchObjMenu`), 바뀐 action 은 2개(`search`·`save`)다. `lov`·`searchSystemLov` 는 그대로다.
+- `searchObjPerm`: 오브젝트를 퍼미션으로 가진 역할만 나온다. 정렬은 ROLE_ID 순이다. `EFF_*` 는 역할 값과 오브젝트 허용 값의 교집합이다 (역할 값의 순서).
+- `searchObjPerm` 의 합계 `USER_CNT` 는 그 역할들을 받는 서로 다른 사람 수다 (그룹 겹침 제외). 사용 안 함으로 바꾸기 전에 확인하는 숫자다.
+- 사람 수는 모두 `USE_TP='Y'` 인 역할만 센다 (`searchObjPerm` 의 역할별·합계 `USER_CNT`, `impacts` 의 `USER_CNT`). 사용 안 함 역할은 0 이다.
+- `searchObjMenu`: 이 오브젝트를 가리키는 모든 메뉴가 나온다. 정렬은 WEB 먼저, 그다음 MENU_ID 순이다. `MENU_PATH` 는 부모 폴더 경로다.
+- `search` 의 `menuFolderId` 는 폴더와 하위 폴더의 메뉴가 가리키는 오브젝트만 남긴다. 하위 폴더는 SQL 재귀 쿼리(`WITH`)로 펴므로 IN 목록 1000개 제한이 없다.
+- 허용 값 칸은 `search` 와 `save` 에서 같은 이름(`BTN_PERM`·`POPUP_PERM`·`DATA_PERM`)이다.
+
+### P.2 BPMN 구조
+
+- `actionGateway` (`input=action`) 에서 serviceTask 6개로 분기한다. 조건식은 쓰지 않는다. flow `name` 만으로 분기한다.
+- 모든 serviceTask 는 `camunda:class="commObjMngService"` 다.
+- `search` 는 `CommObjMngSearchRequest` 를, `searchObjPerm`·`searchObjMenu` 는 `CommObjMngObjRequest` 를 `dto` 로 받는다.
+- 옛 §2.1~2.3 의 SQL ID 서술(`selectCommObjMng` 등)은 이력이다. 구현은 JPA 와 `CommObjMngQuery` 네이티브 쿼리로 읽는다.
+- 네이티브 쿼리의 1글자 칸(`USE_TP`·`MENU_VIEW_YN`)은 `CAST(... AS VARCHAR2(10))` 로 읽는다. 안 그러면 `Character` 로 와서 응답이 깨진다.
+
+### P.3 저장 처리 순서 (`save`)
+
+0. 쓰기 전에 모든 insert·update 줄의 허용 값 3칸을 정규화하고 길이를 검사한다. 하나라도 1000자를 넘으면 `PERM_TOO_LONG` 으로 끝낸다. 아무것도 쓰지 않는다.
+1. 줄마다 `rowStatus`(없으면 `!nativeeditor_status`)로 분기한다.
+2. `deleted`: 삭제 검사를 한다. 아래 셋 중 하나라도 0 보다 크면 그 줄을 조용히 건너뛴다.
+   - 이 오브젝트를 가리키는 메뉴 수 (`countMenuByObjectId`).
+   - 비-SYSADMIN 옛 매핑 수 (옛 검사 유지).
+   - 새 퍼미션 수 (`SecRolePermRepository.countByObjectId`, 새 검사).
+3. `deleted` 통과: 옛 SYSADMIN 매핑 줄이 남아 있으면 함께 지운 뒤 오브젝트를 지운다.
+4. `inserted`·`updated`: 마스터 칸과 허용 값 3칸을 저장한다. 행에 허용 값 칸이 있을 때만 그 칸을 바꾼다.
+5. 수정이면 영향을 모은다 (`collectImpacts`). 허용 BTN·POPUP 에서 빠진 값마다 한 줄을 만든다. `USE_TP` 가 `Y` → `N` 이면 `USE_TP` 줄을 한 줄 더한다. 영향받는 퍼미션이 0 이면 줄을 만들지 않는다. 같은 단계에서 이벤트 대상 역할도 모은다.
+6. 이벤트를 발행한다 (아래 P.4).
+7. `cnt_merge`, 재조회한 `ds_main`, `impacts` 를 돌려준다.
+
+- 값이 1000자를 넘으면 `BusinessException(BUSINESS_ERROR, "PERM_TOO_LONG: 칸이름 1000자 초과 (길이)")` 로 거절한다.
+- 계약에 따라 퍼미션 줄(`TB_MCM_SEC_ROLE_PERM`)은 이 action 에서 고치지 않는다 (D15). 영향은 알리기만 한다.
+- 서비스에 `@Transactional` 을 두지 않는다. OASIS executor 가 process 단위로 감싼다.
+
+### P.4 이벤트와 SYSADMIN
+
+| 이벤트 | 발행 조건 | 대상 |
+|---|---|---|
+| `RoleChangedEvent` | 오브젝트를 새로 만들었다 | `SYSADMIN` (D13·D30) |
+| `RoleChangedEvent` | 오브젝트를 지웠다 | `SYSADMIN` (D13·D30) |
+| `RoleChangedEvent` | 수정에서 `BTN_PERM`·`POPUP_PERM`·`USE_TP`·`SYSTEM_CODE`·`START_ACTIVE_DATE`·`END_ACTIVE_DATE` 중 하나가 바뀌었다 | `SYSADMIN` + 그 오브젝트에 퍼미션을 가진 역할들 (D30) |
+| `MenuChangedEvent(OBJECT)` | 저장·삭제가 한 건이라도 성공했다 | 메뉴 카탈로그 |
+
+- 이벤트는 저장 한 번에 한 번만 발행한다. 대상 역할은 모아서 한 이벤트에 담는다 (SYSADMIN 은 역할 목록에 들어간다).
+- 오브젝트에 퍼미션 줄이 있는지와 상관없이 발행한다. SYSADMIN 이 이 오브젝트를 퍼미션 행 없이 계산하기 때문이다.
+- SYSADMIN 자동 매핑(저장 때 `PERM_ALL` 을 붙이던 동작)을 삭제했다 (D13). SYSADMIN 은 퍼미션 행 없이 계산한다.
+- 위 본문(§2.2)에는 SYSADMIN 자동 매핑 서술이 없었다. 코드에만 있던 동작이다. 그 동작을 기대하던 테스트 2건도 지웠다 (`MenuChangedEventPublishTest`).
+- 위 §2.2 의 `NOT EXISTS (… TB_MCM_SEC_ROLE_MAPPING …)` 삭제 검사 서술은 일부만 맞다. 새 검사(퍼미션 수)가 더해졌다 (P.3).
+
+### P.5 계약과 구현의 차이
+
+- 계약(`perm-legacy-be.md` §3)은 "값·USE_TP 가 바뀌면 `RoleChangedEvent`" 라고 적었다. 구현은 여기에 더해 추가·삭제와 `SYSTEM_CODE`·유효 기간 변경에도 발행한다. SYSADMIN 도 대상이다.
+- 계약은 SYSADMIN 자동 매핑 삭제만 말한다. 구현은 삭제할 때 남은 옛 SYSADMIN 줄도 정리한다.
+- 삭제 차단은 오류가 아니라 조용한 건너뜀이다 (옛 동작 유지).
+- 구현의 거절 코드는 `PERM_TOO_LONG` 하나다. 허용 값 형식 검사는 없다.
+- 조정·win30 승인으로 소유 밖 파일 `MenuChangedEventPublishTest` 를 최소 수정했다 (생성자 mock 추가, SYSADMIN 자동 매핑 기대 2건 제거).

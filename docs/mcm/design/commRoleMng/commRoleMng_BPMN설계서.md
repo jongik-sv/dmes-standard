@@ -10,6 +10,8 @@ moduleGroup: csa
 
 # mcm — 역할 관리 BPMN설계서
 
+> **퍼미션 모델 v2 (2026-11-27)**: 이 화면의 권한 모델이 바뀌었다. 문서 맨 끝 "퍼미션 (퍼미션 모델 v2)" 절이 아래 본문보다 우선한다. 본문의 옛 `TB_MCM_SEC_ROLE_MAPPING`·PERMISSION_ID 서술은 이력이다.
+
 ## §0. 환경 제약 (분석리포트 §0 동일)
 
 | 항목 | 결정 | 사유 |
@@ -555,3 +557,91 @@ To-Be 추가 검토 (Q-NEW):
 4. **임의 합리화?** — 없음.
 
 → Phase 4 통과 (갱신 2026-05-31 — BPMN 관련 Q 9건 전수 closed).
+
+
+---
+
+## 퍼미션 (퍼미션 모델 v2, 2026-11-27)
+
+> 이 절은 위 본문보다 우선한다. 위 본문은 옛 `TB_MCM_SEC_ROLE_MAPPING` 3-table JOIN 모델의 흐름이다.
+> 근거: `docs/perm-bench/decompose.md` D7·D13·D14·D15·D18·D30, §0.4. 구현: 커밋 127920264. 정본 파일: `src/backend/mcm/api/src/main/resources/services/csa/commRoleMng/commRoleMng.bpmn`.
+> 서비스: `commRoleMngService` (`com.dongkuk.dmes.mcm.csa.commRoleMng.service`).
+
+### P.1 action 표
+
+action 이름 = BPMN sequenceFlow `name` = 게이트 토큰이다. URL 은 `POST /oasis/commRoleMng/{action}` 이다.
+
+| action (flow name) | 구분 | service method | 입력 | 출력 grids / data | 오류 코드 |
+|---|---|---|---|---|---|
+| `search` | 바뀜 | `searchCmRole` | params `edtROLEID` · `edtROLENM` · `cboUSETP` (옛 그대로) | grids `ds_main` (옛 칸 + `GROUP_CNT` · `USER_CNT` · `PERM_CNT`) | 없음 |
+| `save` | 바뀜 | `saveCmRole` | grids `master.rows` (옛 그대로) | data `cnt_merge` · grids `ds_main` (재조회, 집계 3칸 포함) | 없음 (삭제 차단은 조용히 건너뜀) |
+| `searchRoleGroups` | 새 | `searchRoleGroups` | params `roleId` (dto `CommRoleMngRoleRequest`) | grids `groups` (ROLE_GROUP_ID · ROLE_GROUP_NM · USE_TP · USER_CNT) · data `USER_CNT` (`USE_TP='Y'` 인 역할만 센다. 사용 안 함 역할은 0. 그룹 줄의 `USER_CNT` 는 그룹이 `USE_TP='N'` 이면 0) | 없음 |
+| `searchCmRoleMap` | 바뀜 | `searchCmRoleMap` | params `roleId` (dto `CommRoleMngSearchRoleMapRequest`). 비면 옛 키 `ROLE_ID` 를 쓴다 | grids `perms` (ROLE_ID · OBJECT_ID · OBJECT_NM · MENU_FOLDER_ID · MENU_PATH · MENU_NM · OBJ_BTN_PERM · OBJ_POPUP_PERM · OBJ_READ_PERM · BTN_PERM · POPUP_PERM · DATA_PERM). 값 칸은 `PermTokens` 로 정규화해서 내린다 (null 은 빈 문자열) | 없음 |
+| `saveCmRoleMap` | 바뀜 | `saveCmRoleMap` | params `roleId` (dto `CommRoleMngRoleRequest`) + grids `perms.rows` (ROLE_ID · OBJECT_ID · BTN_PERM · POPUP_PERM · DATA_PERM · OP_TP `MERGE`\|`DEL`) | data `cnt_merge` · `cnt_delete` | `PERM_BAD_ROW` · `PERM_SYSADMIN` · `PERM_NO_ROLE` · `PERM_ROLE_MISMATCH` · `PERM_NO_OBJ` · `PERM_EMPTY_BTN` · `PERM_NOT_IN_OBJ` · `PERM_TOO_LONG` |
+| `searchFolderObj` | 새 | `searchFolderObj` | params `roleId` · `menuFolderId` (dto `CommRoleMngRoleRequest`) | grids `objs` (OBJECT_ID · OBJECT_NM · MENU_NM · MENU_FOLDER_ID · MENU_PATH · OBJ_BTN_PERM · OBJ_POPUP_PERM · OBJ_READ_PERM · USE_TP · HAS_PERM) | 없음 |
+| `lov` | 바뀜 | `lov` | 없음 | grids `ds_lovMenuId` (옛 그대로) + grids `menus` (MENU_ID · MENU_NM · PARENT_MENU_ID · MENU_LV · MENU_PATH) | 없음 |
+| `searchCmPerm` | 옛 (남김) | `searchCmPerm` | params `ROLE_ID` | grids `ds_perm` (옛 PERMISSION 후보) | 없음 |
+| `searchObjectLov` | 옛 (남김) | `searchObjectLov` | (옛 그대로) | grids `ds_menuObjLst` | 없음 |
+
+- 새 action 은 2개(`searchRoleGroups`·`searchFolderObj`), 바뀐 action 은 5개(`search`·`save`·`searchCmRoleMap`·`saveCmRoleMap`·`lov`)다.
+- `searchCmPerm`·`searchObjectLov` 는 옛 모델의 action 이다. 이번 회차는 BPMN 에 남긴다. FE 가 안 쓰면 다음 회차에 뺀다. 새 화면은 부르지 않는다.
+- 옛 `ds_roleMap` 은 더 내지 않는다. 새 이름은 `perms` 다.
+- `searchCmRoleMap` 이 낸 `perms` 줄은 `saveCmRoleMap` 에 보내는 줄과 칸 이름이 같다. SYSADMIN 이면 빈 목록이다.
+- `PERM_CNT` 는 SYSADMIN 에서 `-1` 이다. 퍼미션 행이 없다는 뜻이다.
+- `USER_CNT`(`search`·`save` 의 `ds_main`, `searchRoleGroups` 합계)는 `USE_TP='Y'` 인 역할만 센다. 사용 안 함 역할은 0 이다.
+
+### P.2 BPMN 구조
+
+- `actionGateway` (`input=action`) 에서 serviceTask 9개로 분기한다. 조건식은 쓰지 않는다. flow `name` 만으로 분기한다.
+- 모든 serviceTask 는 `camunda:class="commRoleMngService"` 다. `method` 속성이 service method 를 고른다.
+- `saveCmRoleMap` 은 params `roleId` 를 `dto`(`CommRoleMngRoleRequest`)로 받고, grids `perms` 를 method 인자 `perms` 로 받는다. (commUserMng `pwdinit` 과 같은 패턴이다.)
+- `searchRoleGroups`·`searchFolderObj` 는 같은 dto `CommRoleMngRoleRequest` 를 쓴다 (`roleId`, `menuFolderId`).
+- 옛 §2.3 의 `searchCmRoleMap` + `searchCmPerm` 동시 호출, §2.7 의 BS-001·BS-002 INSERT/DELETE 흐름(`insertCommRoleMap` 등)은 더 쓰지 않는다. 새 흐름은 아래 P.3 이다.
+- 옛 `SecRoleMappingNativeRepository` 의 3-table JOIN 은 `searchCmRoleMap` 에서 쓰지 않는다. 새 표는 `SecRolePermRepository` 와 `CommPermQueryRepository` 로 읽고 쓴다.
+
+### P.3 퍼미션 저장 처리 순서 (`saveCmRoleMap`)
+
+1. `roleId` 가 비었으면 `PERM_BAD_ROW`. `roleId` 가 SYSADMIN(`SYSADMIN` 또는 `ROLE_SYSADMIN`)이면 `PERM_SYSADMIN`. 역할이 없으면 `PERM_NO_ROLE` (지우기만 보낸 저장도 검사한다).
+2. 모든 줄을 검사한다. 줄마다 아래 순서다.
+   1. 줄의 ROLE_ID 가 params `roleId` 와 다르면 `PERM_ROLE_MISMATCH`.
+   2. OBJECT_ID 가 비면 `PERM_BAD_ROW`.
+   3. 같은 (ROLE_ID, OBJECT_ID) 가 이미 나왔으면 `PERM_BAD_ROW`.
+   4. OP_TP 가 `MERGE`·`DEL` 이 아니면 `PERM_BAD_ROW`.
+   5. `MERGE` 인데 오브젝트가 없으면 `PERM_NO_OBJ`.
+   6. `MERGE` 인데 정규화한 BTN_PERM 이 비면 `PERM_EMPTY_BTN` (D14).
+   7. BTN_PERM·POPUP_PERM 에 오브젝트 허용 값 밖의 값이 있으면 `PERM_NOT_IN_OBJ` (D15).
+   8. 어느 칸이든 1000자를 넘으면 `PERM_TOO_LONG`.
+3. 틀린 줄이 하나라도 있으면 `BusinessException(BUSINESS_ERROR, "CODE: 상세")` 로 끝낸다. 아무것도 쓰지 않는다.
+4. 통과하면 `MERGE` 줄을 넣거나 고치고 `DEL` 줄을 지운다.
+5. 값이 실제로 바뀌었거나 줄이 지워졌으면 `RoleChangedEvent(roleId)` 를 한 번 발행한다 (D30). 같은 값으로 다시 저장하면 이벤트가 없다.
+6. `cnt_merge`·`cnt_delete` 를 돌려준다.
+
+- 오류는 `BusinessException` 이다. 메시지는 오류 코드로 시작한다. FE 는 메시지를 그대로 보여 준다.
+- 서비스에 `@Transactional` 을 두지 않는다. OASIS executor 가 process 단위로 감싼다.
+
+### P.4 역할 저장·삭제 (`save`)
+
+- 입력과 상태 분기(`inserted`·`updated`·`deleted`)는 옛 그대로다.
+- 삭제 검사는 옛 검사에 새 검사를 덧붙였다. 셋 중 하나라도 0 보다 크면 그 줄을 조용히 건너뛴다.
+  - `TB_MCM_SEC_ROLEGROUP_MAPPING` 줄 수.
+  - `TB_MCM_SEC_ROLE_MAPPING` 줄 수 (옛 검사 유지).
+  - `TB_MCM_SEC_ROLE_PERM` 줄 수 (새 검사, `SecRolePermRepository.countByRoleId`).
+- 옛 `TB_MCM_SEC_ROLE_MAPPING` 에는 외래키가 없다 (V1 은 PK 만). 옛 줄이 남아도 `ORA-02292` 가 나지 않는다.
+- `RoleChangedEvent` 는 다음 경우에 한 번 발행한다 (D30). 새로 만드는 줄은 포함하지 않는다.
+  - 기존 역할의 USE_TP 가 바뀌었다.
+  - 기존 역할의 유효 기간(START_ACTIVE_DATE·END_ACTIVE_DATE)이 바뀌었다.
+  - 역할을 실제로 지웠다.
+- 응답은 `cnt_merge` 와 재조회한 `ds_main` 이다. 계약은 `ds_main` 의 집계 칸을 말하지 않았다. 구현은 `search` 와 같게 집계 3칸을 넣는다.
+
+### P.5 SYSADMIN 과 이벤트
+
+- SYSADMIN 은 퍼미션 행이 없다 (D13). `PERM_CNT=-1`, `searchCmRoleMap` 은 빈 목록, `saveCmRoleMap` 은 `PERM_SYSADMIN`.
+- SYSADMIN 은 `SYSADMIN` 또는 런타임 별칭 `ROLE_SYSADMIN` 이다.
+- 이 화면이 발행하는 `RoleChangedEvent` 는 `saveCmRole`·`saveCmRoleMap` 두 곳이다. 구독처가 권한 캐시를 비운다.
+
+### P.6 계약과 구현의 차이
+
+- 오류 코드는 commPermMng `save` 와 같은 이름을 쓴다. 이 화면만 더 가진 코드는 `PERM_ROLE_MISMATCH` 다.
+- 줄의 ROLE_ID·OBJECT_ID 와 params `roleId` 는 앞뒤 공백을 자르고 비교한다.
+- `searchFolderObj` 의 `MENU_NM`·`MENU_PATH` 는 고른 폴더 안의 대표 메뉴 값이다.
+- `save` 응답의 `ds_main` 에도 집계 3칸이 있다.
