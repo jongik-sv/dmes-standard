@@ -42,7 +42,7 @@ f0a 계약 타입·가짜 자료 → f1 shared 부품 3개 → f1-merge → f2 �
 
 - 착수 지시: `~/.coord/perm-bench-mac/lanes/perm-fe-b/brief.md`(지시 perm-fe-b-1). 공통 = `~/.coord/perm-bench-mac/lanes/common.md`
 - 몫: f0b 옛 화면 계약 타입·가짜 자료 → f5 commPermMng · f6 commRoleMng 새 설계 → 머지(두 화면 한 번, 실연결 포함) → f7 「작업대에서 열기」(작업대 머지 뒤 다음 머지 몫)
-- 갱신: 2026-11-27 BE 머지(91535e95b) 뒤 다시 squash·머지 요청 2. f7 준비 끝(곁가지)
+- 갱신: 2026-11-27 머지 2 완료(e3d5cf33c). 작업대 머지(aec22600c) 뒤 f7 머지 요청 3
 
 ### 진행
 
@@ -54,8 +54,8 @@ f0a 계약 타입·가짜 자료 → f1 shared 부품 3개 → f1-merge → f2 �
 | 머지 요청 1 | 보류 | d02b2254f | origin/claude/perm-bench d06ddda7c 위 squash 1커밋. 조정 접수, BE l1·l2 머지 뒤 push |
 | 실연결 | 끝(커밋만) | 9866a76d1 | d02b2254f 위 새 커밋. USE_MOCK·mock 분기 11곳·mock.ts 2개 삭제. vitest csa 295/0, tsc 기준선 외 0, eslint 0 |
 | bk-l1 대조 | 끝 | - | 메모 §3·실제 BE 코드와 칸·키·action 전부 일치. 차이 = searchFolderObj 응답에 MENU_FOLDER_ID 없음(조정이 l2 에 한 줄 요청) |
-| 다시 squash | 끝 | (머지 요청 2 SHA) | 91535e95b 합침 뒤 mcm test 1872/0, tsc 기준선 외 0, audit 0 |
-| f7 | 준비 끝(곁가지) | 74811d100 | 곁가지 `perm/perm-fe-b-f7`(perm/perm-fe 합친 ff01c5261 위). 작업대 머지·머지 2 완료 뒤 이 커밋 하나만 cherry-pick(ff01c5261 은 가져오지 않음). vitest 61/0, tsc 기준선 외 0, eslint 0 |
+| 머지 2 | 완료 | e3d5cf33c | 91535e95b 합침 뒤 mcm test 1872/0, tsc 기준선 외 0, audit 0 |
+| f7 | 끝 | 머지 요청 3 | aec22600c 위 74811d100 cherry-pick + 작업대 열기를 nav.ts `openBench` 로 바꿈(bench-link.ts 삭제). mcm test·tsc·audit 통과 |
 
 ### 결정
 
@@ -72,10 +72,8 @@ f0a 계약 타입·가짜 자료 → f1 shared 부품 3개 → f1-merge → f2 �
 
 ### 다음 단계(재개용)
 
-1. 머지 요청 2(다시 squash 1커밋) 의 `머지 완료` 대기
-2. 작업대(perm-fe-a) 머지 + 머지 2 완료 뒤 f7: `git fetch origin` → `git merge origin/claude/perm-bench` → `git cherry-pick 74811d100` → tsc·csa vitest → 머지 요청 3
-3. f7 내용: commRoleMng = `useOpenWith("commRoleMng")` 받기(순수 판정 `openWithStep`, role-perm.ts·시험 2), ready = `(searched || restored) && !isSearching`. 두 화면 「권한 작업대에서 보기」 = `commPermMng/bench-link.ts` `openPermBench(from, roleId, objectId?)`(반대 방향 계약). commPermMng 받는 쪽 없음 — nav.ts LEGACY_SCREENS 에 commPermMng 이 없어 보내는 곳이 없다
-4. 작업대 쪽 주의(perm-fe-a 몫): nav.ts `readOpenWith` 는 from≠"commPermBench" 면 null, objectId 를 버린다 → 반대 방향 받기에 그대로 쓰면 무시된다
+1. 머지 요청 3(f7) 의 `머지 완료` 대기. 그 뒤 남은 일 = 후속 후보 2개(조정 판단)
+2. f7 내용: commRoleMng = `useOpenWith("commRoleMng")` 받기(순수 판정 `openWithStep`, role-perm.ts·시험 2), ready = `(searched || restored) && !isSearching`. 두 화면 「권한 작업대에서 보기」 = nav.ts `openBench(from, roleId, objectId?)`. commPermMng 받는 쪽 없음(작업대가 보내지 않음, 조정 확인)
 
 ### 후속 후보
 

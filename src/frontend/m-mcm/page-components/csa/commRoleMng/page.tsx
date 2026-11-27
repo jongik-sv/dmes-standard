@@ -41,6 +41,7 @@ import { CardFrame, MutedText } from "@dk-oasis/shared/card";
 import { MdmFieldLabel } from "@dk-oasis/shared/mdm-meta";
 import { useMessage } from "@dk-oasis/shared/message-provider";
 import { useCarryRestored, useCarryState } from "@dk-oasis/shared/portal-shell";
+import { openBench, useOpenWith } from "@/page-components/csa/commPermBench/nav";
 import {
   searchCmRole as apiSearchCmRole,
   saveCmRole as apiSaveCmRole,
@@ -61,6 +62,7 @@ import {
   folderFilterOptions,
   isSysAdmin,
   liveCount,
+  openWithStep,
   pendingCount,
   permCntLabel,
   permSaveErrorText,
@@ -364,7 +366,7 @@ interface RoleDetailPanelProps {
   onUseChange: (value: string) => void;
   onUseConfirm: () => void;
   onUseCancel: () => void;
-  /** TODO(f7): 권한 작업대에서 이 역할 보기 — f7 이 진입 파라미터와 함께 연결한다. 없으면 단추를 잠근다. */
+  /** 권한 작업대에서 이 역할 보기(f7). 없으면 단추를 잠근다. */
   onOpenBench?: (roleId: string) => void;
 }
 
@@ -573,6 +575,8 @@ export default function CommRoleMngPage() {
   // 퍼미션·그룹·폴더 오브젝트는 고른 역할이 정해지면 다시 조회하므로 이어받지 않는다(useState).
   const [filters, setFilters] = useCarryState<CommRoleMngFilters>("filters", DEFAULT_FILTERS);
   const [isSearching, setIsSearching] = useState(false);
+  /** 역할 목록을 한 번이라도 조회했는가(작업대에서 넘긴 역할을 찾을 때를 고른다). */
+  const [searched, setSearched] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -756,6 +760,7 @@ export default function CommRoleMngPage() {
         return null;
       } finally {
         setIsSearching(false);
+        setSearched(true);
       }
     },
     [showMessage, setRows, setSelectedKey],
@@ -995,6 +1000,25 @@ export default function CommRoleMngPage() {
     [setRows, setSelectedKey, showMessage],
   );
 
+  // ── 권한 작업대에서 열기(dmes:open-with, f7) — 첫 조회가 끝난 뒤 받은 역할을 고르거나 새 역할 행을 연다 ──
+  useOpenWith(
+    "commRoleMng",
+    (ow, attempt) => {
+      const dirty = pendingRef.current > 0 || rows.some((r) => r.nativeeditor_status);
+      const step = openWithStep(ow, rows, getRowKey, attempt, dirty);
+      if (step.kind === "new") return void handleDataChange([{ __gridTempId: `__new_ow_${ow.at}` }], `__new_ow_${ow.at}`);
+      if (step.kind === "select") return void requestSelect(step.key);
+      if (step.kind === "skip") return;
+      const f = { ...DEFAULT_FILTERS, edt_ROLE_ID: step.roleId };
+      setFilters(f);
+      void loadList(f, { preferRoleId: step.roleId });
+      return "wait";
+    },
+    (searched || restored) && !isSearching,
+  );
+
+  const handleOpenBench = useCallback((roleId: string) => openBench("commRoleMng", roleId), []);
+
   /**
    * 상세 입력 → 역할 행 갱신.
    * AsIs ds_main_oncolumnchanged (xfdl:906~916): MENU_ID 또는 ID 변경 시 ROLE_ID = "role_"+MENU_ID+"_"+ID.
@@ -1214,7 +1238,7 @@ export default function CommRoleMngPage() {
               onUseChange={handleUseChange}
               onUseConfirm={handleUseConfirm}
               onUseCancel={handleUseCancel}
-              // TODO(f7, 미룸): onOpenBench={(roleId) => 권한 작업대(commPermBench)를 이 역할로 연다} — 그때까지 단추는 잠근다
+              onOpenBench={handleOpenBench}
             />
           </ContentPanel>
         </ContentBody>

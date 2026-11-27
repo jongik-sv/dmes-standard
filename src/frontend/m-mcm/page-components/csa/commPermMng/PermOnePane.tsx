@@ -13,6 +13,7 @@ import { Button } from "@dk-oasis/shared/form";
 import type { ToggleChipPreset } from "@dk-oasis/shared/toggle-chip-group";
 import { TokenChipInput } from "@dk-oasis/shared/token-chip-input";
 import { PermChips } from "./PermChips";
+import { openBench } from "@/page-components/csa/commPermBench/nav";
 import { effective, permKey, presetMatch, shortSummary, type PermKind, type PermViewRow } from "./perm-chips";
 import type { PermOtherRow, PermRoleGroupRow } from "./types";
 
@@ -249,8 +250,12 @@ export const PermOnePane = memo(function PermOnePane({ row, one, loadedKeys, act
                     되돌리기
                   </Button>
                 )}
-                {/* TODO(f7): 권한 작업대(commPermBench)를 이 역할·오브젝트로 연다. 진입 규칙은 f7 이 정한다. */}
-                <Button size="sm" disabled title="권한 작업대 연결은 다음 작업에서 합니다" data-hook="open-perm-bench">
+                {/* 권한 작업대(commPermBench)를 이 역할·오브젝트로 연다(f7, commPermBench/nav.ts openBench). */}
+                <Button
+                  size="sm"
+                  data-hook="open-perm-bench"
+                  onClick={() => openBench("commPermMng", row.ROLE_ID, row.OBJECT_ID)}
+                >
                   권한 작업대에서 보기
                 </Button>
               </span>

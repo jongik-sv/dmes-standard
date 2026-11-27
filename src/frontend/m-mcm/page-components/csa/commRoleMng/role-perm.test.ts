@@ -12,6 +12,7 @@ import {
   initialBtns,
   isSysAdmin,
   liveCount,
+  openWithStep,
   outOfObject,
   outValueNote,
   pendingCount,
@@ -309,5 +310,26 @@ describe("역할", () => {
     expect(m).toContain("받은 사람 26명");
     expect(m).toContain("퍼미션 2건이 모두 멈춥니다");
     expect(m).toContain("다른 역할로 같은 버튼을 받는 사람은 그대로입니다.");
+  });
+});
+
+describe("openWithStep (작업대에서 열기, f7)", () => {
+  const rows = [
+    { ROLE_ID: "R1", nativeeditor_status: "", k: "a" },
+    { ROLE_ID: "R2", nativeeditor_status: "deleted", k: "b" },
+  ];
+  const key = (r: { k: string }) => r.k;
+
+  it("new 는 새 행, edit 는 있는 행을 고르고 지울 행은 고르지 않는다", () => {
+    expect(openWithStep({ mode: "new" }, rows, key, 0, true)).toEqual({ kind: "new" });
+    expect(openWithStep({ mode: "edit", id: "R1" }, rows, key, 0, false)).toEqual({ kind: "select", key: "a" });
+    expect(openWithStep({ mode: "edit", id: "R2" }, rows, key, 0, false)).toEqual({ kind: "search", roleId: "R2" });
+  });
+
+  it("목록에 없으면 첫 시도만 다시 조회하고, 고친 값이 있거나 id 가 없으면 건너뛴다", () => {
+    expect(openWithStep({ mode: "edit", id: "R9" }, rows, key, 0, false)).toEqual({ kind: "search", roleId: "R9" });
+    expect(openWithStep({ mode: "edit", id: "R9" }, rows, key, 1, false)).toEqual({ kind: "skip" });
+    expect(openWithStep({ mode: "edit", id: "R9" }, rows, key, 0, true)).toEqual({ kind: "skip" });
+    expect(openWithStep({ mode: "edit" }, rows, key, 0, false)).toEqual({ kind: "skip" });
   });
 });

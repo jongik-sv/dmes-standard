@@ -534,3 +534,30 @@ const CODE_LABEL: Record<string, string> = {
 export function codeLabel(code: string): string {
   return CODE_LABEL[code] ?? code;
 }
+
+// ── 권한 작업대에서 열기(dmes:open-with, f7) ─────────────────────────────────
+
+/** 작업대가 넘긴 약속을 받았을 때 할 일. */
+export type OpenWithStep =
+  | { kind: "new" }
+  | { kind: "select"; key: string }
+  | { kind: "search"; roleId: string }
+  | { kind: "skip" };
+
+/**
+ * mode=new → 새 역할 행. edit → 목록에 그 ROLE_ID 행이 있으면 고르기, 없으면 첫 시도에 한 번만 다시 조회.
+ * 고친 역할 행·퍼미션이 있으면(dirty) 조회가 덮으므로 다시 조회하지 않는다.
+ */
+export function openWithStep<R extends { ROLE_ID?: unknown; nativeeditor_status?: string }>(
+  ow: { mode: "new" | "edit"; id?: string },
+  rows: readonly R[],
+  rowKey: (row: R) => string,
+  attempt: number,
+  dirty: boolean,
+): OpenWithStep {
+  if (ow.mode === "new") return { kind: "new" };
+  const hit = rows.find((r) => r.nativeeditor_status !== "deleted" && String(r.ROLE_ID ?? "") === ow.id);
+  if (hit) return { kind: "select", key: rowKey(hit) };
+  if (!ow.id || attempt > 0 || dirty) return { kind: "skip" };
+  return { kind: "search", roleId: ow.id };
+}
