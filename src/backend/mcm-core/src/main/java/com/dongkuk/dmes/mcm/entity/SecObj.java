@@ -103,6 +103,21 @@ public class SecObj extends McmAuditEntity {
     private String param;
 
     /**
+     * 허용 버튼 권한 — 이 오브젝트에서 켤 수 있는 action 코드, 쉼표 구분(V20, 퍼미션 모델 v2 D7·D12).
+     * 직무 퍼미션의 버튼 효과 = {@code SecRolePerm.btnPerm ∩ 이 값}. VARCHAR(1000).
+     */
+    @Column(name = "BTN_PERM", length = 1000)
+    private String btnPerm;
+
+    /** 허용 팝업 권한 — 팝업을 여는 action 코드, 쉼표 구분(V20, D8). VARCHAR(1000). */
+    @Column(name = "POPUP_PERM", length = 1000)
+    private String popupPerm;
+
+    /** 허용 데이터 권한 — 쉼표 구분(V20, 이번 회차는 조회·저장 통과만 D21). VARCHAR(1000). */
+    @Column(name = "DATA_PERM", length = 1000)
+    private String dataPerm;
+
+    /**
      * 유효 개시일 (xfdl G-013 / D-015 / 분석 §9.6.1 #13 — As-Is 행추가 default {@code gfn_today()} 8자).
      * As-Is DATE 타입 + 8자 format → To-Be {@link LocalDateTime}.
      */
@@ -152,6 +167,15 @@ public class SecObj extends McmAuditEntity {
 
     public String getParam() { return param; }
     public void setParam(String param) { this.param = param; }
+
+    public String getBtnPerm() { return btnPerm; }
+    public void setBtnPerm(String btnPerm) { this.btnPerm = btnPerm; }
+
+    public String getPopupPerm() { return popupPerm; }
+    public void setPopupPerm(String popupPerm) { this.popupPerm = popupPerm; }
+
+    public String getDataPerm() { return dataPerm; }
+    public void setDataPerm(String dataPerm) { this.dataPerm = dataPerm; }
 
     public LocalDateTime getStartActiveDate() { return startActiveDate; }
     public void setStartActiveDate(LocalDateTime startActiveDate) { this.startActiveDate = startActiveDate; }
