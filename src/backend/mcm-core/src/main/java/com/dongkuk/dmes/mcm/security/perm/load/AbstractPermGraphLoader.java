@@ -36,7 +36,7 @@ import java.util.Set;
  * 메뉴 = 화면 메뉴(TB_MCM_SEC_MENU) + 폴더(TB_MCM_SEC_MENU_FLD). visible = MENU_VIEW_YN≠'N'. IN 목록은 {@value #CHUNK}개씩 나눈다.
  */
 @Transactional(readOnly = true)
-abstract class AbstractPermGraphLoader implements PermGraphLoader, RoleScopedPermGraphLoader {
+abstract class AbstractPermGraphLoader implements PermGraphLoader {
 
     static final int CHUNK = 900;
     static final String S = "MCMAPUSER.";

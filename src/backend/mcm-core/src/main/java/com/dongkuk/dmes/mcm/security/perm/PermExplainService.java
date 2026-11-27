@@ -1,6 +1,5 @@
 package com.dongkuk.dmes.mcm.security.perm;
 
-import com.dongkuk.dmes.mcm.security.perm.load.RoleScopedPermGraphLoader;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import org.springframework.stereotype.Service;
@@ -98,7 +97,7 @@ public class PermExplainService {
 
     private PermGraph roleGraph(String roleId) {
         Set<String> ids = roleId == null ? Set.of() : Set.of(roleId);
-        return loader instanceof RoleScopedPermGraphLoader r ? r.loadForRoles(ids) : loader.loadAll();
+        return loader.loadForRoles(ids);
     }
 
     /**

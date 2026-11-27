@@ -12,8 +12,10 @@ import com.dongkuk.dmes.mcm.security.perm.PermResolver;
 import com.dongkuk.dmes.mcm.security.perm.RolePerm;
 import org.springframework.stereotype.Component;
 
+import java.lang.ref.WeakReference;
 import java.time.Clock;
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -48,23 +50,53 @@ public class DefaultPermResolver implements PermResolver {
         this.clock = clock;
     }
 
+    /**
+     * 같은 그래프(같은 객체)·같은 초면 계산기를 다시 쓴다 — 여러 사람에게 잇달아 부를 때 역할 효과를 한 번만 계산(성능).
+     * 최근 그래프 {@value #SLOTS}개까지, 그래프는 약한 참조로 잡는다(쓰는 쪽이 놓으면 같이 풀린다). 그래프 같음 = 객체 동일성(==).
+     * 기준 시각 = 초 단위로 자른 지금(같은 초 안의 호출은 같은 시각으로 계산한다).
+     */
+    static final int SLOTS = 8;
+    private final Slot[] slots = new Slot[SLOTS];
+    private int nextSlot;
+
+    private record Slot(WeakReference<PermGraph> graph, LocalDateTime second, PermEvaluator evaluator) {
+    }
+
     PermEvaluator evaluator(PermGraph graph) {
-        return new PermEvaluator(graph, LocalDateTime.now(clock));
+        LocalDateTime second = LocalDateTime.now(clock).truncatedTo(ChronoUnit.SECONDS);
+        synchronized (slots) {
+            for (int k = 0; k < SLOTS; k++) {
+                Slot s = slots[k];
+                if (s == null) continue;
+                if (!s.second().equals(second) || s.graph().get() == null) {
+                    slots[k] = null;   // 지난 초·풀린 그래프 = 비운다(계산기와 그 메모도 같이 풀린다)
+                } else if (s.graph().get() == graph) {
+                    return s.evaluator();
+                }
+            }
+            PermEvaluator ev = new PermEvaluator(graph, second);
+            slots[nextSlot] = new Slot(new WeakReference<>(graph), second, ev);
+            nextSlot = (nextSlot + 1) % SLOTS;
+            return ev;
+        }
+    }
+
+    /**
+     * 사람의 유효 역할 집합(그룹·역할이 쓰는 중인 것만, 역할 ID 정렬, 불변). 작업대 영향 계산이 사람을 (전, 후) 역할 집합으로 묶을 때 쓴다
+     * — 규칙을 한 곳(PermEvaluator)에만 둔다.
+     */
+    public List<String> activeRolesOf(PermGraph graph, String userId) {
+        return evaluator(graph).roleCombo(userId);
     }
 
     @Override
     public Map<String, Set<String>> actionsOf(PermGraph graph, String userId) {
-        Map<String, Set<String>> eff = evaluator(graph).effectOfUser(userId);
-        Map<String, Set<String>> out = new LinkedHashMap<>();
-        eff.forEach((obj, actions) -> {
-            if (!actions.isEmpty()) out.put(obj, Collections.unmodifiableSet(actions));
-        });
-        return Collections.unmodifiableMap(out);
+        return evaluator(graph).actionsOfUser(userId);
     }
 
     @Override
     public Set<String> visibleObjects(PermGraph graph, String userId) {
-        return Collections.unmodifiableSet(new LinkedHashSet<>(evaluator(graph).effectOfUser(userId).keySet()));
+        return evaluator(graph).visibleOfUser(userId);
     }
 
     @Override

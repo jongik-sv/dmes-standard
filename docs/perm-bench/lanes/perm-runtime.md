@@ -85,6 +85,17 @@
 - 줄 이유: 폴더 USE_TP=N·화면 USE_TP≠Y·숨김 줄 = MENU_HIDDEN(enum 이 계약이라 따로 두지 않음, 호출 쪽은 useTp·hidden 칸으로 구분)
 - 시험 `PermExplainServiceTest`(9)
 
+## 성능 머지(2026-11-27, 조정자 지시 — r3 와 따로)
+
+- 측정(bench-be): 1,000명·오브젝트 1,004·역할 1건 = 8,048ms → 목표 2초
+- `DefaultPermResolver`: 최근 그래프 8개까지 계산기 재사용(그래프 동일성 ==, 같은 초, 약한 참조). 기준 시각 = 초 단위로 자름
+- `PermEvaluator`: 메모 = 동시 맵. 조합 메모는 두지 않는다(조합이 모두 다르면 메모리만 잡음). actionsOf = 한 역할만 주는 오브젝트는 그 역할의 집합을 그대로 쓴다. visibleObjects = 키만 합친다
+- `DefaultImpactCalculator`: 역할마다 바뀐 오브젝트를 한 번 구하고 (전 조합, 후 조합) 쌍마다 후보 오브젝트만 비교
+- `DefaultPermResolver.activeRolesOf(graph, userId)` 공개 = 쓰는 역할 ID 정렬(bench-be 가 사람 묶기에 씀, 규칙 사본 제거용)
+- actionsOf·visibleObjects 결과 순서는 바뀌었다(Set 계약이라 허용)
+- 임시 `load/RoleScopedPermGraphLoader` 지움(계약 `PermGraphLoader.loadForRoles` default 가 들어옴)
+- 시험 `PermPerfCaseTest`: 최악(모두 다른 역할 조합) 단독 470ms, 모듈 전체와 같이 1,253ms(두 번 재어 짧은 쪽) · 단순 계산과 전체 결과 같음
+
 ## 남은 일
 
 - r1: PermGraphChanges·DefaultImpactCalculator·사례 시험 작성 → 컴파일·시험 → 리뷰 → c1 머지 뒤 스텁 지우고 rebase·맞춤 → 단독 머지 요청

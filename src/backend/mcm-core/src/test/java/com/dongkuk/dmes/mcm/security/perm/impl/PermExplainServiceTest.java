@@ -8,7 +8,6 @@ import com.dongkuk.dmes.mcm.security.perm.PermExplainService;
 import com.dongkuk.dmes.mcm.security.perm.PermExplainService.MenuTreeRow;
 import com.dongkuk.dmes.mcm.security.perm.PermGraph;
 import com.dongkuk.dmes.mcm.security.perm.PermGraphLoader;
-import com.dongkuk.dmes.mcm.security.perm.load.RoleScopedPermGraphLoader;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -33,7 +32,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class PermExplainServiceTest {
 
     /** 어떤 읽기를 불렀는지 남기는 가짜 로더. 범위와 무관하게 같은 그래프를 준다. */
-    static final class FakeLoader implements PermGraphLoader, RoleScopedPermGraphLoader {
+    static final class FakeLoader implements PermGraphLoader {
         final PermGraph graph;
         final List<String> calls = new ArrayList<>();
         FakeLoader(PermGraph graph) { this.graph = graph; }
@@ -165,7 +164,7 @@ class PermExplainServiceTest {
     }
 
     @Test
-    @DisplayName("로더가 역할 범위를 모르면 loadAll 로 읽는다")
+    @DisplayName("로더가 loadForRoles 를 덮어쓰지 않으면 계약 기본(loadAll)으로 읽는다")
     void roleTreeFallback() {
         PermGraph g = base();
         List<String> calls = new ArrayList<>();

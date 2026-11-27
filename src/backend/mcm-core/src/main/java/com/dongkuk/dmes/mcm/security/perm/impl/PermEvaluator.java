@@ -10,7 +10,8 @@ import com.dongkuk.dmes.mcm.security.perm.RolePerm;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.Collections;
-import java.util.HashMap;
+import java.util.ArrayList;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -28,7 +29,8 @@ import java.util.Set;
  *   <li>퍼미션 행이 있으면 효과가 비어도 오브젝트는 「보임」(D14 「행 있음 = 메뉴 보임」)</li>
  * </ul>
  *
- * <p>스레드 안전하지 않다. 호출 하나 안에서만 쓴다.
+ * <p>메모는 동시 맵이라 여러 스레드가 같이 써도 된다(DefaultPermResolver 가 같은 그래프·같은 초에 재사용).
+ * 역할 효과는 역할마다 한 번만 만든다. 사람 효과는 부를 때마다 역할 효과를 합친다(조합 메모는 두지 않는다 — 조합이 모두 다르면 메모리만 잡는다).
  */
 final class PermEvaluator {
 
@@ -37,8 +39,8 @@ final class PermEvaluator {
     private final PermGraph graph;
     private final LocalDateTime now;
     /** roleId → (objectId → 효과 action). 행 있음 = 키 있음(값이 비어도). 쓰지 않는 역할 = 빈 맵. */
-    private final Map<String, Map<String, Set<String>>> roleEffect = new HashMap<>();
-    private Map<String, Set<String>> sysadminEffect;
+    private final Map<String, Map<String, Set<String>>> roleEffect = new ConcurrentHashMap<>();
+    private volatile Map<String, Set<String>> sysadminEffect;
 
     PermEvaluator(PermGraph graph, LocalDateTime now) {
         this.graph = graph;
@@ -121,7 +123,7 @@ final class PermEvaluator {
             intersectInto(eff, perm.popupPerm(), obj.popupPerm());
             out.put(objectId, Collections.unmodifiableSet(eff));
         }
-        return out;
+        return Collections.unmodifiableMap(out);
     }
 
     private Map<String, Set<String>> sysadminEffect() {
@@ -135,18 +137,79 @@ final class PermEvaluator {
                 eff.addAll(obj.popupPerm());
                 out.put(oe.getKey(), Collections.unmodifiableSet(eff));
             }
-            sysadminEffect = out;
+            sysadminEffect = Collections.unmodifiableMap(out);
         }
         return sysadminEffect;
     }
 
-    /** 사람 하나의 효과(오브젝트 → action). 행 있음 = 키 있음(값이 비어도). */
+    /** 사람의 쓰는 역할 조합(정렬·중복 없음) — 효과 메모 키. */
+    List<String> roleCombo(String userId) {
+        List<String> roles = new ArrayList<>(activeRolesOf(userId));
+        Collections.sort(roles);
+        return List.copyOf(roles);
+    }
+
+    /** 사람 하나의 효과(오브젝트 → action, 불변). 행 있음 = 키 있음(값이 비어도). */
     Map<String, Set<String>> effectOfUser(String userId) {
+        return effectOfCombo(roleCombo(userId));
+    }
+
+    /** 사람에게 보이는 오브젝트 — 효과 값을 합치지 않고 키만 모은다. */
+    Set<String> visibleOfUser(String userId) {
+        List<String> combo = roleCombo(userId);
+        if (combo.size() == 1) return Collections.unmodifiableSet(effectOfRole(combo.get(0)).keySet());
+        Set<String> out = new java.util.HashSet<>();
+        for (String roleId : combo) out.addAll(effectOfRole(roleId).keySet());
+        return Collections.unmodifiableSet(out);
+    }
+
+    /** 사람의 허용 action(빈 효과 오브젝트는 뺌) — actionsOf 용. 역할 효과에서 바로 만든다. */
+    Map<String, Set<String>> actionsOfUser(String userId) {
+        List<String> combo = roleCombo(userId);
+        Map<String, Set<String>> out = new java.util.HashMap<>();
+        // 한 역할만 주는 오브젝트 = 그 역할의 (불변) 집합을 그대로 쓴다. 두 번째 역할이 더할 때만 복사한다.
+        Set<String> copied = combo.size() > 1 ? new java.util.HashSet<>() : null;
+        for (String roleId : combo) {
+            for (Map.Entry<String, Set<String>> e : effectOfRole(roleId).entrySet()) {
+                Set<String> v = e.getValue();
+                if (v.isEmpty()) continue;
+                Set<String> cur = out.putIfAbsent(e.getKey(), v);
+                if (cur == null || cur == v || cur.containsAll(v)) continue;
+                if (copied.add(e.getKey())) {
+                    Set<String> mine = new LinkedHashSet<>(cur);
+                    mine.addAll(v);
+                    out.put(e.getKey(), mine);
+                } else {
+                    cur.addAll(v);
+                }
+            }
+        }
+        if (copied != null) for (String k : copied) out.put(k, Collections.unmodifiableSet(out.get(k)));
+        return Collections.unmodifiableMap(out);
+    }
+
+    /** 역할 조합의 효과(불변). 역할 하나면 그 역할 효과를 그대로 준다(복사 없음). */
+    Map<String, Set<String>> effectOfCombo(List<String> combo) {
+        if (combo.isEmpty()) return Map.of();
+        if (combo.size() == 1) return effectOfRole(combo.get(0));
         Map<String, Set<String>> out = new LinkedHashMap<>();
-        for (String roleId : activeRolesOf(userId)) {
+        for (String roleId : combo) {
             for (Map.Entry<String, Set<String>> e : effectOfRole(roleId).entrySet()) {
                 out.computeIfAbsent(e.getKey(), k -> new LinkedHashSet<>()).addAll(e.getValue());
             }
+        }
+        out.replaceAll((k, v) -> Collections.unmodifiableSet(v));
+        return Collections.unmodifiableMap(out);
+    }
+
+    /** 역할 조합의 한 오브젝트 효과. 행이 하나도 없으면 null(안 보임), 있으면 합집합(빈 집합 가능). */
+    Set<String> effectOn(List<String> combo, String objectId) {
+        Set<String> out = null;
+        for (String roleId : combo) {
+            Set<String> eff = effectOfRole(roleId).get(objectId);
+            if (eff == null) continue;
+            if (out == null) out = new LinkedHashSet<>();
+            out.addAll(eff);
         }
         return out;
     }
