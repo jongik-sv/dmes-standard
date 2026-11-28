@@ -420,6 +420,6 @@ STOPPED → (삭제)    rowStatus=D 저장
 |---|---|
 | 호출 | `POST /api/mcm/oasis/commRoleMng/search` (BPMN `services/csa/commRoleMng.bpmn`, `commRoleMngService.searchCmRole`) |
 | params | `edtROLEID`(ID 부분 일치) · `edtROLENM`(이름 부분 일치) · `cboUSETP`(`Y` 사용 중만) — 모두 선택, `{}` 이면 전체 |
-| 응답 | `data.result.ds_main[]` — `ROLE_ID`, `ROLE_NM`, `ROLE_DESC`, `USE_TP`, `MENU_ID`, `START_ACTIVE_DATE`, `END_ACTIVE_DATE`, `ROLE_GROUP_ID`, `ID` |
+| 응답 | `data.result.ds_main[]` — `ROLE_ID`, `ROLE_NM`, `ROLE_DESC`, `USE_TP`, `START_ACTIVE_DATE`, `END_ACTIVE_DATE`, `ROLE_GROUP_ID`, `ID` |
 | 권한 | 권한키 `mcm/commrolemng/search`. 시드상 `SYSADMIN × commRoleMng × PERM_ALL` 이 있어 noticeMgmt 를 쓰는 관리자(SYSADMIN)는 추가 시드 없이 호출할 수 있다. SYSADMIN 이 아닌 역할에게 noticeMgmt 를 열면 그 역할에도 commRoleMng search 를 줘야 한다 |
 

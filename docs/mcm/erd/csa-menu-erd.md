@@ -42,7 +42,6 @@ erDiagram
     TB_MCM_SEC_USER      ||--o{ TB_MCM_SEC_USER_MAPPING : "USER_ID"
     TB_MCM_SEC_USER      ||--|| TB_MCM_SEC_USER_PWD : "USER_ID"
 
-    TB_MCM_SEC_MENU_FLD ||--o{ TB_MCM_SEC_ROLE : "MENU_ID (역할 기본 진입 메뉴)"
 
     TB_MCM_SEC_USER              ||--o{ TB_MCM_SEC_USER_FAVORITE : "USER_ID"
     TB_MCM_SEC_MENU              ||--o{ TB_MCM_SEC_USER_FAVORITE : "MENU_ID"
@@ -119,7 +118,6 @@ erDiagram
     TB_MCM_SEC_ROLE {
         varchar30 ROLE_ID PK "역할 ID (SYSADMIN 등)"
         varchar100 ROLE_NM "역할명"
-        varchar30 MENU_ID FK "기본 진입 메뉴 → SEC_MENU_FLD"
         varchar30 PARENT_ROLE_ID "상위 역할 (본 화면 미사용)"
         varchar300 ROLE_DESC "설명"
         varchar1 USE_TP "사용 여부"

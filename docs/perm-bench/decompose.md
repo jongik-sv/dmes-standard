@@ -43,7 +43,7 @@
 
 | action | 단계 | 입력 params | 응답 grids(칸) |
 |---|---|---|---|
-| `searchBench` | 1 | `userQ`·`roleGroupId`·`roleId` | `users`(USER_ID·USER_NM·DEPT_NM·USE_TP) · `groups`(ROLE_GROUP_ID·ROLE_GROUP_NM·USE_TP·USER_CNT) · `roles`(ROLE_ID·ROLE_NM·MENU_ID·USE_TP·GROUP_CNT·USER_CNT·PERM_CNT) · `userGroups`(USER_ID·ROLE_GROUP_ID) · `groupRoles`(ROLE_GROUP_ID·ROLE_ID) · `me`(ME_SYSADMIN Y/N, 한 줄 — 로그인 사용자 SYSADMIN 여부, 로그인 없음 = N) |
+| `searchBench` | 1 | `userQ`·`roleGroupId`·`roleId` | `users`(USER_ID·USER_NM·DEPT_NM·USE_TP) · `groups`(ROLE_GROUP_ID·ROLE_GROUP_NM·USE_TP·USER_CNT) · `roles`(ROLE_ID·ROLE_NM·USE_TP·GROUP_CNT·USER_CNT·PERM_CNT) · `userGroups`(USER_ID·ROLE_GROUP_ID) · `groupRoles`(ROLE_GROUP_ID·ROLE_ID) · `me`(ME_SYSADMIN Y/N, 한 줄 — 로그인 사용자 SYSADMIN 여부, 로그인 없음 = N) |
 | `searchMenuTree` | 1 | `userId` 또는 `roleId` · `source`(CUR·DRAFT) | `menus`(MENU_ID·PARENT_MENU_ID·MENU_NM·OBJECT_ID·SORT_SEQ·SHOW_TP·USE_TP·VISIBLE·REASON·OBJ_USE_TP) |
 | `explain` | 1 | `userId`·`objectId`·`source` | `buttons`(CODE·KIND·ALLOWED·GRANTED·REASON·ROLES·GROUPS) · `paths`(ROLE_GROUP_ID·ROLE_ID·BTN_PERM·POPUP_PERM) |
 | `searchRolePerm` | 1 | `roleId`·`menuFolderId`·`source` | `perms`(ROLE_ID·OBJECT_ID·OBJECT_NM·MENU_PATH·OBJ_BTN_PERM·OBJ_POPUP_PERM·OBJ_READ_PERM·BTN_PERM·POPUP_PERM·DATA_PERM) |
@@ -76,6 +76,8 @@
 - 이력: 기간 = 양 끝 포함 366일까지(367일 = PERM_BAD_VALUE), 기본 오늘-30일~오늘. `his` APPLY_AT 내림차순 상한 500.
 - 시각 칸(U_AT·APPLY_AT) = `yyyy-MM-dd HH:mm:ss` 문자열.
 - 초안 CHANGES_JSON 원소 키 = camelCase(tp·key1·key2·op·btnPerm·popupPerm). 요청 rows 는 SNAKE.
+
+- 2026-11-28 역할 MENU_ID 폐기(Flyway mcmapuser V27) — `roles` 칸에서 MENU_ID 를 뺐다. 역할 MENU_ID 는 권한 범위를 막지 않고 ROLE_ID 접두·목록 칸에만 쓰였다.
 
 ### 0.4 옛 화면 API 변경(요약, l-항목이 구현)
 

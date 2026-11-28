@@ -10,6 +10,8 @@ moduleGroup: csa
 # mcm — 역할 그룹 관리 BPMN설계서
 
 > **퍼미션 모델 v2 (2026-11-27)**: 메뉴 미리보기의 원천 표가 바뀌었다. 문서 맨 끝 "퍼미션 (퍼미션 모델 v2)" 절이 아래 본문보다 우선한다.
+>
+> **역할 MENU_ID 폐기 (2026-11-28)**: 역할 목록(`searchCmRole`·`searchCmRoleGrpMap`)에서 MENU_ID 칸을 뺐다. 문서 맨 끝 "역할 MENU_ID 폐기" 절을 본다.
 
 > **BackEnd / BPMN 측 확정 값**:
 > - 프로세스 ID: `commRoleGrpMng` (= serviceId, As-Is bpmn process id = `CommRoleGrpMng`)
@@ -215,7 +217,7 @@ POST /oasis/commRoleGrpMng/searchCmRoleGrpMap
     │  class=CommonSelectTask
     │  sqlKey=`#{serviceId}Mapper.selectCommRoleGrpMap`
     │  resultKey=`ds_roleGrpMap`
-    │  (SQL: SELECT B.ROLE_ID + B.ROLE_NM + B.MENU_ID + B.USE_TP + DATES + A.ROLE_GROUP_ID
+    │  (SQL: SELECT B.ROLE_ID + B.ROLE_NM + B.USE_TP + DATES + A.ROLE_GROUP_ID
     │   + **B.PARENT_ROLE_ID (To-Be SELECT 절 추가 — Q-010 해소)**
     │   FROM TB_MCM_SEC_ROLEGROUP_MAPPING A, TB_MCM_SEC_ROLE B
     │   WHERE A.ROLE_ID = B.ROLE_ID AND A.ROLE_GROUP_ID = #{ROLE_GROUP_ID}
@@ -312,7 +314,7 @@ POST /oasis/commRoleGrpMng/searchCmRole
     │  sqlKey=`#{serviceId}Mapper.selectCommRole`
     │  resultKey=`ds_role`
     │  paramKey="" (없음 — sArgs 로 전달)
-    │  (SQL: SELECT A.ROLE_ID + ROLE_NM + MENU_ID + USE_TP + DATES
+    │  (SQL: SELECT A.ROLE_ID + ROLE_NM + USE_TP + DATES
     │   + **A.PARENT_ROLE_ID (To-Be SELECT 절 추가 — Q-010 해소)**
     │   FROM TB_MCM_SEC_ROLE A
     │   WHERE A.USE_TP = 'Y'  ← 하드코딩
@@ -472,7 +474,7 @@ POST /oasis/commRoleGrpMng/searchCmRoleGrpMenu
 
 | Response | 타입 | 비고 |
 |---|---|---|
-| ds_roleGrpMap → ds_roleGrpMap | List<Map> (ROLE_ID / ROLE_NM / MENU_ID / USE_TP / START/END_ACTIVE_DATE / ROLE_GROUP_ID + **PARENT_ROLE_ID** — As-Is 7 → **To-Be 8 컬럼**, Q-010 해소) | §9.2 분석리포트 인용 |
+| ds_roleGrpMap → ds_roleGrpMap | List<Map> (ROLE_ID / ROLE_NM / USE_TP / START/END_ACTIVE_DATE / ROLE_GROUP_ID + **PARENT_ROLE_ID** — As-Is 7 → To-Be 8 → **7 컬럼**(2026-11-28 MENU_ID 폐기), Q-010 해소) | §9.2 분석리포트 인용 |
 
 ### 5.5 saveCmRoleGrpMap (API-005)
 
@@ -492,7 +494,7 @@ POST /oasis/commRoleGrpMng/searchCmRoleGrpMenu
 
 | Response | 타입 | 비고 |
 |---|---|---|
-| ds_role → ds_role | List<Map> (ROLE_ID / ROLE_NM / MENU_ID / USE_TP / START/END_ACTIVE_DATE + **PARENT_ROLE_ID** — As-Is 6 → **To-Be 7 컬럼**, Q-010 해소) | §9.3 분석리포트 인용 |
+| ds_role → ds_role | List<Map> (ROLE_ID / ROLE_NM / USE_TP / START/END_ACTIVE_DATE + **PARENT_ROLE_ID** — As-Is 6 → To-Be 7 → **6 컬럼**(2026-11-28 MENU_ID 폐기), Q-010 해소) | §9.3 분석리포트 인용 |
 
 ### 5.7 searchCmRoleGrpMenu (API-007)
 
@@ -641,3 +643,9 @@ POST /oasis/commRoleGrpMng/searchCmRoleGrpMenu
 
 - 계약(`perm-legacy-be.md` §3 commRoleGrpMng)은 "칸 8개 그대로"다. 구현도 같다.
 - 계약에 없던 점: 옛 쿼리 결함(항상 빈 트리)을 함께 고쳤다.
+
+## 역할 MENU_ID 폐기 (2026-11-28)
+
+- 역할(`TB_MCM_SEC_ROLE`)의 MENU_ID 칸을 지웠다(Flyway mcmapuser `V27__drop_role_menu_id`). 이유는 commRoleMng BPMN설계서의 같은 이름 절에 있다.
+- 이 화면의 역할 목록 두 개에서 MENU_ID 칸이 빠졌다. `ds_roleGrpMap` 은 7칸, `ds_role` 은 6칸이다.
+- 메뉴 미리보기(`searchCmRoleGrpMenu`)의 MENU_ID 는 메뉴 표의 칸이라 그대로다.

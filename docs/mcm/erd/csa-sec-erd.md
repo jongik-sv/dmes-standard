@@ -84,7 +84,6 @@ erDiagram
         varchar(100) ROLE_NM
         varchar(300) ROLE_DESC
         varchar(30)  PARENT_ROLE_ID "미사용"
-        varchar(30)  MENU_ID FK "기본 진입 폴더 (그림 2)"
         varchar(1)   USE_TP
         datetime     START_ACTIVE_DATE
         datetime     END_ACTIVE_DATE
@@ -133,7 +132,6 @@ erDiagram
     direction TB
     TB_MCM_SEC_MENU_FLD  |o--o{ TB_MCM_SEC_MENU_FLD : "PARENT_MENU_ID (모듈→그룹)"
     TB_MCM_SEC_MENU_FLD  ||--o{ TB_MCM_SEC_MENU     : "PARENT_MENU_ID (폴더→화면)"
-    TB_MCM_SEC_MENU_FLD  |o--o{ TB_MCM_SEC_ROLE     : "MENU_ID (기본 진입 메뉴)"
     TB_MCM_SEC_MENU      |o--|| TB_MCM_SEC_OBJ      : "OBJECT_ID (화면 실체)"
 
     TB_MCM_SEC_MENU_FLD {
@@ -166,7 +164,6 @@ erDiagram
     }
     TB_MCM_SEC_ROLE {
         varchar(30)  ROLE_ID PK "그림 1 참조"
-        varchar(30)  MENU_ID FK "기본 진입 폴더"
     }
     TB_MCM_SEC_OBJ {
         varchar(50)  OBJECT_ID PK "그림 1 참조"
@@ -232,7 +229,7 @@ erDiagram
 |---|---|---:|---|
 | `SEC_USER` | 본체 | 1 | 사용자. 비밀번호는 `SEC_USER_PWD` 로 1:1 분리 |
 | `SEC_ROLEGROUP` | 본체 | 1 | 역할 묶음. 사용자에게 부여되는 단위 |
-| `SEC_ROLE` | 본체 | 1 | 역할. `MENU_ID` 로 기본 진입 폴더 지정 |
+| `SEC_ROLE` | 본체 | 1 | 역할. 메뉴 칸 없음(2026-11-28 MENU_ID 폐기) |
 | `SEC_PERM` | 본체 (쓰기 중단, 런타임 legacy 모드 전용 D10) | 1 | 허용 action 목록(search/save/delete…)을 콤마로 보유 |
 | `SEC_OBJ` | 본체 | 21 | 화면 실체. `SYSTEM_CODE` 가 FE moduleId 가 됨 |
 | `SEC_MENU` | 본체 | 21 | 화면(leaf)만. 폴더는 `SEC_MENU_FLD` 가 따로 담음 |
@@ -326,7 +323,6 @@ erDiagram
     }
     TB_MCM_SEC_ROLE {
         varchar(30)  ROLE_ID PK "기존"
-        varchar(30)  MENU_ID FK "기존 · 세트 기본 진입으로 이전 검토"
     }
 ```
 
@@ -338,7 +334,7 @@ erDiagram
 | `SEC_MENU_SET_ROLEGROUP` | 신규 | 세트 접근 허용. 내부 역할그룹은 MES + MOBILE 두 행, 협력사 역할그룹은 자기 세트 한 행 |
 | `SEC_MENU_FLD` | 컬럼 추가 | `MENU_SET_ID NOT NULL`. 기존 8행은 `MES` 로 채움 |
 | `SEC_MENU` | 컬럼 추가 | `MENU_SET_ID NOT NULL`. 기존 21행은 `MES` 로 채움. 세트마다 같은 OBJ 를 걸 수 있으므로 `MENU_ID` 는 세트 접두어(`MOBILE.noticeMgmt`) 관행 도입 |
-| `SEC_ROLE.MENU_ID` | 유지 | 세트별 기본 진입이 필요하면 `MENU_SET.DEFAULT_MENU_ID` 로 옮긴다. 1차에서는 손대지 않음 |
+| `SEC_ROLE.MENU_ID` | 폐기(2026-11-28, V27) | 권한 범위를 막지 않아 지웠다. 세트별 기본 진입이 필요하면 `MENU_SET.DEFAULT_MENU_ID` 로 새로 둔다 |
 | `SEC_USER_FAVORITE` | 유지 | MENU_ID 가 세트에 속하므로 FE 가 현재 세트의 즐겨찾기만 표시 |
 | `SEC_ROLE_MAPPING` · `SEC_PERM` · `SEC_OBJ` | 변경 없음 | 화면 허용 판정은 그대로. API 차단(`EndpointPermissionFilter`)도 그대로 |
 
