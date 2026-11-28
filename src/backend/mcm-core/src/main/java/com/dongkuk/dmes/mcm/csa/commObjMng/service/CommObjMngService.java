@@ -13,6 +13,7 @@ import com.dongkuk.dmes.mcm.common.exception.ErrorCode;
 import com.dongkuk.dmes.mcm.csa.commObjMng.dto.CommObjMngSearchRequest;
 import com.dongkuk.dmes.mcm.csa.commObjMng.query.CommObjMngQuery;
 import com.dongkuk.dmes.mcm.entity.SecObj;
+import com.dongkuk.dmes.mcm.entity.SecObjType;
 import com.dongkuk.dmes.mcm.entity.SecRoleMapping;
 import com.dongkuk.dmes.mcm.entity.SecRolePerm;
 import com.dongkuk.dmes.mcm.repository.CommPermQueryRepository;
@@ -198,6 +199,8 @@ public class CommObjMngService {
         Set<String> eventRoles = new LinkedHashSet<>();
         // 1단계 — 쓰기 전에 모든 insert·update 행의 허용 값을 정규화·검증한다(PERM_TOO_LONG 이면 아무것도 쓰지 않는다)
         List<Map<String, String>> tokensByRow = validatePermTokens(master);
+        // 오브젝트 유형도 쓰기 전에 모두 검증한다(2026-11-28 — WEB·POPUP·SUB·WIDGET 만, 메뉴에 놓인 오브젝트는 팝업·화면 안 기능·위젯으로 못 바꾼다)
+        List<SecObjType> typesByRow = validateObjectTypes(master);
         if (master != null) {
             for (int i = 0; i < master.size(); i++) {
                 Map<String, Object> row = master.get(i);
@@ -239,7 +242,10 @@ public class CommObjMngService {
                     entity.setObjectNm(strOf(row.get("OBJECT_NM")));
                     entity.setProgramDesc(strOf(row.get("PROGRAM_DESC")));
                     entity.setSystemCode(strOf(row.get("SYSTEM_CODE")));
-                    entity.setObjectType(strOf(row.get("OBJECT_TYPE")));
+                    // 칸이 실려 오지 않은 수정은 저장된 유형을 지킨다(새 행은 WEB).
+                    SecObjType objectType = typesByRow.get(i) != null ? typesByRow.get(i)
+                            : SecObjType.parse(entity.getObjectType()).orElse(SecObjType.WEB);
+                    entity.setObjectType(objectType.name());
                     entity.setService(strOf(row.get("SERVICE")));
                     entity.setUseTp(strOf(row.get("USE_TP")));
                     entity.setAccessTp(strOf(row.get("ACCESS_TP")));
@@ -425,6 +431,41 @@ public class CommObjMngService {
                 if (row.containsKey(column)) tokens.put(column, normalizeTokens(row.get(column), column));
             }
             out.add(tokens);
+        }
+        return out;
+    }
+
+    /**
+     * 2026-11-28 — insert·update 행의 오브젝트 유형(OBJECT_TYPE)을 쓰기 전에 검증·정규화한다. 행 순서대로 돌려준다
+     * (그 밖의 행과 OBJECT_TYPE 칸이 없는 행은 null — 저장할 때 기존 값을 지킨다).
+     *
+     * <ul>
+     *   <li>값은 {@link SecObjType} 이름(WEB·POPUP·SUB·WIDGET)이어야 한다. 대소문자·앞뒤 공백은 맞춰 주고, 빈 값은 WEB 이다.
+     *       그 밖의 값은 {@code INVALID_VALUE} 로 거부한다(아무 행도 쓰지 않는다).</li>
+     *   <li>이미 메뉴에 놓인 오브젝트를 팝업·도구 위젯·화면 안 기능으로 바꾸면 거부한다 — 메뉴 관리가 그런 오브젝트를 메뉴에 두지 않는다.
+     *       메뉴를 먼저 빼야 한다.</li>
+     * </ul>
+     */
+    private List<SecObjType> validateObjectTypes(List<Map<String, Object>> master) {
+        List<SecObjType> out = new ArrayList<>();
+        if (master == null) return out;
+        for (Map<String, Object> row : master) {
+            String objectId = row == null ? null : strOf(row.get("OBJECT_ID"));
+            if (row == null || !isUpsert(statusOf(row)) || objectId == null || objectId.isBlank()
+                    || !row.containsKey("OBJECT_TYPE")) {
+                out.add(null);
+                continue;
+            }
+            String raw = strOf(row.get("OBJECT_TYPE"));
+            SecObjType type = SecObjType.parse(raw).orElseThrow(() -> new BusinessException(ErrorCode.INVALID_VALUE,
+                    "OBJECT TYPE 은 WEB(메뉴 화면)·POPUP(팝업)·SUB(화면 안 기능)·WIDGET(도구 위젯) 중 하나여야 합니다 (OBJECT_ID=" + objectId
+                            + ", 값=" + raw + ")."));
+            if (!type.isMenuPlaceable() && secObjRepository.countMenuByObjectId(objectId) > 0) {
+                throw new BusinessException(ErrorCode.INVALID_VALUE,
+                        "메뉴에 놓인 오브젝트는 " + type.label() + "(" + type.name() + ")으로 바꿀 수 없습니다 (OBJECT_ID=" + objectId
+                                + "). " + SecObjType.NOT_PLACEABLE_MESSAGE + ". 메뉴 관리에서 메뉴를 먼저 빼세요.");
+            }
+            out.add(type);
         }
         return out;
     }

@@ -94,6 +94,23 @@ export function applyDraft(prev: ObjRow[], draft: ObjRow): ObjRow[] {
 }
 
 /**
+ * 오브젝트 유형 (2026-11-28) — BE `SecObjType`(WEB·POPUP·SUB·WIDGET)과 같다. 값을 바꾸면 BE 도 함께 고친다.
+ * 팝업·화면 안 기능·도구 위젯은 메뉴 관리의 「놓이지 않은 오브젝트」에 안 나오고 메뉴에 넣을 수 없다.
+ */
+export const OBJECT_TYPE_OPTIONS: { value: string; label: string }[] = [
+  { value: "WEB", label: "메뉴 화면" },
+  { value: "POPUP", label: "팝업" },
+  { value: "SUB", label: "화면 안 기능" },
+  { value: "WIDGET", label: "도구 위젯" },
+];
+
+/** 저장된 유형을 선택 값으로 — 빈 값은 WEB(BE 와 같다), 대소문자는 맞춘다. 목록에 없는 값은 그대로 둔다. */
+export function objectTypeValue(raw: unknown): string {
+  const v = String(raw ?? "").trim().toUpperCase();
+  return v === "" ? "WEB" : v;
+}
+
+/**
  * 행추가 default (V-301 / xfdl:414~429 + To-Be END_ACTIVE_DATE 정정 9999-12-31).
  * 2026-06-05 — SYSTEM_CODE default 는 systemOptions[0]?.value ?? "mcm" (시드 fallback).
  */
@@ -104,7 +121,7 @@ export function emptyRow(defaultSystemCode: string = "mcm"): CommObjMngRow {
     OBJECT_NM: "",
     PROGRAM_DESC: "",
     SYSTEM_CODE: defaultSystemCode, // 2026-06-05 콤보 첫 값 (시드 'mcm')
-    OBJECT_TYPE: "web", // ST-004
+    OBJECT_TYPE: "WEB", // ST-004 — 2026-11-28 코드(WEB·POPUP·SUB·WIDGET)로 바뀜, 기본은 메뉴 화면
     SERVICE: "",
     USE_TP: "Y", // ST-001
     ACCESS_TP: "",

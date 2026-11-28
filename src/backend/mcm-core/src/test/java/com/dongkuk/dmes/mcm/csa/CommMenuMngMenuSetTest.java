@@ -155,4 +155,56 @@ class CommMenuMngMenuSetTest {
         verify(nativeRepo, times(2)).backfillObjectFormUrl();
         assertThat(events).hasSize(1);
     }
+
+    @Test
+    @DisplayName("팝업·도구 위젯·화면 안 기능 OBJECT 를 메뉴에 넣는 저장(새 행·OBJECT 를 바꾼 행)은 거부하고 아무 행도 쓰지 않는다")
+    void rejectsPopupWidgetAndSubObjects() {
+        when(menuRepo.findById(anyString())).thenReturn(Optional.empty());
+        when(nativeRepo.findObjectType("termRegPop")).thenReturn("POPUP");
+        when(nativeRepo.findObjectType("ruleCalc")).thenReturn("WIDGET");
+        when(nativeRepo.findObjectType("codeEdit")).thenReturn("SUB");
+        when(nativeRepo.findObjectType("commUserMng")).thenReturn("WEB");
+
+        assertThatThrownBy(() -> service.saveCmMenu(List.of(insertRow(null, "termRegPop", "WEB"))))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("팝업·도구 위젯·화면 안 기능은 메뉴에 넣을 수 없습니다")
+                .hasMessageContaining("(OBJECT_ID=termRegPop)");
+        assertThatThrownBy(() -> service.saveCmMenu(List.of(insertRow("M1", "ruleCalc", "WEB"))))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("팝업·도구 위젯·화면 안 기능은 메뉴에 넣을 수 없습니다");
+        assertThatThrownBy(() -> service.saveCmMenu(List.of(insertRow("M3", "codeEdit", "WEB"))))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("팝업·도구 위젯·화면 안 기능은 메뉴에 넣을 수 없습니다")
+                .hasMessageContaining("(OBJECT_ID=codeEdit)");
+
+        SecMenu existing = new SecMenu();
+        existing.setMenuId("M2");
+        existing.setObjectId("commUserMng");
+        when(menuRepo.findById("M2")).thenReturn(Optional.of(existing));
+        Map<String, Object> change = insertRow("M2", "termRegPop", "WEB");
+        change.put("rowStatus", "updated");
+        assertThatThrownBy(() -> service.saveCmMenu(List.of(change)))
+                .as("OBJECT 를 팝업으로 바꾸는 수정").isInstanceOf(BusinessException.class);
+
+        verify(menuRepo, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("메뉴 화면(WEB·빈 값) OBJECT 는 넣을 수 있고, 이미 팝업을 가리키던 옛 행은 OBJECT 를 그대로 두면 고칠 수 있다")
+    void allowsWebObjectsAndUntouchedLegacyRows() {
+        when(menuRepo.findById(anyString())).thenReturn(Optional.empty());
+        when(nativeRepo.findObjectType("commUserMng")).thenReturn("WEB");
+        when(nativeRepo.findObjectType("termRegPop")).thenReturn("POPUP");
+
+        SecMenu legacy = new SecMenu();
+        legacy.setMenuId("OLD");
+        legacy.setObjectId("termRegPop");
+        when(menuRepo.findById("OLD")).thenReturn(Optional.of(legacy));
+        Map<String, Object> keep = insertRow("OLD", "termRegPop", "WEB");
+        keep.put("rowStatus", "updated");
+
+        service.saveCmMenu(List.of(insertRow(null, "commUserMng", "WEB"), insertRow(null, "noTypeObj", "WEB"), keep));
+
+        assertThat(savedMenuIds(3)).containsExactly("commUserMng", "noTypeObj", "OLD");
+    }
 }

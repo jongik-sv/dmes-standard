@@ -299,6 +299,15 @@ class DataInitializerSeedFingerprintTest {
         assertThat(jdbc.queryForObject(
                 "SELECT PARENT_MENU_ID || '|' || MENU_NM FROM MCMAPUSER.TB_MCM_SEC_MENU WHERE MENU_ID = 'commPermBench'", String.class))
                 .as("메뉴 공통관리 › 시스템관리 › 권한 작업대(D25)").isEqualTo("csa|권한 작업대");
+
+        // 2026-11-28 — 오브젝트 유형: 모달 팝업은 POPUP, 다른 화면 안 기능의 서비스 키는 SUB, 조업 계산기 위젯은 WIDGET, 나머지는 WEB(옛 소문자 'web' 없음).
+        Map<String, String> types = new TreeMap<>();
+        jdbc.query("SELECT OBJECT_ID, OBJECT_TYPE FROM MCMAPUSER.TB_MCM_SEC_OBJ WHERE OBJECT_TYPE <> 'WEB' OR OBJECT_TYPE IS NULL",
+                rs -> { types.put(rs.getString(1), rs.getString(2)); });
+        assertThat(types).as("WEB 이 아닌 오브젝트 유형").containsExactlyInAnyOrderEntriesOf(Map.of(
+                "codeCateEdit", "SUB", "codeEdit", "SUB", "dataCateEdit", "SUB", "dataCsvUploadPop", "POPUP",
+                "dataEdit", "SUB", "dataHistory", "SUB", "termRegPop", "POPUP", "metaFeed", "SUB",
+                "ruleCalc", "WIDGET"));
     }
 
     /** csv 토큰 중 그 오브젝트 카탈로그 허용 값 안 토큰(순서 유지) — 시더 SeedSupport.ensureRolePerm 과 같은 규칙. */

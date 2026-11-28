@@ -408,6 +408,16 @@ As-Is 코드 (xfdl + java) 내에 명시적 권한 체크 호출 없음 (`gfn_au
 | §9 | 분석 §5 | P-001 1 행 일치 |
 | §10 | 분석 §4.4 + callback | M-001~M-011 모두 cite |
 
+
+## 팝업·도구 위젯·화면 안 기능 제외 (2026-11-28)
+
+- 오브젝트 유형(`TB_MCM_SEC_OBJ.OBJECT_TYPE`)이 `POPUP`(팝업)·`WIDGET`(도구 위젯)·`SUB`(화면 안 기능)인 오브젝트는 메뉴에 넣지 않는다. 자기 화면 경로가 없어 메뉴에 넣으면 열리지 않는다. 유형의 뜻은 [commObjMng 기능설계서 「오브젝트 유형」](../commObjMng/commObjMng_기능설계서.md#오브젝트-유형-2026-11-28)이 정본이다.
+- `searchUnplacedObj`(놓이지 않은 오브젝트)는 `POPUP`·`WIDGET`·`SUB` 를 뺀다. `WEB` 과 빈 값은 남는다.
+- `commonList`(OBJECT 고르기 LoV, `selectMenuObjPop`)도 같은 조건으로 뺀다.
+- `saveCmMenu` 는 새 행이거나 OBJECT_ID 를 바꾼 행의 오브젝트가 `POPUP`·`WIDGET`·`SUB` 이면 `BUSINESS_ERROR` 로 저장 전체를 거부한다. 메시지는 「팝업·도구 위젯·화면 안 기능은 메뉴에 넣을 수 없습니다 (OBJECT_ID=…)」이다.
+  - 이미 그런 오브젝트를 가리키던 옛 메뉴 행은 OBJECT_ID 를 그대로 두면 다른 칸을 고칠 수 있다. 지우기도 막지 않는다.
+- 권한(직무 퍼미션·권한 작업대)은 바뀌지 않는다. 팝업·위젯·화면 안 기능도 예전처럼 권한 키를 받는다.
+
 ---
 
 ## §6.14 Phase 2 종료 4질문 자체 검증

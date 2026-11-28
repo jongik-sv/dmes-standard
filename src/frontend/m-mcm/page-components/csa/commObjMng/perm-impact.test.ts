@@ -1,6 +1,17 @@
 import { describe, expect, it } from "vitest";
 import { countByToken, impactLines, removalImpacts, removalMessage } from "./perm-impact";
-import { applyDraft, emptyRow, fillBlank, restoreRow, stripInternal, toListRow, withField, type ObjRow } from "./row-model";
+import {
+  OBJECT_TYPE_OPTIONS,
+  applyDraft,
+  emptyRow,
+  fillBlank,
+  objectTypeValue,
+  restoreRow,
+  stripInternal,
+  toListRow,
+  withField,
+  type ObjRow,
+} from "./row-model";
 import type { ObjPermRow } from "./types";
 
 const perms: ObjPermRow[] = [
@@ -84,6 +95,20 @@ describe("row-model", () => {
     const row = fillBlank({ USE_TP: "", OBJECT_NM: "n", ACCESS_TP: "" }, emptyRow("mcm"));
     expect(row.USE_TP).toBe("Y");
     expect(row.OBJECT_NM).toBe("n");
-    expect(row.OBJECT_TYPE).toBe("web");
+    expect(row.OBJECT_TYPE).toBe("WEB");
+  });
+
+  it("오브젝트 유형은 WEB·POPUP·SUB·WIDGET 네 코드에 한글 이름을 붙이고, 옛 소문자·빈 값은 선택 값으로 맞춘다", () => {
+    expect(OBJECT_TYPE_OPTIONS).toEqual([
+      { value: "WEB", label: "메뉴 화면" },
+      { value: "POPUP", label: "팝업" },
+      { value: "SUB", label: "화면 안 기능" },
+      { value: "WIDGET", label: "도구 위젯" },
+    ]);
+    expect(objectTypeValue("web")).toBe("WEB");
+    expect(objectTypeValue(" popup ")).toBe("POPUP");
+    expect(objectTypeValue("sub")).toBe("SUB");
+    expect(objectTypeValue("")).toBe("WEB");
+    expect(objectTypeValue(undefined)).toBe("WEB");
   });
 });

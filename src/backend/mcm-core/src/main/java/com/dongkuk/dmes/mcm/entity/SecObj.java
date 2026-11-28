@@ -62,7 +62,7 @@ public class SecObj extends McmAuditEntity {
     @Column(name = "SYSTEM_CODE", length = 10)
     private String systemCode;
 
-    /** OBJECT 타입 (xfdl G-007 / D-008 / 분석 §9.6.1 #6 — As-Is 행추가 default "web"). VARCHAR(10). */
+    /** OBJECT 유형 코드 — {@link SecObjType} 이름(WEB·POPUP·SUB·WIDGET, 2026-11-28 V28). As-Is 는 자유 입력 "web". VARCHAR(10). */
     @Column(name = "OBJECT_TYPE", length = 10)
     private String objectType;
 

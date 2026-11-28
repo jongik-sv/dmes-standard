@@ -14,6 +14,7 @@ import com.dongkuk.dmes.mcm.common.event.MenuChangedEvent;
 import com.dongkuk.dmes.mcm.common.exception.BusinessException;
 import com.dongkuk.dmes.mcm.common.exception.ErrorCode;
 import com.dongkuk.dmes.mcm.entity.SecMenu;
+import com.dongkuk.dmes.mcm.entity.SecObjType;
 import com.dongkuk.dmes.mcm.repository.SecMenuNativeRepository;
 import com.dongkuk.dmes.mcm.repository.SecMenuRepository;
 import org.slf4j.Logger;
@@ -186,6 +187,9 @@ public class CommMenuMngService {
      * 저장 전과 후에 {@link SecMenuNativeRepository#backfillObjectFormUrl()} 를 부른다. 전: 폴더를 옮기는 저장이라도 옮기기 전
      * 폴더로 FORM_URL 이 비어 있는 OBJECT 의 경로를 먼저 고정한다(옮긴 뒤 화면이 안 열리는 일 방지). 후: 새로 놓인 OBJECT 의 경로를 고정한다.
      *
+     * <p><b>팝업·도구 위젯·화면 안 기능 거부 (2026-11-28)</b> — 새 행이거나 OBJECT_ID 를 바꾼 행의 OBJECT 유형이 POPUP·WIDGET·SUB 이면
+     * {@link BusinessException}({@code BUSINESS_ERROR}, 「{@value SecObjType#NOT_PLACEABLE_MESSAGE}」)으로 저장 전체를 거부한다.
+     *
      * <p>반환: {@code cnt_merge} (성공 행 수) + {@code ds_menuList} (재조회 결과 — As-Is fn_callBack
      * saveCmMenu 의 fn_search 재호출 정합 / cma 정본 패턴).
      */
@@ -235,6 +239,15 @@ public class CommMenuMngService {
                     // 신규 등록인데 MENU_ID 가 이미 존재 → 다른 화면 무단 덮어쓰기 방지 (MENU_ID 단독 PK = 화면당 유일).
                     if (!isNew && ("inserted".equals(status) || "C".equals(status))) {
                         throw new IllegalStateException("MENU_ID='" + menuId + "' 는 이미 존재합니다 (중복 등록 불가).");
+                    }
+                    // 2026-11-28 — 팝업·도구 위젯·화면 안 기능 OBJECT 는 메뉴에 넣지 않는다. 새 행이거나 OBJECT 를 바꾼 행만 본다
+                    //   (이미 그런 OBJECT 를 가리키던 옛 행은 다른 칸을 고칠 수 있게 두고, 지우기도 막지 않는다).
+                    String rowObjectId = strOf(row.get("OBJECT_ID"));
+                    if (rowObjectId != null && !rowObjectId.isBlank()
+                            && (isNew || !rowObjectId.trim().equals(entity.getObjectId()))
+                            && SecObjType.isNotPlaceable(secMenuNativeRepository.findObjectType(rowObjectId.trim()))) {
+                        throw new BusinessException(ErrorCode.BUSINESS_ERROR,
+                                SecObjType.NOT_PLACEABLE_MESSAGE + " (OBJECT_ID=" + rowObjectId.trim() + ")");
                     }
                     entity.setMenuId(menuId);
                     // MENU_SEQ — 2026-06-05 사용자 지시: 저장 시 '0' LPAD 8자리 (예: "12" → "00000012").

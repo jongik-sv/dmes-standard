@@ -323,6 +323,34 @@ class MenuTreeSqlOraTest {
                 .containsExactly("OBJ_W");
     }
 
+    /** 2026-11-28 — 팝업·화면 안 기능·도구 위젯은 놓이지 않은 목록과 OBJECT 고르기 목록에서 빠진다. NULL·WEB 은 남는다. 유형 한 건 읽기. */
+    @Test
+    @DisplayName("searchUnplacedObj·searchMenuObjPop — OBJECT_TYPE POPUP·SUB·WIDGET 은 빼고 WEB·NULL 은 남긴다, findObjectType")
+    void unplacedAndLovExcludePopupSubAndWidget() {
+        obj("OBJ_WEB", "web", "Y");
+        obj("OBJ_NULL", "null-type", "Y");
+        obj("OBJ_POP", "popup", "Y");
+        obj("OBJ_WID", "widget", "Y");
+        obj("OBJ_SUB", "sub", "Y");
+        jdbc.update("UPDATE MCMAPUSER.TB_MCM_SEC_OBJ SET OBJECT_TYPE = 'WEB' WHERE OBJECT_ID = 'OBJ_WEB'");
+        jdbc.update("UPDATE MCMAPUSER.TB_MCM_SEC_OBJ SET OBJECT_TYPE = NULL WHERE OBJECT_ID = 'OBJ_NULL'");
+        jdbc.update("UPDATE MCMAPUSER.TB_MCM_SEC_OBJ SET OBJECT_TYPE = 'POPUP' WHERE OBJECT_ID = 'OBJ_POP'");
+        jdbc.update("UPDATE MCMAPUSER.TB_MCM_SEC_OBJ SET OBJECT_TYPE = 'WIDGET' WHERE OBJECT_ID = 'OBJ_WID'");
+        jdbc.update("UPDATE MCMAPUSER.TB_MCM_SEC_OBJ SET OBJECT_TYPE = 'SUB' WHERE OBJECT_ID = 'OBJ_SUB'");
+
+        assertThat(menuRepo.searchUnplacedObj("WEB", null)).extracting(r -> s(r, "OBJECT_ID"))
+                .containsExactly("OBJ_NULL", "OBJ_WEB");
+        assertThat(menuRepo.searchUnplacedObj("MOBIL", "obj_")).extracting(r -> s(r, "OBJECT_ID"))
+                .containsExactly("OBJ_NULL", "OBJ_WEB");
+        assertThat(menuRepo.searchMenuObjPop(null)).extracting(r -> s(r, "OBJECT_ID"))
+                .containsExactly("OBJ_NULL", "OBJ_WEB");
+
+        assertThat(menuRepo.findObjectType("OBJ_POP")).isEqualTo("POPUP");
+        assertThat(menuRepo.findObjectType("OBJ_SUB")).isEqualTo("SUB");
+        assertThat(menuRepo.findObjectType("OBJ_NULL")).isNull();
+        assertThat(menuRepo.findObjectType("NO_SUCH")).isNull();
+    }
+
     @Autowired TransactionTemplate tx;
 
     private void objForm(String id, String formUrl, String accessTp) {

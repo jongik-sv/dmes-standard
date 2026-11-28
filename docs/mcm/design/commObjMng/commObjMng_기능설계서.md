@@ -101,7 +101,7 @@ moduleGroup: csa
 | G-004 | PROGRAM_DESC | 프로그램 설명 | 프로그램 설명 | Left | varchar | Y (text) | - |
 | G-005 | SYSTEM_CODE | SYSTEM | 시스템 코드 (As-Is 기본 "MES") | Center | varchar | Y (text) | - |
 | ~~G-006~~ | ~~BIZ_SYSTEM_CODE~~ (To-Be 정책 #1 폐기) | ~~BIZ\\r\\nSYSTEM~~ | ~~BIZ 시스템 (App Host)~~ | Center | varchar | Y (text) | Y (저장 필수) — **To-Be 폐기** (그리드 컬럼 + fn_save 필수 검증 제거 — 4 → 3) |
-| G-007 | OBJECT_TYPE | OBJECT\\r\\nTYPE | OBJECT 타입 (As-Is 기본 "web") | Center | varchar | Y (text) | - |
+| G-007 | OBJECT_TYPE | OBJECT\\r\\nTYPE | OBJECT 유형 (As-Is 기본 "web" → To-Be 코드 WEB·POPUP·SUB·WIDGET, [오브젝트 유형](#오브젝트-유형-2026-11-28)) | Center | varchar | Y (text) | - |
 | G-008 | SERVICE | SERVICE | 서비스명 | Left | varchar | Y (text) | - |
 | G-009 | USE_TP | 사용\\r\\n여부 | 사용 여부 (Y/N) | Center | combo (LV-003) | Y (combo) | Y (저장 필수) |
 | G-010 | FORM_URL | FORM URL | 폼 URL (As-Is 내부 neXacro 인 경우 `{OBJECT_ID}.xfdl` 자동 세트) | Left | varchar | Y (text) | - |
@@ -139,7 +139,7 @@ moduleGroup: csa
 | D-005 | ID | ID | TextBox | Y (Essential) | (수동 입력) | ID 입력 → OBJECT_ID 자동 조합 (D-005 핸들러 xfdl:560) |
 | D-006 | OBJECT_NM | OBJECT명 | TextBox | - | (수동 입력) | OBJECT 명 |
 | D-007 | PROGRAM_DESC | 프로그램 설명 | TextBox | - | (수동 입력) | 프로그램 설명 |
-| D-008 | OBJECT_TYPE | OBJECT TYPE | TextBox | - | 행추가 "web" | OBJECT 타입 |
+| D-008 | OBJECT_TYPE | OBJECT TYPE | Select (WEB 메뉴 화면 · POPUP 팝업 · SUB 화면 안 기능 · WIDGET 도구 위젯 — 2026-11-28, As-Is TextBox) | - | 행추가 "WEB" (As-Is "web") | OBJECT 유형 |
 | D-009 | SERVICE | SERVICE | TextBox | - | (수동 입력) | 서비스명 |
 | D-010 | ACCESS_TP | 접속 경로 | Combo (LV-003 정적 3 enum — As-Is LV-004 → 정책 #1 재정렬 LV-003) | Y (Essential) | (DB / 신규 비어있음) | 접속 경로 선택 → FORM_URL / OUT_ACCESS_IP enable 분기 (D-010 핸들러 xfdl:521) |
 | D-011 | FORM_URL | FORM URL | TextBox | - | (ACCESS_TP=1 자동 `{OBJECT_ID}.xfdl`) | FORM URL |
@@ -271,7 +271,7 @@ moduleGroup: csa
 | ST-001 | `USE_TP = "Y"` / `"N"` | 사용여부 (Y/N) | G-009 (combo) / D-013 (Radio) / S-003 (cbo_USE_TP) / 저장 V-002 |
 | ST-002 | `ACCESS_TP = "1"` / `"2"` / `"3"` | 접속 경로 enum (1=내부 / 2=외부 neXacro / 3=외부 url) | G-015 / D-010 / 저장 V-002 / D-010 onitemchanged V-401~403 |
 | ST-003 | `SYSTEM_CODE = "MES"` (행추가 default) | 시스템 코드 (As-Is 항상 "MES" — 2회 중복 set) | DS-001 / V-301 |
-| ST-004 | `OBJECT_TYPE = "web"` (행추가 default) | OBJECT 타입 (As-Is 항상 "web") | DS-001 / V-301 |
+| ST-004 | `OBJECT_TYPE = "WEB"` (행추가 default, As-Is "web") | OBJECT 유형 (As-Is 항상 "web" → To-Be 코드 WEB·POPUP·SUB·WIDGET) | DS-001 / V-301 |
 | ST-005 | `END_ACTIVE_DATE = "99991231"` (행추가 default) | 종료 일자 (As-Is 9999-12-31 만료 무한) | DS-001 / V-301 |
 | ST-006 | `ds_main.getRowType(currow) == '1'` (삭제 row) | 그리드 row 상태 (Nexacro RowType: 1=삭제 / 2=신규 / 4=수정 / 8=수정후삭제) | V-601 / V-602 |
 | ST-007 | `STATUS` (Nexacro auto row state — To-Be FE 동일 구현) | 상태 아이콘 | G-001 표시 전용 |
@@ -455,3 +455,24 @@ As-Is 코드 (xfdl + Mapper.xml) 내에 명시적 권한 체크 호출 없음 (`
   - 수정에서 `BTN_PERM`·`POPUP_PERM`·`USE_TP`·`SYSTEM_CODE`·`START_ACTIVE_DATE`·`END_ACTIVE_DATE` 중 하나가 바뀌었다.
 - SYSADMIN 은 퍼미션 행 없이 사용 오브젝트 전부로 계산한다 (D13). 그래서 오브젝트가 바뀌면 SYSADMIN 의 계산도 바뀐다.
 - 오브젝트를 저장하거나 지우면 `MenuChangedEvent(OBJECT)` 를 발행한다. 메뉴 카탈로그를 비운다.
+
+## 오브젝트 유형 (2026-11-28)
+
+- `OBJECT_TYPE` 은 자유 입력에서 코드로 바뀌었다. 값은 대문자 코드 네 개다. 공통 코드가 아니라 상수다(BE `mcm-core entity.SecObjType`, FE `row-model.ts OBJECT_TYPE_OPTIONS`). 접속 경로·메뉴 셋과 같은 관례다.
+
+| 코드 | 화면 이름 | 뜻 | 메뉴에 넣기 |
+|---|---|---|---|
+| `WEB` | 메뉴 화면 | 포털이 메뉴로 여는 화면 | 된다 |
+| `POPUP` | 팝업 | 다른 화면 안에서 여는 창(모달). 예: `termRegPop`·`dataCsvUploadPop` | 안 된다 |
+| `SUB` | 화면 안 기능 | 다른 화면의 탭·상세·단추가 부르는 서비스 권한 키(그 화면에 합쳐진 옛 화면 포함). 예: `codeEdit`·`dataHistory`·`metaFeed` | 안 된다 |
+| `WIDGET` | 도구 위젯 | 포털 홈·위젯 틀에서 쓰는 부품 | 안 된다 |
+
+- 상세의 OBJECT TYPE 칸은 고르기(Select)다. 새 행의 기본값은 `WEB` 이다.
+- 저장(action `save`)은 쓰기 전에 모든 행의 유형을 검증한다.
+  - 대소문자·앞뒤 공백은 맞춰 준다(`web` → `WEB`). 빈 값은 `WEB` 이다.
+  - 네 코드가 아니면 `INVALID_VALUE` 로 거부한다. 아무 행도 쓰지 않는다.
+  - 메뉴에 놓인 오브젝트를 `POPUP`·`WIDGET`·`SUB` 로 바꾸면 거부한다. 메뉴 관리에서 메뉴를 먼저 뺀다.
+  - 행에 `OBJECT_TYPE` 칸이 없는 수정은 저장된 값을 지킨다.
+- 권한(직무 퍼미션·권한 작업대)은 유형과 상관없다.
+- 기존 값은 Flyway `V28__obj_type_code` 가 바꿨다. 옛 `web` 은 `WEB` 으로, 메뉴에 놓이지 않은 10개는 `POPUP` 2개·`SUB` 6개·`WIDGET` 2개로 바꿨다. 새 DB 는 시드가 맞는 유형으로 넣는다.
+- 조회 조건의 OBJECT TYPE 은 그대로 부분 일치 입력이다. 코드를 넣어 찾는다.

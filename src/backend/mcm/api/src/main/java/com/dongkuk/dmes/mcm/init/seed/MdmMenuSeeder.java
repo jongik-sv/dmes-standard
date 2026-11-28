@@ -1,5 +1,7 @@
 package com.dongkuk.dmes.mcm.init.seed;
 
+import com.dongkuk.dmes.mcm.entity.SecObjType;
+
 /**
  * mcm 이 mdm(마루 MDM) 모듈용으로 넣는 메뉴·OBJECT·역할·권한 시드 (2026-10-04 DataInitializer 분할).
  *
@@ -29,9 +31,9 @@ public final class MdmMenuSeeder extends SeedSupport {
     public void seedMdmCacheMenus() {
         insertMcmSecObjIfAbsent("mdmCacheMng", "MDM 캐시 관리", "mcm");
         insertMcmSecMenuIfAbsent("mdmCacheMng", "001", "MDM 캐시 관리", "csa", "mdmCacheMng");
-        insertMcmSecObjIfAbsent("metaFeed", "MDM 메타 제공", "mdm");
+        insertMcmSecObjIfAbsent("metaFeed", "MDM 메타 제공", "mdm", SecObjType.SUB);
         // 조업 계산기 위젯(2026-10-06) — BFF 권한키 mdm/rulecalc/{view,execute} 용 OBJECT. 인증만(AUTH_ONLY)이라 메뉴·그룹 RBAC 은 없다.
-        insertMcmSecObjIfAbsent("ruleCalc", "조업 계산기", "mdm");
+        insertMcmSecObjIfAbsent("ruleCalc", "조업 계산기", "mdm", SecObjType.WIDGET);
         for (String objId : new String[]{"mdmCacheMng", "metaFeed"}) {
             insertIfAbsentComposite(
                     "TB_MCM_SEC_ROLE_MAPPING",
@@ -116,7 +118,7 @@ public final class MdmMenuSeeder extends SeedSupport {
         // ── TSK-04-04 — 컬럼 사전(columnMng) + 용어 인라인 등록 팝업(termRegPop). 팝업은 메뉴 leaf 없이 OBJECT·권한만
         //    둔다(screens/README §3·§5 — 버튼·API 권한은 역할 매핑에서 오고 메뉴를 보지 않는다, design.md F14·F15).
         insertMcmSecObjIfAbsent("columnMng", "컬럼 사전", "mdm");
-        insertMcmSecObjIfAbsent("termRegPop", "용어 인라인 등록", "mdm");
+        insertMcmSecObjIfAbsent("termRegPop", "용어 인라인 등록", "mdm", SecObjType.POPUP);
         insertMcmSecMenuIfAbsent("columnMng", "004", "컬럼 사전", "dma", "columnMng");
         for (String objectId : new String[]{"columnMng", "termRegPop"}) {
             insertIfAbsentComposite(
@@ -137,7 +139,7 @@ public final class MdmMenuSeeder extends SeedSupport {
         //    D-101(2026-09-28): codeEdit 는 codeMng 화면에 합쳐 메뉴 leaf 가 없다. 합친 화면이 codeEdit 서비스를
         //    그대로 부르므로 OBJECT·권한은 남긴다(메뉴 없는 OBJECT 도 권한 키를 받는다 — dataCsvUploadPop 과 같다).
         insertMcmSecObjIfAbsent("codeMng", "마루 코드", "mdm");
-        insertMcmSecObjIfAbsent("codeEdit", "마루 코드 수정", "mdm");
+        insertMcmSecObjIfAbsent("codeEdit", "마루 코드 수정", "mdm", SecObjType.SUB);
         insertMcmSecMenuIfAbsent("codeMng", "001", "마루 코드", "dmc", "codeMng");
         removeMergedMdmCodeMenus();
         for (String objectId : new String[]{"codeMng", "codeEdit"}) {
@@ -187,8 +189,8 @@ public final class MdmMenuSeeder extends SeedSupport {
      */
     private void seedMdmDataMngMenus() {
         insertMcmSecObjIfAbsent("dataMng", "마루 데이터", "mdm");
-        insertMcmSecObjIfAbsent("dataEdit", "마루 데이터 수정", "mdm");
-        insertMcmSecObjIfAbsent("dataCateEdit", "카테고리 편집", "mdm");
+        insertMcmSecObjIfAbsent("dataEdit", "마루 데이터 수정", "mdm", SecObjType.SUB);
+        insertMcmSecObjIfAbsent("dataCateEdit", "카테고리 편집", "mdm", SecObjType.SUB);
         insertMcmSecMenuIfAbsent("dataMng", "001", "마루 데이터", "dmd", "dataMng");
         removeMergedMdmDataMenus();
         for (String objectId : new String[]{"dataMng", "dataEdit", "dataCateEdit"}) {
@@ -215,7 +217,7 @@ public final class MdmMenuSeeder extends SeedSupport {
      */
     private void seedMdmDataItemMenus() {
         insertMcmSecObjIfAbsent("dataItemMng", "항목 관리", "mdm");
-        insertMcmSecObjIfAbsent("dataHistory", "항목 이력", "mdm");
+        insertMcmSecObjIfAbsent("dataHistory", "항목 이력", "mdm", SecObjType.SUB);
         insertMcmSecMenuIfAbsent("dataItemMng", "004", "항목 편집", "dmd", "dataItemMng");
         int renamed = nq("UPDATE MCMAPUSER.TB_MCM_SEC_MENU SET MENU_NM = :nn WHERE MENU_ID = 'dataItemMng' AND MENU_NM = :on")
                 .setParameter("nn", "항목 편집").setParameter("on", "항목 관리").executeUpdate();
@@ -259,7 +261,7 @@ public final class MdmMenuSeeder extends SeedSupport {
      * 메뉴 leaf 는 만들지 않는다(D2, TSK-04-04 {@code termRegPop} 선례와 같은 모양 — OBJECT·역할 매핑만 둔다).
      */
     private void seedMdmDataCsvUploadPopObject() {
-        insertMcmSecObjIfAbsent("dataCsvUploadPop", "CSV 업로드", "mdm");
+        insertMcmSecObjIfAbsent("dataCsvUploadPop", "CSV 업로드", "mdm", SecObjType.POPUP);
         insertIfAbsentComposite(
                 "TB_MCM_SEC_ROLE_MAPPING",
                 new String[]{"ROLE_ID",  "OBJECT_ID",         "PERMISSION_ID"},
@@ -522,7 +524,7 @@ public final class MdmMenuSeeder extends SeedSupport {
      * 서비스를 그대로 부르므로 OBJECT·권한만 둔다. 이미 있는 메뉴 행은 {@link #removeMergedMdmCodeMenus()} 가 지운다.
      */
     private void seedMdmCodeCateEditObject() {
-        insertMcmSecObjIfAbsent("codeCateEdit", "카테고리 편집", "mdm");
+        insertMcmSecObjIfAbsent("codeCateEdit", "카테고리 편집", "mdm", SecObjType.SUB);
         insertIfAbsentComposite(
                 "TB_MCM_SEC_ROLE_MAPPING",
                 new String[]{"ROLE_ID",  "OBJECT_ID",    "PERMISSION_ID"},

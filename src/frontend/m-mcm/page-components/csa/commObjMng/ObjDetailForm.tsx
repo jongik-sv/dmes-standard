@@ -17,7 +17,7 @@ import { useMessage } from "@dk-oasis/shared/message-provider";
 import { TokenChipInput, joinTokens, parseTokens } from "@dk-oasis/shared/token-chip-input";
 import { countByToken, removalImpacts, removalMessage, type PermKind } from "./perm-impact";
 import { PAGE_REGISTRY_KEYS, resolveRegistryPath } from "@/lib/generated/page-registry";
-import { getRowKey, toCount, withField, type ObjRow } from "./row-model";
+import { OBJECT_TYPE_OPTIONS, getRowKey, objectTypeValue, toCount, withField, type ObjRow } from "./row-model";
 import type { ObjPermRow } from "./types";
 
 /**
@@ -206,7 +206,13 @@ export const ObjDetailForm = memo(function ObjDetailForm({ ref, row, onCommit, s
           <tr>
             <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="OBJECT_TYPE" label="OBJECT TYPE" /></th>
             <td style={DETAIL_VALUE_CELL}>
-              <Input aria-label="OBJECT TYPE" value={String(draft.OBJECT_TYPE ?? "")} maxLength={90} onChange={(v: string) => update("OBJECT_TYPE", v)} />
+              {/* 2026-11-28 — 자유 입력 → 코드 고르기. 팝업·화면 안 기능·도구 위젯은 메뉴 관리에서 메뉴에 넣지 못한다. */}
+              <Select
+                aria-label="OBJECT TYPE"
+                value={objectTypeValue(draft.OBJECT_TYPE)}
+                options={OBJECT_TYPE_OPTIONS}
+                onChange={(v: string) => update("OBJECT_TYPE", v)}
+              />
             </td>
           </tr>
           <tr>

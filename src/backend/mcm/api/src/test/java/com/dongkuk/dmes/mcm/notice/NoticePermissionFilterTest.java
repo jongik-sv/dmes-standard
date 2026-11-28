@@ -146,7 +146,7 @@ class NoticePermissionFilterTest {
     void resetFixture() {
         jdbc.update("DELETE FROM TB_MCM_SEC_OBJ WHERE OBJECT_ID = 'noticeBoard'");
         jdbc.update("INSERT INTO TB_MCM_SEC_OBJ (OBJECT_ID, OBJECT_NM, SYSTEM_CODE, OBJECT_TYPE, USE_TP, ACCESS_TP) "
-                + "VALUES ('noticeBoard', '공지 목록', 'mcm', 'web', 'Y', '내부')");
+                + "VALUES ('noticeBoard', '공지 목록', 'mcm', 'WIDGET', 'Y', '내부')");
         jdbc.update("UPDATE TB_MCM_SEC_OBJ SET SYSTEM_CODE = 'mcm' WHERE OBJECT_ID = 'noticeMgmt'");
         jdbc.update("DELETE FROM TB_MCM_SEC_PERM WHERE PERMISSION_ID = 'PERM_NOTICE_SEARCH'");
         jdbc.update("DELETE FROM TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = 'NOTICE_OP'");

@@ -6,6 +6,7 @@
  */
 package com.dongkuk.dmes.mcm.repository;
 
+import com.dongkuk.dmes.mcm.entity.SecObjType;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import org.hibernate.query.NativeQuery;
@@ -48,6 +49,14 @@ public class SecMenuNativeRepository {
 
     /** 메뉴 셋(MENU_TP) 이 NULL 인 행이 속하는 셋 — 2026-11-26 사용자 결정(NULL = WEB, 시드도 NULL → 'WEB'). */
     public static final String DEFAULT_MENU_TP = "WEB";
+
+    /**
+     * 메뉴에 넣을 수 있는 OBJECT 조건 (2026-11-28) — 팝업·화면 안 기능·도구 위젯({@link SecObjType#POPUP}·{@link SecObjType#SUB}·
+     * {@link SecObjType#WIDGET})을 뺀다.
+     * 칸에 함수를 씌우지 않는다(Oracle SQL 작성 규칙 sargable). NULL 은 메뉴 화면으로 본다.
+     */
+    static final String MENU_PLACEABLE_OBJ = "(O.OBJECT_TYPE IS NULL OR O.OBJECT_TYPE NOT IN ('"
+            + SecObjType.POPUP.name() + "', '" + SecObjType.SUB.name() + "', '" + SecObjType.WIDGET.name() + "')) ";
 
     @PersistenceContext(unitName = "default")
     private EntityManager entityManager;
@@ -276,6 +285,8 @@ public class SecMenuNativeRepository {
      *       그룹 폴더 ID — 상관 서브쿼리 끝의 {@code FETCH FIRST 1 ROWS ONLY} 로 임의 1행 가져온다.</li>
      *   <li>OBJECT 가 어떤 메뉴에도 매핑 안 됐으면 LEFT JOIN 결과 NULL — FE 는 빈 문자열로 처리.</li>
      * </ul>
+     *
+     * <p>2026-11-28 — 메뉴에 넣을 OBJECT 를 고르는 목록이라 팝업·화면 안 기능·도구 위젯은 뺀다({@link #MENU_PLACEABLE_OBJ}).
      */
     @SuppressWarnings("unchecked")
     public List<Map<String, Object>> searchMenuObjPop(String edtObjectId) {
@@ -285,7 +296,8 @@ public class SecMenuNativeRepository {
                 .append("SELECT O.OBJECT_ID, O.OBJECT_NM, O.SERVICE, O.FORM_URL, O.PARAM, ")
                 .append("       ").append(parentSub).append(" AS PARENT_MENU_ID ")
                 .append("  FROM MCMAPUSER.TB_MCM_SEC_OBJ O ")
-                .append(" WHERE O.USE_TP = 'Y' ");
+                .append(" WHERE O.USE_TP = 'Y' ")
+                .append("   AND ").append(MENU_PLACEABLE_OBJ);
         if (notBlank(edtObjectId)) {
             sql.append("   AND (UPPER(O.OBJECT_ID) LIKE UPPER('%' || :edtObjectId || '%') OR UPPER(O.OBJECT_NM) LIKE UPPER('%' || :edtObjectId || '%')) ");
         }
@@ -313,6 +325,7 @@ public class SecMenuNativeRepository {
      * 2026-11-26 — 메뉴 셋 {@code menuTp} 에 아직 놓이지 않은 사용 OBJECT 목록 (commMenuMng {@code searchUnplacedObj}).
      *
      * <p>조건: {@code USE_TP = 'Y'} 이고, 그 OBJECT_ID 로 {@code NVL(MENU_TP,'WEB') = :menuTp} 인 SEC_MENU 행이 없다.
+     * 팝업·화면 안 기능·도구 위젯(OBJECT_TYPE POPUP·SUB·WIDGET)은 메뉴에 넣지 않으므로 뺀다(2026-11-28, {@link #MENU_PLACEABLE_OBJ}).
      * {@code edtObjectId} 가 있으면 OBJECT_ID 또는 OBJECT_NM UPPER LIKE. ORDER BY OBJECT_ID.
      * 결과 타입은 {@code addScalar} 로 문자열에 고정한다({@link #searchMenuFldList()} 주석과 같은 이유).
      *
@@ -327,6 +340,7 @@ public class SecMenuNativeRepository {
                 .append("SELECT O.OBJECT_ID, O.OBJECT_NM, O.SYSTEM_CODE, O.OBJECT_TYPE, O.FORM_URL ")
                 .append("  FROM MCMAPUSER.TB_MCM_SEC_OBJ O ")
                 .append(" WHERE O.USE_TP = 'Y' ")
+                .append("   AND ").append(MENU_PLACEABLE_OBJ)
                 .append("   AND NOT EXISTS (SELECT 1 FROM MCMAPUSER.TB_MCM_SEC_MENU M ")
                 .append("                    WHERE M.OBJECT_ID = O.OBJECT_ID ")
                 .append("                      AND NVL(M.MENU_TP, '" + DEFAULT_MENU_TP + "') = :menuTp) ");
@@ -356,6 +370,22 @@ public class SecMenuNativeRepository {
             out.add(map);
         }
         return out;
+    }
+
+    /**
+     * 2026-11-28 — OBJECT 의 유형(OBJECT_TYPE) 한 건. commMenuMng {@code saveCmMenu} 가 팝업·화면 안 기능·도구 위젯을 메뉴에 넣는 저장을 막을 때 쓴다.
+     *
+     * @return 저장된 값 그대로(빈 값·없는 OBJECT 는 null)
+     */
+    @SuppressWarnings("unchecked")
+    public String findObjectType(String objectId) {
+        NativeQuery<String> q = entityManager.createNativeQuery(
+                "SELECT O.OBJECT_TYPE FROM MCMAPUSER.TB_MCM_SEC_OBJ O WHERE O.OBJECT_ID = :objectId")
+                .unwrap(NativeQuery.class);
+        q.addScalar("OBJECT_TYPE", StandardBasicTypes.STRING);
+        q.setParameter("objectId", objectId);
+        List<String> rows = q.getResultList();
+        return rows.isEmpty() ? null : rows.get(0);
     }
 
     /**

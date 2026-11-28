@@ -1,5 +1,6 @@
 package com.dongkuk.dmes.mcm.init.seed;
 
+import com.dongkuk.dmes.mcm.entity.SecObjType;
 import jakarta.persistence.EntityManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -268,13 +269,22 @@ public class SeedSupport {
         log.info("[DataInitializer] SEED INSERT: {} composite PK={}", table, String.join("/", pkVals));
     }
 
-    /** TB_MCM_SEC_OBJ 멱등 INSERT — SecObj entity 컬럼 정합 + audit 9 컬럼 명시 (McmAuditEntity 정합). */
+    /** TB_MCM_SEC_OBJ 멱등 INSERT — 메뉴 화면({@link SecObjType#WEB}). SecObj entity 컬럼 정합 + audit 9 컬럼 명시 (McmAuditEntity 정합). */
     protected void insertMcmSecObjIfAbsent(String objectId, String objectNm, String systemCode) {
+        insertMcmSecObjIfAbsent(objectId, objectNm, systemCode, SecObjType.WEB);
+    }
+
+    /**
+     * TB_MCM_SEC_OBJ 멱등 INSERT — 오브젝트 유형을 정해 넣는다(2026-11-28). 다른 화면 안에서 여는 창은 {@link SecObjType#POPUP},
+     * 다른 화면의 탭·상세·단추가 부르는 서비스 권한 키는 {@link SecObjType#SUB}, 포털 위젯은 {@link SecObjType#WIDGET} 이다 — 메뉴 관리가 「놓이지 않은 오브젝트」에서 빼고 메뉴에 넣지 못하게 한다.
+     * 이미 있는 행은 건드리지 않는다(기존 DB 의 유형은 Flyway {@code V28__obj_type_code} 가 맞춘다).
+     */
+    protected void insertMcmSecObjIfAbsent(String objectId, String objectNm, String systemCode, SecObjType objectType) {
         insertIfAbsent("TB_MCM_SEC_OBJ", "OBJECT_ID", objectId,
                 "INSERT INTO MCMAPUSER.TB_MCM_SEC_OBJ " +
                 "(OBJECT_ID, OBJECT_NM, SYSTEM_CODE, OBJECT_TYPE, USE_TP, ACCESS_TP, START_ACTIVE_DATE, END_ACTIVE_DATE" + AUDIT_COLS + ") " +
                 "VALUES ('" + escapeSql(objectId) + "', N'" + escapeSql(objectNm) + "', " +
-                "'" + escapeSql(systemCode) + "', 'web', 'Y', N'내부', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59'" + AUDIT_VALS + ")");
+                "'" + escapeSql(systemCode) + "', '" + objectType.name() + "', 'Y', N'내부', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59'" + AUDIT_VALS + ")");
     }
 
     /**

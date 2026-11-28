@@ -384,6 +384,78 @@ class CommObjMngServiceTest extends CommSecMngJpaTestBase {
         return out;
     }
 
+    // ── 2026-11-28 오브젝트 유형(WEB·POPUP·SUB·WIDGET) ──────────────────────────────
+
+    @Test
+    void saveCmObj_objectTypeNormalizedToCode_blankIsWeb() {
+        Map<String, Object> popup = new java.util.HashMap<>(objRow("inserted", "csa::pop", "Y", null, null, null));
+        popup.put("OBJECT_TYPE", " popup ");
+        Map<String, Object> blank = new java.util.HashMap<>(objRow("inserted", "csa::blank", "Y", null, null, null));
+        blank.put("OBJECT_TYPE", "");
+        Map<String, Object> legacy = new java.util.HashMap<>(objRow("inserted", "csa::legacy", "Y", null, null, null));
+        legacy.put("OBJECT_TYPE", "web");
+        Map<String, Object> sub = new java.util.HashMap<>(objRow("inserted", "csa::sub", "Y", null, null, null));
+        sub.put("OBJECT_TYPE", "sub");
+
+        inTx(() -> service.saveCmObj(List.of(popup, blank, legacy, sub)));
+
+        assertThat(secObjRepository.findById("csa::pop").orElseThrow().getObjectType()).isEqualTo("POPUP");
+        assertThat(secObjRepository.findById("csa::blank").orElseThrow().getObjectType()).isEqualTo("WEB");
+        assertThat(secObjRepository.findById("csa::legacy").orElseThrow().getObjectType()).isEqualTo("WEB");
+        assertThat(secObjRepository.findById("csa::sub").orElseThrow().getObjectType()).isEqualTo("SUB");
+    }
+
+    @Test
+    void saveCmObj_unknownObjectTypeRejected_writesNothing() {
+        Map<String, Object> bad = new java.util.HashMap<>(objRow("inserted", "csa::bad", "Y", null, null, null));
+        bad.put("OBJECT_TYPE", "FORM");
+
+        assertThatThrownBy(() -> service.saveCmObj(List.of(
+                objRow("inserted", "csa::first", "Y", null, null, null), bad)))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("WEB(메뉴 화면)·POPUP(팝업)·SUB(화면 안 기능)·WIDGET(도구 위젯)")
+                .hasMessageContaining("csa::bad");
+
+        assertThat(secObjRepository.existsById("csa::first")).isFalse();
+        assertThat(secObjRepository.existsById("csa::bad")).isFalse();
+    }
+
+    @Test
+    void saveCmObj_placedObjectCannotBecomePopupWidgetOrSub() {
+        fx.obj("csa::a", "Y");
+        fx.folder("mcm", null, "1");
+        fx.folder("F1", "mcm", "1");
+        fx.menu("M1", "F1", "csa::a");
+        Map<String, Object> row = new java.util.HashMap<>(objRow("updated", "csa::a", "Y", null, null, null));
+        row.put("OBJECT_TYPE", "WIDGET");
+
+        assertThatThrownBy(() -> inTx(() -> service.saveCmObj(List.of(row))))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining(com.dongkuk.dmes.mcm.entity.SecObjType.NOT_PLACEABLE_MESSAGE)
+                .hasMessageContaining("csa::a");
+
+        Map<String, Object> toSub = new java.util.HashMap<>(objRow("updated", "csa::a", "Y", null, null, null));
+        toSub.put("OBJECT_TYPE", "SUB");
+        assertThatThrownBy(() -> inTx(() -> service.saveCmObj(List.of(toSub))))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("화면 안 기능(SUB)")
+                .hasMessageContaining("csa::a");
+    }
+
+    @Test
+    void saveCmObj_updateWithoutObjectTypeKeepsStoredType() {
+        fx.obj("csa::p", "Y");
+        inTx(() -> {
+            SecObj o = secObjRepository.findById("csa::p").orElseThrow();
+            o.setObjectType("POPUP");
+            return secObjRepository.save(o);
+        });
+
+        inTx(() -> service.saveCmObj(List.of(objRow("updated", "csa::p", "Y", null, null, null))));
+
+        assertThat(secObjRepository.findById("csa::p").orElseThrow().getObjectType()).isEqualTo("POPUP");
+    }
+
     private static Map<String, Object> objRow(String status, String objectId, String useTp,
                                               String btn, String popup, String data) {
         return row("rowStatus", status, "OBJECT_ID", objectId, "OBJECT_NM", "오브젝트 " + objectId,
