@@ -178,20 +178,24 @@
   min-width: 0;
 }
 
-/* ★룩업 입력(2026-07-31, shared 동기) — grid 셀에서 wrapper(100%)가 셀 폭으로 늘어나
-   내부 절대배치 팝업 버튼이 입력칸 밖(셀 우측)으로 밀리던 회귀 복원:
-   조회영역에서는 wrapper 도 입력과 같은 고정폭으로 맞춰 버튼이 입력칸 안쪽에 붙게 한다. */
-.page-layout .search-field .cm-lookup-text-field {
+/* ★조회 칸 폭(2026-11-28) — 폭은 바깥 틀 하나가 정하고, 안쪽 입력은 틀을 채운다.
+   틀 = 입력을 감싼 가장 바깥 상자다: Mantine 입력 뿌리(.mantine-InputWrapper-root — TextInput·DateInput·
+   ComboBox(Select)·MultiSelect·NumberInput 등), 룩업(.cm-lookup-text-field), 최근 입력값(.search-history-field).
+   틀의 기본 폭은 --search-input-width 이고, 화면이 틀에 style·className 으로 폭을 주면(flex:1, width) 안쪽이 따라간다.
+   input 에 고정 폭을 따로 주면 틀과 input 폭이 어긋나 틀 오른쪽에 빈 상자가 남는다(commPermMng 「역할」 콤보, 2026-11-28).
+   NativeSelect(<select>)는 틀 규칙에서 빼고 아래 min-width 규칙을 따른다(항목 글자 길이대로 큰다).
+   룩업 팝업 버튼이 입력칸 안쪽에 붙는 것(2026-07-31)도 이 틀 폭으로 지킨다. */
+.page-layout .search-field :where(.mantine-InputWrapper-root:not(.mantine-NativeSelect-root), .cm-lookup-text-field, .search-history-field) {
   width: var(--search-input-width);
 }
-.page-layout .search-field .cm-lookup-text-field .form-input {
+
+/* 틀 안쪽(안쪽 틀·Mantine 감싸개·입력 상자)은 틀을 채운다. 같은 명시도라 위 규칙보다 뒤에 둔다. */
+.page-layout .search-field :where(.mantine-InputWrapper-root, .cm-lookup-text-field, .search-history-field) :where(.mantine-InputWrapper-root, .mantine-Input-wrapper, .mantine-Input-input) {
   width: 100%;
 }
 
-/* 텍스트/날짜/콤보 입력 박스 외형(높이·테두리·배경 등)은 Mantine TextInput/NativeSelect 가 담당한다.
-   ERP 밀도 오버라이드(고정 폭)만 여기 남긴다 — shared/src/layout/page-layout.css 와 동기.
-   구 커스텀 ComboBox 의 `.form-combobox-input` 예외도 그 DOM 이 사라져 함께 걷어냈다. */
-.page-layout .search-field input {
+/* 틀이 없는 맨 input 만 input 자신이 틀이다. 틀 안 input 은 고르지 않는다(위 규칙이 맡는다). */
+.page-layout .search-field input:not([type="checkbox"]):not([type="radio"]):not(:where(.mantine-InputWrapper-root, .cm-lookup-text-field, .search-history-field) input) {
   width: var(--search-input-width);
 }
 
@@ -223,11 +227,6 @@
 .page-layout .search-field .search-history-field {
   position: relative;
   display: inline-flex;
-  width: var(--search-input-width);
-}
-
-.page-layout .search-field .search-history-field input {
-  width: 100%;
 }
 
 .search-history-dropdown {

@@ -286,33 +286,20 @@
    ComboBox
    ============================================================ */
 
+/* ComboBox 뿌리(.form-combobox = Mantine Select 뿌리)는 폭만 정하는 틀이다(2026-11-28).
+   상자 모양(테두리·높이·배경·초점·오류)은 안쪽 Mantine input 한 벌만 그린다. 옛 커스텀 콤보의 상자 규칙을
+   뿌리에 남겨 두면 안쪽 input 상자와 두 겹이 되고, input 이 틀보다 좁을 때 오른쪽에 빈 상자가 보였다.
+   안쪽 감싸개·input 은 틀을 채운다 — 화면이 style·className 으로 틀을 넓히면 안쪽이 따라간다. */
 .form-combobox {
   position: relative;
-  display: flex;
-  align-items: center;
+  display: block;
   width: 100%;
-  height: var(--form-height);
-  border: 1px solid var(--color-border-strong);
-  border-radius: var(--form-border-radius);
-  background-color: var(--color-bg);
   box-sizing: border-box;
-  transition:
-    border-color var(--transition-fast),
-    box-shadow var(--transition-fast);
 }
 
-.form-combobox:focus-within {
-  border-color: var(--color-focus);
-  box-shadow: var(--shadow-focus);
-}
-
-.form-combobox.form-error {
-  border-color: var(--color-error);
-}
-
-.form-combobox.form-error:focus-within {
-  border-color: var(--color-error);
-  box-shadow: var(--shadow-error-focus);
+.form-combobox > .mantine-Input-wrapper,
+.form-combobox .mantine-Input-input {
+  width: 100%;
 }
 
 .form-combobox-input {
@@ -445,15 +432,9 @@
   box-shadow: var(--shadow-error-focus);
 }
 
-/* page-layout 내 ComboBox (border 제거, form-value와 통합) */
+/* page-layout 내 ComboBox (form-value 칸 높이를 채운다. 테두리는 form-value 칸이 그린다) */
 .page-layout .form-value .form-combobox {
-  border: none;
-  border-radius: 0;
   height: 100%;
-}
-
-.page-layout .form-value .form-combobox:focus-within {
-  box-shadow: none;
 }
 
 .page-layout .form-value .form-combobox-input:focus {

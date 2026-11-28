@@ -81,6 +81,7 @@ import { ComboBox } from "@dk-oasis/shared/form";
 - `size`·`radius`·색 prop 을 주지 않는다(받지도 않는다).
 - 안내 문구는 `"(선택)"` 처럼 짧게 쓴다.
 - 선택 행이 없으면 `disabled`.
+- 폭은 뿌리(`.form-combobox`) 틀이 정하고, 안쪽 input 은 틀을 채운다. 조회 칸 기본 폭은 다른 조회 입력과 같은 `--search-input-width` 다. 넓히려면 `style`(`flex: 1`·`width`)로 틀을 넓힌다. 상자 모양(테두리·초점·오류)은 안쪽 input 한 벌만 그린다.
 
 ## 흔한 실수
 

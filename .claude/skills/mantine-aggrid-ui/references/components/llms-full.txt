@@ -494,6 +494,7 @@ SearchFieldProps
 - 사용자 기본값을 처리하는 코드는 화면에 두지 않는다. 선언(`defaultKey`·`autoSearch`·`dependsOn` 등)으로만 끝낸다.
 - 조건을 비우는 칸은 `dependsOn` 으로 선언한다. 기준 칸이 바뀐다고 화면이 직접 비우지 않는다.
 - 필수·선택 표시는 조회조건에 붙이지 않는다(상세 폼에만 " *").
+- 조회 칸 폭은 입력을 감싼 바깥 틀(Mantine 입력 뿌리·`ComboBox`·룩업·최근 입력값 wrapper) 하나가 정한다. 기본은 `--search-input-width`(150px)이고, 안쪽 input 은 틀을 채운다. 넓히려면 틀에 `style`(`flex: 1`·`width`)을 준다. 안쪽 input 에 폭을 주지 않는다(틀 오른쪽에 빈 상자가 남는다).
 
 ## 흔한 실수
 
@@ -1264,6 +1265,7 @@ import { ComboBox } from "@dk-oasis/shared/form";
 - `size`·`radius`·색 prop 을 주지 않는다(받지도 않는다).
 - 안내 문구는 `"(선택)"` 처럼 짧게 쓴다.
 - 선택 행이 없으면 `disabled`.
+- 폭은 뿌리(`.form-combobox`) 틀이 정하고, 안쪽 input 은 틀을 채운다. 조회 칸 기본 폭은 다른 조회 입력과 같은 `--search-input-width` 다. 넓히려면 `style`(`flex: 1`·`width`)로 틀을 넓힌다. 상자 모양(테두리·초점·오류)은 안쪽 input 한 벌만 그린다.
 
 ## 흔한 실수
 
