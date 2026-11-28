@@ -11,6 +11,7 @@ import {
   authFile,
   gridRow,
   gridRows,
+  loginFirstTime,
   loginUI,
   modal,
   openMenu,
@@ -146,7 +147,8 @@ test("SETUP-01~04 시험 사용자 등록·역할 부여·비밀번호 초기화
     await test.step(`${u.id} 로그인 → ${role}.json`, async () => {
       const ctx = await browser.newContext({ viewport: VIEWPORT });
       const p = await ctx.newPage();
-      await loginUI(p, u.id, INIT_PWD);
+      // 초기화한 계정은 임시 비밀번호 상태 — 첫 로그인에서 비밀번호를 바꿔야 들어간다
+      await loginFirstTime(p, u.id);
       await expect(p.locator(".sidebar-container .tree-item .item-name").filter({ hasText: /^마루 MDM$/ })).toBeVisible({
         timeout: T.SLOW,
       });

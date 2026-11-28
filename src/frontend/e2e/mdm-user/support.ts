@@ -29,7 +29,14 @@ export const VIEWPORT = { width: 1600, height: 1000 };
 
 export const ADMIN = { id: LOGIN_USER, pwd: PASSWORD };
 /** commUserMng 가 새 계정에 주는 초기 비밀번호(CommUserMngService.DEFAULT_PASSWORD). */
-export const INIT_PWD = "dmesInit!1";
+/** 임시 비밀번호 — 서버 설정 mcm.password.initial 의 기본값(2026-11-28 D9). 이 값으로는 비밀번호 변경만 된다. */
+export const INIT_PWD = "dmes0000";
+
+/**
+ * 첫 로그인에서 바꿀 새 비밀번호. 실행마다 다르게 만든다 — 서버가 최근 5개 재사용을 막아(D14) 같은 값을 다시 쓰면 거절한다.
+ * 8자 이상 · 영문과 숫자(D11).
+ */
+export const FIRST_LOGIN_PWD = `E2e${Date.now().toString(36)}9`;
 
 export type Role = "admin" | "std" | "stw" | "stw2";
 
@@ -74,6 +81,24 @@ export const E2E_ID_PREFIX = "E2E_";
 /** 로그인 화면에서 로그인하고 포털로 넘어가길(T.LONG) 기다린다 — e2e/support/common 의 login 에 이 파일의 BASE_URL 을 넘긴다. */
 export async function loginUI(page: Page, id: string, pwd: string) {
   await login(page, id, { baseUrl: BASE_URL, password: pwd });
+}
+
+/**
+ * 임시 비밀번호로 첫 로그인 — 서버가 토큰 없이 「비밀번호 변경 필요」로 답하면 로그인 화면이 닫을 수 없는 변경 창을 연다.
+ * 새 비밀번호로 바꾸면 화면이 그 비밀번호로 바로 로그인해 포털로 간다(2026-11-28 시안 「최초 비밀번호와 첫 로그인 변경」).
+ */
+export async function loginFirstTime(page: Page, id: string, newPwd: string = FIRST_LOGIN_PWD) {
+  await page.goto(`${BASE_URL}/login`);
+  await page.getByPlaceholder("아이디").fill(id);
+  await page.getByPlaceholder("비밀번호").fill(INIT_PWD);
+  await page.getByRole("button", { name: "로그인" }).click();
+  const dlg = page.getByRole("dialog").filter({ hasText: "비밀번호 변경" });
+  await expect(dlg).toBeVisible({ timeout: T.LONG });
+  await expect(dlg).toContainText("임시 비밀번호로 로그인했습니다");
+  await dlg.getByPlaceholder("새 비밀번호를 입력하세요").fill(newPwd);
+  await dlg.getByPlaceholder("새 비밀번호를 다시 입력하세요").fill(newPwd);
+  await dlg.getByRole("button", { name: "변경" }).click();
+  await expect(page).toHaveURL(/\/portal/, { timeout: T.LONG });
 }
 
 /**
