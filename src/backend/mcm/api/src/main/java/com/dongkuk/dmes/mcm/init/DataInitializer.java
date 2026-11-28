@@ -217,6 +217,9 @@ public class DataInitializer implements ApplicationRunner {
         //   처음 채운다. 모든 OBJECT 시드 뒤에 둔다(칸이 비었을 때만 쓴다 — 관리자 수정 보존). SYSADMIN 은 이 값으로 계산한다(D13).
         new CoreRbacSeeder(support, passwordEncoder, environment).fillObjPermFromCatalog();
 
+        // 2026-11-28 m19 — 공통관리자(COMM_ADMIN)·로그 분석자(LOG_ANALYST) 역할·그룹·퍼미션. 오브젝트 행 뒤(ROLE_PERM FK)에 둔다.
+        new CoreRbacSeeder(support, passwordEncoder, environment).seedCommonAdminRoles();
+
         // 2026-06-11: 모듈 루트 폴더 표시 순서 고정 — 공정계획(mpn) 위 / 공통관리(mcm) 아래.
         //   b1eac364 가 시드 리터럴 MENU_SEQ 를 swap 했으나 seedMcmSecMenuFld/seedMpnMenus 는 insertIfAbsent 라
         //   이미 시드된 DB(개발계·다른 개발자 로컬 DB)엔 옛 값(mcm=00000001, mpn=00000002)이 남아 순서가 안 바뀐다.

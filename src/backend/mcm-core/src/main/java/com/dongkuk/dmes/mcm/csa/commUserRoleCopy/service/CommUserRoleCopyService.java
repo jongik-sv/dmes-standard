@@ -98,11 +98,14 @@ public class CommUserRoleCopyService {
 
     private final SecRoleGroupMappingRepository secRoleGroupMappingRepository;
     private final ApplicationEventPublisher eventPublisher;
+    private final com.dongkuk.dmes.mcm.csa.commPerm.SysadminGuard sysadminGuard;
 
     public CommUserRoleCopyService(SecUserMappingRepository secUserMappingRepository,
                                    SecUserRollHisRepository secUserRollHisRepository,
                                    SecRoleGroupMappingRepository secRoleGroupMappingRepository,
-                                   ApplicationEventPublisher eventPublisher) {
+                                   ApplicationEventPublisher eventPublisher,
+                                   com.dongkuk.dmes.mcm.csa.commPerm.SysadminGuard sysadminGuard) {
+        this.sysadminGuard = sysadminGuard;
         this.secUserMappingRepository = secUserMappingRepository;
         this.secUserRollHisRepository = secUserRollHisRepository;
         this.secRoleGroupMappingRepository = secRoleGroupMappingRepository;
@@ -304,6 +307,19 @@ public class CommUserRoleCopyService {
                 pUserIdCopy, master.size());
 
         Set<String> touchedRoleGroupIds = new LinkedHashSet<>(); // 캐시 무효화 대상
+
+        // m19 — 복사로 붙을 그룹에 시스템관리자 권한·SYSADMIN 전용 화면 권한이 들어 있으면 SYSADMIN 만(쓰기 전에 거절)
+        if (sysadminGuard.currentUserId() != null) {
+            Set<String> toGive = new LinkedHashSet<>();
+            for (Map<String, Object> row : master) {
+                String uid = row == null ? null : strOf(row.get("USER_ID"));
+                if (uid == null || uid.isBlank() || uid.equals(pUserIdCopy)) continue;
+                toGive.addAll(secUserMappingRepository.findRoleGroupIdsToCopy(uid, pUserIdCopy));
+            }
+            if (!sysadminGuard.sensitiveGroups(toGive).isEmpty()) {
+                sysadminGuard.requireSysadmin();
+            }
+        }
 
         // 외곽 루프 — 권한 생성 대상자 (ds_userTo 행 N건)
         for (Map<String, Object> row : master) {

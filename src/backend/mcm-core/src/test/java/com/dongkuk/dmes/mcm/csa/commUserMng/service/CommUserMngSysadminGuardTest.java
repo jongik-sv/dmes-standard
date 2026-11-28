@@ -141,6 +141,10 @@ class CommUserMngSysadminGuardTest extends CommUserMngJpaTestBase {
         fx.user("me", null, START);
         fx.mapping("adm", "G_SYS");
         CommUserMngJpaTestConfig.CURRENT_USER.set("me");
+        // m19 — SYSADMIN 이 아닌 me 는 SYSADMIN 보유자를 지울 수 없다
+        assertThatThrownBy(() -> inTx(() -> service.saveCmUser(List.of(row("rowStatus", "deleted", "USER_ID", "adm")))))
+                .isInstanceOf(BusinessException.class).hasMessageStartingWith("SYSADMIN_ONLY: ");
+        CommUserMngJpaTestConfig.CURRENT_USER.set(null);
 
         assertThatThrownBy(() -> inTx(() -> service.saveCmUser(List.of(row("rowStatus", "deleted", "USER_ID", "adm")))))
                 .hasMessageStartingWith("LAST_SYSADMIN: ").satisfies(e -> assertThat(e.getMessage()).doesNotContain("adm")); // 보유자 ID 는 응답에 안 싣는다

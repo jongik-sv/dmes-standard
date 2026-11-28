@@ -119,6 +119,9 @@ public class CommRoleMngService {
     private final ApplicationEventPublisher eventPublisher;
     private final SysadminGuard sysadminGuard;
 
+    /** SYSADMIN 전용 오브젝트 퍼미션(m19). */
+    static final String SYSADMIN_ONLY_OBJ_MSG = "시스템관리자 전용 화면(DB 직접 조회 등)의 권한은 시스템관리자만 주고 뺄 수 있습니다";
+
     public CommRoleMngService(SecRoleRepository secRoleRepository,
                               SecRoleMappingNativeRepository secRoleMappingNativeRepository,
                               SecRolePermRepository secRolePermRepository,
@@ -200,6 +203,16 @@ public class CommRoleMngService {
         requireRoleNames(master);
         requireNewRoleIdsFree(master);
         requireDeletableRoles(master);
+        // m19 — SYSADMIN 역할(별칭 ROLE_SYSADMIN 포함, 대소문자 무시) 넣기·고치기·지우기는 SYSADMIN 만(잠금 전에 거절).
+        //   SYSADMIN 이 아닌 운영자가 별칭 ID 로 새 역할을 만들어 자기 그룹에 넣으면 시스템관리자가 되기 때문이다.
+        if (master != null) {
+            for (Map<String, Object> row : master) {
+                if (row != null && SysadminGuard.isSysadminRoleId(strOf(row.get("ROLE_ID")))) {
+                    sysadminGuard.requireSysadmin();
+                    break;
+                }
+            }
+        }
         // c5 d — SYSADMIN 역할 끄기·기간 줄이기가 마지막 시스템관리자를 없애면 거절. 쓰기 전에 잠근다.
         SysadminGuard.Check sysadminCheck = touchesSysadminRole(master) ? sysadminGuard.begin(SysadminGuard.PERM_BUSY) : null;
         int cnt = 0;
@@ -349,6 +362,15 @@ public class CommRoleMngService {
         }
         if (!secRoleRepository.existsById(roleId)) {
             throw new BusinessException(ErrorCode.BUSINESS_ERROR, "PERM_NO_ROLE: 없는 역할입니다 (" + roleId + ")");
+        }
+        // m19 — SYSADMIN 전용 오브젝트(dbViewer 등) 퍼미션을 주고 빼는 일은 SYSADMIN 만
+        if (perms != null) {
+            for (Map<String, Object> row : perms) {
+                if (row != null && SysadminGuard.isSysadminOnlyObject(strOf(row.get("OBJECT_ID")))) {
+                    sysadminGuard.requireSysadmin(SYSADMIN_ONLY_OBJ_MSG);
+                    break;
+                }
+            }
         }
 
         // 1) 검사 — 쓰기 전에 모든 줄을 본다. 값 null = DEL, 아니면 MERGE 할 줄. 같은 PK 두 줄 = PERM_BAD_ROW

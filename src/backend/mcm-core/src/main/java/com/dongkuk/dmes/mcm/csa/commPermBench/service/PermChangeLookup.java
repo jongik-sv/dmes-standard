@@ -31,4 +31,12 @@ public interface PermChangeLookup {
 
     /** 로그인 사용자가 SYSADMIN 역할을 가졌는가. */
     boolean currentUserIsSysadmin();
+
+    /**
+     * SYSADMIN 전용 오브젝트(dbViewer 등) 퍼미션을 가진 역할(현재 DB, m19). 이런 역할을 그룹에 넣고 빼거나
+     * 이런 역할이 든 그룹에 사람을 붙이고 떼는 일도 SYSADMIN 만 한다. 기본 = 없음(시험 가짜용).
+     */
+    default Set<String> rolesWithSysadminOnlyObjects() {
+        return Set.of();
+    }
 }

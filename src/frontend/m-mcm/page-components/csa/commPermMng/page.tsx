@@ -44,6 +44,7 @@ import { PERM_MNG_CSS, PERM_MNG_STYLE_HREF } from "./perm-styles";
 import { roleFilterOptions } from "./role-filter";
 import { RoleFilterCombo } from "./RoleFilterCombo";
 import type { PermMenuLov, PermRoleLov, PermRow, PermSaveRow, PermSearchParams } from "./types";
+import { stripBizCode } from "@/lib/utils/biz-error";
 
 const SCREEN_ID = "commPermMng";
 /** 한 쪽 줄 수(서버 페이지). */
@@ -76,7 +77,8 @@ function saveErrorText(e: unknown): string {
   const m = errorText(e);
   if (m.includes("PERM_NOT_IN_OBJ")) return `오브젝트에 없는 값이 있어 저장하지 못했습니다. 오브젝트 값을 확인하세요.\n${m}`;
   if (m.includes("PERM_EMPTY_BTN")) return `버튼 권한이 빈 퍼미션은 저장할 수 없습니다. 버튼을 하나 이상 켜거나 퍼미션을 빼세요.\n${m}`;
-  return m;
+  // 그 밖의 거절(SYSADMIN_ONLY 등)은 코드 접두를 떼고 문구만 보인다
+  return stripBizCode(m);
 }
 
 const EMPTY_WITH_ROLE = "조건에 맞는 퍼미션이 없습니다. 「퍼미션 없는 오브젝트도」를 켜면 만들 수 있습니다.";

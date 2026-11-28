@@ -549,3 +549,42 @@ ds_main rowStatus (ST-003):
 - 중복 검사를 새로 더했다. 새 행의 ROLE_ID 가 이미 있는 역할(또는 같은 저장의 다른 새 행)과 같으면 화면이 「이미 있는 역할 ID 입니다」로 막고, 서버도 `ROLE_DUP` 으로 거절한다. 예전 저장은 있는 행이면 조용히 덮어썼다(접두가 겹침을 줄여 주었지만 이제 입력값 그대로라 겹치기 쉽다).
 - 퍼미션 추가의 폴더 거르기 기본값은 첫 폴더다(폴더가 없으면 모든 폴더). 예전에는 역할 MENU_ID 폴더를 먼저 골랐다.
 - 메뉴·폴더·즐겨찾기·시작 화면의 MENU_ID 는 다른 칸이라 그대로다. P.5 의 폴더 목록 `menus` 도 그대로다.
+
+## 기본 역할과 SYSADMIN 만 할 수 있는 일 (2026-11-28)
+
+권한 화면에서 「누가 무엇을 바꿀 수 있나」의 정본은 이 절이다. 판정 코드는 `mcm-core` `csa/commPerm/SysadminGuard` 한 곳이다.
+
+### 기본 역할(시더 `CoreRbacSeeder`·`MdmMenuSeeder`, 있으면 건너뜀)
+
+| 역할 ID | 이름 | 역할 그룹 | 받는 것 |
+|---|---|---|---|
+| SYSADMIN | 시스템관리자 | ROLE_GROUP_SYSADMIN | 사용 중인 모든 오브젝트의 허용 값 전부(퍼미션 행 없이 계산, D13) |
+| COMM_ADMIN | 공통관리자 | ROLE_GROUP_COMM_ADMIN | MCM 공통 운영 화면 15개의 버튼 전부 — commUserMng·commUserRoleCopy·commMenuMng·commObjMng·commRoleMng·commRoleGrpMng·commPermMng·commPermBench·commWidgetMng·noticeMgmt·jobSchedMng·mdmCacheMng·userQueryMng·screenUsageStat·logViewer. 값 = 오브젝트 허용 값(ObjPermCatalog) 그대로. dbViewer 없음 |
+| LOG_ANALYST | 로그 분석자 | ROLE_GROUP_LOG_ANALYST | 읽기만 — logViewer `search`, screenUsageStat 전부(`overview,byScreen,byUser,byDept,history,unused,search,export`), jobSchedMng 조회(`search,list,get,history,handlers,cronPreview`) |
+| MDM_STD_ADMIN · MDM_STEWARD | 표준 관리자 · 담당자 | ROLE_GROUP_MDM_* | MDM 화면 매트릭스(ADR-0003 D5) |
+
+- 역할 퍼미션(`TB_MCM_SEC_ROLE_PERM`)은 행이 없을 때만 넣는다. 관리자가 고친 값은 다시 덮지 않는다.
+- 퍼미션 모델 v2 행만 넣는다. 옛 모델(`mcm.security.perm-model=legacy`)로 되돌리면 COMM_ADMIN·LOG_ANALYST 는 화면 권한이 없다.
+
+### SYSADMIN 만 할 수 있는 일(거절 = `SYSADMIN_ONLY: …`)
+
+공통관리자처럼 SYSADMIN 이 아닌 운영자가 스스로 시스템관리자가 되거나 SYSADMIN 전용 화면을 얻지 못하게 막는다.
+
+| 대상 | 화면·동작 | 막는 조건 |
+|---|---|---|
+| 사람 ↔ 역할 그룹 | commUserMng `saveUserRoleGrp`(붙이기·떼기)·`saveUserRoleGrpCopy`, commUserRoleCopy `save`, commPermBench 적용(USER_GRP) | 그 그룹이 「민감한 그룹」 |
+| 그룹 ↔ 역할 | commRoleGrpMng `saveCmRoleGrpMap`, commPermBench 적용(GRP_ROLE) | 역할이 「민감한 역할」이거나 그룹이 「민감한 그룹」 |
+| 역할 그룹 자체 | commRoleGrpMng `saveCmRoleGrp`(넣기·고치기·지우기) | 그 그룹이 「민감한 그룹」 |
+| SYSADMIN 역할 자체 | commRoleMng `saveCmRole`(넣기·고치기·지우기) | 역할 ID 가 SYSADMIN·ROLE_SYSADMIN(대소문자·앞뒤 공백 무시). 별칭 ID 로 새 역할을 만들어 자기 그룹에 넣는 길을 막는다 |
+| SYSADMIN 전용 오브젝트 퍼미션 | commRoleMng `saveCmRoleMap`, commPermMng `saveCmPerm`, commPermBench 적용(ROLE_OBJ) | 오브젝트가 SYSADMIN 전용(`SYSADMIN_ONLY_OBJECTS` = dbViewer). 주기·빼기 모두 |
+| 민감한 그룹에 든 계정 | commUserMng `pwdinit`(비밀번호·SSO 초기화)·`saveCmUser` 수정·삭제(`regCmUser`·`deleteCmUser` 포함)·`reRegCmUser`·`suspend`·`resume`·`retire` | 대상이 민감한 그룹에 매핑돼 있다 — 사람·그룹·역할의 사용 여부·기간은 보지 않는다. 기간이 지났거나 정지된 SYSADMIN 계정도 비밀번호 초기화 → 다시 켜기로 넘겨받을 수 있기 때문이다 |
+
+- 용어
+  - 「SYSADMIN 인가」(하는 사람) = 사람 → 그룹 → 역할 사슬에 SYSADMIN 역할이 있고 사람·그룹·역할이 모두 활성(사용·기간)인 활성 보유자. 마지막 시스템관리자 막기와 같은 기준이다. 꺼진 그룹·역할의 SYSADMIN 은 치지 않는다.
+  - 계정 보호(당하는 사람)는 활성 여부를 보지 않는다 — 위 표 「민감한 그룹에 든 계정」.
+  - 「민감한 역할」 = SYSADMIN 역할(별칭 포함) 또는 SYSADMIN 전용 오브젝트 퍼미션을 가진 역할.
+  - 「민감한 그룹」 = 민감한 역할이 든 그룹.
+- 막지 않는 것: 잠금 해제(`unlock` — 비밀번호가 여전히 필요하다), 담당 데이터 인계(`handover`·`searchOwned`), 인사 이벤트 처리, 로그인 사용자가 없는 시스템 호출(시더·스케줄러).
+- 거절은 쓰기와 SYSADMIN 잠금 전에 한다. 마지막 시스템관리자·본인 잠금 막기(`LAST_SYSADMIN`·`SELF_LOCKOUT`)는 SYSADMIN 이 하는 저장에 그대로 걸린다.
+- 작업대(commPermBench)는 같은 조건을 V-009 「`PERM_FORBIDDEN`」으로 거절한다(코드·문구는 그대로, 판정만 이 기준으로 모았다).
+- 오브젝트 허용 값(commObjMng `BTN_PERM`)은 막지 않는다. SYSADMIN 은 허용 값 전부를 받으므로 권한 올리기 길이 아니다.

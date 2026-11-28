@@ -24,7 +24,8 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * 「사용자가 SYSADMIN 인가」= 기존 {@code UserPermCache.isSysadmin} 과 같은 DB 사슬(사람→그룹→역할에 SYSADMIN·ROLE_SYSADMIN)만 본다.
+ * 「사용자가 SYSADMIN 인가」= {@link com.dongkuk.dmes.mcm.csa.commPerm.SysadminGuard#currentUserIsSysadmin}(활성 보유자 — 사람·그룹·역할의
+ * 사용 여부·기간까지 본다, 2026-11-28 m19 에서 한 곳으로 모았다). 가드가 없는 구성(시험)은 옛 DB 사슬(사람→그룹→역할에 SYSADMIN·ROLE_SYSADMIN)을 본다.
  * 인증 컨텍스트 권한({@code hasAuthority})은 보지 않는다 — 판정 기준을 한 곳(DB)으로 둔다.
  */
 @Component
@@ -37,10 +38,21 @@ public class DefaultPermChangeLookup implements PermChangeLookup {
     private final SecUserRepository users;
     private final SecRoleGroupRepository groups;
     private final SecRoleRepository roles;
+    private final com.dongkuk.dmes.mcm.csa.commPerm.SysadminGuard guard;
 
+    /** 가드 없는 구성(시험) — 옛 DB 사슬 판정. */
     public DefaultPermChangeLookup(SecObjRepository objects, SecRoleGroupMappingRepository groupRoles,
                                    SecUserMappingRepository userGroups, SecurityIdentity identity,
                                    SecUserRepository users, SecRoleGroupRepository groups, SecRoleRepository roles) {
+        this(objects, groupRoles, userGroups, identity, users, groups, roles, null);
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public DefaultPermChangeLookup(SecObjRepository objects, SecRoleGroupMappingRepository groupRoles,
+                                   SecUserMappingRepository userGroups, SecurityIdentity identity,
+                                   SecUserRepository users, SecRoleGroupRepository groups, SecRoleRepository roles,
+                                   com.dongkuk.dmes.mcm.csa.commPerm.SysadminGuard guard) {
+        this.guard = guard;
         this.users = users;
         this.groups = groups;
         this.roles = roles;
@@ -87,6 +99,9 @@ public class DefaultPermChangeLookup implements PermChangeLookup {
 
     @Override
     public boolean currentUserIsSysadmin() {
+        if (guard != null) {
+            return guard.currentUserIsSysadmin();
+        }
         String user = identity.currentUserId();
         if (user == null || user.isBlank()) {
             return false;
@@ -97,6 +112,11 @@ public class DefaultPermChangeLookup implements PermChangeLookup {
         }
         List<String> roles = groupRoles.findRoleIdsByRoleGroupIdIn(gids);
         return roles != null && roles.stream().anyMatch(DefaultPermChangeLookup::isSysadminId);
+    }
+
+    @Override
+    public Set<String> rolesWithSysadminOnlyObjects() {
+        return guard == null ? Set.of() : guard.rolesWithSysadminOnlyObjects();
     }
 
     private static boolean isSysadminId(String r) {

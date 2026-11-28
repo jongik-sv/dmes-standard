@@ -16,8 +16,10 @@ import com.dongkuk.dmes.mcm.csa.commUserMng.dto.CommUserMngSearchRequest;
 import com.dongkuk.dmes.mcm.csa.commUserMng.dto.CommUserMngSearchUserLovRequest;
 import com.dongkuk.dmes.mcm.csa.commUserMng.dto.CommUserMngStateRequest;
 import com.dongkuk.dmes.mcm.csa.commUserMng.dto.CommUserMngUserIdRequest;
+import com.dongkuk.dmes.mcm.csa.commPerm.SysadminGuard;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -82,13 +84,19 @@ public class CommUserMngService {
     private final CommUserMngSsoService ssoService;
     private final CommUserMngLifecycleService lifecycleService;
     private final CommUserMngHrService hrService;
+    private final SysadminGuard sysadminGuard;
+
+    /** 민감한 그룹(시스템관리자·SYSADMIN 전용 화면 권한)에 든 계정을 바꾸는 일 — 비밀번호 초기화·수정·삭제·재등록·정지·다시 사용·퇴직(m19). */
+    static final String HOLDER_MSG = "시스템관리자 권한(또는 시스템관리자 전용 화면 권한)이 있는 계정의 비밀번호·정보·상태는 시스템관리자만 바꿀 수 있습니다";
 
     public CommUserMngService(CommUserMngQueryService queryService,
                               CommUserMngSaveService saveService,
                               CommUserMngPasswordService passwordService,
                               CommUserMngSsoService ssoService,
                               CommUserMngLifecycleService lifecycleService,
-                              CommUserMngHrService hrService) {
+                              CommUserMngHrService hrService,
+                              SysadminGuard sysadminGuard) {
+        this.sysadminGuard = sysadminGuard;
         this.queryService = queryService;
         this.saveService = saveService;
         this.passwordService = passwordService;
@@ -112,6 +120,7 @@ public class CommUserMngService {
 
     /** action {@code saveCmUser} — rowStatus 별 inserted/updated/deleted 통합 저장. 본문: {@link CommUserMngSaveService#saveCmUser}. */
     public Map<String, Object> saveCmUser(List<Map<String, Object>> master) {
+        requireSysadminForHolders(changedUsers(master));
         return saveService.saveCmUser(master);
     }
 
@@ -126,6 +135,7 @@ public class CommUserMngService {
      * 내부는 통합 {@link #saveCmUser(List)} 로 위임 — rowStatus 별 분기.
      */
     public Map<String, Object> regCmUser(List<Map<String, Object>> master) {
+        requireSysadminForHolders(changedUsers(master));
         return saveService.saveCmUser(master);
     }
 
@@ -140,6 +150,7 @@ public class CommUserMngService {
      * 내부는 통합 {@link #saveCmUser(List)} 로 위임 — rowStatus 별 분기 (9999-12-31 sentinel fix 포함).
      */
     public Map<String, Object> deleteCmUser(List<Map<String, Object>> master) {
+        requireSysadminForHolders(changedUsers(master));
         return saveService.saveCmUser(master);
     }
 
@@ -149,6 +160,7 @@ public class CommUserMngService {
 
     /** action {@code reRegCmUser} — 계정 재생성 단건(기간 재설정·비밀번호·이력). 본문: {@link CommUserMngSaveService#reRegCmUser}. */
     public Map<String, Object> reRegCmUser(List<Map<String, Object>> master) {
+        requireSysadminForHolders(usersOf(master));
         return saveService.reRegCmUser(master);
     }
 
@@ -196,6 +208,7 @@ public class CommUserMngService {
      */
     public Map<String, Object> pwdinit(CommUserMngPwdInitRequest request, List<Map<String, Object>> master) {
         boolean ssoReset = request != null && "Y".equals(request.getSSO_RESET_FLAG());
+        requireSysadminForHolders(ssoReset ? usersOf(master) : one(request == null ? null : request.getUSER_ID()));
         if (ssoReset) {
             return ssoService.resetSsoPwd(master);
         }
@@ -241,16 +254,19 @@ public class CommUserMngService {
 
     /** action {@code suspend} — 관리자 비활성. 본문: {@link CommUserMngLifecycleService#suspend}. */
     public Map<String, Object> suspendUser(CommUserMngStateRequest request) {
+        requireSysadminForHolders(one(request == null ? null : request.getUSER_ID()));
         return lifecycleService.suspend(request);
     }
 
     /** action {@code resume} — 다시 사용. 본문: {@link CommUserMngLifecycleService#resume}. */
     public Map<String, Object> resumeUser(CommUserMngStateRequest request) {
+        requireSysadminForHolders(one(request == null ? null : request.getUSER_ID()));
         return lifecycleService.resume(request);
     }
 
     /** action {@code retire} — 퇴직 처리(역할 회수·배정 해제·인계). 본문: {@link CommUserMngLifecycleService#retire}. */
     public Map<String, Object> retireUser(CommUserMngStateRequest request) {
+        requireSysadminForHolders(one(request == null ? null : request.getUSER_ID()));
         return lifecycleService.retire(request);
     }
 
@@ -294,5 +310,46 @@ public class CommUserMngService {
     public Map<String, Object> regHrEvtUser(CommUserMngStateRequest request) {
         return hrService.createAccount(request == null ? null : request.getEVT_ID(),
                 request == null ? null : request.getNEW_USER_ID());
+    }
+
+    // ── m19 SYSADMIN 보유자 계정 보호 ─────────────────────────────
+
+    /**
+     * 대상 가운데 민감한 그룹에 매핑된 계정({@link SysadminGuard#usersInSensitiveGroups} — 활성 여부 무관)이 있으면 SYSADMIN 만.
+     * 기간이 지났거나 정지된 SYSADMIN 계정도 비밀번호 초기화 → 다시 켜기로 넘겨받을 수 있어 활성 보유자만 보지 않는다.
+     * 잠금 해제(unlock)·담당 데이터 인계(handover)·인사 이벤트 처리는 대상이 아니다(조정자 결정 m19).
+     */
+    private void requireSysadminForHolders(List<String> userIds) {
+        if (userIds.isEmpty() || sysadminGuard.currentUserId() == null) return;
+        if (!sysadminGuard.usersInSensitiveGroups(userIds).isEmpty()) {
+            sysadminGuard.requireSysadmin(HOLDER_MSG);
+        }
+    }
+
+    /** 수정·삭제 행의 USER_ID(새 행은 아직 보유자가 아니다). */
+    private static List<String> changedUsers(List<Map<String, Object>> master) {
+        List<String> out = new ArrayList<>();
+        if (master == null) return out;
+        for (Map<String, Object> row : master) {
+            if (row == null) continue;
+            String st = CommUserMngSaveService.resolveStatus(row);
+            if ("updated".equals(st) || "U".equals(st) || "deleted".equals(st) || "D".equals(st)) {
+                out.addAll(one(row.get("USER_ID") == null ? null : String.valueOf(row.get("USER_ID"))));
+            }
+        }
+        return out;
+    }
+
+    private static List<String> usersOf(List<Map<String, Object>> master) {
+        List<String> out = new ArrayList<>();
+        if (master == null) return out;
+        for (Map<String, Object> row : master) {
+            if (row != null && row.get("USER_ID") != null) out.addAll(one(String.valueOf(row.get("USER_ID"))));
+        }
+        return out;
+    }
+
+    private static List<String> one(String userId) {
+        return userId == null || userId.isBlank() ? List.of() : List.of(userId.trim());
     }
 }

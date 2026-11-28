@@ -79,7 +79,11 @@ public final class McmCoreOraTestDb {
         migrated = true;
     }
 
-    /** 네 스키마의 모든 표에서 행을 지운다(이력 표 제외). 시험 컨텍스트가 처음 뜰 때 빈 표에서 시작하게 한다. */
+    /**
+     * 네 스키마의 모든 표에서 행을 지운다(이력 표 제외). 시험 컨텍스트가 처음 뜰 때 빈 표에서 시작하게 한다.
+     * 표 차례는 FK 를 모른다 — 자식 행이 남아 지우기가 걸린 표(ORA-02292)는 다음 차례에 다시 지운다(2026-11-28 m19:
+     * 앞 컨텍스트가 남긴 TB_MCM_SEC_ROLE_PERM 행 때문에 TB_MCM_SEC_ROLE 지우기가 걸렸다).
+     */
     public static synchronized void resetData() {
         for (String schema : SCHEMAS) {
             try (Connection c = DriverManager.getConnection(url(), schema, password()); Statement st = c.createStatement()) {
@@ -87,7 +91,22 @@ public final class McmCoreOraTestDb {
                 try (ResultSet rs = st.executeQuery("SELECT TABLE_NAME FROM USER_TABLES WHERE TABLE_NAME <> '" + HISTORY_TABLE + "'")) {
                     while (rs.next()) tables.add(rs.getString(1));
                 }
-                for (String table : tables) st.executeUpdate("DELETE FROM \"" + table + "\"");
+                List<String> left = tables;
+                while (!left.isEmpty()) {
+                    List<String> blocked = new ArrayList<>();
+                    SQLException last = null;
+                    for (String table : left) {
+                        try {
+                            st.executeUpdate("DELETE FROM \"" + table + "\"");
+                        } catch (SQLException e) {
+                            if (e.getErrorCode() != 2292) throw e;
+                            blocked.add(table);
+                            last = e;
+                        }
+                    }
+                    if (blocked.size() == left.size()) throw last; // 더 지울 수 있는 표가 없다(다른 스키마의 자식 행 등)
+                    left = blocked;
+                }
                 if (!c.getAutoCommit()) c.commit();
             } catch (SQLException e) {
                 throw new IllegalStateException(schema + " 행 지우기 실패: " + e.getMessage(), e);

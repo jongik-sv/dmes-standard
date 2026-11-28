@@ -85,6 +85,18 @@ import java.util.Map;
         excludeFilters = @ComponentScan.Filter(type = FilterType.ANNOTATION, classes = Configuration.class))
 public class CommSecMngJpaTestConfig {
 
+    /** 로그인 사용자 — 시험이 바꾼다(기본 null = 시스템 호출). SYSADMIN 만 할 수 있는 일 막기(m19)가 읽는다. */
+    public static final java.util.concurrent.atomic.AtomicReference<String> CURRENT_USER =
+            new java.util.concurrent.atomic.AtomicReference<>();
+
+    @Bean
+    public com.dongkuk.dmes.mcm.common.security.SecurityIdentity securityIdentity() {
+        return new com.dongkuk.dmes.mcm.common.security.SecurityIdentity() {
+            @Override public String currentUserId() { return CURRENT_USER.get(); }
+            @Override public boolean hasAuthority(String authority) { return false; }
+        };
+    }
+
     @Bean
     public DataSource dataSource() {
         return McmCoreOraTestDb.appDataSource("commsecmng");

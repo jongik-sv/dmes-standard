@@ -412,6 +412,8 @@ public class CommUserMngSaveService {
     public Map<String, Object> saveUserRoleGrp(List<Map<String, Object>> master) {
         int cnt = 0;
         Set<String> touchedRoleGroupIds = new LinkedHashSet<>(); // 캐시 무효화 대상
+        // m19 — 시스템관리자·SYSADMIN 전용 화면 권한이 든 그룹을 붙이고 떼는 일은 SYSADMIN 만(잠금 전에 거절)
+        requireSysadminForGroups(groupsOf(master));
         // c5 b — 그룹 빼기(SYSADMIN 그룹 포함)가 마지막 시스템관리자·본인 SYSADMIN 을 없애면 거절
         SysadminGuard.Check sysadminCheck = anyStatus(master, "deleted", "D")
                 ? sysadminGuard.begin(SysadminGuard.PERM_BUSY) : null;
@@ -484,6 +486,8 @@ public class CommUserMngSaveService {
             String userIdCopy = request.getUSER_ID_COPY();
             String today = currentYyyymmdd();
             List<String> roleGroupIds = secUserMappingRepository.findRoleGroupIdsToCopy(userId, userIdCopy);
+            // m19 — 복사할 그룹에 시스템관리자 권한이 들어 있으면 SYSADMIN 만
+            requireSysadminForGroups(roleGroupIds);
             for (String roleGroupId : roleGroupIds) {
                 // ROLE_GROUP_NM — scalar subquery 결과 (xml:271~273) — 단건 lookup
                 String roleGroupNm = lookupRoleGroupNm(roleGroupId);
@@ -538,7 +542,27 @@ public class CommUserMngSaveService {
     }
 
     /** rowStatus 우선, fallback !nativeeditor_status (As-Is Nexacro 시스템 컬럼). */
-    private static String resolveStatus(Map<String, Object> row) {
+    /** 행들의 ROLE_GROUP_ID(빈 값 제외). */
+    private static List<String> groupsOf(List<Map<String, Object>> master) {
+        List<String> out = new ArrayList<>();
+        if (master == null) return out;
+        for (Map<String, Object> row : master) {
+            String g = row == null ? null : strOf(row.get("ROLE_GROUP_ID"));
+            if (g != null && !g.isBlank()) out.add(g.trim());
+        }
+        return out;
+    }
+
+    /** 민감한 그룹(SYSADMIN 역할·SYSADMIN 전용 오브젝트 퍼미션이 든 그룹)이 있으면 SYSADMIN 만(m19, {@link SysadminGuard#sensitiveGroups}). */
+    private void requireSysadminForGroups(java.util.Collection<String> groupIds) {
+        if (groupIds == null || groupIds.isEmpty()) return;
+        if (sysadminGuard.currentUserId() == null) return;
+        if (!sysadminGuard.sensitiveGroups(groupIds).isEmpty()) {
+            sysadminGuard.requireSysadmin();
+        }
+    }
+
+    static String resolveStatus(Map<String, Object> row) {
         String status = strOf(row.get("rowStatus"));
         if (status == null || status.isBlank()) {
             status = strOf(row.get("!nativeeditor_status"));

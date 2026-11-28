@@ -403,6 +403,40 @@ class DataInitializerSeedFingerprintTest {
         return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(s.getBytes(StandardCharsets.UTF_8)));
     }
 
+    @Test
+    @DisplayName("공통관리자·로그 분석자 시드(m19) — 역할·그룹 1:1, 공통관리자 = 15개 화면 카탈로그 버튼 전부(dbViewer 없음), 로그 분석자 = 읽기 3줄")
+    void commonAdminRolesSeed() {
+        JdbcTemplate jdbc = new JdbcTemplate(dataSource);
+        assertThat(jdbc.queryForList("SELECT ROLE_GROUP_ID || '/' || ROLE_ID FROM MCMAPUSER.TB_MCM_SEC_ROLEGROUP_MAPPING"
+                + " WHERE ROLE_ID IN ('COMM_ADMIN','LOG_ANALYST') ORDER BY 1", String.class))
+                .containsExactly("ROLE_GROUP_COMM_ADMIN/COMM_ADMIN", "ROLE_GROUP_LOG_ANALYST/LOG_ANALYST");
+        assertThat(jdbc.queryForList("SELECT ROLE_NM FROM MCMAPUSER.TB_MCM_SEC_ROLE WHERE ROLE_ID IN ('COMM_ADMIN','LOG_ANALYST') ORDER BY ROLE_ID", String.class))
+                .containsExactly("공통관리자", "로그 분석자");
+
+        java.util.Map<String, String> comm = new java.util.TreeMap<>();
+        jdbc.query("SELECT OBJECT_ID, BTN_PERM FROM MCMAPUSER.TB_MCM_SEC_ROLE_PERM WHERE ROLE_ID = 'COMM_ADMIN'",
+                rs -> { comm.put(rs.getString(1), rs.getString(2)); });
+        java.util.Map<String, String> want = new java.util.TreeMap<>();
+        for (String o : List.of("commUserMng", "commUserRoleCopy", "commMenuMng", "commObjMng", "commRoleMng", "commRoleGrpMng",
+                "commPermMng", "commPermBench", "commWidgetMng", "noticeMgmt", "jobSchedMng", "mdmCacheMng",
+                "userQueryMng", "screenUsageStat", "logViewer")) {
+            want.put(o, com.dongkuk.dmes.mcm.security.perm.PermTokens.join(com.dongkuk.dmes.mcm.security.perm.PermTokens.parse(
+                    com.dongkuk.dmes.mcm.init.seed.ObjPermCatalog.btnPerm(o))));
+        }
+        assertThat(comm).as("공통관리자 퍼미션 = 화면 허용 값 전부").isEqualTo(want).doesNotContainKey("dbViewer");
+
+        java.util.Map<String, String> log = new java.util.TreeMap<>();
+        jdbc.query("SELECT OBJECT_ID, BTN_PERM FROM MCMAPUSER.TB_MCM_SEC_ROLE_PERM WHERE ROLE_ID = 'LOG_ANALYST'",
+                rs -> { log.put(rs.getString(1), rs.getString(2)); });
+        assertThat(log).containsExactlyInAnyOrderEntriesOf(java.util.Map.of(
+                "logViewer", "search",
+                "screenUsageStat", "overview,byScreen,byUser,byDept,history,unused,search,export",
+                "jobSchedMng", "search,list,get,history,handlers,cronPreview"));
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_USER_MAPPING"
+                + " WHERE ROLE_GROUP_ID IN ('ROLE_GROUP_COMM_ADMIN','ROLE_GROUP_LOG_ANALYST')", Integer.class))
+                .as("시드는 사람을 붙이지 않는다").isZero();
+    }
+
     private static void writeGolden(Map<String, String> fp) throws Exception {
         List<String> lines = new ArrayList<>();
         lines.add("# DataInitializer 시드 지문 — DataInitializerSeedFingerprintTest 가 비교한다. 손으로 고치지 않는다.");

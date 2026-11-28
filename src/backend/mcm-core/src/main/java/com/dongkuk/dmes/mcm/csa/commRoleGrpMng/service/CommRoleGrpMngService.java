@@ -199,6 +199,8 @@ public class CommRoleGrpMngService {
         int cnt = 0;
         // c5 d — 그룹 수정(USE_TP·기간)·삭제는 SYSADMIN 보유자를 줄일 수 있다. 쓰기 전에 잠그고 저장 뒤 다시 본다.
         // 「inserted」 도 본다 — 매핑만 남은(그룹 행 없는) 그룹 ID 로 꺼진 그룹을 새로 넣으면 보유자가 줄 수 있다
+        // m19 — 시스템관리자 권한·SYSADMIN 전용 화면 권한이 든 그룹을 고치거나 지우는 일은 SYSADMIN 만(잠금 전에 거절)
+        requireSysadminFor(colOf(master, "ROLE_GROUP_ID"), List.of());
         SysadminGuard.Check sysadminCheck = beginSysadminCheck(anyStatus(master, "updated", "U", "deleted", "D", "inserted", "C"));
         Set<String> changedGroupIds = new LinkedHashSet<>(); // USE_TP·유효 기간이 바뀐 그룹(캐시 무효화 대상)
         if (master != null) {
@@ -344,6 +346,8 @@ public class CommRoleGrpMngService {
         Set<String> touchedRoleIds = new LinkedHashSet<>(); // 캐시 무효화 대상
         String lastRoleGroupId = null; // 후속 재조회용 ROLE_GROUP_ID 추출
         // c5 d — 그룹에서 역할(SYSADMIN 포함)을 빼면 보유자가 줄 수 있다
+        // m19 — 그룹에 SYSADMIN(별칭 포함)·SYSADMIN 전용 화면 권한을 가진 역할을 넣고 빼거나, 그런 역할이 든 그룹의 구성을 바꾸는 일은 SYSADMIN 만
+        requireSysadminFor(colOf(master, "ROLE_GROUP_ID"), colOf(master, "ROLE_ID"));
         SysadminGuard.Check sysadminCheck = beginSysadminCheck(anyStatus(master, "deleted", "D"));
         if (master != null) {
             for (Map<String, Object> row : master) {
@@ -483,4 +487,25 @@ public class CommRoleGrpMngService {
         return row;
     }
 
+
+    // ── m19 SYSADMIN 만 할 수 있는 일 ─────────────────────────────
+
+    /** 민감한 그룹·역할({@link SysadminGuard#sensitiveGroups}·{@link SysadminGuard#sensitiveRoles})이 하나라도 있으면 SYSADMIN 만. */
+    private void requireSysadminFor(List<String> groupIds, List<String> roleIds) {
+        if (sysadminGuard.currentUserId() == null) return;
+        if (!sysadminGuard.sensitiveRoles(roleIds).isEmpty() || !sysadminGuard.sensitiveGroups(groupIds).isEmpty()) {
+            sysadminGuard.requireSysadmin();
+        }
+    }
+
+    /** 행들의 칸 값(빈 값 제외). */
+    private static List<String> colOf(List<Map<String, Object>> master, String col) {
+        List<String> out = new java.util.ArrayList<>();
+        if (master == null) return out;
+        for (Map<String, Object> row : master) {
+            String v = row == null ? null : strOf(row.get(col));
+            if (v != null && !v.isBlank()) out.add(v.trim());
+        }
+        return out;
+    }
 }

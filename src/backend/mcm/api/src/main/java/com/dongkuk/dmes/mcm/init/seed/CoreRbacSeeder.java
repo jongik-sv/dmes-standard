@@ -388,4 +388,104 @@ public final class CoreRbacSeeder extends SeedSupport {
         log.info("[DataInitializer] OBJECT 허용 값 처음 채움(ObjPermCatalog {}개 + 퍼미션 토큰) — 칸 {}개", ObjPermCatalog.objectIds().size(), n);
         return n;
     }
+
+    // ── 공통관리자·로그 분석자(2026-11-28 m19) ──────────────────────────────
+
+    /** 공통관리자가 버튼 전부를 받는 MCM 공통 운영 화면. dbViewer(직접 DB 조회)는 SYSADMIN 전용이라 넣지 않는다. */
+    static final java.util.List<String> COMM_ADMIN_OBJECTS = java.util.List.of(
+            "commUserMng", "commUserRoleCopy", "commMenuMng", "commObjMng", "commRoleMng", "commRoleGrpMng",
+            "commPermMng", "commPermBench", "commWidgetMng", "noticeMgmt", "jobSchedMng", "mdmCacheMng",
+            "userQueryMng", "screenUsageStat", "logViewer");
+
+    /** 로그 분석자 — 읽기만. 키 = OBJECT_ID, 값 = 버튼 토큰(카탈로그 안이어야 한다). */
+    static final java.util.Map<String, String> LOG_ANALYST_PERMS = new java.util.LinkedHashMap<>();
+    static {
+        LOG_ANALYST_PERMS.put("logViewer", "search");
+        LOG_ANALYST_PERMS.put("screenUsageStat", "overview,byScreen,byUser,byDept,history,unused,search,export");
+        // 예약 작업 관리 조회만 — runNow·save·delete·setUse·collectData 는 주지 않는다
+        LOG_ANALYST_PERMS.put("jobSchedMng", "search,list,get,history,handlers,cronPreview");
+    }
+
+    /**
+     * 공통관리자(COMM_ADMIN)·로그 분석자(LOG_ANALYST) 역할과 1:1 역할 그룹, 그룹↔역할, 역할 퍼미션(TB_MCM_SEC_ROLE_PERM) 시드.
+     * MDM 표준 관리자(MdmMenuSeeder.seedMdmRbac)와 같은 모양이고 모두 있으면 건너뛴다(관리자 수정 보존 — 퍼미션 행도 없을 때만 넣는다).
+     *
+     * <p>퍼미션 모델 v2 행만 넣는다(옛 TB_MCM_SEC_PERM·ROLE_MAPPING 묶음 없음 — legacy 되돌림에서는 두 역할이 화면 권한을 받지 않는다).
+     * 공통관리자 버튼 = {@link ObjPermCatalog#btnPerm} 그대로(화면 허용 값 전부). 오브젝트 행이 없으면(그 화면 시드가 없는 배포) 그 줄은 건너뛴다.
+     * 공통관리자는 SYSADMIN 이 아니다 — 시스템관리자 권한·SYSADMIN 전용 오브젝트를 주거나 SYSADMIN 계정을 바꾸는 일은
+     * {@code SysadminGuard.requireSysadmin} 이 막는다. 모든 오브젝트 시드와 {@link #fillObjPermFromCatalog} 뒤에 부른다(퍼미션 행 FK = OBJECT).
+     *
+     * @return 넣은 퍼미션 행 수
+     */
+    public int seedCommonAdminRoles() {
+        String[][] roles = {
+                {"COMM_ADMIN", "공통관리자", "MCM 공통 운영 화면 전부(사용자·메뉴·오브젝트·역할·권한·위젯·공지·예약 작업·캐시·맞춤 레포트·통계·로그). DB 직접 조회와 시스템관리자 권한 변경은 제외"},
+                {"LOG_ANALYST", "로그 분석자", "로그 조회·화면 사용 통계·예약 작업 조회(읽기만)"},
+        };
+        for (String[] r : roles) {
+            insertIfAbsent(
+                    "TB_MCM_SEC_ROLE", "ROLE_ID", r[0],
+                    "INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE " +
+                    "(ROLE_ID, ROLE_NM, ROLE_DESC, USE_TP, START_ACTIVE_DATE, END_ACTIVE_DATE" + AUDIT_COLS + ") " +
+                    "VALUES ('" + r[0] + "', N'" + escapeSql(r[1]) + "', N'" + escapeSql(r[2]) + "', 'Y', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59'" + AUDIT_VALS + ")");
+            String groupId = "ROLE_GROUP_" + r[0];
+            insertIfAbsent(
+                    "TB_MCM_SEC_ROLEGROUP", "ROLE_GROUP_ID", groupId,
+                    "INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLEGROUP " +
+                    "(ROLE_GROUP_ID, ROLE_GROUP_NM, ROLE_GROUP_DESC, USE_TP, START_ACTIVE_DATE, END_ACTIVE_DATE" + AUDIT_COLS + ") " +
+                    "VALUES ('" + groupId + "', N'" + escapeSql(r[1]) + " 그룹', N'" + escapeSql(r[1]) + " 역할 그룹', 'Y', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59'" + AUDIT_VALS + ")");
+            insertIfAbsentComposite(
+                    "TB_MCM_SEC_ROLEGROUP_MAPPING",
+                    new String[]{"ROLE_GROUP_ID", "ROLE_ID"},
+                    new String[]{groupId,         r[0]},
+                    "INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLEGROUP_MAPPING (ROLE_GROUP_ID, ROLE_ID" + AUDIT_COLS + ") " +
+                    "VALUES ('" + groupId + "', '" + r[0] + "'" + AUDIT_VALS + ")");
+        }
+        int n = 0;
+        for (String obj : COMM_ADMIN_OBJECTS) {
+            n += insertRolePermIfAbsent("COMM_ADMIN", obj, ObjPermCatalog.btnPerm(obj), ObjPermCatalog.popupPerm(obj));
+        }
+        for (java.util.Map.Entry<String, String> e : LOG_ANALYST_PERMS.entrySet()) {
+            n += insertRolePermIfAbsent("LOG_ANALYST", e.getKey(), e.getValue(), null);
+        }
+        log.info("[DataInitializer] 공통관리자·로그 분석자 역할 시드 — 퍼미션 행 {}개 넣음", n);
+        return n;
+    }
+
+    /**
+     * 역할 퍼미션 1건 — 행이 없을 때만 넣는다(있으면 관리자가 고친 값이라 건너뛴다). 토큰은 카탈로그 안 것만 쓴다(밖이면 기동을 멈춘다 — 시드 오타).
+     * 오브젝트 행이 없거나 버튼 토큰이 비면 넣지 않는다(D14).
+     */
+    private int insertRolePermIfAbsent(String roleId, String objectId, String btnCsv, String popupCsv) {
+        java.util.List<String> btn = com.dongkuk.dmes.mcm.security.perm.PermTokens.parse(btnCsv);
+        java.util.List<String> popup = com.dongkuk.dmes.mcm.security.perm.PermTokens.parse(popupCsv);
+        java.util.List<String> extra = new java.util.ArrayList<>(com.dongkuk.dmes.mcm.security.perm.PermTokens.notIn(btn, com.dongkuk.dmes.mcm.security.perm.PermTokens.parse(ObjPermCatalog.btnPerm(objectId))));
+        extra.addAll(com.dongkuk.dmes.mcm.security.perm.PermTokens.notIn(popup, com.dongkuk.dmes.mcm.security.perm.PermTokens.parse(ObjPermCatalog.popupPerm(objectId))));
+        if (!extra.isEmpty()) {
+            throw new IllegalStateException("[DataInitializer] 역할 퍼미션 시드 토큰이 화면 허용 값 밖이다 role=" + roleId
+                    + " object=" + objectId + " tokens=" + extra);
+        }
+        if (btn.isEmpty()) {
+            return 0;
+        }
+        Number obj = (Number) nq("SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_OBJ WHERE OBJECT_ID = :o")
+                .setParameter("o", objectId).getSingleResult();
+        if (obj == null || obj.intValue() == 0) {
+            log.info("[DataInitializer] ROLE_PERM 건너뜀 — 오브젝트 없음 role={} object={}", roleId, objectId);
+            return 0;
+        }
+        Number has = (Number) nq("SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_PERM WHERE ROLE_ID = :r AND OBJECT_ID = :o")
+                .setParameter("r", roleId).setParameter("o", objectId).getSingleResult();
+        if (has != null && has.intValue() > 0) {
+            return 0;
+        }
+        String popupLit = popup.isEmpty() ? "NULL"
+                : "'" + escapeSql(com.dongkuk.dmes.mcm.security.perm.PermTokens.join(popup)) + "'";
+        nq("INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_PERM (ROLE_ID, OBJECT_ID, BTN_PERM, POPUP_PERM" + AUDIT_COLS + ") " +
+           "VALUES ('" + escapeSql(roleId) + "', '" + escapeSql(objectId) + "', " +
+           "'" + escapeSql(com.dongkuk.dmes.mcm.security.perm.PermTokens.join(btn)) + "', " + popupLit + AUDIT_VALS + ")")
+                .executeUpdate();
+        log.info("[DataInitializer] SEED INSERT: TB_MCM_SEC_ROLE_PERM composite PK={}/{}", roleId, objectId);
+        return 1;
+    }
 }

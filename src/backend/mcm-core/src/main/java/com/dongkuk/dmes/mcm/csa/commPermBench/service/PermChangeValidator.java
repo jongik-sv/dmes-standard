@@ -186,10 +186,17 @@ public class PermChangeValidator {
     // V-003 · V-009
     private void checkSysadmin(List<PermChange> changes) {
         // 이 요청이 SYSADMIN 을 그룹에 붙이는 경우도 「SYSADMIN 을 가진 그룹」으로 본다(보수적 — DEL 은 빼지 않는다)
+        // m19 — SYSADMIN 전용 오브젝트(dbViewer 등) 퍼미션을 가진 역할도 SYSADMIN 과 같이 다룬다(민감한 역할).
+        boolean anyLink = false;
+        for (PermChange c : changes) {
+            if (PermChange.GRP_ROLE.equals(c.tp()) || PermChange.USER_GRP.equals(c.tp())) anyLink = true;
+        }
+        Set<String> objRoles = anyLink ? lookup.rolesWithSysadminOnlyObjects() : Set.of();
+        java.util.function.Predicate<String> sensitiveRole = r -> isSysadmin(r) || (r != null && objRoles.contains(r));
         Set<String> groupsWithSysadmin = new HashSet<>();
         List<String> userGrpGroups = new ArrayList<>();
         for (PermChange c : changes) {
-            if (PermChange.GRP_ROLE.equals(c.tp()) && isSysadmin(c.key2()) && PermChange.ADD.equals(c.op())) {
+            if (PermChange.GRP_ROLE.equals(c.tp()) && sensitiveRole.test(c.key2()) && PermChange.ADD.equals(c.op())) {
                 groupsWithSysadmin.add(c.key1());
             }
             if (PermChange.USER_GRP.equals(c.tp())) {
@@ -200,7 +207,7 @@ public class PermChangeValidator {
         toLookup.removeAll(groupsWithSysadmin);
         if (!toLookup.isEmpty()) {
             lookup.rolesOfGroups(toLookup).forEach((g, roles) -> {
-                if (roles != null && roles.stream().anyMatch(PermChangeValidator::isSysadmin)) {
+                if (roles != null && roles.stream().anyMatch(sensitiveRole)) {
                     groupsWithSysadmin.add(g);
                 }
             });
@@ -212,13 +219,14 @@ public class PermChangeValidator {
             String who;
             switch (c.tp()) {
                 case PermChange.GRP_ROLE -> {
-                    involves = isSysadmin(c.key2());
+                    involves = sensitiveRole.test(c.key2());
                     who = c.key2();
                 }
                 case PermChange.ROLE_OBJ -> {
-                    involves = isSysadmin(c.key1());
-                    who = c.key1();
-                    if (involves && !PermChange.DEL.equals(c.op())) {
+                    // m19 — SYSADMIN 전용 오브젝트 퍼미션을 주고 빼는 일도 SYSADMIN 만
+                    involves = isSysadmin(c.key1()) || com.dongkuk.dmes.mcm.csa.commPerm.SysadminGuard.isSysadminOnlyObject(c.key2());
+                    who = isSysadmin(c.key1()) ? c.key1() : c.key2();
+                    if (isSysadmin(c.key1()) && !PermChange.DEL.equals(c.op())) {
                         // V-003: SYSADMIN 은 퍼미션 행이 없다(D13) — 값 편집은 누구도 못 한다
                         throw new BusinessException(ErrorCode.ACCESS_DENIED,
                                 FORBIDDEN + ": " + who + " 시스템 관리자 역할의 퍼미션은 바꿀 수 없습니다");

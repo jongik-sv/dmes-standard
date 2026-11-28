@@ -73,6 +73,7 @@ import { useMessage } from "@dk-oasis/shared/message-provider";
 import { useCarryRestored, useCarryState } from "@dk-oasis/shared/portal-shell";
 import { searchUserList as apiSearchUserList, search as apiSearch, save as apiSave } from "./api";
 import { runEntrySearch } from "./entry";
+import { bizErrorText } from "@/lib/utils/biz-error";
 import type {
   CommUserRoleCopyCopyRoleGrpRow,
   CommUserRoleCopyCopyUserRow,
@@ -388,7 +389,8 @@ export default function CommUserRoleCopyPage() {
       // V-503/Q-003 보존 — save 트랜잭션 완료 후 별도 fn_searchUserList() 호출로 ds_userFrom 새로고침
       await loadUserList();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "저장 실패");
+      // 서버 거절(SYSADMIN_ONLY 등)은 코드 접두를 떼고 문구만 보인다
+      setError(bizErrorText(e, "저장 실패"));
     } finally {
       setIsSaving(false);
     }

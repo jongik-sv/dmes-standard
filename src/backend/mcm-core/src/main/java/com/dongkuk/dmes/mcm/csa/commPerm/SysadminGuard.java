@@ -53,6 +53,13 @@ import java.util.TreeSet;
  * 잠금은 커밋·롤백까지 유지되므로 보유자를 줄일 수 있는 저장 두 건은 줄을 서고, 뒤 저장은 앞 저장이 커밋한 상태를 보고 판정한다
  * (Oracle READ COMMITTED — 잠금을 얻은 뒤 시작한 SELECT 는 앞 커밋을 본다). 쓰기 전에 잠그므로 행 잠금 순서가 뒤집혀 교착되지 않는다.
  * 잠금 대기 초과·교착 = {@code busyCode}. SYSADMIN 역할 행이 하나도 없으면 잠글 행이 없다(별칭만 매핑에 쓰인 DB — 알려진 한계).
+ *
+ * <p><b>SYSADMIN 만 할 수 있는 일</b>(2026-11-28 m19, 권한 올리기 막기): 공통관리자 같은 SYSADMIN 이 아닌 운영자가
+ * 스스로(또는 남에게) 시스템관리자 권한·SYSADMIN 전용 오브젝트 권한을 주거나 SYSADMIN 계정을 넘겨받지 못하게 한다.
+ * 판정은 이 클래스 하나다 — 「로그인 사용자가 SYSADMIN」= 위 활성 보유자({@link #currentUserIsSysadmin}),
+ * 「민감한 역할」= SYSADMIN 역할(별칭 포함) 또는 SYSADMIN 전용 오브젝트({@link #SYSADMIN_ONLY_OBJECTS}) 퍼미션을 가진 역할,
+ * 「민감한 그룹」= 민감한 역할이 든 그룹. 거절은 {@link #requireSysadmin} — 「SYSADMIN_ONLY: …」.
+ * 로그인 사용자가 없는 호출(시더·스케줄러 같은 시스템 호출)은 막지 않는다.
  */
 @Component
 public class SysadminGuard {
@@ -73,6 +80,12 @@ public class SysadminGuard {
     /** 사용자·그룹·역할 화면이 같이 쓰는 문구. */
     public static final String LAST_MSG = "마지막 시스템관리자는 삭제하거나 끄거나 시스템관리자 권한을 뺄 수 없습니다";
     public static final String SELF_ROLE_MSG = "본인 계정의 시스템관리자 권한은 뺄 수 없습니다";
+
+    /** SYSADMIN 만 할 수 있는 일을 SYSADMIN 이 아닌 사용자가 했다(m19). */
+    public static final String SYSADMIN_ONLY = "SYSADMIN_ONLY";
+    public static final String SYSADMIN_ONLY_MSG = "시스템관리자만 시스템관리자 권한을 바꿀 수 있습니다";
+    /** SYSADMIN 전용 오브젝트 — 이 오브젝트의 퍼미션을 역할에 주고 빼는 일은 SYSADMIN 만 한다(m19). */
+    public static final Set<String> SYSADMIN_ONLY_OBJECTS = Set.of("dbViewer");
 
     static final int LOCK_WAIT_SEC = 10;
 
@@ -270,6 +283,153 @@ public class SysadminGuard {
                         + " 뒤에 남는 시스템관리자가 없습니다. 다른 시스템관리자를 먼저 지정하세요");
             }
         }
+    }
+
+    // ── SYSADMIN 만 할 수 있는 일(m19) ──────────────────────────────
+
+    /** SYSADMIN 역할 ID(별칭 포함)인가 — 앞뒤 공백·대소문자를 무시한다(보수적으로 넓게 막는다). */
+    public static boolean isSysadminRoleId(String roleId) {
+        if (roleId == null) return false;
+        String r = roleId.trim();
+        for (String s : CommPermQueryRepository.SYSADMIN_ROLE_IDS) {
+            if (s.equalsIgnoreCase(r)) return true;
+        }
+        return false;
+    }
+
+    /** SYSADMIN 전용 오브젝트인가(대소문자 무시). */
+    public static boolean isSysadminOnlyObject(String objectId) {
+        if (objectId == null) return false;
+        String o = objectId.trim();
+        for (String s : SYSADMIN_ONLY_OBJECTS) {
+            if (s.equalsIgnoreCase(o)) return true;
+        }
+        return false;
+    }
+
+    /**
+     * 로그인 사용자가 SYSADMIN 인가 — 활성 보유자({@link #activeHolders})에 든다(대소문자 무시).
+     * 로그인 사용자가 없으면 false. 시스템 호출 허용은 {@link #requireSysadmin} 이 정한다.
+     */
+    public boolean currentUserIsSysadmin() {
+        String me = currentUserId();
+        return me != null && containsIgnoreCase(activeHolders(), me);
+    }
+
+    /**
+     * SYSADMIN 만 할 수 있는 일 — 로그인 사용자가 SYSADMIN 이 아니면 「SYSADMIN_ONLY: 문구」로 거절한다.
+     * 로그인 사용자가 없는 시스템 호출(시더 등)은 통과한다. 쓰기 전·{@link #begin} 전에 부른다(거절이 잠금을 잡지 않게).
+     */
+    public void requireSysadmin(String msg) {
+        if (currentUserId() == null || currentUserIsSysadmin()) return;
+        throw new BusinessException(ErrorCode.BUSINESS_ERROR, SYSADMIN_ONLY + ": " + (msg == null ? SYSADMIN_ONLY_MSG : msg));
+    }
+
+    /** {@link #requireSysadmin(String)} — 기본 문구. */
+    public void requireSysadmin() {
+        requireSysadmin(SYSADMIN_ONLY_MSG);
+    }
+
+    /** 주어진 사람 가운데 활성 SYSADMIN 보유자(대소문자 무시, 입력 표기 그대로). */
+    public Set<String> holdersAmong(java.util.Collection<String> userIds) {
+        Set<String> out = new LinkedHashSet<>();
+        if (userIds == null || userIds.isEmpty()) return out;
+        Set<String> holders = activeHolders();
+        for (String u : userIds) {
+            if (u != null && containsIgnoreCase(holders, u.trim())) out.add(u);
+        }
+        return out;
+    }
+
+    /**
+     * 주어진 사람 가운데 민감한 그룹(SYSADMIN 역할·SYSADMIN 전용 오브젝트 퍼미션을 가진 역할이 든 그룹)에 매핑된 사람(대소문자 무시, 입력 표기 그대로).
+     * 사람·그룹·역할의 사용 여부·기간은 보지 않는다 — 기간이 지났거나 정지된 SYSADMIN 계정도 비밀번호를 초기화해 다시 켜면
+     * 넘겨받을 수 있기 때문이다(계정 보호용, 마지막 시스템관리자 판정은 {@link #activeHolders}).
+     */
+    @SuppressWarnings("unchecked")
+    public Set<String> usersInSensitiveGroups(java.util.Collection<String> userIds) {
+        Set<String> out = new LinkedHashSet<>();
+        if (userIds == null || userIds.isEmpty()) return out;
+        List<String> upper = new java.util.ArrayList<>();
+        for (String u : userIds) if (u != null && !u.isBlank()) upper.add(u.trim().toUpperCase(java.util.Locale.ROOT));
+        if (upper.isEmpty()) return out;
+        Set<String> withObj = rolesWithSysadminOnlyObjects();
+        Set<String> hit = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
+        for (Object[] row : (List<Object[]>) entityManager.createNativeQuery(USER_ROLES_SQL)
+                .setParameter("ids", upper).getResultList()) {
+            String u = row[0] == null ? null : String.valueOf(row[0]);
+            String r = row[1] == null ? null : String.valueOf(row[1]);
+            if (u != null && r != null && (isSysadminRoleId(r) || withObj.contains(r.trim()))) hit.add(u.trim());
+        }
+        for (String u : userIds) if (u != null && hit.contains(u.trim())) out.add(u);
+        return out;
+    }
+
+    static final String USER_ROLES_SQL =
+            "SELECT UM.USER_ID, GM.ROLE_ID FROM MCMAPUSER.TB_MCM_SEC_USER_MAPPING UM "
+            + "JOIN MCMAPUSER.TB_MCM_SEC_ROLEGROUP_MAPPING GM ON GM.ROLE_GROUP_ID = UM.ROLE_GROUP_ID "
+            + "WHERE UPPER(TRIM(UM.USER_ID)) IN (:ids)";
+
+    static final String SENSITIVE_ROLE_SQL =
+            "SELECT DISTINCT P.ROLE_ID FROM MCMAPUSER.TB_MCM_SEC_ROLE_PERM P WHERE UPPER(P.OBJECT_ID) IN ("
+            + upperIn(SYSADMIN_ONLY_OBJECTS) + ")";
+
+    static final String GROUP_ROLES_SQL =
+            "SELECT GM.ROLE_GROUP_ID, GM.ROLE_ID FROM MCMAPUSER.TB_MCM_SEC_ROLEGROUP_MAPPING GM";
+
+    private static String upperIn(Set<String> ids) {
+        StringBuilder b = new StringBuilder();
+        for (String id : new TreeSet<>(ids)) {
+            if (b.length() > 0) b.append(',');
+            b.append('\'').append(id.toUpperCase(java.util.Locale.ROOT)).append('\'');
+        }
+        return b.toString();
+    }
+
+    /** SYSADMIN 전용 오브젝트 퍼미션(TB_MCM_SEC_ROLE_PERM)을 가진 역할(지금 DB, 같은 트랜잭션의 flush 된 쓰기 포함). */
+    @SuppressWarnings("unchecked")
+    public Set<String> rolesWithSysadminOnlyObjects() {
+        Set<String> out = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
+        for (Object r : (List<Object>) entityManager.createNativeQuery(SENSITIVE_ROLE_SQL).getResultList()) {
+            if (r != null) out.add(String.valueOf(r));
+        }
+        return out;
+    }
+
+    /** 민감한 역할 = SYSADMIN 역할(별칭 포함) 또는 SYSADMIN 전용 오브젝트 퍼미션을 가진 역할. 입력 가운데 민감한 것. */
+    public Set<String> sensitiveRoles(java.util.Collection<String> roleIds) {
+        Set<String> out = new LinkedHashSet<>();
+        if (roleIds == null || roleIds.isEmpty()) return out;
+        Set<String> withObj = null;
+        for (String r : roleIds) {
+            if (r == null) continue;
+            if (isSysadminRoleId(r)) {
+                out.add(r);
+                continue;
+            }
+            if (withObj == null) withObj = rolesWithSysadminOnlyObjects();
+            if (withObj.contains(r.trim())) out.add(r);
+        }
+        return out;
+    }
+
+    /** 민감한 그룹 = 민감한 역할이 든 그룹(TB_MCM_SEC_ROLEGROUP_MAPPING, 지금 DB). 입력 가운데 민감한 것. */
+    @SuppressWarnings("unchecked")
+    public Set<String> sensitiveGroups(java.util.Collection<String> groupIds) {
+        Set<String> out = new LinkedHashSet<>();
+        if (groupIds == null || groupIds.isEmpty()) return out;
+        Set<String> wanted = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
+        for (String g : groupIds) if (g != null) wanted.add(g.trim());
+        Set<String> withObj = rolesWithSysadminOnlyObjects();
+        Set<String> hit = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
+        for (Object[] row : (List<Object[]>) entityManager.createNativeQuery(GROUP_ROLES_SQL).getResultList()) {
+            String g = row[0] == null ? null : String.valueOf(row[0]);
+            String r = row[1] == null ? null : String.valueOf(row[1]);
+            if (g == null || r == null || !wanted.contains(g)) continue;
+            if (isSysadminRoleId(r) || withObj.contains(r.trim())) hit.add(g);
+        }
+        for (String g : groupIds) if (g != null && hit.contains(g.trim())) out.add(g);
+        return out;
     }
 
     private static boolean containsIgnoreCase(Set<String> ids, String id) {

@@ -165,6 +165,10 @@ class CommUserMngLifecycleTest extends CommUserMngJpaTestBase {
             fx.user("sa", null, START);
             fx.mapping("sa", "G_SYS");
 
+            // m19 — SYSADMIN 이 아닌 boss 가 SYSADMIN 보유자를 정지하면 먼저 SYSADMIN_ONLY
+            assertBiz(() -> inTx(() -> service.suspendUser(req("sa", "보안 점검", null))), "SYSADMIN_ONLY");
+            // 마지막 시스템관리자 막기는 시스템 호출(로그인 사용자 없음)에도 걸린다
+            CommUserMngJpaTestConfig.CURRENT_USER.set(null);
             assertBiz(() -> inTx(() -> service.suspendUser(req("sa", "보안 점검", null))), "LAST_SYSADMIN");
             assertThat(userOf("sa").getUseTp()).isEqualTo("Y");
         }
@@ -428,6 +432,10 @@ class CommUserMngLifecycleTest extends CommUserMngJpaTestBase {
         fx.mapping("sa2", "G_SYS");
         CommUserMngJpaTestConfig.CURRENT_USER.set("other");
         String d = LocalDate.now().plusDays(10).toString();
+        // m19 — SYSADMIN 이 아닌 other 가 SYSADMIN 보유자 행을 고치면 SYSADMIN_ONLY
+        assertBiz(() -> inTx(() -> service.saveCmUser(List.of(row(
+                "rowStatus", "updated", "USER_ID", "sa2", "END_ACTIVE_DATE", d)))), "SYSADMIN_ONLY");
+        CommUserMngJpaTestConfig.CURRENT_USER.set(null);
         assertBiz(() -> inTx(() -> service.saveCmUser(List.of(row(
                 "rowStatus", "updated", "USER_ID", "sa2", "END_ACTIVE_DATE", d)))), "LAST_SYSADMIN");
         anotherSysadmin();

@@ -76,13 +76,16 @@ public class CommPermMngService {
     private final CommPermQueryRepository commPermQueryRepository;
     private final CommPermMngQuery commPermMngQuery;
     private final ApplicationEventPublisher eventPublisher;
+    private final com.dongkuk.dmes.mcm.csa.commPerm.SysadminGuard sysadminGuard;
 
     public CommPermMngService(SecRolePermRepository secRolePermRepository,
                               SecRoleRepository secRoleRepository,
                               SecObjRepository secObjRepository,
                               CommPermQueryRepository commPermQueryRepository,
                               CommPermMngQuery commPermMngQuery,
-                              ApplicationEventPublisher eventPublisher) {
+                              ApplicationEventPublisher eventPublisher,
+                              com.dongkuk.dmes.mcm.csa.commPerm.SysadminGuard sysadminGuard) {
+        this.sysadminGuard = sysadminGuard;
         this.secRolePermRepository = secRolePermRepository;
         this.secRoleRepository = secRoleRepository;
         this.secObjRepository = secObjRepository;
@@ -274,6 +277,10 @@ public class CommPermMngService {
                 }
                 if (CommPermQueryRepository.isSysadmin(roleId)) {
                     throw new BusinessException(ErrorCode.BUSINESS_ERROR, "PERM_SYSADMIN: SYSADMIN 은 퍼미션 행을 두지 않습니다 (" + key + ")");
+                }
+                // m19 — SYSADMIN 전용 오브젝트(dbViewer 등) 퍼미션을 주고 빼는 일은 SYSADMIN 만
+                if (com.dongkuk.dmes.mcm.csa.commPerm.SysadminGuard.isSysadminOnlyObject(objectId)) {
+                    sysadminGuard.requireSysadmin("시스템관리자 전용 화면(DB 직접 조회 등)의 권한은 시스템관리자만 주고 뺄 수 있습니다");
                 }
                 SecRolePermId pk = new SecRolePermId(roleId, objectId);
                 if (seen.put(pk, row) != null) {

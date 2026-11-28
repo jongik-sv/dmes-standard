@@ -67,6 +67,8 @@ class PermDraftServiceTest {
     private final Map<String, PermChangeLookup.ObjAllowed> objs = new LinkedHashMap<>();
     private final Map<String, java.util.Set<String>> groupRoles = new LinkedHashMap<>();
     private boolean sysadminUser = false;
+    /** SYSADMIN 전용 오브젝트 퍼미션을 가진 역할(m19). */
+    private final java.util.Set<String> objOnlyRoles = new java.util.HashSet<>();
     private final PermChangeLookup lookup = new PermChangeLookup() {
         @Override public Map<String, ObjAllowed> objectAllowed(Collection<String> ids) {
             Map<String, ObjAllowed> out = new LinkedHashMap<>();
@@ -80,6 +82,7 @@ class PermDraftServiceTest {
         }
         @Override public java.util.Set<String> existing(Target kind, Collection<String> ids) { return java.util.Set.of(); }
         @Override public boolean currentUserIsSysadmin() { return sysadminUser; }
+        @Override public java.util.Set<String> rolesWithSysadminOnlyObjects() { return objOnlyRoles; }
     };
 
     private PermDraftFingerprint fp;
@@ -94,6 +97,7 @@ class PermDraftServiceTest {
         objs.put("OBJ1", all);
         objs.put("OBJ2", all);
         objs.put("mpp0123", all);
+        objs.put("dbViewer", new PermChangeLookup.ObjAllowed(List.of("query"), List.of()));
     }
 
     private static Map<String, Object> row(String tp, String k1, String k2, String op, String btn, String popup) {
@@ -224,6 +228,27 @@ class PermDraftServiceTest {
                 .hasMessageStartingWith("PERM_BAD_VALUE: ").hasMessageContaining("NOPE");
         svc.saveDraft(List.of(row("ROLE_OBJ", "R1", "NOPE", "DEL", null, null))); // DEL 은 값 검사 없음
         assertThat(svc.myChanges()).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("V-009(m19): SYSADMIN 전용 오브젝트(dbViewer) 퍼미션·그 퍼미션을 가진 역할·그 역할이 든 그룹 변경은 SYSADMIN 만")
+    void sysadminOnlyObjectScope() {
+        objOnlyRoles.add("R_DB");
+        groupRoles.put("G_DB", java.util.Set.of("R_DB"));
+        List<List<Map<String, Object>>> involved = List.of(
+                List.of(row("ROLE_OBJ", "R1", "dbViewer", "ADD", "query", null)),
+                List.of(row("ROLE_OBJ", "R_DB", "dbViewer", "DEL", null, null)),
+                List.of(row("GRP_ROLE", "G1", "R_DB", "ADD", null, null)),
+                List.of(row("USER_GRP", "u1", "G_DB", "ADD", null, null)),
+                List.of(row("USER_GRP", "u1", "G_NEW", "ADD", null, null), row("GRP_ROLE", "G_NEW", "R_DB", "ADD", null, null)));
+        for (List<Map<String, Object>> req : involved) {
+            assertThatThrownBy(() -> svc.saveDraft(req)).hasMessageStartingWith("PERM_FORBIDDEN: ");
+        }
+        svc.saveDraft(List.of(row("ROLE_OBJ", "R1", "OBJ1", "ADD", "find", null))); // 다른 오브젝트는 통과
+        sysadminUser = true;
+        for (List<Map<String, Object>> req : involved) {
+            svc.saveDraft(req);
+        }
     }
 
     @Test
