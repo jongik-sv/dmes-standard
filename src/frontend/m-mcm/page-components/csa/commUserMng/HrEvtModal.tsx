@@ -201,7 +201,6 @@ export const HrEvtModal = memo(function HrEvtModal({ canRetry, canReg, onClose, 
         columns={COLUMNS}
         data={rows}
         rowKey="__key"
-        height={360}
         selectable
         multiSelect
         isRowSelectable={(r) => r.PROC_ST === "FAIL"}

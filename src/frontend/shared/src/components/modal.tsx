@@ -401,6 +401,14 @@ function useModalBox(enabled: boolean, storageKey: string | undefined) {
   return { contentRef, style, sized: enabled && box !== null, handleProps, headerProps };
 }
 
+/** 크기·위치 저장 키 — 준 값(null = 남기지 않음), 없으면 제목 기준 기본 키. 제목도 없으면 남기지 않는다. */
+export function modalBoxKey(storageKey: string | null | undefined, title: string | undefined): string | undefined {
+  if (storageKey === null) return undefined;
+  if (storageKey) return storageKey;
+  const t = title?.trim();
+  return t ? `cm-modal-box:${t}` : undefined;
+}
+
 export interface ModalProps {
   open: boolean;
   title?: string;
@@ -423,17 +431,20 @@ export interface ModalProps {
    */
   closeOnClickOutside?: boolean;
   /**
-   * 오른쪽 아래 모서리 손잡이를 끌어 창 크기를 조절한다. 기본 false(지금 그대로). 최소 480×320, 최대는 화면 안.
-   * 조절한 창에는 `cm-modal--resized` 클래스가 붙어 안쪽 내용이 높이를 따라 늘어나게 쓸 수 있다.
+   * 오른쪽 아래 모서리 손잡이를 끌어 창 크기를 조절한다. 기본 true(2026-11-28 — 모든 팝업). 끄려면 false. 최소 480×320, 최대는 화면 안.
+   * 조절한 창에는 `cm-modal--resized` 클래스가 붙는다. 본문은 남는 높이를 채우고, 높이를 비운 그리드({@link ModalFill})가 창을 따라 늘고 준다.
    */
   resizable?: boolean;
   /**
-   * 제목 줄을 끌어 창을 옮긴다. 기본 false(지금 그대로). 머리줄이 화면 안(가로 80px·세로 36px)에 남도록 막고, 제목 줄을 두 번 누르면 가운데·기본 크기로 돌아간다.
+   * 제목 줄을 끌어 창을 옮긴다. 기본 true(2026-11-28). 끄려면 false. 머리줄이 화면 안(가로 80px·세로 36px)에 남도록 막고, 제목 줄을 두 번 누르면 가운데·기본 크기로 돌아간다.
    * 머리줄 안 단추·입력 칸에서 시작한 누름은 끌기가 아니다.
    */
   draggable?: boolean;
-  /** resizable·draggable 일 때 조절한 크기·위치를 localStorage 에 이 키로 남긴다(없으면 같은 화면이 열려 있는 동안만 유지). */
-  resizeStorageKey?: string;
+  /**
+   * 조절한 크기·위치를 localStorage 에 이 키로 남긴다. 생략하면 제목 기준 키(`cm-modal-box:<title>`)를 쓴다 — 제목이 바뀌는 창(이름·번호가 들어간 제목)은
+   * 고정 키를 준다. null 이면 남기지 않는다(같은 창이 열려 있는 동안만 유지).
+   */
+  resizeStorageKey?: string | null;
 }
 
 /**
@@ -463,8 +474,8 @@ function ModalCore({
   bodyClassName = "",
   descriptionId,
   closeOnClickOutside = false,
-  resizable = false,
-  draggable = false,
+  resizable = true,
+  draggable = true,
   resizeStorageKey,
   overlayClassName = "",
 }: ModalProps & { overlayClassName?: string }) {
@@ -481,7 +492,7 @@ function ModalCore({
     () => false,
   );
   const { setDialogRef: setA11yRef } = useModalA11yCompat(open, descriptionId, isTop);
-  const resize = useModalBox(resizable || draggable, resizeStorageKey);
+  const resize = useModalBox(resizable || draggable, modalBoxKey(resizeStorageKey, title));
   const setDialogRef = useCallback(
     (node: HTMLElement | null) => {
       resize.contentRef.current = node;
@@ -573,6 +584,46 @@ function ModalCore({
   );
 }
 
+export interface ModalFillProps {
+  children?: ReactNode;
+  /** 칸 사이 간격(px). 기본 10. */
+  gap?: number;
+  className?: string;
+  testId?: string;
+}
+
+/**
+ * 창 본문의 남는 높이를 채우는 세로 상자(2026-11-28). 안의 높이를 비운 그리드(AgDataGrid·GridPanel 의 `height` 생략)는 남는 높이를 나눠 채우고,
+ * 창 크기를 조절하면 따라 늘고 준다. 조회 조건·안내 같은 다른 줄은 제 높이 그대로다. 비율을 바꾸려면 {@link ModalFillPart} 로 감싼다.
+ * 그리드에 숫자 `height` 를 주면 지금처럼 그 높이로 고정된다.
+ */
+export function ModalFill({ children, gap = 10, className, testId }: ModalFillProps) {
+  return (
+    <div className={clsx("cm-modal-fill", className)} style={{ gap }} data-testid={testId}>
+      {children}
+    </div>
+  );
+}
+
+export interface ModalFillPartProps {
+  children?: ReactNode;
+  /** 남는 높이를 나눌 비율(flex-grow). 기본 1. */
+  weight?: number;
+  /** 이 칸의 최소 높이(px). 기본 120 — 창을 줄여도 그리드가 머리줄만 남지 않게. */
+  minHeight?: number;
+  className?: string;
+  testId?: string;
+}
+
+/** {@link ModalFill} 안에서 남는 높이를 `weight` 비율로 받는 칸. 안의 높이를 비운 그리드가 이 칸을 채운다. */
+export function ModalFillPart({ children, weight = 1, minHeight = 120, className, testId }: ModalFillPartProps) {
+  return (
+    <div className={clsx("cm-modal-fill-part", className)} style={{ flexGrow: weight, minHeight }} data-testid={testId}>
+      {children}
+    </div>
+  );
+}
+
 function ModalComponent(props: ModalProps) {
   return <ModalImpl {...props} />;
 }
@@ -634,6 +685,9 @@ export function MessageModal({
       open={open}
       onClose={onClose}
       size="sm"
+      // 확인·알림 짧은 창 — 크기 조절·이동을 켜지 않는다(내용이 몇 줄이고 단추로 곧 닫는다)
+      resizable={false}
+      draggable={false}
       className="cm-message-modal"
       overlayClassName="cm-message-modal-overlay"
       showCloseButton={false}

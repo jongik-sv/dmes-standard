@@ -9,7 +9,7 @@
  * 창 안 입력(메모)은 창 안 상태 — 한 글자마다 화면 루트를 다시 그리지 않는다.
  */
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Modal } from "@dk-oasis/shared/modal";
+import { Modal, ModalFill } from "@dk-oasis/shared/modal";
 import { AgDataGrid, type GridColumn } from "@dk-oasis/shared/grid";
 import { Button, DateRangePicker, Textarea } from "@dk-oasis/shared/form";
 import type { HistoryDtlRow, HistoryRow, ImpactResult, PermBenchApi, YN } from "./types";
@@ -235,7 +235,8 @@ export const HistoryModal = memo(function HistoryModal({ api, base, onClose }: {
 
   return (
     <Modal open title="적용 이력" size="xl" onClose={onClose} closeOnClickOutside footer={<Button onClick={onClose}>닫기</Button>}>
-      <div className="pb-stack">
+      {/* 두 그리드는 높이를 비워 창 본문의 남는 높이를 나눠 채운다 — 창 크기를 조절하면 따라 늘고 준다(shared ModalFill) */}
+      <ModalFill>
         <div className="pb-hisq">
           <span className="pb-small">적용 기간</span>
           <DateRangePicker from={range.fromDt} to={range.toDt} onChange={onRange} fromAriaLabel="적용 기간 시작일" toAriaLabel="적용 기간 종료일" />
@@ -259,20 +260,19 @@ export const HistoryModal = memo(function HistoryModal({ api, base, onClose }: {
             최근 {HISTORY_MAX_ROWS}건만 보입니다 — 기간을 좁혀 주세요.
           </span>
         )}
-        <AgDataGrid title="적용" ariaLabel="적용 이력" columns={HIS_COLUMNS} data={his as unknown as Record<string, unknown>[]} rowKey="APPLY_ID" height={220} columnSizing="fit" personalize={false} loading={loading} highlightedRowKey={applyId} onRowClick={onRow} publishScreenContext={false} />
+        <AgDataGrid title="적용" ariaLabel="적용 이력" columns={HIS_COLUMNS} data={his as unknown as Record<string, unknown>[]} rowKey="APPLY_ID" columnSizing="fit" personalize={false} loading={loading} highlightedRowKey={applyId} onRowClick={onRow} publishScreenContext={false} />
         <AgDataGrid
           title={applyId ? `바꾼 것 — ${applyId}` : "바꾼 것"}
           ariaLabel="적용 이력 줄"
           columns={dtlColumns}
           data={dtl as unknown as Record<string, unknown>[]}
           rowKey="SEQ_NO"
-          height={240}
           columnSizing="fit"
           personalize={false}
           loading={dtlLoading}
           publishScreenContext={false}
         />
-      </div>
+      </ModalFill>
     </Modal>
   );
 });

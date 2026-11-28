@@ -3,7 +3,7 @@
 /** 헤더 추가 팝업(TSK-05-02 design.md §2) — layoutMng search target=HEADER(D8). 이미 쌓인 헤더는 고를 수 없다(L09). */
 import { Button } from "@dk-oasis/shared/form";
 import { AgDataGrid, type GridColumn } from "@dk-oasis/shared/grid";
-import { Modal } from "@dk-oasis/shared/modal";
+import { Modal, ModalFill } from "@dk-oasis/shared/modal";
 import type { HeaderOption } from "../types";
 
 const COLUMNS: GridColumn[] = [
@@ -25,17 +25,16 @@ export function HeaderPickModal({ open, options, used, onPick, onClose }: Header
   const rows = options.filter((o) => !used.includes(o.LAYOUT_ID));
   return (
     <Modal open={open} title="헤더 추가" size="md" onClose={onClose} footer={<Button onClick={onClose}>닫기</Button>}>
-      <div data-testid="header-pick-modal">
+      <ModalFill testId="header-pick-modal">
         <AgDataGrid gridId="modal-headerPick"
           columnSizing="fit"
           columns={COLUMNS}
           data={rows as unknown as Record<string, unknown>[]}
           rowKey="LAYOUT_ID"
-          height={240}
           emptyMessage="더 쌓을 헤더가 없습니다"
           onRowClick={(r) => onPick(r as unknown as HeaderOption)}
         />
-      </div>
+      </ModalFill>
     </Modal>
   );
 }

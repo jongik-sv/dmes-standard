@@ -1,7 +1,7 @@
 /** @vitest-environment happy-dom */
 import { act, createElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { Modal } from "../../src/components/modal";
+import { MessageModal, Modal, ModalFill, ModalFillPart, modalBoxKey } from "../../src/components/modal";
 import { renderWithMantine as baseRender, type Rendered } from "./mantine-test-utils";
 
 /** 단언이 실패해도 창이 남아 다음 시험을 오염시키지 않게, 만든 것을 모두 기억해 afterEach 에서 정리한다(unmount 는 여러 번 불러도 안전). */
@@ -21,7 +21,7 @@ function renderWithMantine(...args: Parameters<typeof baseRender>): Rendered {
   return wrapped;
 }
 
-/** 창 크기 조절(resizable) — opt-in, 최소·최대 고정, 끌기로 크기 변경, 저장한 크기 복원. */
+/** 창 크기 조절(resizable) — 기본 켬(2026-11-28), 최소·최대 고정, 끌기로 크기 변경, 저장한 크기 복원. */
 function pointer(type: string, x: number, y: number) {
   return new PointerEvent(type, { clientX: x, clientY: y, button: 0, pointerId: 1, bubbles: true, cancelable: true });
 }
@@ -68,11 +68,59 @@ afterEach(() => {
 });
 
 describe("Modal resizable", () => {
-  it("기본(false)은 손잡이·인라인 크기·resized 클래스가 없다", () => {
-    const r = renderWithMantine(createElement(Modal, { open: true, title: "T", onClose: () => {} }, "본문"));
-    expect(document.querySelector('[data-testid="modal-resize-handle"]')).toBeNull();
+  it("기본은 켜져 있다(손잡이·끌기 클래스, 아직 인라인 크기·resized 없음). false 로 끄면 손잡이·끌기가 없다", () => {
+    const on = renderWithMantine(createElement(Modal, { open: true, title: "T", onClose: () => {} }, "본문"));
+    expect(document.querySelector('[data-testid="modal-resize-handle"]')).not.toBeNull();
+    expect(content().classList.contains("cm-modal--resizable")).toBe(true);
+    expect(content().classList.contains("cm-modal--draggable")).toBe(true);
     expect(content().style.width).toBe("");
     expect(content().classList.contains("cm-modal--resized")).toBe(false);
+    on.unmount();
+
+    const off = renderWithMantine(createElement(Modal, { open: true, title: "T", resizable: false, draggable: false, onClose: () => {} }, "본문"));
+    expect(document.querySelector('[data-testid="modal-resize-handle"]')).toBeNull();
+    expect(content().classList.contains("cm-modal--resizable")).toBe(false);
+    expect(content().classList.contains("cm-modal--draggable")).toBe(false);
+    off.unmount();
+  });
+
+  it("저장 키: 생략하면 제목 기준 기본 키에 남기고, null 이면 남기지 않는다. 확인·알림 창(MessageModal)은 크기 조절·이동이 없다", () => {
+    expect(modalBoxKey(undefined, " 적용 이력 ")).toBe("cm-modal-box:적용 이력");
+    expect(modalBoxKey("k", "제목")).toBe("k");
+    expect(modalBoxKey(null, "제목")).toBeUndefined();
+    expect(modalBoxKey(undefined, undefined)).toBeUndefined();
+
+    const r = renderWithMantine(createElement(Modal, { open: true, title: "이력", onClose: () => {} }, "본문"));
+    drag(document.querySelector('[data-testid="modal-resize-handle"]')!, 50, 30);
+    r.unmount();
+    expect(JSON.parse(window.localStorage.getItem("cm-modal-box:이력")!)).toEqual({ w: 650, h: 430, tx: 25, ty: 15 });
+
+    const n = renderWithMantine(createElement(Modal, { open: true, title: "안남김", resizeStorageKey: null, onClose: () => {} }, "본문"));
+    drag(document.querySelector('[data-testid="modal-resize-handle"]')!, 50, 30);
+    n.unmount();
+    expect(window.localStorage.getItem("cm-modal-box:안남김")).toBeNull();
+
+    const m = renderWithMantine(createElement(MessageModal, { open: true, message: "확인할까요?", onClose: () => {} }));
+    expect(document.querySelector('[data-testid="modal-resize-handle"]')).toBeNull();
+    expect(content().classList.contains("cm-modal--draggable")).toBe(false);
+    m.unmount();
+  });
+
+  it("ModalFill·ModalFillPart: 채우기 상자와 비율 칸(flex-grow·최소 높이)을 그린다", () => {
+    const r = renderWithMantine(
+      createElement(Modal, { open: true, title: "채움", onClose: () => {} },
+        createElement(ModalFill, { testId: "fill", gap: 6 },
+          createElement("div", null, "조건 줄"),
+          createElement(ModalFillPart, { weight: 2, minHeight: 90, testId: "part" }, "그리드 자리"))),
+    );
+    const fill = document.querySelector<HTMLElement>('[data-testid="fill"]')!;
+    expect(fill.classList.contains("cm-modal-fill")).toBe(true);
+    expect(fill.parentElement!.classList.contains("cm-modal-body")).toBe(true);
+    expect(fill.style.gap).toBe("6px");
+    const part = document.querySelector<HTMLElement>('[data-testid="part"]')!;
+    expect(part.classList.contains("cm-modal-fill-part")).toBe(true);
+    expect(part.style.flexGrow).toBe("2");
+    expect(part.style.minHeight).toBe("90px");
     r.unmount();
   });
 
@@ -134,8 +182,8 @@ describe("Modal resizable", () => {
     r.unmount();
   });
 
-  it("draggable: 기본(false)은 머리줄 끌기가 없고, 켜면 머리줄을 끌어 옮기되 머리줄이 화면 안에 남는다", () => {
-    const off = renderWithMantine(createElement(Modal, { open: true, title: "T", onClose: () => {} }, "본문"));
+  it("draggable: false 면 머리줄 끌기가 없고, 켜면(기본) 머리줄을 끌어 옮기되 머리줄이 화면 안에 남는다", () => {
+    const off = renderWithMantine(createElement(Modal, { open: true, title: "T", draggable: false, onClose: () => {} }, "본문"));
     expect(content().classList.contains("cm-modal--draggable")).toBe(false);
     off.unmount();
 

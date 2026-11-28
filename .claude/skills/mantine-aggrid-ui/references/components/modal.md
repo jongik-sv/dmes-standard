@@ -2,7 +2,7 @@
 
 등록·수정·선택 팝업을 화면 위에 띄울 때 쓴다. 알림·확인 대화상자(`MessageModal`)는 직접 쓰지 않고 `useMessage` 로 띄운다.
 
-- import: `import { Modal, MessageModal, type ModalProps, type MessageModalProps, type AlertType } from "@dk-oasis/shared/modal";` (`modal.tsx` 가 `modal.css` 를 스스로 불러온다)
+- import: `import { Modal, ModalFill, ModalFillPart, MessageModal, type ModalProps, type ModalFillProps, type ModalFillPartProps, type MessageModalProps, type AlertType } from "@dk-oasis/shared/modal";` (`modal.tsx` 가 `modal.css` 를 스스로 불러온다)
 - 소스: `src/frontend/shared/src/components/modal.tsx`
 - 내부 구현: Mantine `Modal.Root` + 초점·ESC 보정 훅(`useModalA11yCompat`, `useEscapeCompat`). `MessageModal` 은 같은 구현 위에 아이콘·확인 버튼을 얹는다
 
@@ -73,9 +73,32 @@ export function UnitRegModal({ open, isBusy, onClose, onSubmit }: {
 
 모든 창은 기본으로 바깥(오버레이)을 눌러도 닫히지 않는다(2026-11-26부터, 알림·확인 창 `MessageModal` 포함). 잘못 누른 한 번에 입력하던 내용이 사라지지 않게 하려는 것이다. X·ESC·[취소]·[닫기]로 닫는다. 닫혀도 잃을 것이 없는 창에서 바깥 누름으로 닫고 싶을 때만 `closeOnClickOutside` 를 켠다.
 
-### 사용자가 크기를 조절하게 하기
+### 크기 조절·이동과 높이 채우기 (2026-11-28 기본 켬)
 
-긴 내용을 편집하는 창(SQL 큰 창 등)만 `resizable` 을 켠다. 오른쪽 아래 모서리를 끌면 가로·세로가 바뀐다(최소 480×320, 최대는 화면 안 — 여백 16px). 왼쪽 위를 고정한 채 모서리가 포인터를 1:1 로 따라온다. 조절한 창에는 `cm-modal--resized` 클래스가 붙으므로, 안쪽 내용이 높이를 따라 늘어나야 하면 이 클래스 아래에서 `flex: 1 1 0; min-height: 0` 으로 둔다. `draggable` 을 켜면 제목 줄을 끌어 창을 옮길 수 있다(머리줄이 화면 안에 남도록 막고, 머리줄 안 단추·입력에서 시작한 누름은 끌기가 아니며, 제목 줄을 두 번 누르면 가운데·기본 크기로 돌아간다). `resizeStorageKey` 를 주면 크기·위치를 localStorage 에 남겨 다음에 열 때 복원한다(화면이 바뀌어 머리줄이 밖이면 가운데로, 저장이 안 돼도 기본 모양).
+모든 창은 기본으로 크기를 조절하고(`resizable`) 옮길 수 있다(`draggable`). 끄려면 `false` 를 준다. 확인·알림 창(`MessageModal`)은 켜지 않는다.
+
+- 크기: 오른쪽 아래 모서리를 끌면 가로·세로가 바뀐다(최소 480×320, 최대는 화면 안 — 여백 16px). 왼쪽 위를 고정한 채 모서리가 포인터를 1:1 로 따라온다. 조절한 창에는 `cm-modal--resized` 클래스가 붙는다.
+- 이동: 제목 줄을 끌면 옮겨진다. 머리줄은 화면 안에 남고, 머리줄 안 단추·입력에서 시작한 누름은 끌기가 아니다. 제목 줄을 두 번 누르면 가운데·기본 크기로 돌아간다.
+- 기억: 조절한 크기·위치는 localStorage 에 남아 다음에 열 때 복원된다. 키를 안 주면 제목 기준(`cm-modal-box:<title>`)이다. 제목에 이름·번호가 들어가 바뀌는 창은 `resizeStorageKey` 로 고정 키를 준다. `null` 이면 남기지 않는다.
+- 높이: 본문은 창의 남는 높이를 채운다. **팝업 안 그리드는 `height` 를 비워 채운다** — 본문에 바로 둔 그리드는 남는 높이를 채우고, 그리드가 둘 이상이거나 조회 조건·안내 줄과 함께면 `ModalFill` 로 감싼다. `ModalFill` 안에서 높이를 비운 그리드(`AgDataGrid`·`GridPanel`)는 남는 높이를 같은 비율로 나눠 갖고, 다른 줄은 제 높이다. 비율을 바꾸려면 그리드를 `ModalFillPart weight={2}` 로 감싼다(최소 높이 기본 120px). 창 크기를 조절하면 그리드가 따라 늘고 준다.
+- 숫자 `height` 를 주면 지금처럼 그 높이로 고정된다(행이 적은 목록은 `height="auto"`).
+- 저장 키 계산은 `modalBoxKey(resizeStorageKey, title)` 순수 함수다(준 키 → 그 키, `null` → 없음, 생략 → `cm-modal-box:<title>`).
+- 크기 프리셋 높이: `md` 최소 400px, `lg` 최소 화면 70%, `xl` 최소 화면 80%(모두 화면 안). 폭은 sm 400·md 600·lg 900·xl 1024px.
+
+```tsx
+import { Modal, ModalFill, ModalFillPart } from "@dk-oasis/shared/modal";
+import { AgDataGrid } from "@dk-oasis/shared/grid";
+
+<Modal open title="적용 이력" size="xl" onClose={onClose}>
+  <ModalFill>
+    <div className="my-query-row">{/* 조회 조건 — 제 높이 */}</div>
+    <AgDataGrid title="적용" columns={hisCols} data={his} rowKey="APPLY_ID" />            {/* height 없음 = 채움 */}
+    <ModalFillPart weight={2}>
+      <AgDataGrid title="바꾼 것" columns={dtlCols} data={dtl} rowKey="SEQ_NO" />         {/* 아래 칸이 두 배 */}
+    </ModalFillPart>
+  </ModalFill>
+</Modal>
+```
 
 ### 열 때마다 상태를 새로 시작하기
 
@@ -99,9 +122,18 @@ Modal
 | bodyClassName | `string` | `""` | 본문에 붙일 클래스 |
 | descriptionId | `string` | - | 창이 설명으로 참조할 본문 요소 id |
 | closeOnClickOutside | `boolean` | `false` | 바깥(오버레이) 누름으로 닫을지. 기본은 닫지 않는다. 닫혀도 잃을 것이 없는 창만 `true`. X·ESC·[취소]는 영향 없다 |
-| resizable | `boolean` | `false` | 오른쪽 아래 모서리 손잡이로 창 크기를 조절한다. 최소 480×320, 최대는 화면 안. 조절하면 창에 `cm-modal--resized` 클래스 |
-| draggable | `boolean` | `false` | 제목 줄을 끌어 창 위치를 옮긴다. 머리줄은 항상 화면 안, 두 번 누르면 가운데·기본 크기로 복귀 |
-| resizeStorageKey | `string` | - | `resizable`·`draggable` 일 때 조절한 크기·위치를 localStorage 에 이 키로 남긴다(없으면 열려 있는 동안만 유지) |
+| resizable | `boolean` | `true` | 오른쪽 아래 모서리 손잡이로 창 크기를 조절한다. 최소 480×320, 최대는 화면 안. 조절하면 창에 `cm-modal--resized` 클래스. 끄려면 `false` |
+| draggable | `boolean` | `true` | 제목 줄을 끌어 창 위치를 옮긴다. 머리줄은 항상 화면 안, 두 번 누르면 가운데·기본 크기로 복귀. 끄려면 `false` |
+| resizeStorageKey | `string \| null` | 제목 기준 | 조절한 크기·위치를 localStorage 에 남기는 키. 생략 = `cm-modal-box:<title>`, `null` = 남기지 않음(열려 있는 동안만 유지) |
+
+ModalFill · ModalFillPart
+
+| Prop | 타입 | 기본값 | 설명 |
+|---|---|---|---|
+| gap (ModalFill) | `number` | `10` | 칸 사이 간격(px) |
+| weight (ModalFillPart) | `number` | `1` | 남는 높이를 나눌 비율(flex-grow) |
+| minHeight (ModalFillPart) | `number` | `120` | 칸 최소 높이(px) |
+| className · testId | | - | 붙일 클래스·`data-testid` |
 
 MessageModal (보통 `MessageProvider` 가 대신 띄운다)
 
@@ -116,13 +148,13 @@ MessageModal (보통 `MessageProvider` 가 대신 띄운다)
 | confirmText | `string` | `"확인"` | 확인 버튼 문구 |
 | cancelText | `string` | `"취소"` | confirm 의 취소 문구 |
 
-`MessageModal` 은 폭이 sm 으로 고정이다. confirm 이면 취소(왼쪽) → 확인(오른쪽), 그 밖에는 확인 하나다. error·warning 에는 메시지 복사 버튼이 왼쪽 끝에 붙는다.
+`MessageModal` 은 폭이 sm 으로 고정이고 크기 조절·이동이 없다. confirm 이면 취소(왼쪽) → 확인(오른쪽), 그 밖에는 확인 하나다. error·warning 에는 메시지 복사 버튼이 왼쪽 끝에 붙는다.
 
 ## 표준값: 모든 화면 동일
 
 - footer 순서: 취소 → 실행(`variant="primary"`). 닫기만 있으면 "닫기" 하나.
 - 등록 폼 팝업 `size` 는 `md`. 실행 버튼은 처리 중 `disabled={isBusy}`.
-- 팝업 안의 목록도 `AgDataGrid`(행이 적으면 `height="auto"`), 입력은 상세 폼 표.
+- 팝업 안의 목록도 `AgDataGrid` — `height` 를 비워 창 높이를 채운다(여럿이면 `ModalFill`). 행이 적으면 `height="auto"`. 입력은 상세 폼 표.
 - GridPanel 안에서 띄운 팝업이어도 안의 `AgDataGrid` 는 자기 머리줄(그리드명·건수·엑셀 메뉴)을 그린다 — Modal 이 GridPanel 등록부를 끊는다(`GridPanelBoundary`, DOM 추가 없음). 바깥 GridPanel 의 건수·검색 칸·설정 메뉴는 영향을 받지 않는다. 안의 숫자 `height` 는 표 높이이고 머리줄(약 30~34px)이 더해지니, 팝업 안 고정 높이 칸에 넣을 때는 숫자에서 뺀다.
 
 ## 흔한 실수
@@ -136,6 +168,8 @@ MessageModal (보통 `MessageProvider` 가 대신 띄운다)
 | 바깥 누름을 막으려고 `closeOnClickOutside={false}` 를 붙인다 | 기본이 이미 닫지 않음이다. 붙이지 않는다 |
 | 알림을 `MessageModal` 로 직접 그린다 | `showMessage` 를 쓴다([message](message.md)) |
 | 같은 화면에 `Modal` 을 여러 개 같은 상태로 연다 | 팝업마다 열림 상태를 따로 둔다 |
+| 팝업 안 그리드에 `height={240}` 같은 고정 높이를 준다 | 창을 키워도 그리드가 그대로다. `height` 를 비우고 여럿이면 `ModalFill` 로 감싼다 |
+| 제목에 이름·번호가 들어가는 창에 저장 키를 안 준다 | 제목마다 저장 줄이 생긴다. `resizeStorageKey` 로 고정 키를 준다 |
 
 ## 실제 사용 예
 

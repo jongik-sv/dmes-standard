@@ -248,3 +248,38 @@
 .cm-modal--draggable .cm-modal-header input {
   cursor: pointer;
 }
+
+/* 본문 남는 높이 채우기(2026-11-28) — 창 크기를 조절하면 안의 그리드가 따라 늘고 준다.
+   ModalFill 은 본문(flex column) 안에서 남는 높이를 받는 세로 상자다. 높이를 비운 그리드(머리줄 있는 바깥 상자·머리줄 없는 표)와
+   ModalFillPart 가 남는 높이를 나눠 갖고(기본 같은 비율), 다른 줄(조회 조건·안내)은 제 높이다. 숫자 height 그리드(--sized)는 그대로 고정이다. */
+.cm-modal-fill {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.cm-modal-fill > *,
+.cm-modal-fill-part > * {
+  flex-shrink: 0;
+}
+.cm-modal-body > .cm-grid-with-header:not(.cm-grid-with-header--sized):not(.cm-grid-with-header--auto),
+.cm-modal-fill > .cm-grid-with-header:not(.cm-grid-with-header--sized):not(.cm-grid-with-header--auto),
+.cm-modal-fill-part > .cm-grid-with-header:not(.cm-grid-with-header--sized):not(.cm-grid-with-header--auto) {
+  flex: 1 1 0;
+  height: auto !important;
+  max-height: none;
+  min-height: 120px;
+}
+.cm-modal-fill > .cm-modal-fill-part {
+  display: flex;
+  flex-direction: column;
+  flex-basis: 0;
+  flex-shrink: 1;
+}
+.cm-modal-fill > .cm-data-grid,
+.cm-modal-fill-part > .cm-data-grid,
+.cm-modal-fill > .grid-panel,
+.cm-modal-fill-part > .grid-panel {
+  flex: 1 1 0;
+  min-height: 120px;
+}

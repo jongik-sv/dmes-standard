@@ -389,6 +389,8 @@ import "@dk-oasis/shared/tree.css";
 ```ts
 import {
   Modal,
+  ModalFill,
+  ModalFillPart,
   MessageModal,
   type ModalProps,
   type MessageModalProps,
@@ -398,6 +400,8 @@ import "@dk-oasis/shared/modal.css";
 ```
 
 - MUST: 팝업·확인 대화상자는 `Modal` 또는 `MessageModal` 을 사용한다.
+- 기본(2026-11-28): 모든 `Modal` 은 크기 조절·이동이 켜져 있고 조절한 크기·위치를 제목 기준 키로 기억한다(`MessageModal` 은 끔). 끄려면 `resizable={false}`·`draggable={false}`.
+- MUST: 팝업 안 그리드는 높이를 비워 창 높이를 채운다. 그리드가 둘 이상이거나 조회 조건·안내 줄과 함께면 `ModalFill`(비율은 `ModalFillPart weight`)로 감싼다. 숫자 `height` 는 행이 정해진 작은 목록에만 쓴다(창을 키워도 그대로다).
 
 ---
 
