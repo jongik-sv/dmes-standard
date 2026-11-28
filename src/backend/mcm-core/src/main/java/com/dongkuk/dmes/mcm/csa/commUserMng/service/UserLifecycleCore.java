@@ -250,6 +250,19 @@ public class UserLifecycleCore {
     }
 
     /**
+     * 퇴직 미리 보기 — {@link #retire} 가 회수·해제할 건수를 같은 조회로 센다. 아무것도 바꾸지 않는다.
+     *
+     * @return {@code ROLE_GROUP_CNT}(회수할 역할그룹 수)·{@code ASSIGN_CNT}(해제할 사용자 쿼리 배정 수)
+     */
+    Map<String, Object> retirePreview(SecUser u) {
+        List<String> groupIds = secUserMappingRepository.findRoleGroupIdsByUserId(u.getUserId());
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("ROLE_GROUP_CNT", groupIds == null ? 0 : groupIds.size());
+        out.put("ASSIGN_CNT", Math.toIntExact(userQueryAssignRepository.countByUserId(u.getUserId()))); // retire 의 ASSIGN_CNT 와 같은 int
+        return out;
+    }
+
+    /**
      * 나중에 인계 — 퇴직자(또는 누구든)의 MDM 담당을 받을 사람에게 넘긴다. MCM 칸은 바꾸지 않고 이력만 남긴다.
      */
     Map<String, Object> handover(String fromUserId, String toUserId) {

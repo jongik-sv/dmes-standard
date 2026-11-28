@@ -134,6 +134,35 @@ export interface RetireResult extends HandoverResult {
   ASSIGN_CNT?: number;
 }
 
+/**
+ * 퇴직 미리 보기 응답(searchRetirePreview, 2026-11-28) — 퇴직 처리가 회수·해제할 건수. 아무것도 바꾸지 않는다.
+ * ds_owned 는 ERD 작업 중 표시(KIND=ERD_CLAIM)까지 담는다. MDM 에 닿지 못하면 ds_owned 는 빈 목록·CLAIM_CNT 없음·OWNED_ERROR 문구.
+ */
+export interface RetirePreview {
+  ROLE_GROUP_CNT?: number;
+  ASSIGN_CNT?: number;
+  CLAIM_CNT?: number;
+  ds_owned?: OwnedRow[];
+  OWNED_ERROR?: string;
+}
+
+/** 받을 사람 후보 한 명(searchActiveUserLov ds_userLov) — 상태 활성·잠금만 온다. */
+export interface ActiveUserLovRow extends Record<string, unknown> {
+  USER_ID?: string;
+  USER_NM?: string;
+  USER_EMP_NO?: string;
+  DEPT_CD?: string;
+  DEPT_NM?: string | null;
+  USER_ST?: string;
+  USER_ST_NM?: string;
+}
+
+/** 받을 사람 찾기 응답. 후보가 상한(200명)을 넘으면 LOV_TRUNCATED=Y. */
+export interface ActiveUserLovPayload {
+  ds_userLov?: ActiveUserLovRow[];
+  LOV_TRUNCATED?: "Y" | "N" | string;
+}
+
 /** ERP 인사 정보 한 건 (searchHrEvt ds_hrEvt). */
 export interface HrEvtRow extends Record<string, unknown> {
   EVT_ID: string | number;

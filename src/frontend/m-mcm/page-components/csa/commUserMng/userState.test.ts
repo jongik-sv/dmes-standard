@@ -7,10 +7,12 @@ import {
   isHrLeaveOnly,
   isSelf,
   joinReason,
+  lovRowToLookup,
   ownedSummary,
   ownedTotal,
   retireText,
   retrySummary,
+  splitOwned,
   stateActionsOf,
   stateNotes,
   tempPwdUntil,
@@ -163,5 +165,38 @@ describe("작은 값 함수", () => {
     expect(isSelf("Admin", "admin")).toBe(true);
     expect(isSelf("u1", "admin")).toBe(false);
     expect(isSelf("admin", "")).toBe(false);
+  });
+});
+
+describe("퇴직 미리 보기·받을 사람 찾기", () => {
+  const rows = [
+    { KIND: "CODE_OWNER", KIND_NM: "코드 초안 소유", CNT: 4 },
+    { KIND: "ERD_CLAIM", KIND_NM: "ERD 작업 중 표시", CNT: 3 },
+    { KIND: "TERM_OWNER", KIND_NM: "용어 소유자", CNT: 1 },
+  ];
+
+  it("splitOwned: ERD 작업 중 표시는 넘길 담당에서 빼고 건수로 센다", () => {
+    const { owned, claims } = splitOwned(rows, 3);
+    expect(owned.map((r) => r.KIND)).toEqual(["CODE_OWNER", "TERM_OWNER"]);
+    expect(ownedTotal(owned)).toBe(5);
+    expect(claims).toBe(3);
+  });
+
+  it("splitOwned: CLAIM_CNT 가 없으면 ERD_CLAIM 행을 더한다, 빈 목록은 0", () => {
+    expect(splitOwned(rows).claims).toBe(3);
+    expect(splitOwned(rows, null).claims).toBe(3);
+    expect(splitOwned(undefined)).toEqual({ owned: [], claims: 0 });
+  });
+
+  it("lovRowToLookup: 이름 · 부서(없으면 코드) · 잠금", () => {
+    expect(lovRowToLookup({ USER_ID: "kim01", USER_NM: "김철수", DEPT_NM: "생산팀", DEPT_CD: "D1", USER_ST: "ACTIVE" })).toEqual({
+      code: "kim01",
+      name: "김철수 · 생산팀",
+    });
+    expect(lovRowToLookup({ USER_ID: "lee02", USER_NM: "이영희", DEPT_NM: null, DEPT_CD: "D2", USER_ST: "LOCKED" })).toEqual({
+      code: "lee02",
+      name: "이영희 · D2 · 잠금",
+    });
+    expect(lovRowToLookup({ USER_ID: "x" })).toEqual({ code: "x", name: "" });
   });
 });

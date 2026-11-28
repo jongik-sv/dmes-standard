@@ -4,7 +4,7 @@
  * 상태 계산은 서버(AccountState.of)가 한다. 화면은 받은 USER_ST·USE_TP·HR_ST 로 보일 단추·안내 문구만 정한다.
  */
 import { todayYmd } from "./detailUtils";
-import type { CommUserMngRow, HandoverResult, OwnedRow, RetireResult } from "./types";
+import type { ActiveUserLovRow, CommUserMngRow, HandoverResult, OwnedRow, RetireResult } from "./types";
 
 /** 상세 영역의 상태 단추. 이름은 서버 action(권한 키)과 같다. 계정 재생성만 reRegCmUser. */
 export type StateAction = "unlock" | "suspend" | "resume" | "retire" | "handover" | "reRegCmUser";
@@ -195,6 +195,32 @@ export function fmtYmd(v: unknown): string {
 /** 담당 데이터 합계(건너뛴 항목 포함). */
 export function ownedTotal(rows: readonly OwnedRow[] | null | undefined): number {
   return (rows ?? []).reduce((n, r) => n + (Number(r.CNT) || 0), 0);
+}
+
+/** MDM 담당 종류 — ERD 작업 중 표시. 넘기지 않고 퇴직 때 지운다(MDM UserOwnershipKind.ERD_CLAIM). */
+export const CLAIM_KIND = "ERD_CLAIM";
+
+/**
+ * 퇴직 미리 보기의 담당 데이터를 「넘길 것」과 「ERD 작업 중 표시」로 나눈다.
+ * claims 는 서버 CLAIM_CNT 가 있으면 그것을, 없으면 ERD_CLAIM 행의 합을 쓴다.
+ */
+export function splitOwned(
+  rows: readonly OwnedRow[] | null | undefined,
+  claimCnt?: number | null,
+): { owned: OwnedRow[]; claims: number } {
+  const all = rows ?? [];
+  const owned = all.filter((r) => r.KIND !== CLAIM_KIND);
+  const fromRows = ownedTotal(all.filter((r) => r.KIND === CLAIM_KIND));
+  const claims = claimCnt == null || Number.isNaN(Number(claimCnt)) ? fromRows : Number(claimCnt);
+  return { owned, claims };
+}
+
+/** 받을 사람 후보 행 → 찾기 팝업 행. 이름 칸은 「이름 · 부서(없으면 부서코드) · 잠금」. */
+export function lovRowToLookup(r: ActiveUserLovRow): { code: string; name: string } {
+  return {
+    code: String(r.USER_ID ?? ""),
+    name: [r.USER_NM, r.DEPT_NM || r.DEPT_CD, r.USER_ST === "LOCKED" ? "잠금" : null].filter(Boolean).join(" · "),
+  };
 }
 
 /** 담당 데이터 요약 — 「MDM 코드 12 · 룰 3」. */

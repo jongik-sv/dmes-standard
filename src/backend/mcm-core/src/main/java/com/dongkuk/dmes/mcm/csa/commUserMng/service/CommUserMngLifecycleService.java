@@ -1,7 +1,7 @@
 /*
  * 작성자: @jongik-sv
  * 작성일: 2026-11-28
- * 내용: commUserMng 계정 상태 action — unlock·suspend·resume·retire·handover·searchOwned (시안 「사용자 비활성화·퇴직 처리」)
+ * 내용: commUserMng 계정 상태 action — unlock·suspend·resume·retire·handover·searchOwned·searchRetirePreview (시안 「사용자 비활성화·퇴직 처리」)
  */
 package com.dongkuk.dmes.mcm.csa.commUserMng.service;
 
@@ -88,20 +88,55 @@ public class CommUserMngLifecycleService {
     public Map<String, Object> searchOwned(CommUserMngStateRequest request) {
         SecUser u = core.require(request == null ? null : request.getUSER_ID());
         Map<String, Object> out = new LinkedHashMap<>();
+        putOwned(out, u);
+        return out;
+    }
+
+    /**
+     * 퇴직 미리 보기 — 퇴직 처리 팝업이 바뀌는 건수를 보이려고 부른다. 아무것도 바꾸지 않는다.
+     *
+     * <p>응답: {@code ROLE_GROUP_CNT}(회수할 역할그룹 수)·{@code ASSIGN_CNT}(해제할 사용자 쿼리 배정 수)는 {@link UserLifecycleCore#retire}
+     * 와 같은 조회로 센다. {@code ds_owned}(KIND·KIND_NM·CNT, ERD 작업 중 표시 {@code ERD_CLAIM} 포함)와 {@code CLAIM_CNT}
+     * (ERD_CLAIM 건수)는 MDM 에서 읽는다. MDM 에 닿지 못하면 {@code ds_owned} 는 빈 목록·{@code CLAIM_CNT} 는 없고 {@code OWNED_ERROR}
+     * 문구가 붙는다 — 역할그룹·배정 건수는 그대로 돌려준다.
+     */
+    public Map<String, Object> retirePreview(CommUserMngStateRequest request) {
+        SecUser u = core.require(request == null ? null : request.getUSER_ID());
+        Map<String, Object> out = new LinkedHashMap<>(core.retirePreview(u));
+        if (putOwned(out, u)) {
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> rows = (List<Map<String, Object>>) out.get("ds_owned");
+            long claims = 0;
+            for (Map<String, Object> r : rows) {
+                if (CLAIM_KIND.equals(r.get("KIND")) && r.get("CNT") instanceof Number n) claims += n.longValue();
+            }
+            out.put("CLAIM_CNT", claims);
+        }
+        return out;
+    }
+
+    /** MDM 담당 종류 — ERD 작업 중 표시(넘기지 않고 지운다). MDM {@code UserOwnershipKind.ERD_CLAIM} 과 같은 이름. */
+    static final String CLAIM_KIND = "ERD_CLAIM";
+
+    /**
+     * 한 사람의 MDM 담당 데이터를 {@code ds_owned} 에 넣는다. 읽지 못하면 빈 목록과 {@code OWNED_ERROR} 문구를 넣고 false.
+     */
+    private boolean putOwned(Map<String, Object> out, SecUser u) {
         UserOwnershipClient client = ownershipClient.getIfAvailable();
         if (client == null) {
             out.put("ds_owned", List.of());
             out.put("OWNED_ERROR", "MDM 연결 설정이 없습니다");
-            return out;
+            return false;
         }
         try {
             out.put("ds_owned", UserLifecycleCore.toRows(client.summary(
                     List.of(new UserOwnershipClient.Person(u.getUserId(), u.getUserEmpNo())))));
+            return true;
         } catch (UserOwnershipClient.UnavailableException ex) {
             out.put("ds_owned", List.of());
             out.put("OWNED_ERROR", "MDM 담당 데이터를 읽지 못했습니다");
+            return false;
         }
-        return out;
     }
 
     private static Map<String, Object> saved(int n) {

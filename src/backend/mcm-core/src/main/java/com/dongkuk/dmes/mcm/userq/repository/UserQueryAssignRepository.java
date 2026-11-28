@@ -26,4 +26,8 @@ public interface UserQueryAssignRepository extends JpaRepository<UserQueryAssign
     @Modifying
     @Query("DELETE FROM UserQueryAssign a WHERE a.userId = :userId")
     int deleteByUserId(@org.springframework.data.repository.query.Param("userId") String userId);
+
+    /** 한 사람의 배정 건수 — 퇴직 미리 보기(searchRetirePreview). {@link #deleteByUserId} 와 같은 조건이다. */
+    @Query("SELECT COUNT(a) FROM UserQueryAssign a WHERE a.userId = :userId")
+    long countByUserId(@org.springframework.data.repository.query.Param("userId") String userId);
 }

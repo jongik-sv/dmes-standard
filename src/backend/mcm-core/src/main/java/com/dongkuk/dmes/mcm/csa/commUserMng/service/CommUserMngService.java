@@ -13,6 +13,7 @@ import com.dongkuk.dmes.mcm.csa.commUserMng.dto.CommUserMngPwdInitRequest;
 import com.dongkuk.dmes.mcm.csa.commUserMng.dto.CommUserMngRoleCopyRequest;
 import com.dongkuk.dmes.mcm.csa.commUserMng.dto.CommUserMngSearchDeptLovRequest;
 import com.dongkuk.dmes.mcm.csa.commUserMng.dto.CommUserMngSearchRequest;
+import com.dongkuk.dmes.mcm.csa.commUserMng.dto.CommUserMngSearchUserLovRequest;
 import com.dongkuk.dmes.mcm.csa.commUserMng.dto.CommUserMngStateRequest;
 import com.dongkuk.dmes.mcm.csa.commUserMng.dto.CommUserMngUserIdRequest;
 import org.springframework.stereotype.Service;
@@ -261,6 +262,22 @@ public class CommUserMngService {
     /** action {@code searchOwned} — 한 사람의 담당 데이터. 본문: {@link CommUserMngLifecycleService#searchOwned}. */
     public Map<String, Object> searchOwned(CommUserMngStateRequest request) {
         return lifecycleService.searchOwned(request);
+    }
+
+    /**
+     * action {@code searchRetirePreview} — 퇴직 처리 팝업 미리 보기(역할그룹·사용자 쿼리 배정·MDM 담당 건수, 바꾸지 않음).
+     * 본문: {@link CommUserMngLifecycleService#retirePreview}.
+     */
+    public Map<String, Object> searchRetirePreview(CommUserMngStateRequest request) {
+        return lifecycleService.retirePreview(request);
+    }
+
+    /**
+     * action {@code searchActiveUserLov} — 받을 사람 고르기(상태 활성·잠금만, 앞부분 일치, 상한 200).
+     * 본문: {@link CommUserMngQueryService#searchActiveUserLov}.
+     */
+    public Map<String, Object> searchActiveUserLov(CommUserMngSearchUserLovRequest request) {
+        return queryService.searchActiveUserLov(request);
     }
 
     /** action {@code searchHrEvt} — ERP 인사 정보 목록(실패·계정 생성 대기·대기). 본문: {@link CommUserMngHrService#search}. */

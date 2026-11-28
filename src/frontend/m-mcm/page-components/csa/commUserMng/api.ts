@@ -15,7 +15,7 @@
  *   - commonUserDept        — 부서 팝업 조회 (To-Be TB_MCM_DEPT_INFO)
  *
  * 2026-11-28 시안 「사용자 비활성화·퇴직 처리」 — 계정 상태 action (본문 DTO = CommUserMngStateRequest):
- *   - unlock · suspend · resume · retire · handover · searchOwned
+ *   - unlock · suspend · resume · retire · handover · searchOwned · searchRetirePreview · searchActiveUserLov
  *   - searchHrEvt · retryHrEvt · regHrEvtUser (ERP 인사 연동)
  * 업무 오류는 meta.message 「코드: 문구」 로 온다 — 화면은 userState.bizError 로 문구만 보인다.
  *
@@ -39,6 +39,8 @@ import type {
   HrResultRow,
   OwnedRow,
   RetireResult,
+  RetirePreview,
+  ActiveUserLovPayload,
 } from "./types";
 
 const api = createJsonApiClient();
@@ -304,6 +306,16 @@ export interface SearchOwnedPayload {
 /** action=searchOwned — 한 사람의 담당 데이터(MDM) 종류별 건수. */
 export async function searchOwned(userId: string): Promise<SearchOwnedPayload> {
   return callAction<SearchOwnedPayload>("searchOwned", { USER_ID: userId });
+}
+
+/** action=searchRetirePreview — 퇴직 처리 팝업 미리 보기(역할그룹·사용자 쿼리 배정·MDM 담당 건수). 바꾸지 않는다. */
+export async function searchRetirePreview(userId: string): Promise<RetirePreview> {
+  return callAction<RetirePreview>("searchRetirePreview", { USER_ID: userId });
+}
+
+/** action=searchActiveUserLov — 받을 사람 찾기. 상태 활성·잠금 사용자만, ID·사번·이름 앞부분 일치, 상한 200. */
+export async function searchActiveUserLov(keyword: string): Promise<ActiveUserLovPayload> {
+  return callAction<ActiveUserLovPayload>("searchActiveUserLov", { keyword });
 }
 
 /** action=searchHrEvt — ERP 인사 정보. procSt 는 쉼표 목록(빈 값 = FAIL·HOLD·WAIT). */

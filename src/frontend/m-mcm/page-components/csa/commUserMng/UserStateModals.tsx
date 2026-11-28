@@ -7,7 +7,7 @@
  * 팝업은 부모가 열 때마다 새로 만든다(조건부 마운트) — 사유·받을 사람 입력이 다음 사람에게 남지 않게 한다.
  * 처리 중(busy)에는 X·ESC·취소로 닫히지 않는다.
  */
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { DETAIL_TABLE_STYLE, DETAIL_LABEL_CELL, DETAIL_VALUE_CELL } from "@dk-oasis/shared/layout";
 import { Modal } from "@dk-oasis/shared/modal";
@@ -15,11 +15,15 @@ import { Badge, Button, Checkbox, Input, Select, Textarea } from "@dk-oasis/shar
 import { LookupModal, type LookupFetchFn, type LookupRow } from "@dk-oasis/shared/lookup";
 import { MdmFieldLabel } from "@dk-oasis/shared/mdm-meta";
 
-import { searchCmUser as apiSearchCmUser, searchOwned as apiSearchOwned } from "./api";
+import {
+  searchActiveUserLov as apiSearchActiveUserLov,
+  searchOwned as apiSearchOwned,
+  searchRetirePreview as apiSearchRetirePreview,
+} from "./api";
 import { todayYmd } from "./detailUtils";
 import type { OwnedRow } from "./types";
 import { bizErrorText } from "@/lib/utils/biz-error";
-import { RETIRE_REASONS, SUSPEND_REASONS, fmtYmd, joinReason, ownedTotal } from "./userState";
+import { RETIRE_REASONS, SUSPEND_REASONS, fmtYmd, joinReason, lovRowToLookup, ownedTotal, splitOwned } from "./userState";
 
 /** 바뀌는 내용 한 줄 — do: 바뀜, ask: 확인할 것, keep: 그대로 둠. */
 export interface ImpactLine {
@@ -123,12 +127,77 @@ function ownedLine(owned: OwnedState, verb: string): ImpactLine {
 }
 
 // ────────────────────────────────────────────────────────────────
-// 받을 사람 고르기 — 활성 사용자 중에서 (searchCmUser cboUSERST=ACTIVE)
+// 퇴직 미리 보기 (searchRetirePreview)
+// ────────────────────────────────────────────────────────────────
+
+interface PreviewState {
+  loading: boolean;
+  /** 미리 보기를 받았는가. 권한이 없거나 호출이 실패하면 false — 팝업은 건수 없이 문장만 보인다. */
+  ok: boolean;
+  roleGroupCnt: number | null;
+  assignCnt: number | null;
+  /** ERD 작업 중 표시 건수. MDM 을 읽지 못하면 null. */
+  claimCnt: number | null;
+  /** 담당 데이터(넘길 것, ERD 작업 중 표시 제외). */
+  owned: OwnedState;
+}
+
+/** 팝업이 열릴 때 한 번 미리 보기를 읽는다. 권한이 없으면 읽지 않는다. */
+function useRetirePreview(userId: string, enabled: boolean): PreviewState {
+  const [state, setState] = useState<PreviewState>(() => ({
+    loading: enabled,
+    ok: false,
+    roleGroupCnt: null,
+    assignCnt: null,
+    claimCnt: null,
+    owned: enabled
+      ? { loading: true, rows: [], error: null }
+      : { loading: false, rows: [], error: "담당 데이터를 볼 권한이 없습니다" },
+  }));
+  useEffect(() => {
+    if (!enabled || !userId) return;
+    let cancelled = false;
+    apiSearchRetirePreview(userId)
+      .then((res) => {
+        if (cancelled) return;
+        const mdmOk = !res.OWNED_ERROR;
+        const { owned, claims } = splitOwned(res.ds_owned, res.CLAIM_CNT);
+        setState({
+          loading: false,
+          ok: true,
+          roleGroupCnt: res.ROLE_GROUP_CNT == null ? null : Number(res.ROLE_GROUP_CNT) || 0,
+          assignCnt: res.ASSIGN_CNT == null ? null : Number(res.ASSIGN_CNT) || 0,
+          claimCnt: mdmOk ? claims : null,
+          owned: { loading: false, rows: owned, error: res.OWNED_ERROR ?? null },
+        });
+      })
+      .catch((e: unknown) => {
+        if (cancelled) return;
+        const msg = bizErrorText(e, "미리 보기를 읽지 못했습니다");
+        setState({
+          loading: false,
+          ok: false,
+          roleGroupCnt: null,
+          assignCnt: null,
+          claimCnt: null,
+          owned: { loading: false, rows: [], error: msg },
+        });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [userId, enabled]);
+  return state;
+}
+
+// ────────────────────────────────────────────────────────────────
+// 받을 사람 고르기 — 활성·잠금 사용자 중에서 (searchActiveUserLov)
 // ────────────────────────────────────────────────────────────────
 
 /**
  * 받을 사람 칸 — 읽기 전용 칸 + [찾기] → 사용자 검색 팝업(LookupModal).
- * 후보는 searchCmUser 를 상태=활성으로 불러 쓴다. 서버도 받을 사람이 활성(또는 잠금)인지 다시 검사한다.
+ * 후보는 searchActiveUserLov(상태 활성·잠금, ID·사번·이름 앞부분 일치, 상한 200)로 받는다. 서버의 퇴직·인계도
+ * 받을 사람이 활성(또는 잠금)인지 다시 검사한다. 같은 검색어의 페이지 넘김은 받은 목록을 다시 쓴다(서버를 다시 부르지 않는다).
  */
 function ReceiverPicker({
   excludeUserId,
@@ -142,15 +211,18 @@ function ReceiverPicker({
   disabled?: boolean;
 }) {
   const [open, setOpen] = useState(false);
+  const lastRef = useRef<{ keyword: string; rows: LookupRow[] } | null>(null);
   const fetchFn = useCallback<LookupFetchFn>(
     async ({ keyword, page, size }) => {
-      const res = await apiSearchCmUser({ edt_USER_ID: keyword, cbo_USER_ST: "ACTIVE" });
-      const all: LookupRow[] = (res.ds_main ?? [])
-        .filter((r) => String(r.USER_ID ?? "").toLowerCase() !== excludeUserId.toLowerCase())
-        .map((r) => ({
-          code: String(r.USER_ID ?? ""),
-          name: [r.USER_NM, r.DEPT_NM || r.DEPT_CD].filter(Boolean).join(" · "),
-        }));
+      const key = keyword.trim();
+      let all = lastRef.current?.keyword === key ? lastRef.current.rows : null;
+      if (!all) {
+        const res = await apiSearchActiveUserLov(key);
+        all = (res.ds_userLov ?? [])
+          .filter((r) => String(r.USER_ID ?? "").toLowerCase() !== excludeUserId.toLowerCase())
+          .map(lovRowToLookup);
+        lastRef.current = { keyword: key, rows: all };
+      }
       return { rows: all.slice(page * size, page * size + size), totalElements: all.length };
     },
     [excludeUserId],
@@ -167,7 +239,13 @@ function ReceiverPicker({
             aria-label="받을 사람"
           />
         </div>
-        <Button disabled={disabled} onClick={() => setOpen(true)}>
+        <Button
+          disabled={disabled}
+          onClick={() => {
+            lastRef.current = null; // 열 때마다 새로 받는다
+            setOpen(true);
+          }}
+        >
           찾기
         </Button>
       </div>
@@ -189,6 +267,28 @@ function ReceiverPicker({
 // 퇴직 처리
 // ────────────────────────────────────────────────────────────────
 
+/**
+ * ERD 작업 중 표시·사용자 쿼리 배정 줄. 건수를 받았으면 건수로, 못 받았으면 문장만(이전 모양) 보인다.
+ * ERD 작업 중 표시는 MDM 에서 세므로 MDM 을 읽지 못하면 건수 없이 안내한다(만료 시각에 저절로 풀린다).
+ */
+function retireReleaseLine(p: PreviewState): ImpactLine {
+  if (!p.ok || p.assignCnt == null) return { kind: "do", text: "ERD 편집 점유와 사용자 쿼리 배정을 풉니다." };
+  const parts: string[] = [];
+  if (p.claimCnt == null) parts.push("ERD 작업 중 표시");
+  else if (p.claimCnt > 0) parts.push(`ERD 작업 중 표시 ${p.claimCnt}건`);
+  if (p.assignCnt > 0) parts.push(`사용자 쿼리 배정 ${p.assignCnt}건`);
+  if (parts.length === 0) return { kind: "keep", text: "풀 ERD 작업 중 표시와 사용자 쿼리 배정이 없습니다." };
+  return {
+    kind: "do",
+    text: (
+      <>
+        다음을 풉니다: <b>{parts.join(" · ")}</b>
+      </>
+    ),
+    sub: p.claimCnt == null ? "ERD 작업 중 표시 건수는 확인하지 못했습니다. 풀지 못하면 만료 시각에 저절로 풀립니다." : undefined,
+  };
+}
+
 export interface RetireSubmit {
   reason: string;
   receiver: LookupRow | null;
@@ -200,16 +300,17 @@ export function RetireModal({
   userId,
   userNm,
   roleGroups,
-  canSeeOwned,
+  canPreview,
   busy,
   onSubmit,
   onClose,
 }: {
   userId: string;
   userNm: string;
-  /** 지금 가진 역할그룹 이름(저장된 것) — 회수 대상. */
+  /** 지금 가진 역할그룹 이름(저장된 것) — 회수 대상 이름. 건수는 미리 보기를 먼저 쓴다. */
   roleGroups: string[];
-  canSeeOwned: boolean;
+  /** 미리 보기(searchRetirePreview) 권한. 없으면 건수 없이 문장만 보인다. */
+  canPreview: boolean;
   busy: boolean;
   onSubmit: (v: RetireSubmit) => void;
   onClose: () => void;
@@ -218,7 +319,8 @@ export function RetireModal({
   const [memo, setMemo] = useState("");
   const [receiver, setReceiver] = useState<LookupRow | null>(null);
   const [later, setLater] = useState(false);
-  const owned = useOwned(userId, canSeeOwned);
+  const preview = useRetirePreview(userId, canPreview);
+  const owned = preview.owned;
   const total = ownedTotal(owned.rows);
   const needPick = !owned.loading && !owned.error && total > 0;
   const reasonOk = !!reason && (reason !== "기타" || memo.trim().length > 0);
@@ -227,18 +329,24 @@ export function RetireModal({
   const lines: ImpactLine[] = [
     { kind: "do", text: "로그인을 막고, 쓰던 세션을 바로 끊습니다.", sub: `유효기한일을 오늘(${fmtYmd(todayYmd())})로 바꿉니다.` },
   ];
-  if (roleGroups.length > 0) {
-    lines.push({
-      kind: "do",
-      text: (
-        <>
-          역할그룹 <b>{roleGroups.length}개</b>를 회수합니다.
-        </>
-      ),
-      sub: `${roleGroups.join(", ")} · 역할 이력에 남습니다`,
-    });
+  // 역할그룹 수는 서버 미리 보기(retire 와 같은 조회)를 먼저 쓰고, 받지 못하면 화면이 가진 저장된 목록으로 센다.
+  const roleGroupCnt = preview.roleGroupCnt ?? roleGroups.length;
+  if (preview.loading) {
+    lines.push({ kind: "ask", text: "회수·해제할 건수를 확인하는 중입니다." });
+  } else {
+    if (roleGroupCnt > 0) {
+      lines.push({
+        kind: "do",
+        text: (
+          <>
+            역할그룹 <b>{roleGroupCnt}개</b>를 회수합니다.
+          </>
+        ),
+        sub: `${roleGroups.length > 0 ? `${roleGroups.join(", ")} · ` : ""}역할 이력에 남습니다`,
+      });
+    }
+    lines.push(retireReleaseLine(preview));
   }
-  lines.push({ kind: "do", text: "ERD 편집 점유와 사용자 쿼리 배정을 풉니다." });
   lines.push(ownedLine(owned, later ? "은 인계 대기로 남습니다." : "을 넘깁니다."));
   lines.push({ kind: "keep", text: "그대로 둡니다: 감사 기록, 처리 이력, 개인 설정. 계정 행은 지우지 않습니다." });
 

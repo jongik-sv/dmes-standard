@@ -1,5 +1,5 @@
 /*
- * 내용: commUserMng 조회 action 5개 — searchCmUser / searchUserRoleGrp / searchRoleGrp / commonUserDept / searchDeptLov.
+ * 내용: commUserMng 조회 action 6개 — searchCmUser / searchUserRoleGrp / searchRoleGrp / commonUserDept / searchDeptLov / searchActiveUserLov.
  *       BPMN 진입점은 퍼사드 {@link CommUserMngService}(빈 commUserMngService)이고 이 클래스는 본문만 갖는다.
  */
 package com.dongkuk.dmes.mcm.csa.commUserMng.service;
@@ -7,6 +7,7 @@ package com.dongkuk.dmes.mcm.csa.commUserMng.service;
 import com.dongkuk.dmes.mcm.csa.commUserMng.dto.CommUserMngDeptRequest;
 import com.dongkuk.dmes.mcm.csa.commUserMng.dto.CommUserMngSearchDeptLovRequest;
 import com.dongkuk.dmes.mcm.csa.commUserMng.dto.CommUserMngSearchRequest;
+import com.dongkuk.dmes.mcm.csa.commUserMng.dto.CommUserMngSearchUserLovRequest;
 import com.dongkuk.dmes.mcm.csa.commUserMng.dto.CommUserMngUserIdRequest;
 import com.dongkuk.dmes.mcm.entity.DeptInfo;
 import com.dongkuk.dmes.mcm.entity.SecUser;
@@ -436,6 +437,71 @@ public class CommUserMngQueryService {
         String keyword = request != null ? request.getKeyword() : null;
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("ds_deptLov", deptRows(deptInfoRepository.searchByDeptKey(keyword)));
+        return out;
+    }
+
+    // ────────────────────────────────────────────────────────────────
+    // action: searchActiveUserLov — 받을 사람 고르기(2026-11-28, 퇴직 처리·담당 데이터 인계 팝업)
+    // ────────────────────────────────────────────────────────────────
+
+    /** 받을 사람 후보 상한. 넘으면 {@code LOV_TRUNCATED=Y} — 검색어를 더 적게 한다. */
+    static final int ACTIVE_USER_LOV_LIMIT = 200;
+
+    /**
+     * action {@code searchActiveUserLov} 본문 — 인계를 받을 수 있는 사람(상태 활성·잠금)만 고른다.
+     * 서버의 퇴직·인계도 받을 사람이 활성·잠금인지 다시 검사한다({@link UserLifecycleCore#retire}).
+     *
+     * <p>조건은 {@link AccountState#of} 가 활성·잠금을 내는 칸 조합과 같다: {@code USE_TP='Y'}, 인사 상태가 휴직·퇴직이 아님,
+     * 사용 시작일이 내일 0시 전, 유효 기한일이 없거나 오늘 0시 이후. 날짜 경계는 파라미터 쪽에서 계산한다(칼럼에 함수를 씌우지 않는다).
+     * 검색어는 {@link SecUserRepository#searchByKeyAndFilter} 와 같은 세 칸 {@code UPPER(..) LIKE} 앞 일치다(함수 기반 인덱스 대상).
+     * 결과를 {@link AccountState#of} 로 한 번 더 거른 뒤 상한을 적용한다. {@code ds_mainAll} 은 싣지 않는다.
+     *
+     * <p>응답: {@code ds_userLov}(USER_ID·USER_NM·USER_EMP_NO·DEPT_CD·DEPT_NM·USER_ST·USER_ST_NM, USER_ID 순)·{@code LOV_TRUNCATED}(Y·N).
+     */
+    public Map<String, Object> searchActiveUserLov(CommUserMngSearchUserLovRequest request) {
+        String keyword = request != null && request.getKeyword() != null ? request.getKeyword().trim() : "";
+        LocalDate today = LocalDate.now(KST);
+        String jpql = "SELECT u FROM McmSecUser u "
+                + "WHERE u.useTp = 'Y' "
+                + "  AND (u.hrSt IS NULL OR u.hrSt NOT IN ('" + AccountState.HR_LEAVE + "', '" + AccountState.HR_RETIRED + "')) "
+                + "  AND (u.startActiveDate IS NULL OR u.startActiveDate < :tomorrow) "
+                + "  AND (u.endActiveDate IS NULL OR u.endActiveDate >= :today) "
+                + (keyword.isEmpty() ? "" :
+                "  AND (UPPER(u.userId) LIKE UPPER(CONCAT(:k, '%')) "
+                        + "       OR UPPER(u.userEmpNo) LIKE UPPER(CONCAT(:k, '%')) "
+                        + "       OR UPPER(u.userNm) LIKE UPPER(CONCAT(:k, '%'))) ")
+                + "ORDER BY u.userId";
+        var query = entityManager.createQuery(jpql, SecUser.class)
+                .setParameter("tomorrow", today.plusDays(1).atStartOfDay())
+                .setParameter("today", today.atStartOfDay())
+                .setMaxResults(ACTIVE_USER_LOV_LIMIT + 1);
+        if (!keyword.isEmpty()) query.setParameter("k", keyword);
+
+        List<SecUser> found = new ArrayList<>();
+        for (SecUser u : query.getResultList()) {
+            AccountState st = stateOf(u, today);
+            if (st == AccountState.ACTIVE || st == AccountState.LOCKED) found.add(u);
+        }
+        boolean truncated = found.size() > ACTIVE_USER_LOV_LIMIT;
+        List<SecUser> rows = truncated ? found.subList(0, ACTIVE_USER_LOV_LIMIT) : found;
+
+        Map<String, String> deptNm = deptNamesOf(rows);
+        List<Map<String, Object>> outRows = new ArrayList<>(rows.size());
+        for (SecUser u : rows) {
+            AccountState st = stateOf(u, today);
+            Map<String, Object> r = new LinkedHashMap<>();
+            r.put("USER_ID", u.getUserId());
+            r.put("USER_NM", u.getUserNm());
+            r.put("USER_EMP_NO", u.getUserEmpNo());
+            r.put("DEPT_CD", u.getDeptCd());
+            r.put("DEPT_NM", deptNm.get(u.getDeptCd()));
+            r.put("USER_ST", st.name());
+            r.put("USER_ST_NM", st.label());
+            outRows.add(r);
+        }
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("ds_userLov", outRows);
+        out.put("LOV_TRUNCATED", truncated ? "Y" : "N");
         return out;
     }
 

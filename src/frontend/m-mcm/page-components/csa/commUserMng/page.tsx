@@ -360,6 +360,7 @@ export default function CommUserMngPage() {
     [rbac],
   );
   const canSearchOwned = canDoButton(rbac, OBJ_ID, "searchOwned");
+  const canRetirePreview = canDoButton(rbac, OBJ_ID, "searchRetirePreview");
   const canRetryHr = canDoButton(rbac, OBJ_ID, "retryHrEvt");
   const canRegHr = canDoButton(rbac, OBJ_ID, "regHrEvtUser");
 
@@ -1460,7 +1461,7 @@ export default function CommUserMngPage() {
           userId={modalUserId}
           userNm={modalUserNm}
           roleGroups={savedRoleGroupNames}
-          canSeeOwned={canSearchOwned}
+          canPreview={canRetirePreview}
           busy={isSaving}
           onSubmit={handleRetire}
           onClose={closeActionModal}
