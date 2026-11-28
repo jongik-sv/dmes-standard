@@ -119,6 +119,10 @@ export async function searchCommObjMng(filters: CommObjMngFilters): Promise<Sear
     edtOBJECTID: filters.edt_OBJECT_ID,
     cboUSETP: filters.cbo_USE_TP,
     menuFolderId: filters.menuFolderId,
+
+    cboSYSTEMCODE: filters.cbo_SYSTEM_CODE,
+    edtOBJECTTYPE: filters.edt_OBJECT_TYPE,
+    cboACCESSTP: filters.cbo_ACCESS_TP,
   });
 }
 
