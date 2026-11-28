@@ -3,7 +3,7 @@
 be-run.ps1 — 백엔드 모듈(local 프로파일) 실행 스크립트 (Windows / be-run.sh 대응)
 
 실행 대상 모듈과 포트:
-  mls 8092 · mqc 8093 · mpp 8094 · mpn 8095 · mcm 8100 · analog 8191
+  mls 8092 · mqc 8093 · mpp 8094 · mpn 8095 · mdm 8096 · mcm 8100 · analog 8191
   (mcm 이 포털 호스트 — FE 는 mcm 8100 을 본다)
 
 사용법:
@@ -13,9 +13,12 @@ be-run.ps1 — 백엔드 모듈(local 프로파일) 실행 스크립트 (Windows
   .\be-run.ps1 --mcm --mpn  # 여러 모듈 조합
   .\be-run.ps1 --all --dry-run  # 아무것도 끄거나 띄우지 않고, 실행할 명령만 출력
   .\be-run.ps1 --dry-run        # 모듈 플래그가 없으면 BE_RUN_ARGS(없으면 --all) 대상으로
+  .\be-run.ps1 --mcm --mdm --pdb=L_ORA_MDM  # Oracle PDB 접속값(DMES_ORA_PDB·DMES_ORA_URL)을 앱에 넘긴다(BE_ORA_PDB 도 같다)
 
-모듈 플래그: --mpn --mcm --mls --mqc --mpp --analog
---all 은 6개 JVM 을 동시에 띄운다. 메모리가 빠듯하면 필요한 모듈만 골라 쓴다.
+모듈 플래그: --mpn --mcm --mls --mqc --mpp --mdm --analog
+--all 은 6개 JVM 을 동시에 띄운다. mdm 은 be-run.sh 와 달리 --all 에 들지 않아 --mdm 으로 따로 고른다
+  (dmes-up.ps1 이 mdm 을 따로 띄우면서 --all 을 넘기기 때문이다. scripts\lib\modules.conf 의 ps1-flag).
+메모리가 빠듯하면 필요한 모듈만 골라 쓴다.
 옵션(--dry-run·--keep-port)만 주고 모듈 플래그가 없으면 BE_RUN_ARGS(없으면 --all)의 모듈을 쓴다.
 
 모듈을 2개 이상 띄우면 기동 전에 src\backend 루트 composite 에서 Gradle 한 번으로 선빌드한다
@@ -53,10 +56,13 @@ $RunEnvFile = Join-Path $RootDir '.run.env'
 
 # ── 모듈 카탈로그 ────────────────────────────────────────────
 # 모듈·포트·로그 색은 scripts\lib\modules.conf 한 곳에 있다(be-run.sh 도 같은 파일을 읽는다). platforms 에 ps1 이
-# 있는 줄만 쓴다 — mdm 은 아직 sh 전용이라 여기 --all 에 들지 않는다. 신규 모듈은 modules.conf 에 한 줄 더하면
-# --<모듈> 플래그까지 따라온다(머리말과 "실행 대상을 선택하세요" 안내문은 따로 고친다).
+# 있는 줄만 --all 에 든다. ps1-flag 줄(mdm)은 --<모듈> 플래그로만 받고 --all 에는 넣지 않는다. 신규 모듈은 modules.conf 에
+# 한 줄 더하면 --<모듈> 플래그까지 따라온다(머리말과 "실행 대상을 선택하세요" 안내문은 따로 고친다).
 . (Join-Path $RootDir 'scripts\lib\modules.ps1')
-$BeModules = $DmesBeModules
+$BeAllModules = @($DmesBeModules.Keys)   # --all 대상(파일 순서)
+$BeModules    = [ordered]@{}             # 플래그로 받는 모듈 → 포트(ps1-flag 포함)
+foreach ($k in $DmesBeModules.Keys)     { $BeModules[$k] = $DmesBeModules[$k] }
+foreach ($k in $DmesBeFlagModules.Keys) { $BeModules[$k] = $DmesBeFlagModules[$k] }
 $TagColors = @{ 'be' = 'Green' } + $DmesBeTagColors
 
 # ── 로그 ─────────────────────────────────────────────────────
@@ -146,7 +152,7 @@ $KeepPort = $false
 $DryRun   = $false
 foreach ($arg in $ScriptArgs) {
     switch -Regex ($arg) {
-        '^--(all|full)$'   { foreach ($m in $BeModules.Keys) { if (-not $Selected.Contains($m)) { $Selected.Add($m) } } }
+        '^--(all|full)$'   { foreach ($m in $BeAllModules) { if (-not $Selected.Contains($m)) { $Selected.Add($m) } } }
         '^--keep-port$'    { $KeepPort = $true }
         '^--dry-run$'      { $DryRun = $true }
         '^--pdb=(.+)$'     { $env:BE_ORA_PDB = $Matches[1] }
@@ -160,7 +166,7 @@ foreach ($arg in $ScriptArgs) {
     }
 }
 if ($Selected.Count -eq 0) {
-    Write-DevError 'BE 실행 대상을 선택하세요: --all 또는 --mpn/--mcm/--mls/--mqc/--mpp/--analog'
+    Write-DevError 'BE 실행 대상을 선택하세요: --all 또는 --mpn/--mcm/--mls/--mqc/--mpp/--mdm/--analog'
     exit 2
 }
 
