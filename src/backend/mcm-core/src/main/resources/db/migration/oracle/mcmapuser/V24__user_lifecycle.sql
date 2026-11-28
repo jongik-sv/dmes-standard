@@ -21,6 +21,9 @@
 -- 5) TB_MCM_SEC_USER_PWD_HIS 새 표: 비밀번호 이력(해시만). 최근 N개 재사용 금지와 변경 시각·접속 IP 기록.
 -- 6) TB_MCM_SEC_HR_EVT 새 표: ERP 인사 정보 수신·처리 상태. 인터페이스 방식(배치·실시간)은 ERP 스펙을 받은 뒤 정한다.
 -- 7) commUserMng 오브젝트에 새 action 을 허용 값으로 더하고, 이미 저장(save)·조회(search) 권한을 가진 직무에 같이 준다.
+--    commMenuMng 오브젝트에도 조회 action searchUnplacedObj(메뉴 셋에 없는 오브젝트)를 더한다. 이 action 은 V21 뒤에
+--    BPMN 에 생겨 이미 적용된 V21 에는 없다. 그래서 옮긴 DB 의 SYSADMIN(효과 = 오브젝트 BTN_PERM)이 부를 수 없었다.
+--    조회(search) 권한을 가진 직무에도 같이 준다.
 --
 -- 재실행: DDL 은 자동 커밋이다. 중간에 실패하면 남은 문장만 손으로 이어서 실행한다.
 
@@ -244,5 +247,18 @@ UPDATE TB_MCM_SEC_ROLE_PERM
  WHERE OBJECT_ID = 'commUserMng'
    AND INSTR(',' || BTN_PERM || ',', ',search,') > 0
    AND INSTR(',' || BTN_PERM || ',', ',searchOwned,') = 0;
+
+-- commMenuMng 새 조회 action(searchUnplacedObj) — V21 뒤에 BPMN 에 생겼다.
+UPDATE TB_MCM_SEC_OBJ
+   SET BTN_PERM = BTN_PERM || ',searchUnplacedObj'
+ WHERE OBJECT_ID = 'commMenuMng'
+   AND BTN_PERM IS NOT NULL
+   AND INSTR(',' || BTN_PERM || ',', ',searchUnplacedObj,') = 0;
+
+UPDATE TB_MCM_SEC_ROLE_PERM
+   SET BTN_PERM = BTN_PERM || ',searchUnplacedObj'
+ WHERE OBJECT_ID = 'commMenuMng'
+   AND INSTR(',' || BTN_PERM || ',', ',search,') > 0
+   AND INSTR(',' || BTN_PERM || ',', ',searchUnplacedObj,') = 0;
 
 COMMIT;
