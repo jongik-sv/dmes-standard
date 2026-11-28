@@ -38,7 +38,13 @@ public class RoleChangedEventListener {
 
     private static final Logger log = LoggerFactory.getLogger(RoleChangedEventListener.class);
 
+    /**
+     * HTTP/1.1 로 고정한다. JDK HttpClient 기본값(HTTP/2)은 http:// 주소에 {@code Upgrade: h2c} 헤더를 붙이는데,
+     * Next.js 서버는 Upgrade 요청을 웹소켓 처리로 넘기고 응답 없이 연결을 닫는다. 그러면 호출이 늘
+     * "HTTP/1.1 header parser received no bytes" 로 실패하고 캐시가 비워지지 않는다(2026-11-28 재확인).
+     */
     private final HttpClient httpClient = HttpClient.newBuilder()
+            .version(HttpClient.Version.HTTP_1_1)
             .connectTimeout(Duration.ofSeconds(2))
             .build();
 

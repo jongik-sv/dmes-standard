@@ -94,6 +94,18 @@ class RoleChangedEventListenerTest {
         assertEquals("{\"roleId\":\"SYSADMIN\"}", receivedBodies.get(0));
     }
 
+    /** Next.js 서버는 Upgrade 요청을 응답 없이 닫는다 — h2c 업그레이드 헤더를 붙이지 않아야 한다. */
+    @Test
+    void HTTP_1_1_로_부르고_h2c_업그레이드_헤더를_붙이지_않는다() {
+        new RoleChangedEventListener(invalidateUrl(), "test-internal-secret")
+                .onRoleChanged(new RoleChangedEvent(Set.of("SYSADMIN")));
+
+        assertEquals(1, receivedHeaders.size());
+        Map<String, String> headers = receivedHeaders.get(0);
+        assertNull(headers.get("Upgrade"));
+        assertNull(headers.get("HTTP2-Settings"));
+    }
+
     @Test
     void 비밀이_없거나_비어_있으면_부르지_않는다() {
         for (String secret : new String[] {null, "", "   "}) {
