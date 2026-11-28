@@ -48,7 +48,6 @@ class SecStartPgmServiceTest {
         m.setObjectId(objectId);
         m.setMenuNm(menuNm);
         m.setMenuSeq("3");
-        m.setFullSeq("001003");
         m.setUseTp("Y");
         return m;
     }

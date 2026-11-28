@@ -8,6 +8,8 @@ package com.dongkuk.dmes.mcm.csa.commObjMng.service;
 import com.dongkuk.dmes.mcm.common.event.MenuChangedEvent;
 import com.dongkuk.dmes.mcm.common.event.RoleChangedEvent;
 import com.dongkuk.dmes.mcm.csa.commObjMng.dto.CommObjMngObjRequest;
+import com.dongkuk.dmes.mcm.common.exception.BusinessException;
+import com.dongkuk.dmes.mcm.common.exception.ErrorCode;
 import com.dongkuk.dmes.mcm.csa.commObjMng.dto.CommObjMngSearchRequest;
 import com.dongkuk.dmes.mcm.csa.commObjMng.query.CommObjMngQuery;
 import com.dongkuk.dmes.mcm.entity.SecObj;
@@ -55,7 +57,7 @@ import static com.dongkuk.dmes.mcm.common.util.McmValues.blankToNullTrim;
  * <p>가이드 §6-B (트랜잭션 / Proxy 안티패턴) — 본 Service 에 {@code @Transactional} ✗.
  * OASIS executor {@code SpringTransactionHandler} 가 BPMN process 단위로 자동 wrap.
  *
- * <p>가이드 §6-A-1 (Entity 본 컬럼만) — MENU_ID scalar subquery / ID 계산 / lov 의 read-only join 은
+ * <p>가이드 §6-A-1 (Entity 본 컬럼만) — ID 계산 / lov 의 read-only join 은
  * native query 또는 row 후처리로 처리. SecObj entity 에 캐싱 ✗.
  *
  * <p>audit 9 컬럼 (C_USR_ID / C_AT / C_SVC_ID / C_PGM_ID / U_USR_ID / U_AT / U_SVC_ID / U_PGM_ID / VER) 은
@@ -122,9 +124,10 @@ public class CommObjMngService {
      *
      * <p>처리:
      * <ol>
-     *   <li>{@link SecObjRepository#searchByFilter(String, String)} — 본 13 컬럼 (To-Be 정책 #1) 검색</li>
-     *   <li>각 row 에 MENU_ID scalar subquery ({@link SecObjRepository#findOneMenuIdByObjectId(String)})
-     *       + ID (SUBSTR/INSTR/LEN 등가 — Java {@code substring} / {@code indexOf}) 부착</li>
+     *   <li>{@link SecObjRepository#searchByFilter(String, String, String, String, String)} — 본 13 컬럼 (To-Be 정책 #1) 검색
+     *       (조건: OBJECT / 사용 여부 / SYSTEM / OBJECT TYPE / 접속 경로)</li>
+     *   <li>각 row 에 ID (SUBSTR/INSTR/LEN 등가 — Java {@code substring} / {@code indexOf}) 부착.
+     *       2026-11-26 — MENU_ID·PARENT_MENU_ID scalar subquery 는 뺐다(OBJECT 는 메뉴 정보를 갖지 않는다).</li>
      *   <li>{@code ds_main} key 의 List<Map> 반환 → cactus 가 {@code grids.ds_main.rows} 로 응답</li>
      * </ol>
      *
@@ -134,8 +137,12 @@ public class CommObjMngService {
     public Map<String, Object> searchCmObj(CommObjMngSearchRequest request) {
         String pObjectId = request != null ? request.getEdtOBJECTID() : null;
         String pUseTp = request != null ? request.getCboUSETP() : null;
+        String pSystemCode = request != null ? request.getCboSYSTEMCODE() : null;
+        String pObjectType = request != null ? request.getEdtOBJECTTYPE() : null;
+        String pAccessTp = request != null ? request.getCboACCESSTP() : null;
 
-        List<SecObj> rows = secObjRepository.searchByFilter(pObjectId, pUseTp);
+        List<SecObj> rows = secObjRepository.searchByFilter(
+                pObjectId, pUseTp, pSystemCode, pObjectType, pAccessTp);
 
         // 퍼미션 모델 v2 — 메뉴 폴더 조건: 폴더(하위 포함)의 메뉴가 하나라도 가리키는 오브젝트만
         String folderId = request != null ? request.getMenuFolderId() : null;
@@ -169,9 +176,10 @@ public class CommObjMngService {
      * </ul>
      *
      * <p>NOT EXISTS 이중 검증 (deleteCommObjMng 의 server 차단 — xml:101~110 / 분석 §6 #4):
-     * 메뉴 참조 0 AND <b>비-SYSADMIN</b> 롤 매핑 0 일 때만 실제 삭제. 위반 시 silent skip
-     * (As-Is 동작 보존 — 분석 §10.1 ST-009 / BPMN §4.2). SYSADMIN 자동 매핑(하단)은
+     * 메뉴 참조 0 AND <b>비-SYSADMIN</b> 롤 매핑 0 일 때만 실제 삭제. SYSADMIN 자동 매핑(하단)은
      * 시스템 관리분이라 차단 사유에서 제외하고 obj 삭제 시 동반 삭제한다 (2026-07-30).
+     * <br>2026-11-26 — 위반 시 As-Is 의 silent skip 대신 {@link BusinessException}(OBJECT_ID·메뉴 수·역할 매핑 수·퍼미션 수)을 던져
+     * 저장 전체를 실패시킨다. 응답에서 MENU_ID 를 뺀 뒤로 FE 는 연결 메뉴를 미리 막을 수 없어 이 검사가 유일한 차단이다.
      *
      * <p>퍼미션 모델 v2 (decompose D13·D15): SYSADMIN 자동 매핑은 없앴다(SYSADMIN 은 퍼미션 행 없이 계산).
      * 허용 값 BTN_PERM·POPUP_PERM·DATA_PERM 을 함께 저장하고, 수정에서 BTN·POPUP 토큰이 빠지거나
@@ -210,9 +218,8 @@ public class CommObjMngService {
                             .filter(m -> !"SYSADMIN".equals(m.getRoleId())).count();
                     long permCnt = secRolePermRepository.countByObjectId(objectId);
                     if (menuCnt > 0 || roleMapCnt > 0 || permCnt > 0) {
-                        log.warn("[commObjMng.saveCmObj] delete blocked — OBJECT_ID={} menu={} roleMap={} perm={} (silent skip)",
-                                 objectId, menuCnt, roleMapCnt, permCnt);
-                        continue;
+                        throw new BusinessException(ErrorCode.INVALID_VALUE,
+                                deleteBlockedMessage(objectId, menuCnt, roleMapCnt, permCnt));
                     }
                     if (secObjRepository.existsById(objectId)) {
                         if (!objMappings.isEmpty()) {
@@ -539,10 +546,14 @@ public class CommObjMngService {
     }
 
     /**
-     * As-Is {@code selectCommObjMng} (xml:7~25) 의 응답 row 조립 — 본 13 컬럼 + MENU_ID (scalar subquery)
+     * As-Is {@code selectCommObjMng} (xml:7~25) 의 응답 row 조립 — 본 13 컬럼
      * + ID (OBJECT_ID 의 {@code ::} 이후 부분 — As-Is SUBSTR/INSTR/LENGTH 등가).
      *
      * <p>As-Is BIZ_SYSTEM_CODE 컬럼 (To-Be 정책 #1) 미반영.
+     *
+     * <p>2026-11-26 사용자 결정 — 메뉴가 OBJECT 를 참조하고 OBJECT 는 메뉴 정보를 갖지 않는다. As-Is 의 MENU_ID scalar
+     * subquery 와 2026-06-03 의 PARENT_MENU_ID(FORM_URL 자동 세트용 그룹 토큰)를 응답에서 뺐다. 화면 코드 경로는
+     * FORM_URL 이 갖고({@code mcm.menu.MenuCodePath}), 저장은 FE 가 보낸 FORM_URL 을 그대로 담는다.
      */
     private Map<String, Object> toSearchRow(SecObj o) {
         Map<String, Object> row = new LinkedHashMap<>();
@@ -559,13 +570,19 @@ public class CommObjMngService {
         row.put("PARAM", o.getParam());
         row.put("START_ACTIVE_DATE", o.getStartActiveDate());
         row.put("END_ACTIVE_DATE", o.getEndActiveDate());
-        // MENU_ID scalar subquery — As-Is xml:22~25
-        row.put("MENU_ID", secObjRepository.findOneMenuIdByObjectId(o.getObjectId()));
-        // 2026-06-03 — ToBe FORM_URL 자동 세트 (`{group}/{OBJECT_ID}`) 의 group prefix 결정용.
-        row.put("PARENT_MENU_ID", secObjRepository.findOneParentMenuIdByObjectId(o.getObjectId()));
         // ID = OBJECT_ID 의 "::" 이후 — As-Is SUBSTR(OBJECT_ID, INSTR(OBJECT_ID,'::')+2, LENGTH(OBJECT_ID))
         row.put("ID", extractIdFromObjectId(o.getObjectId()));
         return row;
+    }
+
+    /** 삭제 차단 문구 — 무엇이 OBJECT 를 쓰고 있는지(메뉴 N건 / 역할 매핑 N건 / 퍼미션 N건)와 먼저 할 일을 알려 준다. */
+    public static String deleteBlockedMessage(String objectId, long menuCnt, long roleMapCnt, long permCnt) {
+        List<String> reasons = new ArrayList<>(3);
+        if (menuCnt > 0) reasons.add("메뉴 " + menuCnt + "건");
+        if (roleMapCnt > 0) reasons.add("역할 매핑 " + roleMapCnt + "건");
+        if (permCnt > 0) reasons.add("퍼미션 " + permCnt + "건");
+        return "OBJECT '" + objectId + "' 은(는) " + String.join(", ", reasons) + "에서 쓰고 있어 삭제할 수 없습니다. "
+                + "메뉴 관리·역할 관리에서 먼저 연결을 뺀 뒤 삭제하세요.";
     }
 
     /** As-Is {@code SUBSTR(A.OBJECT_ID, INSTR(A.OBJECT_ID,'::')+2, LENGTH(A.OBJECT_ID))} (xml:26) Java 등가. */

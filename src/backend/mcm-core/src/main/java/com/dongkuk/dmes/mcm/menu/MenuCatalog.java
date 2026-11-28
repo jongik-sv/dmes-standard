@@ -135,6 +135,11 @@ public class MenuCatalog implements ApplicationContextAware {
             return new Snapshot(List.copyOf(menus), List.copyOf(objects),
                     Collections.unmodifiableMap(menuById), Collections.unmodifiableMap(objById));
         }
+
+        /** 이 스냅샷의 OBJECT 로 메뉴의 화면 코드 경로를 정한다 — 규칙은 {@link MenuCodePath#of(SecMenu, SecObj)}. */
+        public String codePathOf(SecMenu menu) {
+            return MenuCodePath.of(menu, objectsById);
+        }
     }
 
     /** 저장된 스냅샷 — {@code gen} 은 적재를 시작할 때의 세대. 현재 세대와 다르면 그 사이 무효화가 있었으므로 버린다. */

@@ -27,7 +27,7 @@ public final class ObjPermCatalog {
         BTN.put("codeItemEdit", "compare,execute,restore,save,search,validate,view");
         BTN.put("codeMng", "reg,search");
         BTN.put("columnMng", "compare,save,search,view");
-        BTN.put("commMenuMng", "commonList,save,saveCmMenuFld,search,searchCmMenuFld,searchMenuGrp,searchObj");
+        BTN.put("commMenuMng", "commonList,save,saveCmMenuFld,search,searchCmMenuFld,searchMenuGrp,searchObj,searchUnplacedObj");
         BTN.put("commObjMng", "lov,save,search,searchObjMenu,searchObjPerm,searchSystemLov");
         BTN.put("commPermBench", "apply,discardDraft,explain,impact,loadDraft,saveDraft,searchBench,searchHistory,searchHistoryDtl,searchMenuTree,searchRolePerm");
         BTN.put("commPermMng", "lov,save,search,searchPermOne");

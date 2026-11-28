@@ -61,7 +61,7 @@ public class PermExplainService {
         return resolver.explain(userGraph(userId, draft), userId, objectId);
     }
 
-    /** 사람 기준 메뉴 트리(폴더 + 화면). 줄 순서 = 그래프 메뉴 순서(폴더 FULL_SEQ, 그다음 화면 FULL_SEQ). */
+    /** 사람 기준 메뉴 트리(폴더 + 화면). 줄 순서 = 그래프 메뉴 순서(폴더 MENU_SEQ, 그다음 화면 MENU_SEQ — 2026-11-27 FULL_SEQ 삭제). */
     public List<MenuTreeRow> userMenuTree(String userId, List<PermChange> draft) {
         PermGraph g = userGraph(userId, draft);
         Set<String> visibleObjects = resolver.visibleObjects(g, userId);
@@ -177,13 +177,13 @@ public class PermExplainService {
         return l != null ? l.folder() : m.objectId() == null;
     }
 
-    /** 메뉴 이름·정렬 값·폴더 여부(폴더 + 화면). 정렬 값 = FULL_SEQ. 시험에서 바꿔 끼울 수 있게 열어 둔다. */
+    /** 메뉴 이름·정렬 값·폴더 여부(폴더 + 화면). 정렬 값 = MENU_SEQ 8자리 0 채움(2026-11-27 FULL_SEQ 삭제). 시험에서 바꿔 끼울 수 있게 열어 둔다. */
     @SuppressWarnings("unchecked")
     protected Map<String, MenuLabel> menuLabels() {
         Map<String, MenuLabel> out = new HashMap<>();
         for (String t : List.of("TB_MCM_SEC_MENU_FLD", "TB_MCM_SEC_MENU")) {
             boolean folder = t.endsWith("_FLD");
-            List<Object[]> rows = em.createNativeQuery("SELECT MENU_ID, MENU_NM, FULL_SEQ FROM MCMAPUSER." + t).getResultList();
+            List<Object[]> rows = em.createNativeQuery("SELECT MENU_ID, MENU_NM, LPAD(CAST(MENU_SEQ AS VARCHAR2(30)), 8, '0') FROM MCMAPUSER." + t).getResultList();
             for (Object[] r : rows) {
                 if (r[0] != null) out.putIfAbsent(r[0].toString(), new MenuLabel(str(r[1]), str(r[2]), folder));
             }

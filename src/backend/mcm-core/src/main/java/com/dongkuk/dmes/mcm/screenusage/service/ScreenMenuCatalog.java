@@ -14,7 +14,7 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * 통계용 메뉴 카탈로그 — pageId({@code PARENT_MENU_ID/OBJECT_ID}) → 메뉴명·메뉴 경로·표시 여부.
+ * 통계용 메뉴 카탈로그 — pageId(화면 코드 경로, {@link com.dongkuk.dmes.mcm.menu.MenuCodePath}) → 메뉴명·메뉴 경로·표시 여부.
  *
  * <p>메뉴 경로는 새 계층 SQL 을 쓰지 않고 기존 {@link SecMenuNativeRepository#searchMenuFld()}(재귀 WITH CTE)
  * 결과의 PARENT_MENU_ID 사슬을 Java 에서 잇는다. 미사용 판정 대상(viewable)은 MENU_VIEW_YN='Y' 이고 USE_TP='Y' 인 화면.
@@ -41,11 +41,16 @@ public class ScreenMenuCatalog {
             }
         }
         Map<String, MenuInfo> out = new LinkedHashMap<>();
-        for (SecMenu m : menuCatalog.menus()) {
-            if (isBlank(m.getParentMenuId()) || isBlank(m.getObjectId())) {
+        MenuCatalog.Snapshot catalog = menuCatalog.snapshot();
+        for (SecMenu m : catalog.menus()) {
+            if (isBlank(m.getObjectId())) {
                 continue;
             }
-            String pageId = m.getParentMenuId() + "/" + m.getObjectId();
+            // 2026-11-26 — pageId 는 내 메뉴 componentPath 와 같은 규칙(MenuCodePath: OBJECT.FORM_URL, 없으면 PARENT_MENU_ID/OBJECT_ID).
+            String pageId = catalog.codePathOf(m);
+            if (pageId == null) {
+                continue;
+            }
             boolean viewable = "Y".equals(m.getMenuViewYn()) && "Y".equals(m.getUseTp());
             MenuInfo info = new MenuInfo(pageId, m.getMenuNm(), folderPath(m.getParentMenuId(), folders), viewable);
             out.merge(pageId, info, (a, b) -> a.viewable() ? a : b);

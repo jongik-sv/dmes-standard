@@ -9,6 +9,7 @@ package com.dongkuk.dmes.mcm.csa.commMenuMng.service;
 import com.dongkuk.dmes.mcm.csa.commMenuMng.dto.CommMenuMngCommonListRequest;
 import com.dongkuk.dmes.mcm.csa.commMenuMng.dto.CommMenuMngSearchObjRequest;
 import com.dongkuk.dmes.mcm.csa.commMenuMng.dto.CommMenuMngSearchRequest;
+import com.dongkuk.dmes.mcm.csa.commMenuMng.dto.CommMenuMngSearchUnplacedObjRequest;
 import com.dongkuk.dmes.mcm.common.event.MenuChangedEvent;
 import com.dongkuk.dmes.mcm.common.exception.BusinessException;
 import com.dongkuk.dmes.mcm.common.exception.ErrorCode;
@@ -22,9 +23,11 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import static com.dongkuk.dmes.mcm.common.util.McmValues.strOf;
 import static com.dongkuk.dmes.mcm.common.util.McmValues.parseLocalDateTime;
 
@@ -40,6 +43,7 @@ import static com.dongkuk.dmes.mcm.common.util.McmValues.parseLocalDateTime;
  *   <li>{@code saveCmMenu}   → {@link #saveCmMenu(List)} — 메뉴 일괄 저장 (rowStatus 분기 inserted/updated/deleted)</li>
  *   <li>{@code searchObj}    → {@link #searchObj(CommMenuMngSearchObjRequest)} — 선택 메뉴의 OBJECT 정보 조회 (selectMenuObj)</li>
  *   <li>{@code commonList}   → {@link #commonList(CommMenuMngCommonListRequest)} — OBJECT 팝업 LoV (selectMenuObjPop)</li>
+ *   <li>{@code searchUnplacedObj} → {@link #searchUnplacedObj(CommMenuMngSearchUnplacedObjRequest)} — 메뉴 셋에 아직 놓이지 않은 OBJECT (2026-11-26)</li>
  *   <li>~~{@code lov}~~ — <b>To-Be 폐기</b> (cross-cutting 정책 #1 — BIZ_SYSTEM_CODE / APP_HOST_ID 도메인 / cross-namespace CommObjMngMapper.selectAppHostId 호출 모두 제거)</li>
  * </ol>
  *
@@ -98,8 +102,8 @@ public class CommMenuMngService {
      *
      * <p>처리:
      * <ol>
-     *   <li>{@link SecMenuNativeRepository#searchCmMenu(String, String, String, String)} —
-     *       4 파라미터 (To-Be 정책 #1 — cbo_bizSystemCode 폐기)</li>
+     *   <li>{@link SecMenuNativeRepository#searchCmMenu(String, String, String, String, String)} —
+     *       5 파라미터 (To-Be 정책 #1 — cbo_bizSystemCode 폐기, 2026-11-26 메뉴 셋 cboMENUTP 추가)</li>
      *   <li>{@link SecMenuNativeRepository#searchMenuFld()} — 메뉴 트리 (재귀 WITH)</li>
      *   <li>{@code ds_menuList} + {@code ds_menuTreeList} 2 dataset 반환</li>
      * </ol>
@@ -112,9 +116,10 @@ public class CommMenuMngService {
         String pMenuId   = request != null ? request.getPMENUID()   : null;
         String edtMenuNm = request != null ? request.getEdtMENUNM() : null;
         String cboUseTp  = request != null ? request.getCboUSETP()  : null;
+        String cboMenuTp = request != null ? request.getCboMENUTP() : null;
 
         List<Map<String, Object>> menuList = secMenuNativeRepository.searchCmMenu(
-                edtMenuId, pMenuId, edtMenuNm, cboUseTp);
+                edtMenuId, pMenuId, edtMenuNm, cboUseTp, cboMenuTp);
         List<Map<String, Object>> treeList = secMenuNativeRepository.searchMenuFld();
 
         Map<String, Object> out = new LinkedHashMap<>();
@@ -172,11 +177,30 @@ public class CommMenuMngService {
      * <p>As-Is V-004 millisecond cut (fn_MsgSaveCallBack xfdl:649~659 — START/END_ACTIVE_DATE.toString().length > 8
      * 시 substring(0,8)) 은 To-Be parseLocalDateTime 안에서 8자 yyyyMMdd 변환으로 자동 흡수.
      *
+     * <p><b>MENU_ID 자동 부여 (2026-11-26 사용자 결정)</b> — "inserted" 행의 MENU_ID 가 비어 오면
+     * {@link #assignMenuId} 가 정한다: OBJECT_ID 가 비어 있으면(쓰이지 않으면) 그것, 아니면 {@code OBJECT_ID + "_" + MENU_TP}
+     * (예: {@code commMenuMng_MOBIL}, MENU_TP 가 비면 WEB). 30자를 넘거나 그것도 쓰이고 있으면 직접 입력을 요구하며 거부한다.
+     * "쓰이고 있음" 은 DB 에 있는 것과 같은 묶음의 다른 행이 쓰는 것 둘 다다. 다른 상태의 빈 MENU_ID 행은 예전처럼 건너뛴다.
+     *
+     * <p><b>화면 코드 경로 고정 (2026-11-26)</b> — 화면 코드 경로는 OBJECT 의 FORM_URL 이다({@code mcm.menu.MenuCodePath}).
+     * 저장 전과 후에 {@link SecMenuNativeRepository#backfillObjectFormUrl()} 를 부른다. 전: 폴더를 옮기는 저장이라도 옮기기 전
+     * 폴더로 FORM_URL 이 비어 있는 OBJECT 의 경로를 먼저 고정한다(옮긴 뒤 화면이 안 열리는 일 방지). 후: 새로 놓인 OBJECT 의 경로를 고정한다.
+     *
      * <p>반환: {@code cnt_merge} (성공 행 수) + {@code ds_menuList} (재조회 결과 — As-Is fn_callBack
      * saveCmMenu 의 fn_search 재호출 정합 / cma 정본 패턴).
      */
     public Map<String, Object> saveCmMenu(List<Map<String, Object>> master) {
         int cnt = 0;
+        int formUrlFixed = secMenuNativeRepository.backfillObjectFormUrl();
+        // 같은 묶음 안에서 이미 쓰는 MENU_ID — 자동 부여가 이것과 겹치지 않게 한다.
+        Set<String> batchMenuIds = new HashSet<>();
+        if (master != null) {
+            for (Map<String, Object> row : master) {
+                if (row == null) continue;
+                String id = strOf(row.get("MENU_ID"));
+                if (id != null && !id.isBlank()) batchMenuIds.add(id);
+            }
+        }
         if (master != null) {
             for (Map<String, Object> row : master) {
                 if (row == null) continue;
@@ -187,6 +211,12 @@ public class CommMenuMngService {
                 }
                 String menuId = strOf(row.get("MENU_ID"));
                 String menuSeq = strOf(row.get("MENU_SEQ"));
+                boolean inserting = "inserted".equals(status) || "C".equals(status);
+                if (inserting && (menuId == null || menuId.isBlank())) {
+                    // 2026-11-26 — 메뉴 셋에 OBJECT 를 놓을 때 MENU_ID 자동 부여 (사용자 결정 3).
+                    menuId = assignMenuId(strOf(row.get("OBJECT_ID")), strOf(row.get("MENU_TP")), batchMenuIds);
+                    batchMenuIds.add(menuId);
+                }
                 // 2026-06-05 — PK = MENU_ID 단독. MENU_SEQ 는 순수 순서 컬럼(PK ✗) 이므로 PK null 가드는 MENU_ID 만.
                 if (menuId == null || menuId.isBlank()) {
                     log.warn("[commMenuMng.saveCmMenu] PK (MENU_ID) null — skip row (status={})", status);
@@ -210,7 +240,6 @@ public class CommMenuMngService {
                     // MENU_SEQ — 2026-06-05 사용자 지시: 저장 시 '0' LPAD 8자리 (예: "12" → "00000012").
                     //   MENU_ID 단독 PK 로 변경되어 MENU_SEQ 는 PK 가 아니므로 insert/update 모두 안전하게 LPAD.
                     entity.setMenuSeq(lpad8(menuSeq));
-                    entity.setFullSeq(strOf(row.get("FULL_SEQ")));
                     entity.setMenuNm(strOf(row.get("MENU_NM")));
                     entity.setMenuDesc(strOf(row.get("MENU_DESC")));
                     entity.setMenuTp(strOf(row.get("MENU_TP")));
@@ -221,10 +250,10 @@ public class CommMenuMngService {
                     entity.setEndActiveDate(parseLocalDateTime(row.get("END_ACTIVE_DATE"),
                             isNew ? END_OF_TIME : entity.getEndActiveDate()));
                     entity.setMenuViewYn(strOf(row.get("MENU_VIEW_YN")));
-                    // PARENT_MENU_ID — 2026-06-04 사용자 지시 (FULL_SEQ 자동부여) 정합 정정:
+                    // PARENT_MENU_ID — 2026-06-04 정합 정정:
                     //   As-Is xml:77/96 의 #{MENU_ID} 자기참조(setParentMenuId(menuId))는 R3 트리 재설계
                     //   (폴더=TB_MCM_SEC_MENU_FLD / 화면 PARENT_MENU_ID = 그룹 폴더 MENU_ID) 와 모순.
-                    //   화면이 그룹 폴더에 매달려야 트리 표시 + FULL_SEQ 그룹BASE 산출이 가능하다.
+                    //   화면이 그룹 폴더에 매달려야 트리에 보인다.
                     //   → FE 가 제공한 그룹 폴더 PARENT_MENU_ID(트리 노드 / OBJECT LoV 선택값) 를 보존.
                     //
                     // 2026-09-04 — blank 일 때의 As-Is fallback(self) 을 제거하고 거부로 바꿨다 (TE-006).
@@ -253,16 +282,17 @@ public class CommMenuMngService {
                 }
             }
         }
-        // 2026-06-04 사용자 지시 — FULL_SEQ 7자리 인코딩 자동 부여 (화면 + 폴더 트리 전체 멱등 재계산).
-        // CRUD 직후 · 재조회 직전에 호출 → ds_menuList 가 항상 최신 FULL_SEQ 반영.
-        secMenuNativeRepository.recomputeMenuFullSeq();
-        if (cnt > 0) {
+        // 아래 native 문장과 재조회가 방금 저장한 행을 보도록 내보낸다. (2026-11-27 FULL_SEQ 재계산 삭제 — 순서는 MENU_SEQ 만 쓴다.)
+        secMenuNativeRepository.flush();
+        // 2026-11-26 — 새로 놓인 OBJECT 의 화면 코드 경로(FORM_URL) 고정 (멱등, 바뀐 것이 없으면 0).
+        formUrlFixed += secMenuNativeRepository.backfillObjectFormUrl();
+        if (cnt > 0 || formUrlFixed > 0) {
             // 메뉴 카탈로그(SEC_MENU·SEC_OBJ 전수 캐시) 무효화 — 즉시 + 트랜잭션이 끝난 뒤(커밋·롤백), MenuCatalog 리스너.
             eventPublisher.publishEvent(new MenuChangedEvent(MenuChangedEvent.MENU));
         }
 
         // 저장 후 후속 search 재조회 (As-Is fn_callBack saveCmMenu → fn_search 자동 재호출 정합)
-        List<Map<String, Object>> rows = secMenuNativeRepository.searchCmMenu(null, null, null, null);
+        List<Map<String, Object>> rows = secMenuNativeRepository.searchCmMenu(null, null, null, null, null);
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("cnt_merge", cnt);
         out.put("ds_menuList", rows);
@@ -310,12 +340,30 @@ public class CommMenuMngService {
     }
 
     // ────────────────────────────────────────────────────────────────
+    // action: searchUnplacedObj — 2026-11-26 메뉴 셋에 아직 놓이지 않은 OBJECT
+    // ────────────────────────────────────────────────────────────────
+
+    /**
+     * action {@code searchUnplacedObj} 진입점 — 메뉴 셋({@code cboMENUTP}, 빈 값 = WEB)에 아직 놓이지 않은 사용 OBJECT 목록.
+     * {@code edtOBJECTID} 가 있으면 OBJECT_ID·OBJECT_NM 부분 일치로 좁힌다.
+     *
+     * <p>응답: {@code ds_unplacedObj} — {OBJECT_ID, OBJECT_NM, SYSTEM_CODE, OBJECT_TYPE, FORM_URL}, OBJECT_ID 순.
+     */
+    public Map<String, Object> searchUnplacedObj(CommMenuMngSearchUnplacedObjRequest request) {
+        String menuTp = request != null ? request.getCboMENUTP() : null;
+        String edtObjectId = request != null ? request.getEdtOBJECTID() : null;
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("ds_unplacedObj", secMenuNativeRepository.searchUnplacedObj(menuTp, edtObjectId));
+        return out;
+    }
+
+    // ────────────────────────────────────────────────────────────────
     // action: searchCmMenuFld / saveCmMenuFld — 2026-06-04 사용자 지시
     //   "메뉴 필드 관리" 팝업 (그리드 batch CRUD)
     // ────────────────────────────────────────────────────────────────
 
     /**
-     * 메뉴 필드 목록 조회 — TB_MCM_SEC_MENU_FLD 4 컬럼 + FULL_SEQ + MENU_VIEW_YN 그리드 표시용.
+     * 메뉴 필드 목록 조회 — TB_MCM_SEC_MENU_FLD 4 컬럼 + MENU_VIEW_YN 그리드 표시용.
      * 응답: {@code ds_menuFldList} (As-Is dataset 명 정합).
      */
     public Map<String, Object> searchCmMenuFld() {
@@ -326,7 +374,7 @@ public class CommMenuMngService {
 
     /**
      * 메뉴 필드 그리드 응답 조립 — {@code searchMenuFldList()} 결과
-     * (MENU_ID/MENU_SEQ/MENU_NM/PARENT_MENU_ID/FULL_SEQ/MENU_VIEW_YN) 의 표시값만 정규화한다.
+     * (MENU_ID/MENU_SEQ/MENU_NM/PARENT_MENU_ID/MENU_VIEW_YN) 의 표시값만 정규화한다.
      *
      * <p><b>NULL = 표시</b> — 현 시드의 mcm 계열 폴더는 MENU_VIEW_YN 이 NULL 이고, 사이드바 필터
      * ({@code SecUserService}) 도 {@code 'N'} 일 때만 숨기므로 NULL 의 실동작은 "표시" 다.
@@ -410,10 +458,9 @@ public class CommMenuMngService {
             }
         }
         log.info("[commMenuMng.saveCmMenuFld] batch insert={} update={} delete={} skip={}", cntInsert, cntUpdate, cntDelete, cntSkip);
-        // 2026-06-04 사용자 지시 — 폴더(메뉴 필드) FULL_SEQ 자동 부여 (모듈 백만 / 그룹 만). 화면 FULL_SEQ 도 동시 정합.
-        secMenuNativeRepository.recomputeMenuFullSeq();
+        secMenuNativeRepository.flush();
         if (cntInsert + cntUpdate + cntDelete > 0) {
-            // 폴더가 바뀌면 위 재계산이 화면(SEC_MENU) FULL_SEQ 도 바꾼다 → 메뉴 카탈로그 무효화.
+            // 폴더가 바뀌면 사이드바 트리도 바뀐다 → 메뉴 카탈로그 무효화.
             eventPublisher.publishEvent(new MenuChangedEvent(MenuChangedEvent.MENU_FOLDER));
         }
 
@@ -421,7 +468,7 @@ public class CommMenuMngService {
         out.put("cnt_insert", cntInsert);
         out.put("cnt_update", cntUpdate);
         out.put("cnt_delete", cntDelete);
-        // 후속 재조회 (저장 직후 그리드 + 트리 동시 갱신) — searchMenuFldList 가 FULL_SEQ 동봉,
+        // 후속 재조회 (저장 직후 그리드 + 트리 동시 갱신) — searchMenuFldList 가 트리 순서로 주고,
         // menuFldRowsWithViewYn 이 MENU_VIEW_YN 을 덧입힌다.
         out.put("ds_menuFldList", menuFldRowsWithViewYn());
         return out;
@@ -444,6 +491,40 @@ public class CommMenuMngService {
     // ────────────────────────────────────────────────────────────────
     // helpers
     // ────────────────────────────────────────────────────────────────
+
+    /** MENU_ID 컬럼 길이 — TB_MCM_SEC_MENU.MENU_ID VARCHAR2(30 CHAR). */
+    static final int MENU_ID_MAX_LENGTH = 30;
+
+    /**
+     * 신규 메뉴 행의 MENU_ID 자동 부여 (2026-11-26 사용자 결정 3).
+     *
+     * <ol>
+     *   <li>{@code OBJECT_ID} 가 쓰이지 않으면(DB·같은 묶음 모두) 그것.</li>
+     *   <li>아니면 {@code OBJECT_ID + "_" + MENU_TP}(MENU_TP 가 비면 WEB, 예: {@code commMenuMng_MOBIL}).</li>
+     *   <li>30자를 넘거나 그것도 쓰이고 있으면 {@link BusinessException} — 사용자가 MENU_ID 를 직접 입력해야 한다.</li>
+     * </ol>
+     */
+    private String assignMenuId(String objectId, String menuTp, Set<String> batchMenuIds) {
+        if (objectId == null || objectId.isBlank()) {
+            throw new BusinessException(ErrorCode.REQUIRED_VALUE,
+                    "MENU_ID 가 비어 있고 OBJECT 도 지정되지 않아 MENU_ID 를 정할 수 없습니다. OBJECT 를 고르거나 MENU_ID 를 입력하세요.");
+        }
+        String obj = objectId.trim();
+        if (isFreeMenuId(obj, batchMenuIds)) return obj;
+        String set = (menuTp == null || menuTp.isBlank()) ? SecMenuNativeRepository.DEFAULT_MENU_TP : menuTp.trim();
+        String withSet = obj + "_" + set;
+        if (isFreeMenuId(withSet, batchMenuIds)) return withSet;
+        throw new BusinessException(ErrorCode.DUPLICATE_DATA,
+                "MENU_ID 를 자동으로 정하지 못했습니다 (OBJECT_ID=" + obj + "). " + obj + " 와 " + withSet
+                        + " 이(가) 이미 쓰이고 있거나 " + MENU_ID_MAX_LENGTH + "자를 넘습니다. MENU_ID 를 직접 입력하세요.");
+    }
+
+    /** 30자 이내이고, 같은 묶음에서 쓰지 않고, DB 에도 없는 MENU_ID 인가. */
+    private boolean isFreeMenuId(String candidate, Set<String> batchMenuIds) {
+        return candidate.length() <= MENU_ID_MAX_LENGTH
+                && !batchMenuIds.contains(candidate)
+                && !secMenuRepository.existsById(candidate);
+    }
 
     /**
      * MENU_SEQ '0' LPAD 8자리 (2026-06-05 사용자 지시 — 예: "12" → "00000012").

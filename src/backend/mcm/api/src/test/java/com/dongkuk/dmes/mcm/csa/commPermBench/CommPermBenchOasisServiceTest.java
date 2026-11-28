@@ -133,14 +133,14 @@ class CommPermBenchOasisServiceTest {
         jdbc.update("INSERT INTO TB_MCM_SEC_USER_MAPPING (USER_ID, ROLE_GROUP_ID) VALUES ('admin', 'G_ADMIN')");
         jdbc.update("INSERT INTO TB_MCM_SEC_USER_MAPPING (USER_ID, ROLE_GROUP_ID) VALUES ('u1', 'G_VIEW')");
         jdbc.update("INSERT INTO TB_MCM_SEC_USER_MAPPING (USER_ID, ROLE_GROUP_ID) VALUES ('u_off', 'G_VIEW')");
-        jdbc.update("INSERT INTO TB_MCM_SEC_MENU_FLD (MENU_ID, MENU_SEQ, MENU_NM, PARENT_MENU_ID, FULL_SEQ, USE_TP, MENU_VIEW_YN)"
-                + " VALUES ('mcm', '1', '공통관리', NULL, 1, 'Y', 'Y')");
-        jdbc.update("INSERT INTO TB_MCM_SEC_MENU_FLD (MENU_ID, MENU_SEQ, MENU_NM, PARENT_MENU_ID, FULL_SEQ, USE_TP, MENU_VIEW_YN)"
-                + " VALUES ('csa', '1', '시스템관리', 'mcm', 2, 'Y', 'Y')");
+        jdbc.update("INSERT INTO TB_MCM_SEC_MENU_FLD (MENU_ID, MENU_SEQ, MENU_NM, PARENT_MENU_ID, USE_TP, MENU_VIEW_YN)"
+                + " VALUES ('mcm', '1', '공통관리', NULL, 'Y', 'Y')");
+        jdbc.update("INSERT INTO TB_MCM_SEC_MENU_FLD (MENU_ID, MENU_SEQ, MENU_NM, PARENT_MENU_ID, USE_TP, MENU_VIEW_YN)"
+                + " VALUES ('csa', '1', '시스템관리', 'mcm', 'Y', 'Y')");
         jdbc.update("INSERT INTO TB_MCM_SEC_OBJ (OBJECT_ID, OBJECT_NM, SYSTEM_CODE, USE_TP, BTN_PERM, POPUP_PERM)"
                 + " VALUES ('objA', '화면A', 'mcm', 'Y', 'search,save,excelDown', NULL)");
-        jdbc.update("INSERT INTO TB_MCM_SEC_MENU (MENU_ID, MENU_SEQ, FULL_SEQ, MENU_NM, MENU_TP, OBJECT_ID, USE_TP, MENU_VIEW_YN, PARENT_MENU_ID)"
-                + " VALUES ('M_A', '002', '1020240', '화면A', 'S', 'objA', 'Y', 'Y', 'csa')");
+        jdbc.update("INSERT INTO TB_MCM_SEC_MENU (MENU_ID, MENU_SEQ, MENU_NM, MENU_TP, OBJECT_ID, USE_TP, MENU_VIEW_YN, PARENT_MENU_ID)"
+                + " VALUES ('M_A', '002', '화면A', 'S', 'objA', 'Y', 'Y', 'csa')");
         // c4 시더 — 권한 작업대 OBJECT(BTN_PERM = 11 action) + 메뉴 leaf(csa/commPermBench) + 옛 SYSADMIN 매핑
         tx.executeWithoutResult(s -> new McmMenuSeeder(new SeedSupport(
                 SharedEntityManagerCreator.createSharedEntityManager(ctx.getBean(EntityManagerFactory.class))))

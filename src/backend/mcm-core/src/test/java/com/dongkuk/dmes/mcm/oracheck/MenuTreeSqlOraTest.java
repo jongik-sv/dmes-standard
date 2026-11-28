@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.util.List;
 import java.util.Map;
@@ -45,9 +46,9 @@ class MenuTreeSqlOraTest {
 
     // ───────────────────────── 픽스처 ─────────────────────────
 
-    private void fld(String id, String seq, String parent, Integer fullSeq) {
-        jdbc.update("INSERT INTO MCMAPUSER.TB_MCM_SEC_MENU_FLD (MENU_ID, MENU_SEQ, MENU_NM, PARENT_MENU_ID, FULL_SEQ, USE_TP, MENU_VIEW_YN) "
-                + "VALUES (?, ?, ?, ?, ?, 'Y', 'Y')", id, seq, id + "-nm", parent, fullSeq);
+    private void fld(String id, String seq, String parent) {
+        jdbc.update("INSERT INTO MCMAPUSER.TB_MCM_SEC_MENU_FLD (MENU_ID, MENU_SEQ, MENU_NM, PARENT_MENU_ID, USE_TP, MENU_VIEW_YN) "
+                + "VALUES (?, ?, ?, ?, 'Y', 'Y')", id, seq, id + "-nm", parent);
     }
 
     private void menu(String id, String seq, String parent, String objectId, String useTp, String menuTp) {
@@ -62,11 +63,11 @@ class MenuTreeSqlOraTest {
 
     /** F_ROOT(1) ─ F_A(2) ─ F_A1(3) · F_ROOT ─ F_B(10) · F_ROOT2(2). 형제 순서 '2' < '10' 을 LPAD 가 지키는지 보려고 B 에 10 을 쓴다. */
     private void folderTree() {
-        fld("F_ROOT", "1", null, 1_000_000);
-        fld("F_B", "10", "F_ROOT", 1_010_000);
-        fld("F_A", "2", "F_ROOT", 1_020_000);
-        fld("F_A1", "3", "F_A", 1_020_001);
-        fld("F_ROOT2", "2", null, 2_000_000);
+        fld("F_ROOT", "1", null);
+        fld("F_B", "10", "F_ROOT");
+        fld("F_A", "2", "F_ROOT");
+        fld("F_A1", "3", "F_A");
+        fld("F_ROOT2", "2", null);
     }
 
     private static String s(Map<String, Object> row, String key) {
@@ -92,8 +93,21 @@ class MenuTreeSqlOraTest {
                 .containsExactly("F_ROOT", "F_A", "F_A1", "F_B", "F_ROOT2");
         assertThat(rows).extracting(r -> n(r, "LEV")).containsExactly(0, 1, 2, 1, 0);
         assertThat(rows.get(1)).containsEntry("PARENT_MENU_ID", "F_ROOT").containsEntry("MENU_SEQ", "2");
-        assertThat(n(rows.get(0), "FULL_SEQ")).isEqualTo(1_000_000);
         assertThat(rows.get(0).get("PARENT_MENU_ID")).isNull();
+    }
+
+    /** 2026-11-27 FULL_SEQ 삭제 — 메뉴 필드 팝업 목록은 트리 순서(PATH)로 나오고, 부모를 못 찾은 폴더는 맨 뒤에 붙는다. */
+    @Test
+    @DisplayName("searchMenuFldList — 트리 순서(형제 '2' 가 '10' 보다 앞), 트리 밖 폴더는 맨 뒤")
+    void searchMenuFldList_treeOrder() {
+        folderTree();
+        fld("F_ORPHAN", "1", "F_NONE");
+
+        List<Map<String, Object>> rows = menuRepo.searchMenuFldList();
+
+        assertThat(rows).extracting(r -> s(r, "MENU_ID"))
+                .containsExactly("F_ROOT", "F_A", "F_A1", "F_B", "F_ROOT2", "F_ORPHAN");
+        assertThat(rows.get(0)).doesNotContainKey("FULL_SEQ").containsEntry("MENU_VIEW_YN", "Y");
     }
 
     /** c2: 폴더가 하나도 없어도 재귀 WITH 가 빈 결과로 끝난다. */
@@ -120,7 +134,7 @@ class MenuTreeSqlOraTest {
     void searchCmMenu_descendants() {
         menusUnderTree();
 
-        List<Map<String, Object>> rows = menuRepo.searchCmMenu(null, "F_ROOT", null, null);
+        List<Map<String, Object>> rows = menuRepo.searchCmMenu(null, "F_ROOT", null, null, null);
 
         assertThat(rows).extracting(r -> s(r, "MENU_ID")).containsExactly("M_A1", "M_B", "M_ROOT");
         Map<String, Object> root = rows.get(2);
@@ -133,7 +147,7 @@ class MenuTreeSqlOraTest {
     void searchCmMenu_subFolder() {
         menusUnderTree();
 
-        assertThat(menuRepo.searchCmMenu(null, "F_A", null, null))
+        assertThat(menuRepo.searchCmMenu(null, "F_A", null, null, null))
                 .extracting(r -> s(r, "MENU_ID")).containsExactly("M_A1");
     }
 
@@ -143,12 +157,12 @@ class MenuTreeSqlOraTest {
     void searchCmMenu_allAndFilters() {
         menusUnderTree();
 
-        assertThat(menuRepo.searchCmMenu(null, null, null, null)).hasSize(4);
-        assertThat(menuRepo.searchCmMenu("m_a", null, null, null))
+        assertThat(menuRepo.searchCmMenu(null, null, null, null, null)).hasSize(4);
+        assertThat(menuRepo.searchCmMenu("m_a", null, null, null, null))
                 .extracting(r -> s(r, "MENU_ID")).containsExactly("M_A1");
-        assertThat(menuRepo.searchCmMenu(null, null, "OTHER-n", null))
+        assertThat(menuRepo.searchCmMenu(null, null, "OTHER-n", null, null))
                 .extracting(r -> s(r, "MENU_ID")).containsExactly("M_OTHER");
-        assertThat(menuRepo.searchCmMenu(null, "F_ROOT", null, "N"))
+        assertThat(menuRepo.searchCmMenu(null, "F_ROOT", null, "N", null))
                 .extracting(r -> s(r, "MENU_ID")).containsExactly("M_B");
     }
 
@@ -171,9 +185,9 @@ class MenuTreeSqlOraTest {
     @Test
     @DisplayName("searchCmRoleGrpMenu — 재귀 WITH 가 위로 올라가 F_A1 → F_A → F_ROOT, LEV 0/1/2, MENU_SEQ 는 LPAD 8자, ROW_SEQ 1..3")
     void searchCmRoleGrpMenu_walksUp() {
-        fld("F_ROOT", "1", null, 1_000_000);
-        fld("F_A", "2", "F_ROOT", 1_020_000);
-        fld("F_A1", "3", "F_A", 1_020_001);
+        fld("F_ROOT", "1", null);
+        fld("F_A", "2", "F_ROOT");
+        fld("F_A1", "3", "F_A");
         obj("F_A1", "o", "Y"); // LEFT JOIN OBJ ON O.OBJECT_ID = M.MENU_ID
         roleGroupWithMenu("F_A1", "Y");
 
@@ -195,9 +209,9 @@ class MenuTreeSqlOraTest {
     @Test
     @DisplayName("searchCmRoleGrpMenu — MENU_SEQ 가 '2'·'10' 처럼 길이가 다르면 가공 전 글자 순서('10' 이 '2' 보다 앞, MSSQL 판과 같음)")
     void searchCmRoleGrpMenu_paddedSeqOrder() {
-        fld("F_ROOT", "10", null, 1_000_000);
-        fld("F_A", "2", "F_ROOT", 1_020_000);
-        fld("F_A1", "3", "F_A", 1_020_001);
+        fld("F_ROOT", "10", null);
+        fld("F_A", "2", "F_ROOT");
+        fld("F_A1", "3", "F_A");
         roleGroupWithMenu("F_A1", "Y");
 
         List<Map<String, Object>> rows = roleGrpRepo.searchCmRoleGrpMenu("RG1");
@@ -209,8 +223,8 @@ class MenuTreeSqlOraTest {
     @Test
     @DisplayName("searchCmRoleGrpMenu — 부모가 서로를 가리키는 순환 자료에서도 끝나고 LEV 는 32 를 넘지 않는다")
     void searchCmRoleGrpMenu_cycleTerminates() {
-        fld("F_X", "1", "F_Y", 1);
-        fld("F_Y", "2", "F_X", 2);
+        fld("F_X", "1", "F_Y");
+        fld("F_Y", "2", "F_X");
         roleGroupWithMenu("F_X", "Y");
 
         List<Map<String, Object>> rows = roleGrpRepo.searchCmRoleGrpMenu("RG1");
@@ -223,7 +237,7 @@ class MenuTreeSqlOraTest {
     @Test
     @DisplayName("searchCmRoleGrpMenu — USE_TP='N' 역할그룹, null 역할그룹 ID 는 빈 목록")
     void searchCmRoleGrpMenu_excluded() {
-        fld("F_X", "1", null, 1);
+        fld("F_X", "1", null);
         roleGroupWithMenu("F_X", "N");
 
         assertThat(roleGrpRepo.searchCmRoleGrpMenu("RG1")).isEmpty();
@@ -262,5 +276,95 @@ class MenuTreeSqlOraTest {
         assertThat(menuRepo.searchMenuObjPop("obj_a")).extracting(r -> s(r, "OBJECT_ID")).containsExactly("OBJ_A");
         assertThat(menuRepo.searchMenuObjPop("beta-")).extracting(r -> s(r, "OBJECT_ID")).containsExactly("OBJ_B");
         assertThat(menuRepo.searchMenuObjPop("zzz")).isEmpty();
+    }
+
+    // ───────────────────────── 2026-11-26 메뉴 셋 · 놓이지 않은 OBJECT · FORM_URL 채우기 ─────────────────────────
+
+    /** 메뉴 셋 조건 — NVL(MENU_TP,'WEB') 이라 NULL 은 WEB 에 든다. 폴더 지정(재귀)·전체 두 분기 모두. */
+    @Test
+    @DisplayName("searchCmMenu — 메뉴 셋 WEB 은 MENU_TP NULL 행을 포함하고 MOBIL 은 MOBIL 행만 (두 분기 모두)")
+    void searchCmMenu_menuSet() {
+        folderTree();
+        menu("M_WEB", "1", "F_A1", null, "Y", "WEB");
+        menu("M_NULL", "2", "F_A1", null, "Y", null);
+        menu("M_MOB", "3", "F_A1", null, "Y", "MOBIL");
+
+        assertThat(menuRepo.searchCmMenu(null, null, null, null, "WEB"))
+                .extracting(r -> s(r, "MENU_ID")).containsExactly("M_NULL", "M_WEB");
+        assertThat(menuRepo.searchCmMenu(null, "F_ROOT", null, null, "MOBIL"))
+                .extracting(r -> s(r, "MENU_ID")).containsExactly("M_MOB");
+        assertThat(menuRepo.searchCmMenu(null, "F_A", null, null, "WEB"))
+                .extracting(r -> s(r, "MENU_ID")).containsExactly("M_NULL", "M_WEB");
+        assertThat(menuRepo.searchCmMenu(null, null, null, null, " ")).as("빈 값 = 전체").hasSize(3);
+    }
+
+    /** 놓이지 않은 OBJECT — 그 셋에 메뉴 행이 없는 사용 OBJECT 만, OBJECT_ID 순, 검색어는 ID·이름 부분 일치. */
+    @Test
+    @DisplayName("searchUnplacedObj — 셋별로 놓이지 않은 USE_TP=Y OBJECT 만 (NULL MENU_TP 는 WEB, 빈 셋은 WEB), 검색어 필터")
+    void searchUnplacedObj_perSet() {
+        obj("OBJ_W", "web-only", "Y");     // WEB(NULL) 에만 놓임
+        obj("OBJ_M", "mobile-only", "Y");  // MOBIL 에만 놓임
+        obj("OBJ_FREE", "Free-Screen", "Y");
+        obj("OBJ_OFF", "disabled", "N");
+        menu("M_W", "1", "F_A", "OBJ_W", "Y", null);
+        menu("M_M", "1", "F_A", "OBJ_M", "Y", "MOBIL");
+
+        List<Map<String, Object>> web = menuRepo.searchUnplacedObj("WEB", null);
+        assertThat(web).extracting(r -> s(r, "OBJECT_ID")).containsExactly("OBJ_FREE", "OBJ_M");
+        assertThat(web.get(0)).containsOnlyKeys("OBJECT_ID", "OBJECT_NM", "SYSTEM_CODE", "OBJECT_TYPE", "FORM_URL")
+                .containsEntry("OBJECT_NM", "Free-Screen").containsEntry("FORM_URL", "/u");
+        assertThat(menuRepo.searchUnplacedObj(null, null)).extracting(r -> s(r, "OBJECT_ID"))
+                .as("빈 셋 = WEB").containsExactly("OBJ_FREE", "OBJ_M");
+        assertThat(menuRepo.searchUnplacedObj("MOBIL", null)).extracting(r -> s(r, "OBJECT_ID"))
+                .containsExactly("OBJ_FREE", "OBJ_W");
+        assertThat(menuRepo.searchUnplacedObj("MOBIL", "free-s")).extracting(r -> s(r, "OBJECT_ID"))
+                .containsExactly("OBJ_FREE");
+        assertThat(menuRepo.searchUnplacedObj("MOBIL", "obj_w")).extracting(r -> s(r, "OBJECT_ID"))
+                .containsExactly("OBJ_W");
+    }
+
+    @Autowired TransactionTemplate tx;
+
+    private void objForm(String id, String formUrl, String accessTp) {
+        jdbc.update("INSERT INTO MCMAPUSER.TB_MCM_SEC_OBJ (OBJECT_ID, OBJECT_NM, USE_TP, ACCESS_TP, FORM_URL) VALUES (?, ?, 'Y', ?, ?)",
+                id, id + "-nm", accessTp, formUrl);
+    }
+
+    private String formUrl(String id) {
+        return jdbc.queryForObject("SELECT FORM_URL FROM MCMAPUSER.TB_MCM_SEC_OBJ WHERE OBJECT_ID = ?", String.class, id);
+    }
+
+    /** FORM_URL 채우기 — 빈 값·'/' 없는 내부 값만 MIN(PARENT/OBJECT) 로, 경로가 있거나 외부 값이면 그대로, 두 번째는 0행. */
+    @Test
+    @DisplayName("backfillObjectFormUrl — 빈 FORM_URL·'/' 없는 값은 MIN(PARENT_MENU_ID/OBJECT_ID), 경로·외부 값·메뉴 없는 OBJECT 는 그대로, 멱등")
+    void backfillObjectFormUrl() {
+        objForm("O_BLANK", null, "내부");
+        objForm("O_TWO", null, "내부");        // 두 폴더에 놓임 → MIN
+        objForm("O_XFDL", "O_XFDL.xfdl", "내부"); // '/' 없는 옛 값 → 채움
+        objForm("O_PATH", "keep/O_PATH", "내부"); // 이미 경로 → 그대로
+        objForm("O_EXT", "extlink", "외부");    // 외부 + 값 있음 → 그대로
+        objForm("O_EXT_BLANK", null, "외부");   // 외부라도 비었으면 채움
+        objForm("O_NOMENU", null, "내부");      // 메뉴 없음 → 그대로(NULL)
+        menu("M1", "1", "csa", "O_BLANK", "Y", "WEB");
+        menu("M2", "1", "zzz", "O_TWO", "Y", "WEB");
+        menu("M3", "1", "cmq", "O_TWO", "Y", "MOBIL");
+        menu("M4", "1", "csa", "O_XFDL", "Y", "WEB");
+        menu("M5", "1", "csa", "O_PATH", "Y", "WEB");
+        menu("M6", "1", "csa", "O_EXT", "Y", "WEB");
+        menu("M7", "1", "csa", "O_EXT_BLANK", "Y", "WEB");
+        menu("M8", "1", null, "O_NOMENU", "Y", "WEB");  // 폴더 없는 메뉴만 있음 → 채울 값 없음
+
+        Integer first = tx.execute(st -> menuRepo.backfillObjectFormUrl());
+
+        assertThat(first).isEqualTo(4);
+        assertThat(formUrl("O_BLANK")).isEqualTo("csa/O_BLANK");
+        assertThat(formUrl("O_TWO")).isEqualTo("cmq/O_TWO");
+        assertThat(formUrl("O_XFDL")).isEqualTo("csa/O_XFDL");
+        assertThat(formUrl("O_PATH")).isEqualTo("keep/O_PATH");
+        assertThat(formUrl("O_EXT")).isEqualTo("extlink");
+        assertThat(formUrl("O_EXT_BLANK")).isEqualTo("csa/O_EXT_BLANK");
+        assertThat(formUrl("O_NOMENU")).isNull();
+        Integer second = tx.execute(st -> menuRepo.backfillObjectFormUrl());
+        assertThat(second).as("멱등 — 두 번째는 0행").isZero();
     }
 }

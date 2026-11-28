@@ -44,13 +44,14 @@ public class SeedSupport {
     /**
      * 모듈 무관 범용 폴더 INSERT 헬퍼(이름의 Mpn 은 legacy).
      *
-     * <p>TB_MCM_SEC_MENU_FLD 폴더 1행 멱등 INSERT — FULL_SEQ/USE_TP/MENU_VIEW_YN 명시 (첫 부팅 트리 표시 보장).
+     * <p>TB_MCM_SEC_MENU_FLD 폴더 1행 멱등 INSERT — USE_TP/MENU_VIEW_YN 명시 (첫 부팅 트리 표시 보장).
+     * 표시 순서는 같은 부모 안의 MENU_SEQ 로 정한다.
      *
      * <p>MENU_VIEW_YN 은 'Y'(사이드바 표시). 숨김 폴더가 필요하면
-     * {@link #insertMpnFld(String, String, String, String, long, String)} 오버로드를 쓴다.
+     * {@link #insertMpnFld(String, String, String, String, String)} 오버로드를 쓴다.
      */
-    protected void insertMpnFld(String menuId, String menuSeq, String menuNm, String parent, long fullSeq) {
-        insertMpnFld(menuId, menuSeq, menuNm, parent, fullSeq, "Y");
+    protected void insertMpnFld(String menuId, String menuSeq, String menuNm, String parent) {
+        insertMpnFld(menuId, menuSeq, menuNm, parent, "Y");
     }
 
     /**
@@ -59,21 +60,21 @@ public class SeedSupport {
      * <p>TB_MCM_SEC_MENU_FLD 폴더 1행 멱등 INSERT — 사이드바 표시 여부까지 지정하는 오버로드 (2026-08-12).
      *
      * <p>팝업 전용 그룹(예: mpp {@code ppz})처럼 "메뉴관리 화면에는 보이되 사이드바에는 뜨지 않아야 하는"
-     * 폴더를 시드하려면 {@code viewYn='N'} 을 넘긴다. 기존 호출부(수십 곳)를 건드리지 않도록 5-인자
+     * 폴더를 시드하려면 {@code viewYn='N'} 을 넘긴다. 기존 호출부를 건드리지 않도록 4-인자
      * 시그니처는 그대로 두고 'Y' 로 위임한다.
      *
      * @param viewYn MENU_VIEW_YN — 'Y'(표시) / 'N'(숨김). 그 외 값은 {@link #normalizeViewYn(String)} 이
      *               'Y' 로 폴백한다(시드 오타로 트리가 통째로 사라지는 것보다 표시 쪽이 안전하다).
      */
-    protected void insertMpnFld(String menuId, String menuSeq, String menuNm, String parent, long fullSeq, String viewYn) {
+    protected void insertMpnFld(String menuId, String menuSeq, String menuNm, String parent, String viewYn) {
         String parentLit = (parent == null) ? "NULL" : "'" + escapeSql(parent) + "'";
         String viewLit = normalizeViewYn(viewYn);
         insertIfAbsent(
                 "TB_MCM_SEC_MENU_FLD", "MENU_ID", menuId,
                 "INSERT INTO MCMAPUSER.TB_MCM_SEC_MENU_FLD " +
-                "(MENU_ID, MENU_SEQ, MENU_NM, PARENT_MENU_ID, FULL_SEQ, USE_TP, MENU_VIEW_YN) " +
+                "(MENU_ID, MENU_SEQ, MENU_NM, PARENT_MENU_ID, USE_TP, MENU_VIEW_YN) " +
                 "VALUES ('" + escapeSql(menuId) + "', '" + escapeSql(menuSeq) + "', N'" + escapeSql(menuNm) + "', " +
-                parentLit + ", " + fullSeq + ", 'Y', '" + viewLit + "')");
+                parentLit + ", 'Y', '" + viewLit + "')");
     }
 
     /**
@@ -98,22 +99,21 @@ public class SeedSupport {
      * <ul>
      *   <li>MENU_TP = 'WEB'</li>
      *   <li>USE_TP = 'Y'</li>
-     *   <li>MENU_VIEW_YN = 'Y' (숨김 leaf 는 7-인자 오버로드로 'N' 지정)</li>
+     *   <li>MENU_VIEW_YN = 'Y' (숨김 leaf 는 6-인자 오버로드로 'N' 지정)</li>
      *   <li>START_ACTIVE_DATE = SYSTIMESTAMP</li>
      *   <li>END_ACTIVE_DATE = TIMESTAMP '9999-12-31 23:59:59'</li>
      *   <li>audit 9 컬럼 = 'admin' / SYSTIMESTAMP / 'DataInitializer' / 'DataInitializer' / ... / 0</li>
      * </ul>
      *
      * @param menuId       MENU_ID (PK#1) — VARCHAR(30)
-     * @param menuSeq      MENU_SEQ (PK#2) — VARCHAR(30). 모든 seed = "001".
-     * @param fullSeq      FULL_SEQ — VARCHAR 사전순 정렬 (예: 100/110/120 ... 200/210/220 ... 300/310)
+     * @param menuSeq      MENU_SEQ — VARCHAR(30). 같은 부모 안의 표시 순서(숫자 비교, 같으면 MENU_ID). 8자리 0 채움.
      * @param menuNm       MENU_NM (한글) — N'...' literal 로 래핑
      * @param parentMenuId PARENT_MENU_ID — root 그룹은 null
      * @param objectId     OBJECT_ID — 화면식별자 (TB_MCM_SEC_OBJ FK). root 그룹은 null
      */
-    protected void insertMcmSecMenuIfAbsent(String menuId, String menuSeq, String fullSeq,
+    protected void insertMcmSecMenuIfAbsent(String menuId, String menuSeq,
                                           String menuNm, String parentMenuId, String objectId) {
-        insertMcmSecMenuIfAbsent(menuId, menuSeq, fullSeq, menuNm, parentMenuId, objectId, "Y");
+        insertMcmSecMenuIfAbsent(menuId, menuSeq, menuNm, parentMenuId, objectId, "Y");
     }
 
     /**
@@ -122,12 +122,12 @@ public class SeedSupport {
      * <p><b>왜 필요한가</b> — 팝업(모달)도 메뉴 leaf 로 등재하는 정책으로 바뀌었다. leaf 가 있어야
      * ① 팝업 단위 RBAC 를 메뉴/역할 화면에서 화면과 똑같이 다룰 수 있고 ② commMenuMng 에서 순서·명칭을
      * 관리할 수 있다. 다만 팝업은 부모 화면에서 열리므로 <b>사이드바에는 뜨면 안 된다</b> →
-     * {@code MENU_VIEW_YN='N'}. 6-인자 시그니처는 기존 호출부(수십 곳) 보존용으로 'Y' 에 위임한다.
+     * {@code MENU_VIEW_YN='N'}. 5-인자 시그니처는 기존 호출부 보존용으로 'Y' 에 위임한다.
      *
      * @param viewYn MENU_VIEW_YN — 'Y'(사이드바 표시) / 'N'(숨김, 팝업 leaf).
      *               그 외 값은 {@link #normalizeViewYn(String)} 이 'Y' 로 폴백한다.
      */
-    protected void insertMcmSecMenuIfAbsent(String menuId, String menuSeq, String fullSeq,
+    protected void insertMcmSecMenuIfAbsent(String menuId, String menuSeq,
                                           String menuNm, String parentMenuId, String objectId,
                                           String viewYn) {
         // 2026-06-05 Phase 1 — OBJECT_ID camelCase 룰 강제 (reference_naming_standards §A.3.1).
@@ -151,9 +151,9 @@ public class SeedSupport {
         insertIfAbsent(
                 "TB_MCM_SEC_MENU", "MENU_ID", menuId,
                 "INSERT INTO MCMAPUSER.TB_MCM_SEC_MENU " +
-                "(MENU_ID, MENU_SEQ, FULL_SEQ, MENU_NM, MENU_TP, OBJECT_ID, USE_TP, " +
+                "(MENU_ID, MENU_SEQ, MENU_NM, MENU_TP, OBJECT_ID, USE_TP, " +
                 " START_ACTIVE_DATE, END_ACTIVE_DATE, MENU_VIEW_YN, PARENT_MENU_ID" + AUDIT_COLS + ") " +
-                "VALUES ('" + escapeSql(menuId) + "', '" + escapeSql(seq8) + "', '" + escapeSql(fullSeq) + "', " +
+                "VALUES ('" + escapeSql(menuId) + "', '" + escapeSql(seq8) + "', " +
                 "N'" + escapeSql(menuNm) + "', 'WEB', " + objectLit + ", 'Y', " +
                 "SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59', '" + viewLit + "', " + parentLit + AUDIT_VALS + ")");
     }
@@ -202,7 +202,7 @@ public class SeedSupport {
      * — {@link #fixModuleRootMenuSeqOrder()} 와 동일한 가드 방식). 메뉴 트리 소속은 제품 구조 정책이므로
      * <b>대상 menuId 를 명시한 것만</b> 정정한다.
      *
-     * <p><b>주의</b> — {@link #applyR3FullSeqEncoding()} 도 자기 배열의 행에 대해 PARENT_MENU_ID 를
+     * <p><b>주의</b> — {@code McmMenuSeeder.applyR3ParentMenuIds()} 도 자기 배열의 행에 대해 PARENT_MENU_ID 를
      * 무조건 덮어쓴다. 두 곳의 목표 부모가 어긋나면 부팅마다 값이 왕복하므로 반드시 함께 고쳐야 한다.
      *
      * @param menuId       TB_MCM_SEC_MENU.MENU_ID (leaf). 없는 행이면 0 행 (무해).

@@ -14,9 +14,7 @@ import org.springframework.stereotype.Repository;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.Deque;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -48,6 +46,9 @@ import static com.dongkuk.dmes.mcm.common.util.McmValues.strOf;
 @Repository
 public class SecMenuNativeRepository {
 
+    /** 메뉴 셋(MENU_TP) 이 NULL 인 행이 속하는 셋 — 2026-11-26 사용자 결정(NULL = WEB, 시드도 NULL → 'WEB'). */
+    public static final String DEFAULT_MENU_TP = "WEB";
+
     @PersistenceContext(unitName = "default")
     private EntityManager entityManager;
 
@@ -68,6 +69,8 @@ public class SecMenuNativeRepository {
      *   <li>{@code p_MENU_ID}  → round 3: FLD CTE 후손 폴더 IN — SEC_MENU.PARENT_MENU_ID 매칭 (leaf 화면 SELECT).</li>
      *   <li>{@code edt_MENU_NM} → {@code A.MENU_NM LIKE '%' || #{} || '%'} (xml:35)</li>
      *   <li>{@code cbo_USE_TP}  → {@code A.USE_TP = #{}} (xml:38)</li>
+     *   <li>2026-11-26 To-Be 추가 {@code cboMENUTP} (메뉴 셋) → {@code NVL(A.MENU_TP, 'WEB') = :cboMenuTp} — NULL 은 WEB.
+     *       재귀(폴더 지정)·전체 두 분기에 같이 붙는다.</li>
      *   <li>~~{@code cbo_bizSystemCode} → {@code B.BIZ_SYSTEM_CODE = #{}} (xml:41)~~ — To-Be 폐기 (정책 #1)</li>
      * </ul>
      *
@@ -94,7 +97,7 @@ public class SecMenuNativeRepository {
      */
     @SuppressWarnings("unchecked")
     public List<Map<String, Object>> searchCmMenu(String edtMenuId, String pMenuId,
-                                                  String edtMenuNm, String cboUseTp) {
+                                                  String edtMenuNm, String cboUseTp, String cboMenuTp) {
         StringBuilder sql = new StringBuilder();
         boolean useDescendants = notBlank(pMenuId);
         if (useDescendants) {
@@ -110,7 +113,7 @@ public class SecMenuNativeRepository {
                .append("  SELECT f.MENU_ID FROM MCMAPUSER.TB_MCM_SEC_MENU_FLD f ")
                .append("    JOIN FldDesc d ON f.PARENT_MENU_ID = d.MENU_ID ")
                .append(") ")
-               .append("SELECT A.MENU_ID, A.MENU_SEQ, A.FULL_SEQ, A.MENU_NM, A.MENU_DESC, A.MENU_TP, ")
+               .append("SELECT A.MENU_ID, A.MENU_SEQ, A.MENU_NM, A.MENU_DESC, A.MENU_TP, ")
                .append("       A.OBJECT_ID, B.OBJECT_NM, CAST(A.USE_TP AS VARCHAR(20)), ")
                .append("       A.START_ACTIVE_DATE, A.END_ACTIVE_DATE, ")
                .append("       CAST(A.MENU_VIEW_YN AS VARCHAR(20)), A.PARENT_MENU_ID, ")
@@ -120,7 +123,7 @@ public class SecMenuNativeRepository {
                .append(" WHERE A.PARENT_MENU_ID IN (SELECT MENU_ID FROM FldDesc) ");
         } else {
             // round 3 — 기본 (트리 미선택 / 검색 only): SEC_MENU 전체 SELECT (폴더 ✗ — leaf 만 적재되어 있음).
-            sql.append("SELECT A.MENU_ID, A.MENU_SEQ, A.FULL_SEQ, A.MENU_NM, A.MENU_DESC, A.MENU_TP, ")
+            sql.append("SELECT A.MENU_ID, A.MENU_SEQ, A.MENU_NM, A.MENU_DESC, A.MENU_TP, ")
                .append("       A.OBJECT_ID, B.OBJECT_NM, CAST(A.USE_TP AS VARCHAR(20)), ")
                .append("       A.START_ACTIVE_DATE, A.END_ACTIVE_DATE, ")
                .append("       CAST(A.MENU_VIEW_YN AS VARCHAR(20)), A.PARENT_MENU_ID, ")
@@ -138,6 +141,9 @@ public class SecMenuNativeRepository {
         if (notBlank(cboUseTp)) {
             sql.append(" AND A.USE_TP = :cboUseTp ");
         }
+        if (notBlank(cboMenuTp)) {
+            sql.append(" AND NVL(A.MENU_TP, '" + DEFAULT_MENU_TP + "') = :cboMenuTp ");
+        }
         sql.append(" ORDER BY A.MENU_ID, A.MENU_SEQ");
 
         var q = entityManager.createNativeQuery(sql.toString());
@@ -145,6 +151,7 @@ public class SecMenuNativeRepository {
         if (notBlank(edtMenuId)) q.setParameter("edtMenuId", edtMenuId);
         if (notBlank(edtMenuNm)) q.setParameter("edtMenuNm", edtMenuNm);
         if (notBlank(cboUseTp)) q.setParameter("cboUseTp", cboUseTp);
+        if (notBlank(cboMenuTp)) q.setParameter("cboMenuTp", cboMenuTp);
 
         List<Object[]> rows = q.getResultList();
         List<Map<String, Object>> out = new ArrayList<>(rows.size());
@@ -152,20 +159,19 @@ public class SecMenuNativeRepository {
             Map<String, Object> map = new LinkedHashMap<>();
             map.put("MENU_ID", row[0]);
             map.put("MENU_SEQ", row[1]);
-            map.put("FULL_SEQ", row[2]);
-            map.put("MENU_NM", row[3]);
-            map.put("MENU_DESC", row[4]);
-            map.put("MENU_TP", row[5]);
-            map.put("OBJECT_ID", row[6]);
-            map.put("OBJECT_NM", row[7]);
-            map.put("USE_TP", row[8]);
-            map.put("START_ACTIVE_DATE", row[9]);
-            map.put("END_ACTIVE_DATE", row[10]);
-            map.put("MENU_VIEW_YN", row[11]);
-            map.put("PARENT_MENU_ID", row[12]);
-            map.put("MENU_PARAM1", row[13]);
-            map.put("MENU_PARAM2", row[14]);
-            map.put("MENU_PARAM3", row[15]);
+            map.put("MENU_NM", row[2]);
+            map.put("MENU_DESC", row[3]);
+            map.put("MENU_TP", row[4]);
+            map.put("OBJECT_ID", row[5]);
+            map.put("OBJECT_NM", row[6]);
+            map.put("USE_TP", row[7]);
+            map.put("START_ACTIVE_DATE", row[8]);
+            map.put("END_ACTIVE_DATE", row[9]);
+            map.put("MENU_VIEW_YN", row[10]);
+            map.put("PARENT_MENU_ID", row[11]);
+            map.put("MENU_PARAM1", row[12]);
+            map.put("MENU_PARAM2", row[13]);
+            map.put("MENU_PARAM3", row[14]);
             out.add(map);
         }
         return out;
@@ -187,26 +193,25 @@ public class SecMenuNativeRepository {
      */
     @SuppressWarnings("unchecked")
     public List<Map<String, Object>> searchMenuFld() {
-        // 2026-06-04 — FULL_SEQ 컬럼 SELECT 추가 (폴더 트리 정렬 tie-break / FE buildMenuTree FULL_SEQ 활용 정합).
         // Oracle 단일화(oracle-1007) — 8자 0 채움은 LPAD, 결합은 ||. MENU_SEQ 는 VARCHAR2(30) 이라 8자 이하 값에서는
         // 예전 RIGHT('00000000' + x, 8) 와 같다(8자를 넘으면 RIGHT 는 오른쪽, LPAD 는 왼쪽 8자를 남긴다).
         // Oracle 재귀 WITH 는 RECURSIVE 키워드 없이 칸 이름 목록을 반드시 단다(ORA-32039). 앵커·재귀 쪽 PATH 형은 VARCHAR(4000) 으로 맞춘다.
         String pathAnchor = "CAST('/' || LPAD(CAST(MENU_SEQ AS VARCHAR(30)), 8, '0') AS VARCHAR(4000))";
         String pathRecursive = "CAST(parent.PATH || '/' || LPAD(CAST(child.MENU_SEQ AS VARCHAR(30)), 8, '0') AS VARCHAR(4000))";
-        String cteKeyword = "WITH FldTree (MENU_ID, MENU_SEQ, MENU_NM, PARENT_MENU_ID, FULL_SEQ, LEV, PATH) AS ( ";
+        String cteKeyword = "WITH FldTree (MENU_ID, MENU_SEQ, MENU_NM, PARENT_MENU_ID, LEV, PATH) AS ( ";
         String sql =
                 cteKeyword +
-                "  SELECT MENU_ID, MENU_SEQ, MENU_NM, PARENT_MENU_ID, FULL_SEQ, 0 AS LEV, " +
+                "  SELECT MENU_ID, MENU_SEQ, MENU_NM, PARENT_MENU_ID, 0 AS LEV, " +
                 "         " + pathAnchor + " AS PATH " +
                 "    FROM MCMAPUSER.TB_MCM_SEC_MENU_FLD " +
                 "   WHERE PARENT_MENU_ID IS NULL " +
                 "  UNION ALL " +
-                "  SELECT child.MENU_ID, child.MENU_SEQ, child.MENU_NM, child.PARENT_MENU_ID, child.FULL_SEQ, parent.LEV + 1 AS LEV, " +
+                "  SELECT child.MENU_ID, child.MENU_SEQ, child.MENU_NM, child.PARENT_MENU_ID, parent.LEV + 1 AS LEV, " +
                 "         " + pathRecursive + " AS PATH " +
                 "    FROM MCMAPUSER.TB_MCM_SEC_MENU_FLD child " +
                 "    JOIN FldTree parent ON child.PARENT_MENU_ID = parent.MENU_ID " +
                 ") " +
-                "SELECT LEV, MENU_ID, MENU_SEQ, MENU_NM, PARENT_MENU_ID, FULL_SEQ " +
+                "SELECT LEV, MENU_ID, MENU_SEQ, MENU_NM, PARENT_MENU_ID " +
                 "  FROM FldTree " +
                 " ORDER BY PATH, MENU_SEQ";
 
@@ -219,7 +224,6 @@ public class SecMenuNativeRepository {
             map.put("MENU_SEQ", row[2]);
             map.put("MENU_NM", row[3]);
             map.put("PARENT_MENU_ID", row[4]);
-            map.put("FULL_SEQ", row[5]);
             out.add(map);
         }
         return out;
@@ -269,8 +273,7 @@ public class SecMenuNativeRepository {
      * <ul>
      *   <li>FE OBJECT LoV 모달에서 행 선택 시 OBJECT_ID + PARENT_MENU_ID (상위 폴더) 자동 세트 요구.</li>
      *   <li>PARENT_MENU_ID 는 {@code TB_MCM_SEC_MENU} 에 기등록된 (OBJECT_ID 가 이미 다른 메뉴에 묶인 경우의)
-     *       그룹 폴더 ID. {@code commObjMng} 의 {@code SecObjRepository.findOneParentMenuIdByObjectId}
-     *       와 동일 패턴 — 상관 서브쿼리 끝의 {@code FETCH FIRST 1 ROWS ONLY} 로 임의 1행 가져온다.</li>
+     *       그룹 폴더 ID — 상관 서브쿼리 끝의 {@code FETCH FIRST 1 ROWS ONLY} 로 임의 1행 가져온다.</li>
      *   <li>OBJECT 가 어떤 메뉴에도 매핑 안 됐으면 LEFT JOIN 결과 NULL — FE 는 빈 문자열로 처리.</li>
      * </ul>
      */
@@ -306,6 +309,91 @@ public class SecMenuNativeRepository {
         return out;
     }
 
+    /**
+     * 2026-11-26 — 메뉴 셋 {@code menuTp} 에 아직 놓이지 않은 사용 OBJECT 목록 (commMenuMng {@code searchUnplacedObj}).
+     *
+     * <p>조건: {@code USE_TP = 'Y'} 이고, 그 OBJECT_ID 로 {@code NVL(MENU_TP,'WEB') = :menuTp} 인 SEC_MENU 행이 없다.
+     * {@code edtObjectId} 가 있으면 OBJECT_ID 또는 OBJECT_NM UPPER LIKE. ORDER BY OBJECT_ID.
+     * 결과 타입은 {@code addScalar} 로 문자열에 고정한다({@link #searchMenuFldList()} 주석과 같은 이유).
+     *
+     * @param menuTp      메뉴 셋 — 빈 값이면 {@link #DEFAULT_MENU_TP}
+     * @param edtObjectId OBJECT_ID·OBJECT_NM 검색어 (선택)
+     * @return {OBJECT_ID, OBJECT_NM, SYSTEM_CODE, OBJECT_TYPE, FORM_URL} 행 목록
+     */
+    @SuppressWarnings("unchecked")
+    public List<Map<String, Object>> searchUnplacedObj(String menuTp, String edtObjectId) {
+        String set = notBlank(menuTp) ? menuTp.trim() : DEFAULT_MENU_TP;
+        StringBuilder sql = new StringBuilder()
+                .append("SELECT O.OBJECT_ID, O.OBJECT_NM, O.SYSTEM_CODE, O.OBJECT_TYPE, O.FORM_URL ")
+                .append("  FROM MCMAPUSER.TB_MCM_SEC_OBJ O ")
+                .append(" WHERE O.USE_TP = 'Y' ")
+                .append("   AND NOT EXISTS (SELECT 1 FROM MCMAPUSER.TB_MCM_SEC_MENU M ")
+                .append("                    WHERE M.OBJECT_ID = O.OBJECT_ID ")
+                .append("                      AND NVL(M.MENU_TP, '" + DEFAULT_MENU_TP + "') = :menuTp) ");
+        if (notBlank(edtObjectId)) {
+            sql.append("   AND (UPPER(O.OBJECT_ID) LIKE UPPER('%' || :edtObjectId || '%') OR UPPER(O.OBJECT_NM) LIKE UPPER('%' || :edtObjectId || '%')) ");
+        }
+        sql.append(" ORDER BY O.OBJECT_ID");
+
+        NativeQuery<Object[]> q = entityManager.createNativeQuery(sql.toString()).unwrap(NativeQuery.class);
+        q.addScalar("OBJECT_ID", StandardBasicTypes.STRING)
+         .addScalar("OBJECT_NM", StandardBasicTypes.STRING)
+         .addScalar("SYSTEM_CODE", StandardBasicTypes.STRING)
+         .addScalar("OBJECT_TYPE", StandardBasicTypes.STRING)
+         .addScalar("FORM_URL", StandardBasicTypes.STRING);
+        q.setParameter("menuTp", set);
+        if (notBlank(edtObjectId)) q.setParameter("edtObjectId", edtObjectId);
+
+        List<Object[]> rows = q.getResultList();
+        List<Map<String, Object>> out = new ArrayList<>(rows.size());
+        for (Object[] row : rows) {
+            Map<String, Object> map = new LinkedHashMap<>();
+            map.put("OBJECT_ID", row[0]);
+            map.put("OBJECT_NM", row[1]);
+            map.put("SYSTEM_CODE", row[2]);
+            map.put("OBJECT_TYPE", row[3]);
+            map.put("FORM_URL", row[4]);
+            out.add(map);
+        }
+        return out;
+    }
+
+    /**
+     * 2026-11-26 — OBJECT 의 화면 코드 경로(FORM_URL)를 옛 규칙 값으로 채운다 (멱등). 규칙 정본은 {@code mcm.menu.MenuCodePath}.
+     *
+     * <p>대상: FORM_URL 이 비었거나, {@code /} 가 없고 접속 경로(ACCESS_TP)가 {@code 외부} 가 아닌 OBJECT 중 그것을 참조하는
+     * SEC_MENU 행(PARENT_MENU_ID 있음)이 있는 것. 값: 그 메뉴 행들의 {@code MIN(PARENT_MENU_ID || '/' || OBJECT_ID)}
+     * — 여러 폴더에 놓였어도 늘 같은 값을 고른다. 외부 OBJECT 의 FORM_URL 값은 건드리지 않는다.
+     *
+     * <p>왜: 즐겨찾기·기본 화면 fullId 와 화면 사용 통계 pageId 는 옛 규칙({@code PARENT_MENU_ID/OBJECT_ID})으로 저장돼 있다.
+     * 경로를 OBJECT 로 옮길 때 그 값을 FORM_URL 에 고정해 두어야 저장된 값이 계속 맞고, 메뉴를 다른 폴더로 옮겨도 경로가 바뀌지 않는다.
+     * 기존 DB 는 Flyway {@code V22__backfill_obj_form_url}(같은 문장)이, 새로 시드한 DB 는 기동 시드 마무리({@code MenuFinalizer})가,
+     * 운영 중 새로 놓인 화면은 {@code saveCmMenu} 가 부른다.
+     *
+     * @return 바뀐 OBJECT 행 수
+     */
+    public int backfillObjectFormUrl() {
+        // 직전 JPA save() 의 대기 중 INSERT/UPDATE 를 먼저 내보낸다 — 아래 문장이 최신 메뉴 행을 보게.
+        entityManager.flush();
+        String sql =
+                "UPDATE MCMAPUSER.TB_MCM_SEC_OBJ O " +
+                "   SET O.FORM_URL = (SELECT MIN(M.PARENT_MENU_ID || '/' || M.OBJECT_ID) " +
+                "                       FROM MCMAPUSER.TB_MCM_SEC_MENU M " +
+                "                      WHERE M.OBJECT_ID = O.OBJECT_ID " +
+                "                        AND TRIM(M.PARENT_MENU_ID) IS NOT NULL) " +
+                " WHERE (TRIM(O.FORM_URL) IS NULL " +
+                "        OR (INSTR(O.FORM_URL, '/') = 0 AND NVL(O.ACCESS_TP, '-') <> :external)) " +
+                "   AND EXISTS (SELECT 1 FROM MCMAPUSER.TB_MCM_SEC_MENU M " +
+                "                WHERE M.OBJECT_ID = O.OBJECT_ID " +
+                "                  AND TRIM(M.PARENT_MENU_ID) IS NOT NULL)";
+        return entityManager.createNativeQuery(sql)
+                .setParameter("external", ACCESS_TP_EXTERNAL)
+                .executeUpdate();
+    }
+
+    /** 접속 경로 외부 — {@code SecObj.accessTp} 의 To-Be 2 값("내부"/"외부") 중 하나. */
+    static final String ACCESS_TP_EXTERNAL = "외부";
+
     private static boolean notBlank(String s) {
         return s != null && !s.isBlank();
     }
@@ -313,8 +401,9 @@ public class SecMenuNativeRepository {
     /**
      * 2026-06-04 사용자 지시 — commMenuMng "메뉴 필드 관리" 팝업 SEARCH 어댑터.
      *
-     * <p>TB_MCM_SEC_MENU_FLD 의 본 4 컬럼 + FULL_SEQ + MENU_VIEW_YN 반환 (audit 컬럼은 본 화면 책임 ✗).
-     * 트리 정렬 정합: MENU_SEQ asc (numeric — VARCHAR 이지만 zero-pad 시 string 비교 OK).
+     * <p>TB_MCM_SEC_MENU_FLD 의 본 4 컬럼 + MENU_VIEW_YN 반환 (audit 컬럼은 본 화면 책임 ✗).
+     * 순서는 트리 순서다 — 위에서부터 부모 → 자식, 같은 부모 안에서는 MENU_SEQ 순({@link #searchMenuFld} 와 같은 PATH).
+     * 부모를 찾지 못한 폴더(트리 밖)는 맨 뒤에 MENU_ID 순으로 둔다.
      *
      * <p>결과 타입은 {@code addScalar} 로 고정한다 — 이유는 메서드 본문 주석 참조 (2026-09-03).
      *
@@ -326,29 +415,35 @@ public class SecMenuNativeRepository {
      */
     @SuppressWarnings("unchecked")
     public List<Map<String, Object>> searchMenuFldList() {
-        // 2026-06-04 사용자 지시 — FULL_SEQ 컬럼 표시 (메뉴 필드 관리 read-only 컬럼).
-        // FULL_SEQ 인코딩 (모듈 백만 / 그룹 만) 은 recomputeMenuFullSeq() 가 저장 시 자동 부여.
-        // ORDER BY 도 FULL_SEQ 우선 (인코딩 = 트리 표시 순서) → null(미부여) 행은 말미.
+        // 2026-11-27 사용자 결정 — FULL_SEQ 를 없앴다. 순서는 트리 PATH(MENU_SEQ 8자리 0 채움을 부모부터 이은 값)로 정한다.
         //
         // 2026-09-03 — 결과 타입을 CAST(... AS VARCHAR(20)) 대신 addScalar 로 고정한다.
         //   CAST 는 "그 식(expression) 컬럼의 JDBC 타입을 드라이버가 무엇으로 보고하느냐" 에 여전히 의존한다.
         //   (옛 SQLite 시절 사례) sqlite-jdbc 는 선언타입이 없는 식 컬럼의 타입을 '현재 행의 값 타입' 으로 추론하는데, 본 테이블의
-        //   정렬 첫 행(mcm, FULL_SEQ=1000000)은 MENU_VIEW_YN 이 NULL 이라 numeric 으로 보고됐다.
+        //   정렬 첫 행(mcm)은 MENU_VIEW_YN 이 NULL 이라 numeric 으로 보고됐다.
         //   → Hibernate 가 DecimalJdbcType 을 골랐고, 뒤이어 'N'(cmz 행) 을 만난 순간
         //     "Could not extract column [6] from JDBC ResultSet [Bad value for type BigDecimal : N]" 로
         //     조회 전체가 실패했다 (팝업 0건 + 오류 모달).
         //   addScalar 는 ResultSet 메타데이터를 보지 않고 타입을 고정하므로 방언·데이터 오염과 무관하게 안전하다.
         //   Character 추론(length=1 VARCHAR → '' CoercionException) 문제도 함께 사라진다.
         String sql =
-                "SELECT MENU_ID, MENU_SEQ, MENU_NM, PARENT_MENU_ID, FULL_SEQ, MENU_VIEW_YN " +
-                "  FROM MCMAPUSER.TB_MCM_SEC_MENU_FLD " +
-                " ORDER BY CASE WHEN FULL_SEQ IS NULL THEN 1 ELSE 0 END, FULL_SEQ, MENU_SEQ, MENU_ID";
+                "WITH FldTree (MENU_ID, PATH) AS ( " +
+                "  SELECT MENU_ID, CAST('/' || LPAD(CAST(MENU_SEQ AS VARCHAR(30)), 8, '0') AS VARCHAR(4000)) " +
+                "    FROM MCMAPUSER.TB_MCM_SEC_MENU_FLD WHERE PARENT_MENU_ID IS NULL " +
+                "  UNION ALL " +
+                "  SELECT child.MENU_ID, CAST(parent.PATH || '/' || LPAD(CAST(child.MENU_SEQ AS VARCHAR(30)), 8, '0') AS VARCHAR(4000)) " +
+                "    FROM MCMAPUSER.TB_MCM_SEC_MENU_FLD child " +
+                "    JOIN FldTree parent ON child.PARENT_MENU_ID = parent.MENU_ID " +
+                ") " +
+                "SELECT F.MENU_ID, F.MENU_SEQ, F.MENU_NM, F.PARENT_MENU_ID, F.MENU_VIEW_YN " +
+                "  FROM MCMAPUSER.TB_MCM_SEC_MENU_FLD F " +
+                "  LEFT JOIN FldTree T ON T.MENU_ID = F.MENU_ID " +
+                " ORDER BY CASE WHEN T.PATH IS NULL THEN 1 ELSE 0 END, T.PATH, F.MENU_ID";
         NativeQuery<Object[]> q = entityManager.createNativeQuery(sql).unwrap(NativeQuery.class);
         q.addScalar("MENU_ID", StandardBasicTypes.STRING)
          .addScalar("MENU_SEQ", StandardBasicTypes.STRING)
          .addScalar("MENU_NM", StandardBasicTypes.STRING)
          .addScalar("PARENT_MENU_ID", StandardBasicTypes.STRING)
-         .addScalar("FULL_SEQ", StandardBasicTypes.LONG)
          .addScalar("MENU_VIEW_YN", StandardBasicTypes.STRING);
         List<Object[]> rows = q.getResultList();
         List<Map<String, Object>> out = new ArrayList<>(rows.size());
@@ -358,8 +453,7 @@ public class SecMenuNativeRepository {
             map.put("MENU_SEQ", row[1]);
             map.put("MENU_NM", row[2]);
             map.put("PARENT_MENU_ID", row[3]);
-            map.put("FULL_SEQ", row[4]);
-            map.put("MENU_VIEW_YN", row[5]);
+            map.put("MENU_VIEW_YN", row[4]);
             out.add(map);
         }
         return out;
@@ -430,180 +524,13 @@ public class SecMenuNativeRepository {
         return entityManager.createNativeQuery(sql).setParameter("menuId", menuId).executeUpdate();
     }
 
-    // ────────────────────────────────────────────────────────────────
-    // 2026-06-04 사용자 지시 — FULL_SEQ 7자리 인코딩 전체 재계산 (멱등)
-    // ────────────────────────────────────────────────────────────────
-
     /**
-     * 메뉴 트리 FULL_SEQ 7자리 인코딩 전체 재계산 (멱등). [[reference_full_seq_encoding]] / DataInitializer R3 정합.
+     * 직전 JPA save() 의 대기 중 insert·update 를 DB 에 내보낸다. 저장 뒤 native 재조회가 최신 행을 보게 한다.
      *
-     * <p>인코딩 자리값:
-     * <ul>
-     *   <li><b>모듈</b> ({@code TB_MCM_SEC_MENU_FLD}, PARENT_MENU_ID IS NULL): {@code i × 1,000,000} (i = 1..9)</li>
-     *   <li><b>그룹 폴더</b> ({@code TB_MCM_SEC_MENU_FLD}, PARENT 존재): {@code 부모BASE + j × 10,000} (j = 1..99)</li>
-     *   <li><b>화면</b> ({@code TB_MCM_SEC_MENU}, PARENT_MENU_ID = 그룹 폴더 MENU_ID): {@code 그룹BASE + 100 + k × 10} (k = 0..89)</li>
-     * </ul>
-     *
-     * <p>정렬 키 = (기존 FULL_SEQ asc, null 말미) → (MENU_ID asc). 기존 행의 상대 순서를 보존하면서
-     * 신규(미부여=null) 행을 말미에 append. 따라서 현 시드 데이터(mcm/cma/csa/cme + leaf 13)에 대해 멱등.
-     *
-     * <p>{@code saveCmMenu} / {@code saveCmMenuFld} 의 CRUD 직후 · 재조회 직전에 호출 →
-     * 응답 dataset 이 항상 최신 FULL_SEQ 를 반영. 사용자는 FULL_SEQ 를 직접 입력하지 않는다(자동 부여).
-     *
-     * <p>FLD 테이블 FULL_SEQ = NUMERIC(10,0) → Long 저장. SEC_MENU FULL_SEQ = VARCHAR(30) → 문자열 저장.
-     * 시작 시 {@link EntityManager#flush()} 로 직전 JPA save() 의 pending insert 를 DB 반영 후 native SELECT.
-     *
-     * <p>그룹 폴더에 매칭되지 않는 화면(orphan — PARENT 가 폴더 MENU_ID 가 아닌 경우)은 FULL_SEQ 미변경 skip.
+     * <p>2026-11-27 — FULL_SEQ(트리 위치 7자리 인코딩) 재계산을 없앴다(사용자 결정). 그 재계산이 하던 flush 만 남긴다.
+     * 메뉴 순서는 PARENT_MENU_ID + MENU_SEQ 로 정한다({@code mcm.menu.MenuOrder}).
      */
-    public void recomputeMenuFullSeq() {
-        // 직전 saveCmMenu 의 JPA save() pending insert/update 를 DB 에 flush — 아래 native SELECT 가 최신 행을 본다.
+    public void flush() {
         entityManager.flush();
-
-        // ── 1) 폴더 로드 (PARENT 별 group) ──
-        @SuppressWarnings("unchecked")
-        List<Object[]> fldRows = entityManager.createNativeQuery(
-                "SELECT MENU_ID, PARENT_MENU_ID, FULL_SEQ, MENU_SEQ FROM MCMAPUSER.TB_MCM_SEC_MENU_FLD").getResultList();
-        // parent("" = root) → [{menuId, fullSeqStr, menuSeq}]
-        Map<String, List<String[]>> fldByParent = new LinkedHashMap<>();
-        for (Object[] r : fldRows) {
-            String menuId = strOf(r[0]);
-            if (menuId == null || menuId.isBlank()) continue;
-            String parent = r[1] == null ? "" : strOf(r[1]).trim();
-            String fs = r[2] == null ? null : strOf(r[2]);
-            String ms = r[3] == null ? null : strOf(r[3]);
-            fldByParent.computeIfAbsent(parent, k -> new ArrayList<>()).add(new String[]{menuId, fs, ms});
-        }
-        // 정렬 비교자 — 폴더(모듈/그룹) 표시 순서는 MENU_SEQ(zero-pad VARCHAR, 사용자 편집 필드) asc 기준.
-        // null/blank 는 말미(99999999), tie-break MENU_ID asc.
-        // 2026-06-10: 기존 "FULL_SEQ 자기참조" 정렬은 MENU_SEQ 를 무시해 사용자가 MENU_SEQ 를 바꿔도
-        //   순서가 안 바뀌는 문제가 있어 MENU_SEQ 기준으로 변경. (FULL_SEQ 는 본 재계산이 트리 위치로 재부여.)
-        Comparator<String[]> byMenuSeqThenId = (a, b) -> {
-            int c = compareMenuSeq(a[2], b[2]);
-            if (c != 0) return c;
-            return a[0].compareTo(b[0]);
-        };
-
-        Map<String, Long> folderBase = new HashMap<>(); // menuId → 부여된 FULL_SEQ
-
-        // ── 2) 모듈 (root, PARENT null) — i × 1,000,000 ──
-        List<String[]> roots = fldByParent.getOrDefault("", new ArrayList<>());
-        roots.sort(byMenuSeqThenId);
-        Deque<String> queue = new ArrayDeque<>();
-        long moduleOrd = 0;
-        for (String[] m : roots) {
-            moduleOrd++;
-            long base = moduleOrd * 1_000_000L;
-            folderBase.put(m[0], base);
-            updateFldFullSeq(m[0], base);
-            queue.add(m[0]);
-        }
-
-        // ── 3) 그룹(+ 더 깊은 폴더) — BFS, 부모BASE + j × 10,000 ──
-        while (!queue.isEmpty()) {
-            String parentId = queue.poll();
-            long parentBase = folderBase.getOrDefault(parentId, 0L);
-            List<String[]> children = fldByParent.getOrDefault(parentId, new ArrayList<>());
-            children.sort(byMenuSeqThenId);
-            long ord = 0;
-            for (String[] c : children) {
-                ord++;
-                long base = parentBase + ord * 10_000L;
-                folderBase.put(c[0], base);
-                updateFldFullSeq(c[0], base);
-                queue.add(c[0]);
-            }
-        }
-
-        // ── 4) 화면 (SEC_MENU) — 그룹BASE + 100 + k × 10 ──
-        @SuppressWarnings("unchecked")
-        List<Object[]> menuRows = entityManager.createNativeQuery(
-                "SELECT MENU_ID, MENU_SEQ, PARENT_MENU_ID, FULL_SEQ FROM MCMAPUSER.TB_MCM_SEC_MENU").getResultList();
-        // parent → [{menuId, menuSeq, fullSeqStr}]
-        Map<String, List<String[]>> menuByParent = new LinkedHashMap<>();
-        for (Object[] r : menuRows) {
-            String menuId = strOf(r[0]);
-            if (menuId == null || menuId.isBlank()) continue;
-            String menuSeq = strOf(r[1]);
-            String parent = r[2] == null ? "" : strOf(r[2]).trim();
-            String fs = r[3] == null ? null : strOf(r[3]);
-            menuByParent.computeIfAbsent(parent, k -> new ArrayList<>()).add(new String[]{menuId, menuSeq, fs});
-        }
-        // 화면(leaf) 정렬 — 1순위 MENU_SEQ(사용자가 상세폼 "메뉴 순서" 에서 편집하는 필드) asc,
-        //   2순위 기존 FULL_SEQ asc(동순번일 때 기존 상대 순서 보존), 최종 tie-break MENU_ID asc.
-        // 2026-08-07: 폴더는 2026-06-10 에 MENU_SEQ 기준으로 바꿨지만 화면은 "기존 FULL_SEQ" 만 보고 있어,
-        //   사용자가 화면의 메뉴 순서를 바꿔도 재계산 결과가 그대로라 포털 사이드바 순서가 변하지 않았다
-        //   (사이드바 정렬 키가 곧 FULL_SEQ 이므로 — SecUserService.sortTree). 폴더와 규칙을 일치시킨다.
-        Comparator<String[]> menuByMenuSeqThenFullSeq = (a, b) -> {
-            int c = compareMenuSeq(a[1], b[1]);
-            if (c != 0) return c;
-            Long fa = parseLongOrNull(a[2]);
-            Long fb = parseLongOrNull(b[2]);
-            if (fa != null && fb != null && !fa.equals(fb)) return Long.compare(fa, fb);
-            if (fa == null && fb != null) return 1;
-            if (fa != null && fb == null) return -1;
-            return a[0].compareTo(b[0]);
-        };
-        for (Map.Entry<String, List<String[]>> e : menuByParent.entrySet()) {
-            Long groupBase = folderBase.get(e.getKey());
-            if (groupBase == null) continue; // orphan — 그룹 폴더 미매칭 → FULL_SEQ 미변경
-            List<String[]> screens = e.getValue();
-            screens.sort(menuByMenuSeqThenFullSeq);
-            long k = 0;
-            for (String[] s : screens) {
-                long fs = groupBase + 100 + k * 10;
-                k++;
-                updateMenuFullSeq(s[0], String.valueOf(fs));
-            }
-        }
-    }
-
-    /**
-     * MENU_SEQ 두 값의 표시 순서 비교 — 폴더·화면 공통 (2026-08-07).
-     *
-     * <p>MENU_SEQ 는 화면 저장 경로에서만 8자리 zero-pad 되고({@code CommMenuMngService.lpad8})
-     * 시드 데이터에는 {@code "001"} / {@code "3010140"} 처럼 자릿수가 섞여 있다. 문자열 비교로는
-     * {@code "9" > "10"} 이 되어 순서가 뒤집히므로 <b>숫자로 비교</b>한다.
-     * 숫자가 아니거나 비어 있으면 말미로 보내고, 둘 다 비숫자면 문자열 비교로 폴백한다.
-     */
-    private static int compareMenuSeq(String a, String b) {
-        Long na = parseLongOrNull(a);
-        Long nb = parseLongOrNull(b);
-        if (na != null && nb != null) return Long.compare(na, nb);
-        if (na != null) return -1;   // 숫자가 앞, 비숫자/blank 가 뒤
-        if (nb != null) return 1;
-        String sa = (a == null) ? "" : a.trim();
-        String sb = (b == null) ? "" : b.trim();
-        return sa.compareTo(sb);
-    }
-
-    /** FLD 폴더 1행 FULL_SEQ (NUMERIC) UPDATE. */
-    private void updateFldFullSeq(String menuId, long fullSeq) {
-        entityManager.createNativeQuery(
-                "UPDATE MCMAPUSER.TB_MCM_SEC_MENU_FLD SET FULL_SEQ = :fs WHERE MENU_ID = :id")
-                .setParameter("fs", fullSeq)
-                .setParameter("id", menuId)
-                .executeUpdate();
-    }
-
-    /** 화면 1행 FULL_SEQ (VARCHAR) UPDATE — PK = MENU_ID 단독 (2026-06-05). */
-    private void updateMenuFullSeq(String menuId, String fullSeq) {
-        entityManager.createNativeQuery(
-                "UPDATE MCMAPUSER.TB_MCM_SEC_MENU SET FULL_SEQ = :fs WHERE MENU_ID = :id")
-                .setParameter("fs", fullSeq)
-                .setParameter("id", menuId)
-                .executeUpdate();
-    }
-
-    /** 숫자 파싱 (소수점 포함 NUMERIC 문자열 "1010000.0" 도 허용). 실패 시 null. */
-    private static Long parseLongOrNull(String s) {
-        if (s == null || s.isBlank()) return null;
-        try {
-            String t = s.trim();
-            int dot = t.indexOf('.');
-            if (dot >= 0) t = t.substring(0, dot);
-            return Long.parseLong(t);
-        } catch (NumberFormatException e) {
-            return null;
-        }
     }
 }

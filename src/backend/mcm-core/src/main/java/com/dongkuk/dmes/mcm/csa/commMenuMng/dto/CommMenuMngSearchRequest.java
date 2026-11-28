@@ -2,6 +2,7 @@
  * 작성자: @junhwan-park
  * 작성일: 2026-06-01
  * 내용: commMenuMng searchCmMenu 액션의 입력 DTO — 조회 조건 (To-Be 정책 #1 폐기 후 4 파라미터)
+ * 수정일: 2026-11-26 — 메뉴 셋(cboMENUTP) 조회 조건 추가 (5 파라미터)
  */
 package com.dongkuk.dmes.mcm.csa.commMenuMng.dto;
 
@@ -16,6 +17,9 @@ package com.dongkuk.dmes.mcm.csa.commMenuMng.dto;
  *   <li>{@code cbo_USE_TP}         — S-004 (USE_TP 일치)</li>
  *   <li>{@code cbo_bizSystemCode}  — S-001 (As-Is BIZ_SYSTEM_CODE) — <b>To-Be 정책 #1 폐기</b></li>
  * </ul>
+ *
+ * <p>2026-11-26 To-Be 추가 조건 (As-Is 에 없음): {@code cboMENUTP} — 메뉴 셋. 지금은 {@code SEC_MENU.MENU_TP}
+ * (WEB / MOBIL) 값이고 NULL 은 WEB 으로 본다({@code NVL(A.MENU_TP,'WEB') = :cboMenuTp}). 빈 값 = 전체.
  *
  * <p>BPMN serviceTask {@code searchCmMenuTask} 의 dto property — OASIS executor 가 CactusRequest body 의
  * {@code params} 를 본 DTO 로 변환 (가이드 §6-E-2 / W1 commObjMng 정본 패턴).
@@ -36,6 +40,9 @@ public class CommMenuMngSearchRequest {
     /** S-004 — 사용 유무 (Y/N 일치 / 빈 값 = 전체) (xml:38). */
     private String cboUSETP;
 
+    /** 2026-11-26 — 메뉴 셋 (MENU_TP, NULL = WEB / 빈 값 = 전체). */
+    private String cboMENUTP;
+
     public CommMenuMngSearchRequest() {}
 
     public String getEdtMENUID() { return edtMENUID; }
@@ -49,4 +56,7 @@ public class CommMenuMngSearchRequest {
 
     public String getCboUSETP() { return cboUSETP; }
     public void setCboUSETP(String cboUSETP) { this.cboUSETP = cboUSETP; }
+
+    public String getCboMENUTP() { return cboMENUTP; }
+    public void setCboMENUTP(String cboMENUTP) { this.cboMENUTP = cboMENUTP; }
 }

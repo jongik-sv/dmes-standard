@@ -4,9 +4,10 @@ import com.dongkuk.dmes.mcm.common.exception.BusinessException;
 import com.dongkuk.dmes.mcm.common.exception.ErrorCode;
 import com.dongkuk.dmes.mcm.entity.SecMenu;
 import com.dongkuk.dmes.mcm.entity.SecObj;
+import com.dongkuk.dmes.mcm.menu.MenuCodePath;
+import com.dongkuk.dmes.mcm.menu.MenuOrder;
 
 import java.util.Collection;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -15,8 +16,8 @@ import java.util.Map;
  * portal-shell pageId({@code "{sysCd}:{componentPath}"}) → 활성 메뉴 매칭 공용 규칙.
  *
  * <p>즐겨찾기({@link SecFavoriteService})와 기본 화면({@code SecStartPgmService})이 같은 규칙을 쓴다.
- * {@code componentPath = ${PARENT_MENU_ID}/${OBJECT_ID}} (= mui {@code FULL_ID} 등가) 이고,
- * 메뉴 OBJECT 의 {@code SYSTEM_CODE} 가 sysCd 와 같아야 한다. 같은 경로가 여럿이면 FULL_SEQ 순 첫 행.
+ * componentPath 는 {@link MenuCodePath}(OBJECT.FORM_URL, 없으면 {@code PARENT_MENU_ID/OBJECT_ID}) 이고
+ * (= mui {@code FULL_ID} 등가), 메뉴 OBJECT 의 {@code SYSTEM_CODE} 가 sysCd 와 같아야 한다. 같은 경로가 여럿이면 MENU_SEQ → MENU_ID 순 첫 행({@link MenuOrder}).
  */
 public final class PortalPageMenuMatcher {
 
@@ -35,7 +36,7 @@ public final class PortalPageMenuMatcher {
         return new String[]{pageId.substring(0, colon), pageId.substring(colon + 1)};
     }
 
-    /** sysCd + componentPath({@code parentMenuId/objectId}) 로 활성(USE_TP=Y) 메뉴 매칭. 없으면 null. */
+    /** sysCd + componentPath({@link MenuCodePath}) 로 활성(USE_TP=Y) 메뉴 매칭. 없으면 null. */
     public static SecMenu findMenuByComponentPath(Collection<SecMenu> menus, Collection<SecObj> objs,
                                                   String targetSysCd, String targetComponentPath) {
         Map<String, SecObj> objById = new HashMap<>();
@@ -44,21 +45,18 @@ public final class PortalPageMenuMatcher {
         }
         List<SecMenu> activeMenus = menus.stream()
                 .filter(m -> "Y".equals(m.getUseTp()))
-                .sorted(Comparator.comparing(SecMenu::getFullSeq,
-                        Comparator.nullsLast(Comparator.naturalOrder())))
+                .sorted(MenuOrder.MENUS)
                 .toList();
         for (SecMenu m : activeMenus) {
             String objectId = m.getObjectId();
-            String parentMenuId = m.getParentMenuId();
-            if (objectId == null || objectId.isBlank()
-                    || parentMenuId == null || parentMenuId.isBlank()) {
+            if (objectId == null || objectId.isBlank()) {
                 continue;
             }
             SecObj obj = objById.get(objectId);
             if (obj == null || !targetSysCd.equals(obj.getSystemCode())) {
                 continue;
             }
-            if ((parentMenuId + "/" + objectId).equals(targetComponentPath)) {
+            if (targetComponentPath.equals(MenuCodePath.of(m, obj))) {
                 return m;
             }
         }

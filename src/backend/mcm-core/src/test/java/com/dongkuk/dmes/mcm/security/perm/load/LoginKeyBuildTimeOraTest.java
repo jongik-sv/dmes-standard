@@ -117,8 +117,8 @@ class LoginKeyBuildTimeOraTest {
                 + "VALUES (?, ?, ?, 'svc', '/u', 'p', 'Y', '" + BTN + "', ?, ?)", objs);
         List<Object[]> flds = new ArrayList<>();
         for (int f = 0; f < FOLDERS; f++) flds.add(new Object[]{"F" + f, "F" + f});
-        jdbc.batchUpdate("INSERT INTO MCMAPUSER.TB_MCM_SEC_MENU_FLD (MENU_ID, MENU_SEQ, MENU_NM, PARENT_MENU_ID, FULL_SEQ, USE_TP, MENU_VIEW_YN) "
-                + "VALUES (?, '1', ?, NULL, 1, 'Y', 'Y')", flds);
+        jdbc.batchUpdate("INSERT INTO MCMAPUSER.TB_MCM_SEC_MENU_FLD (MENU_ID, MENU_SEQ, MENU_NM, PARENT_MENU_ID, USE_TP, MENU_VIEW_YN) "
+                + "VALUES (?, '1', ?, NULL, 'Y', 'Y')", flds);
         jdbc.batchUpdate("INSERT INTO MCMAPUSER.TB_MCM_SEC_MENU (MENU_ID, MENU_SEQ, MENU_NM, PARENT_MENU_ID, OBJECT_ID, USE_TP, MENU_TP, MENU_VIEW_YN) "
                 + "VALUES (?, '1', ?, ?, ?, 'Y', 'S', 'Y')", menus);
 

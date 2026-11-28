@@ -17,6 +17,7 @@
         - saveCmMenu    — 메뉴 일괄 저장 (insertCommMenuMng / updateCommMenuMng / deleteCommMenuMng status 자동 분기)
         - searchObj     — 선택 메뉴의 OBJECT 정보 조회 (selectMenuObj)
         - commonList    — OBJECT 팝업 LoV (selectMenuObjPop)
+        - searchUnplacedObj — 2026-11-26 메뉴 셋(MENU_TP)에 아직 놓이지 않은 OBJECT 조회 (응답 ds_unplacedObj)
         ~~- lov         — BIZ SYSTEM CODE LoV (cross-cutting 정책 #1 — Task_1z04i9v + cross-namespace
                           CommObjMngMapper.selectAppHostId 호출 동시 폐기)~~
 
@@ -30,7 +31,7 @@
     가이드 §6-C/D/E 정합 (W1 commObjMng 정본 패턴):
       - grid property 사용 ✗ (saveCmMenu 는 grids.master.rows → method param `master` 자동 매핑)
       - output="result" 명시 (응답 누락 결함 회피 — 가이드 §6-D)
-      - dto property: searchCmMenu / searchObj / commonList 3 action 만 (params → DTO 변환)
+      - dto property: searchCmMenu / searchObj / commonList / searchUnplacedObj action (params → DTO 변환)
       - <conditionExpression> 미사용 — sequenceFlow `name` 만으로 분기
   -->
 
@@ -55,6 +56,7 @@
       <bpmn:outgoing>flow_commonList</bpmn:outgoing>
       <bpmn:outgoing>flow_saveCmMenuFld</bpmn:outgoing>
       <bpmn:outgoing>flow_searchCmMenuFld</bpmn:outgoing>
+      <bpmn:outgoing>flow_searchUnplacedObj</bpmn:outgoing>
     </bpmn:exclusiveGateway>
 
     <!-- ─────────── action: searchCmMenu — 메뉴 리스트 + 트리 chain 동시 조회 ─────────── -->
@@ -179,6 +181,24 @@
       <bpmn:incoming>flow_searchCmMenuFld_end</bpmn:incoming>
     </bpmn:endEvent>
 
+    <!-- ─────────── action: searchUnplacedObj — 2026-11-26 메뉴 셋에 아직 놓이지 않은 OBJECT 조회 ─────────── -->
+    <bpmn:sequenceFlow id="flow_searchUnplacedObj" name="searchUnplacedObj" sourceRef="actionGateway" targetRef="searchUnplacedObjTask" />
+    <bpmn:serviceTask id="searchUnplacedObjTask" name="메뉴 셋에 놓이지 않은 OBJECT 조회" camunda:class="commMenuMngService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="searchUnplacedObj" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mcm.csa.commMenuMng.dto.CommMenuMngSearchUnplacedObjRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_searchUnplacedObj</bpmn:incoming>
+      <bpmn:outgoing>flow_searchUnplacedObj_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="flow_searchUnplacedObj_end" sourceRef="searchUnplacedObjTask" targetRef="endSearchUnplacedObj" />
+    <bpmn:endEvent id="endSearchUnplacedObj">
+      <bpmn:incoming>flow_searchUnplacedObj_end</bpmn:incoming>
+    </bpmn:endEvent>
+
   </bpmn:process>
 
   <bpmndi:BPMNDiagram id="BPMNDiagram_1">
@@ -218,6 +238,12 @@
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="endCommonList_di" bpmnElement="endCommonList">
         <dc:Bounds x="640" y="722" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="searchUnplacedObjTask_di" bpmnElement="searchUnplacedObjTask">
+        <dc:Bounds x="370" y="860" width="220" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endSearchUnplacedObj_di" bpmnElement="endSearchUnplacedObj">
+        <dc:Bounds x="640" y="882" width="36" height="36" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNEdge id="flow_to_gw_di" bpmnElement="flow_to_gw">
         <di:waypoint x="188" y="420" />
@@ -266,6 +292,15 @@
       <bpmndi:BPMNEdge id="flow_commonList_end_di" bpmnElement="flow_commonList_end">
         <di:waypoint x="590" y="740" />
         <di:waypoint x="640" y="740" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_searchUnplacedObj_di" bpmnElement="flow_searchUnplacedObj">
+        <di:waypoint x="270" y="445" />
+        <di:waypoint x="270" y="900" />
+        <di:waypoint x="370" y="900" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_searchUnplacedObj_end_di" bpmnElement="flow_searchUnplacedObj_end">
+        <di:waypoint x="590" y="900" />
+        <di:waypoint x="640" y="900" />
       </bpmndi:BPMNEdge>
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>

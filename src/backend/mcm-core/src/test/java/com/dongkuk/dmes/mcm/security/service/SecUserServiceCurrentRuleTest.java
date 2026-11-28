@@ -77,7 +77,7 @@ class SecUserServiceCurrentRuleTest {
         m.setObjectId(objectId);
         m.setUseTp(useTp);
         m.setMenuViewYn(viewYn);
-        m.setFullSeq(seq);
+        m.setMenuSeq(seq);
         return m;
     }
 

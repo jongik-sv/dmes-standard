@@ -19,21 +19,14 @@ public final class McmMenuSeeder extends SeedSupport {
      * <ul>
      *   <li><b>TB_MCM_SEC_MENU 에는 화면 (leaf) 만 보관.</b> 모듈/그룹 폴더 (mcm / csa)
      *       2 row 는 {@code TB_MCM_SEC_MENU_FLD} 가 owner — 본 테이블에 INSERT ✗.</li>
-     *   <li>csa group leaf 7 (PARENT_MENU_ID="csa"): commObjMng=1020100 / commMenuMng=1020110 /
-     *       commRoleMng=1020120 / commRoleGrpMng=1020130 / commUserMng=1020140 / commPermMng=1020150 /
-     *       commUserRoleCopy=1020160</li>
+     *   <li>csa group leaf 7 (PARENT_MENU_ID="csa"): commObjMng / commMenuMng / commRoleMng / commRoleGrpMng /
+     *       commUserMng / commPermMng / commUserRoleCopy</li>
      *   <li>2026-10-16 — 옛 마스터코드·업무기준 프로그램(cma 2·cme 1·cmb 4 화면, cmz 팝업 5, csa commSyncMng)과
      *       그 폴더(cma·cme·cmb·cmz)는 걷어냈다(후속은 mdm). 이미 적재된 DB 의 행은 Flyway mcmapuser V17 이 지운다.</li>
      * </ul>
      *
-     * <p>FULL_SEQ 인코딩 (사용자 결정 2026-06-02):
-     * <ul>
-     *   <li>백만 자리 (+1,000,000) = 모듈 (mcm=1)</li>
-     *   <li>만 자리 (+10,000)      = 그룹 폴더 (csa=02. 01·03·04·05 는 걷어낸 cma·cme·cmb·cmz 자리)</li>
-     *   <li>백/십 자리 (+100 시작, +10 증가) = 화면 (100 → 110 → 120 ...)</li>
-     * </ul>
-     * 시드 리터럴은 체계 표현용이고, 부팅 말미 {@code recomputeMenuFullSeq()} 가 트리 위치 기준으로
-     * 실제 값을 재부여한다 (모듈 순번이 바뀌면 백만 자리도 달라진다).
+     * <p>표시 순서는 같은 부모(PARENT_MENU_ID) 안의 MENU_SEQ 로 정한다(숫자 비교, 같으면 MENU_ID).
+     * 2026-11-27 — 트리 위치를 7자리로 적던 FULL_SEQ 컬럼은 없앴다.
      *
      * <p>OBJECT_ID 는 TB_MCM_SEC_OBJ 의 OBJECT_ID (=화면식별자) 와 1:1 매칭 — 권한 chain (SecUser → SecUserMapping →
      * SecRoleGroupMapping → SecRoleMapping.OBJECT_ID) 검증용. 모든 leaf row 는 OBJECT_ID 보유.
@@ -42,7 +35,7 @@ public final class McmMenuSeeder extends SeedSupport {
      * <ol>
      *   <li>legacy {@code grp-cma}/{@code grp-csa}/{@code grp-cme} 와 신규 {@code mcm}/{@code cma}/{@code csa}/
      *       {@code cme} 폴더 row 가 SEC_MENU 에 잔존하면 DELETE. SEC_MENU_FLD 만 폴더 owner.</li>
-     *   <li>FULL_SEQ 7자리 인코딩 일괄 재적용 (잔존 DB 의 legacy FULL_SEQ "1"/"100"/"110"/... 정정 — leaf 17 만).</li>
+     *   <li>csa leaf 의 PARENT_MENU_ID 를 csa 로 멱등 정정 ({@link #applyR3ParentMenuIds()}).</li>
      * </ol>
      */
     public void seedMcmSecMenu() {
@@ -54,18 +47,18 @@ public final class McmMenuSeeder extends SeedSupport {
         swapLegacyGrpMenuIds();
         cleanupLegacyFolderRowsInSecMenu();
 
-        // csa group leaf 7 — PARENT_MENU_ID = csa (round 3 매핑 / 백/십 자리 +100~+160)
-        insertMcmSecMenuIfAbsent("commObjMng",        "001", "1020100", "OBJECT 관리",            "csa", "commObjMng");
-        insertMcmSecMenuIfAbsent("commMenuMng",       "001", "1020110", "메뉴 관리",              "csa", "commMenuMng");
-        insertMcmSecMenuIfAbsent("commRoleMng",       "001", "1020120", "역할 관리",              "csa", "commRoleMng");
-        insertMcmSecMenuIfAbsent("commRoleGrpMng",    "001", "1020130", "역할 그룹 관리",         "csa", "commRoleGrpMng");
-        insertMcmSecMenuIfAbsent("commUserMng",       "001", "1020140", "사용자 관리",            "csa", "commUserMng");
-        insertMcmSecMenuIfAbsent("commPermMng",       "001", "1020150", "PERMISSION 관리",        "csa", "commPermMng");
-        insertMcmSecMenuIfAbsent("commUserRoleCopy",  "001", "1020160", "사용자 권한 일괄 등록",  "csa", "commUserRoleCopy");
+        // csa group leaf 7 — PARENT_MENU_ID = csa (round 3 매핑). 순서는 MENU_SEQ, 같으면 MENU_ID 다.
+        insertMcmSecMenuIfAbsent("commObjMng",        "001", "OBJECT 관리",            "csa", "commObjMng");
+        insertMcmSecMenuIfAbsent("commMenuMng",       "001", "메뉴 관리",              "csa", "commMenuMng");
+        insertMcmSecMenuIfAbsent("commRoleMng",       "001", "역할 관리",              "csa", "commRoleMng");
+        insertMcmSecMenuIfAbsent("commRoleGrpMng",    "001", "역할 그룹 관리",         "csa", "commRoleGrpMng");
+        insertMcmSecMenuIfAbsent("commUserMng",       "001", "사용자 관리",            "csa", "commUserMng");
+        insertMcmSecMenuIfAbsent("commPermMng",       "001", "PERMISSION 관리",        "csa", "commPermMng");
+        insertMcmSecMenuIfAbsent("commUserRoleCopy",  "001", "사용자 권한 일괄 등록",  "csa", "commUserRoleCopy");
 
-        // FULL_SEQ 7자리 인코딩 일괄 재적용 (잔존 DB 의 legacy FULL_SEQ "1"/"100"/"110"/... 정정 — leaf 17 row 만).
-        int updatedFullSeq = applyR3FullSeqEncoding();
-        log.info("[DataInitializer] SEC_MENU UPDATE — leaf FULL_SEQ rows={}", updatedFullSeq);
+        // 잔존 DB 에서 csa leaf 의 부모가 틀어진 행을 바로잡는다(멱등).
+        int updatedParent = applyR3ParentMenuIds();
+        log.info("[DataInitializer] SEC_MENU UPDATE — leaf PARENT_MENU_ID rows={}", updatedParent);
     }
 
     /**
@@ -156,37 +149,37 @@ public final class McmMenuSeeder extends SeedSupport {
     }
 
     /**
-     * R3 P1 round 3 (2026-06-02) — TB_MCM_SEC_MENU 의 leaf 13 row FULL_SEQ 7자리 인코딩 일괄 재적용
-     * (멱등 — 동일 값 UPDATE 무영향).
+     * R3 P1 round 3 (2026-06-02) — TB_MCM_SEC_MENU 의 csa leaf PARENT_MENU_ID 를 멱등 정정한다.
      *
-     * <p>인코딩 = 모듈 백만(+1,000,000) + 그룹 폴더 만(+10,000) + 화면 백/십(+100~+990).
-     * leaf 13 만 본 테이블의 대상 — 폴더 4 row (mcm/cma/csa/cme) 는 SEC_MENU_FLD 가 owner 라 본 인코딩 대상 ✗.
+     * <p>잔존 DB 에서 부모가 자기 자신이나 다른 값으로 잘못 시드된 행을 csa 로 되돌린다. 폴더 행은
+     * SEC_MENU_FLD 가 owner 라 대상이 아니다. 2026-11-27 — 같은 UPDATE 가 함께 쓰던 FULL_SEQ 는 컬럼과 함께 뺐다.
+     *
+     * <p>{@code SeedSupport.ensureMenuParent} 와 같이 이 배열도 부모를 덮어쓴다. 두 곳의 목표 부모가 어긋나면
+     * 부팅마다 값이 왕복하므로 함께 고친다.
      *
      * @return UPDATE 영향 행 수 합산 (정보용)
      */
-    private int applyR3FullSeqEncoding() {
-        // {menuId, fullSeq, parentMenuId} — Round 3 정합 PARENT_MENU_ID 도 함께 멱등 정정.
-        // 잔존 row 의 PARENT_MENU_ID 가 자기 자신 또는 다른 값으로 잘못 시드된 경우 본 UPDATE 가 정정.
+    private int applyR3ParentMenuIds() {
+        // {menuId, parentMenuId}
         String[][] rows = {
-            {"commObjMng",                "1020100", "csa"},
-            {"commMenuMng",               "1020110", "csa"},
-            {"commRoleMng",               "1020120", "csa"},
-            {"commRoleGrpMng",            "1020130", "csa"},
-            {"commUserMng",               "1020140", "csa"},
-            {"commPermMng",               "1020150", "csa"},
-            {"commUserRoleCopy",          "1020160", "csa"},
-            {"mdmCacheMng",               "1020190", "csa"},   // 2026-10-02 MDM 캐시 관리(화면 사용 통계 1020180 다음) — 빠지면 잔존 DB 의 FULL_SEQ 가 매 부팅 어긋난다
-            {"searchDefaultsSample",      "1020210", "csa"},   // 2026-10-07 조회 기본값 샘플(local 전용 시드) — 행이 있는 DB 에서만 적용된다
-            {"jobSchedMng",               "1020220", "csa"},   // 2026-10-09 예약 작업 관리 — 빠지면 잔존 DB 의 FULL_SEQ 가 매 부팅 어긋난다
+            {"commObjMng",                "csa"},
+            {"commMenuMng",               "csa"},
+            {"commRoleMng",               "csa"},
+            {"commRoleGrpMng",            "csa"},
+            {"commUserMng",               "csa"},
+            {"commPermMng",               "csa"},
+            {"commUserRoleCopy",          "csa"},
+            {"mdmCacheMng",               "csa"},   // 2026-10-02 MDM 캐시 관리
+            {"searchDefaultsSample",      "csa"},   // 2026-10-07 조회 기본값 샘플(local 전용 시드) — 행이 있는 DB 에서만 적용된다
+            {"jobSchedMng",               "csa"},   // 2026-10-09 예약 작업 관리
         };
         int total = 0;
         for (String[] r : rows) {
-            // 2026-06-05 — PK = MENU_ID 단독이므로 MENU_SEQ='001' 조건 제거 (MENU_ID 로 단건 매칭).
+            // 2026-06-05 — PK = MENU_ID 단독이므로 MENU_ID 로 단건 매칭한다.
             int n = nq(
-                    "UPDATE MCMAPUSER.TB_MCM_SEC_MENU SET FULL_SEQ = :f, PARENT_MENU_ID = :p " +
+                    "UPDATE MCMAPUSER.TB_MCM_SEC_MENU SET PARENT_MENU_ID = :p " +
                     "WHERE MENU_ID = :m")
-                    .setParameter("f", r[1])
-                    .setParameter("p", r[2])
+                    .setParameter("p", r[1])
                     .setParameter("m", r[0])
                     .executeUpdate();
             total += n;
@@ -354,7 +347,7 @@ public final class McmMenuSeeder extends SeedSupport {
      * 권한 작업대(csa/commPermBench) 메뉴 시드 (2026-11-27, decompose.md D25) — OBJECT 1 + 메뉴 leaf 1 + SYSADMIN × PERM_ALL 옛 매핑 1.
      *
      * <p>메뉴 = 공통관리(mcm) › 시스템관리(csa) › 권한 작업대. componentPath={@code csa/commPermBench} 는 m-mcm 페이지 레지스트리 키와 같다.
-     * FULL_SEQ 1020230 은 기록용 값(csa 의 예약 작업 관리 1020220 다음)이고, 시드 끝의 recomputeMenuFullSeq() 가 csa 안 순서로 다시 매긴다.
+     * csa 안 순서는 MENU_SEQ, 같으면 MENU_ID 다(2026-11-27 FULL_SEQ 삭제).
      *
      * <p>SYSADMIN 은 퍼미션 모델 v2 에서 퍼미션 행 없이 오브젝트 허용 값으로 계산한다(D13) — 그래서 새 TB_MCM_SEC_ROLE_PERM 행은 넣지 않고
      * 오브젝트 BTN_PERM 을 채운다. 옛 SYSADMIN × PERM_ALL 매핑은 legacy 되돌림과 런타임 전환(r3) 전 코드용으로 형제 화면과 같이 둔다(D10).
@@ -363,7 +356,7 @@ public final class McmMenuSeeder extends SeedSupport {
     public void seedPermBenchMenu() {
         final String objId = "commPermBench";
         insertMcmSecObjIfAbsent(objId, "권한 작업대", "mcm");
-        insertMcmSecMenuIfAbsent(objId, "001", "1020230", "권한 작업대", "csa", objId);
+        insertMcmSecMenuIfAbsent(objId, "001", "권한 작업대", "csa", objId);
         insertIfAbsentComposite(
                 "TB_MCM_SEC_ROLE_MAPPING",
                 new String[]{"ROLE_ID",  "OBJECT_ID", "PERMISSION_ID"},

@@ -19,7 +19,7 @@ public final class MdmMenuSeeder extends SeedSupport {
     /**
      * 2026-10-02 — MDM 캐시 관리(spec docs/superpowers/specs/2026-10-02-mdm-meta-cache-design.md §5.5·§6).
      *
-     * <p>mdmCacheMng — 포털(mcm) 화면 OBJECT + csa 메뉴 leaf(1020190, 화면 사용 통계 1020180 다음) + SYSADMIN 전체 권한. 화면이 부르는 업무 모듈
+     * <p>mdmCacheMng — 포털(mcm) 화면 OBJECT + csa 메뉴 leaf + SYSADMIN 전체 권한. 화면이 부르는 업무 모듈
      * /api/{m}/mdmMeta/* 는 AUTH_ONLY(proxy.ts·EndpointPermissionFilter)이고 관리 action 은 각 모듈 컨트롤러가 SYSADMIN 을 다시 본다.
      *
      * <p>metaFeed — 화면의 삭제·재등록은 MDM OASIS /api/mdm/oasis/metaFeed/save 다. BFF 권한키 mdm/metafeed/save 를 위해 OBJECT(SYSTEM_CODE=mdm)와
@@ -28,7 +28,7 @@ public final class MdmMenuSeeder extends SeedSupport {
      */
     public void seedMdmCacheMenus() {
         insertMcmSecObjIfAbsent("mdmCacheMng", "MDM 캐시 관리", "mcm");
-        insertMcmSecMenuIfAbsent("mdmCacheMng", "001", "1020190", "MDM 캐시 관리", "csa", "mdmCacheMng");
+        insertMcmSecMenuIfAbsent("mdmCacheMng", "001", "MDM 캐시 관리", "csa", "mdmCacheMng");
         insertMcmSecObjIfAbsent("metaFeed", "MDM 메타 제공", "mdm");
         // 조업 계산기 위젯(2026-10-06) — BFF 권한키 mdm/rulecalc/{view,execute} 용 OBJECT. 인증만(AUTH_ONLY)이라 메뉴·그룹 RBAC 은 없다.
         insertMcmSecObjIfAbsent("ruleCalc", "조업 계산기", "mdm");
@@ -63,9 +63,7 @@ public final class MdmMenuSeeder extends SeedSupport {
      * 가 UPDATE 로 이행한다(insert-if-absent 시드와 조회 때 계산되는 componentPath 때문에 리터럴만 바꾸면 기존 DB 에서
      * 화면이 열리지 않는다).
      *
-     * <p>FULL_SEQ 인코딩: 모듈 백만(mdm=5,000,000 — analog=4,000,000 다음, {@code insertMpnFld} 전수
-     * grep 으로 5 가 미사용임을 확인) / 그룹 만(dma=5,010,000) / 화면 백·십(5010100). MENU_SEQ
-     * mdm='00000005'. 시드 후 recomputeMenuFullSeq() 가 트리 위치 기준으로 FULL_SEQ 재부여(멱등).
+     * <p>순서: 모듈 루트 mdm 의 MENU_SEQ='00000005'(analog='00000004' 다음), 그룹·화면은 폴더 안 MENU_SEQ 로 정한다.
      * 샘플 화면이 API 를 호출하지 않아(design.md §3.3) PERMISSION_ACTION 등재는 불필요 — 실 BPMN 이
      * 생기는 다음 화면 Task 에서 CoreRbacSeeder.seedCoreRbac() 의 allActions 목록에 추가한다.
      */
@@ -74,13 +72,13 @@ public final class MdmMenuSeeder extends SeedSupport {
         migrateMdmSampleGroupToDma();
 
         // ── 폴더 (FLD) — root mdm(모듈 5) + group dma(용어·도메인) ──
-        insertMpnFld("mdm", "00000005", "마루 MDM", null,   5000000L);
-        insertMpnFld("dma", "00000100", "용어·도메인", "mdm", 5010000L);
+        insertMpnFld("mdm", "00000005", "마루 MDM", null);
+        insertMpnFld("dma", "00000100", "용어·도메인", "mdm");
         // ── TSK-01-03 — 나머지 메뉴 그룹 4개(MdmScreenGroup·screens/README §2 와 같은 이름) ──
-        insertMpnFld("dmb", "00000200", "레이아웃",     "mdm", 5020000L);
-        insertMpnFld("dmc", "00000300", "마스터코드",   "mdm", 5030000L);
-        insertMpnFld("dmd", "00000400", "마스터데이터", "mdm", 5040000L);
-        insertMpnFld("dme", "00000500", "업무기준",     "mdm", 5050000L);
+        insertMpnFld("dmb", "00000200", "레이아웃",     "mdm");
+        insertMpnFld("dmc", "00000300", "마스터코드",   "mdm");
+        insertMpnFld("dmd", "00000400", "마스터데이터", "mdm");
+        insertMpnFld("dme", "00000500", "업무기준",     "mdm");
 
         // ── OBJECT — SYSTEM_CODE='mdm' 이 FE moduleId 가 된다 ──
         insertMcmSecObjIfAbsent("mdmSample", "MDM 샘플", "mdm");
@@ -89,9 +87,9 @@ public final class MdmMenuSeeder extends SeedSupport {
         insertMcmSecObjIfAbsent("termMng", "용어 관리", "mdm");
 
         // ── 메뉴 leaf (parent=dma) — componentPath = 'dma/mdmSample' ──
-        insertMcmSecMenuIfAbsent("mdmSample", "001", "5010100", "MDM 샘플", "dma", "mdmSample");
-        insertMcmSecMenuIfAbsent("unitMng", "002", "5010200", "단위 마스터", "dma", "unitMng");
-        insertMcmSecMenuIfAbsent("termMng", "003", "5010300", "용어 관리", "dma", "termMng");
+        insertMcmSecMenuIfAbsent("mdmSample", "001", "MDM 샘플", "dma", "mdmSample");
+        insertMcmSecMenuIfAbsent("unitMng", "002", "단위 마스터", "dma", "unitMng");
+        insertMcmSecMenuIfAbsent("termMng", "003", "용어 관리", "dma", "termMng");
 
         // ── RBAC — SYSADMIN × 3 OBJECT × PERM_ALL ──
         for (String objectId : new String[]{"mdmSample", "unitMng", "termMng"}) {
@@ -119,7 +117,7 @@ public final class MdmMenuSeeder extends SeedSupport {
         //    둔다(screens/README §3·§5 — 버튼·API 권한은 역할 매핑에서 오고 메뉴를 보지 않는다, design.md F14·F15).
         insertMcmSecObjIfAbsent("columnMng", "컬럼 사전", "mdm");
         insertMcmSecObjIfAbsent("termRegPop", "용어 인라인 등록", "mdm");
-        insertMcmSecMenuIfAbsent("columnMng", "004", "5010140", "컬럼 사전", "dma", "columnMng");
+        insertMcmSecMenuIfAbsent("columnMng", "004", "컬럼 사전", "dma", "columnMng");
         for (String objectId : new String[]{"columnMng", "termRegPop"}) {
             insertIfAbsentComposite(
                     "TB_MCM_SEC_ROLE_MAPPING",
@@ -140,7 +138,7 @@ public final class MdmMenuSeeder extends SeedSupport {
         //    그대로 부르므로 OBJECT·권한은 남긴다(메뉴 없는 OBJECT 도 권한 키를 받는다 — dataCsvUploadPop 과 같다).
         insertMcmSecObjIfAbsent("codeMng", "마루 코드", "mdm");
         insertMcmSecObjIfAbsent("codeEdit", "마루 코드 수정", "mdm");
-        insertMcmSecMenuIfAbsent("codeMng", "001", "5030100", "마루 코드", "dmc", "codeMng");
+        insertMcmSecMenuIfAbsent("codeMng", "001", "마루 코드", "dmc", "codeMng");
         removeMergedMdmCodeMenus();
         for (String objectId : new String[]{"codeMng", "codeEdit"}) {
             insertIfAbsentComposite(
@@ -166,9 +164,8 @@ public final class MdmMenuSeeder extends SeedSupport {
     private void seedMdmErdObject() {
         String objectId = "erdEdit";
         insertMcmSecObjIfAbsent(objectId, "ERD 설계", "mdm");
-        // 메뉴 leaf — componentPath 'dma/erdEdit'(FE pages/dma/erdEdit/page.tsx). MENU_SEQ 005·FULL_SEQ 5010150 은 dma 에서 비어 있다.
-        // FULL_SEQ 는 부팅 끝 recomputeMenuFullSeq() 가 다시 매긴다.
-        insertMcmSecMenuIfAbsent("erdEdit", "005", "5010150", "ERD 설계", "dma", "erdEdit");
+        // 메뉴 leaf — componentPath 'dma/erdEdit'(FE pages/dma/erdEdit/page.tsx). MENU_SEQ 005 는 dma 에서 비어 있다.
+        insertMcmSecMenuIfAbsent("erdEdit", "005", "ERD 설계", "dma", "erdEdit");
         insertIfAbsentComposite(
                 "TB_MCM_SEC_ROLE_MAPPING",
                 new String[]{"ROLE_ID",  "OBJECT_ID", "PERMISSION_ID"},
@@ -184,7 +181,7 @@ public final class MdmMenuSeeder extends SeedSupport {
     /**
      * TSK-07-02 — 마루 데이터 조회·등록(dataMng)·수정(dataEdit)·카테고리 편집(dataCateEdit), 폴더 dmd. F2 가 예약한
      * MENU_SEQ 001~003. action(search·reg·view·save·delete·restore·compare)은 모두 기존 권한 세트·allActions 안에
-     * 있다(D9). FULL_SEQ 는 부팅 끝 recomputeMenuFullSeq() 가 다시 매긴다.
+     * 있다(D9). 순서는 폴더 안 MENU_SEQ 로 정한다.
      * D-104: dataEdit 는 dataMng 화면에 합쳐 메뉴 leaf 가 없다(dataCateEdit 는 dataItemMng 로 합침). 합친 화면이 두
      * 서비스를 그대로 부르므로 OBJECT·권한은 남기고, 이미 있는 메뉴 행은 {@link #removeMergedMdmDataMenus()} 가 지운다.
      */
@@ -192,7 +189,7 @@ public final class MdmMenuSeeder extends SeedSupport {
         insertMcmSecObjIfAbsent("dataMng", "마루 데이터", "mdm");
         insertMcmSecObjIfAbsent("dataEdit", "마루 데이터 수정", "mdm");
         insertMcmSecObjIfAbsent("dataCateEdit", "카테고리 편집", "mdm");
-        insertMcmSecMenuIfAbsent("dataMng", "001", "5040100", "마루 데이터", "dmd", "dataMng");
+        insertMcmSecMenuIfAbsent("dataMng", "001", "마루 데이터", "dmd", "dataMng");
         removeMergedMdmDataMenus();
         for (String objectId : new String[]{"dataMng", "dataEdit", "dataCateEdit"}) {
             insertIfAbsentComposite(
@@ -211,7 +208,7 @@ public final class MdmMenuSeeder extends SeedSupport {
      * TSK-07-03 — 항목 편집(dmd/dataItemMng)·항목 이력(dmd/dataHistory). 부모 폴더 mdm·dmd 는 seedMdmMenus() 가 이미 멱등
      * 시드한다. OBJECT_ID = screenId = BPMN process id. action(view·search·reg·save·delete·restore)은 모두 기존 권한 세트·
      * allActions 안에 있다(design.md D9). MENU_SEQ 001~003 은 TSK-07-02(dataMng·dataEdit·dataCateEdit) 몫으로 비워 둔다.
-     * FULL_SEQ 는 부팅 끝 recomputeMenuFullSeq() 가 다시 매긴다.
+     * 순서는 폴더 안 MENU_SEQ 로 정한다.
      * D-104: dataHistory 는 dataItemMng 화면에 합쳐 메뉴 leaf 가 없다. OBJECT·권한은 남기고 이미 있는 메뉴 행은
      * {@link #removeMergedMdmDataMenus()} 가 지운다. 남는 메뉴 이름은 "항목 편집" 이며, 이미 시드된 DB 의
      * 옛 이름 "항목 관리" 는 {@code MENU_NM} 이 그 값 그대로일 때만 바로잡는다(commMenuMng 에서 바꾼 이름은 건드리지 않는다).
@@ -219,7 +216,7 @@ public final class MdmMenuSeeder extends SeedSupport {
     private void seedMdmDataItemMenus() {
         insertMcmSecObjIfAbsent("dataItemMng", "항목 관리", "mdm");
         insertMcmSecObjIfAbsent("dataHistory", "항목 이력", "mdm");
-        insertMcmSecMenuIfAbsent("dataItemMng", "004", "5040400", "항목 편집", "dmd", "dataItemMng");
+        insertMcmSecMenuIfAbsent("dataItemMng", "004", "항목 편집", "dmd", "dataItemMng");
         int renamed = nq("UPDATE MCMAPUSER.TB_MCM_SEC_MENU SET MENU_NM = :nn WHERE MENU_ID = 'dataItemMng' AND MENU_NM = :on")
                 .setParameter("nn", "항목 편집").setParameter("on", "항목 관리").executeUpdate();
         if (renamed > 0) {
@@ -277,17 +274,17 @@ public final class MdmMenuSeeder extends SeedSupport {
      * TSK-08-02 — 업무기준(dme) 폴더의 룰 화면 두 개: 룰 조회·등록(dme/ruleMng)과 룰 화면(dme/ruleEdit). 기존 마스터관리·업무기준관리
      * 메뉴는 고치지 않고 dme 폴더 아래 새 leaf 로 등록한다. OBJECT_ID = screenId = BPMN process id(design I23·I24). action 은
      * ruleMng search·reg, ruleEdit search·view·save·delete·copy·lock·unlock·handover 이고 모두 allActions·권한 세트 안에 있다.
-     * FULL_SEQ 는 부팅 끝 recomputeMenuFullSeq() 가 다시 매긴다.
+     * 순서는 폴더 안 MENU_SEQ 로 정한다.
      */
     private void seedMdmRuleMenus() {
         String[][] screens = {
-                {"ruleMng",  "룰",      "001", "5050100"},
-                {"ruleEdit", "룰 화면", "002", "5050200"},
+                {"ruleMng",  "룰",      "001"},
+                {"ruleEdit", "룰 화면", "002"},
         };
         for (String[] screen : screens) {
             String objectId = screen[0];
             insertMcmSecObjIfAbsent(objectId, screen[1], "mdm");
-            insertMcmSecMenuIfAbsent(objectId, screen[2], screen[3], screen[1], "dme", objectId);
+            insertMcmSecMenuIfAbsent(objectId, screen[2], screen[1], "dme", objectId);
             insertIfAbsentComposite(
                     "TB_MCM_SEC_ROLE_MAPPING",
                     new String[]{"ROLE_ID",  "OBJECT_ID", "PERMISSION_ID"},
@@ -301,13 +298,13 @@ public final class MdmMenuSeeder extends SeedSupport {
 
     /**
      * TSK-08-05 — 룰 버전 확정(dme/ruleConfirm). 08-02·08-06 의 메뉴 배열은 고치지 않고 같은 dme 폴더 아래 새 leaf 로 등록한다
-     * (design §6.9). MENU_SEQ 003·FULL_SEQ 5050300 은 08-06 D12 가 이 Task 몫으로 비워 두었다. OBJECT_ID = screenId = BPMN process id.
+     * (design §6.9). MENU_SEQ 003 은 08-06 D12 가 이 Task 몫으로 비워 두었다. OBJECT_ID = screenId = BPMN process id.
      * action(search·view·validate·confirm)은 모두 기존 권한 세트·allActions 안에 있고, dme 매트릭스는 표준 관리자 READ(search·view)·
-     * 담당자 CONFIRM(validate·confirm 포함)이다. FULL_SEQ 는 부팅 끝 recomputeMenuFullSeq() 가 다시 매긴다.
+     * 담당자 CONFIRM(validate·confirm 포함)이다. 순서는 폴더 안 MENU_SEQ 로 정한다.
      */
     private void seedMdmRuleConfirmMenu() {
         insertMcmSecObjIfAbsent("ruleConfirm", "버전 확정", "mdm");
-        insertMcmSecMenuIfAbsent("ruleConfirm", "003", "5050300", "버전 확정", "dme", "ruleConfirm");
+        insertMcmSecMenuIfAbsent("ruleConfirm", "003", "버전 확정", "dme", "ruleConfirm");
         insertIfAbsentComposite(
                 "TB_MCM_SEC_ROLE_MAPPING",
                 new String[]{"ROLE_ID",  "OBJECT_ID",   "PERMISSION_ID"},
@@ -322,17 +319,17 @@ public final class MdmMenuSeeder extends SeedSupport {
      * TSK-08-06 — 업무기준(dme) 폴더의 룰 세트 화면 두 개: 룰 세트 조회·등록(dme/ruleSetMng)과 룰 세트 편집(dme/ruleSetEdit). 08-02 의
      * seedMdmRuleMenus() 배열은 고치지 않고 같은 dme 폴더 아래 새 leaf 로 등록한다(design D12). OBJECT_ID = screenId = BPMN process id(I17·I18).
      * action 은 ruleSetMng search·reg, ruleSetEdit search·view·save·delete(폐기)·restore(되살리기)이고 모두 allActions·권한 세트 안에 있다.
-     * FULL_SEQ 는 부팅 끝 recomputeMenuFullSeq() 가 다시 매긴다.
+     * 순서는 폴더 안 MENU_SEQ 로 정한다.
      */
     private void seedMdmRuleSetMenus() {
         String[][] screens = {
-                {"ruleSetMng",  "룰 세트",      "004", "5050400"},
-                {"ruleSetEdit", "룰 세트 편집", "005", "5050500"},
+                {"ruleSetMng",  "룰 세트",      "004"},
+                {"ruleSetEdit", "룰 세트 편집", "005"},
         };
         for (String[] screen : screens) {
             String objectId = screen[0];
             insertMcmSecObjIfAbsent(objectId, screen[1], "mdm");
-            insertMcmSecMenuIfAbsent(objectId, screen[2], screen[3], screen[1], "dme", objectId);
+            insertMcmSecMenuIfAbsent(objectId, screen[2], screen[1], "dme", objectId);
             insertIfAbsentComposite(
                     "TB_MCM_SEC_ROLE_MAPPING",
                     new String[]{"ROLE_ID",  "OBJECT_ID", "PERMISSION_ID"},
@@ -347,11 +344,11 @@ public final class MdmMenuSeeder extends SeedSupport {
     /**
      * D-144 2단계 — 룰 세트 확정(dme/ruleSetConfirm). 기존 메뉴 배열은 고치지 않고 같은 dme 폴더 아래 새 leaf 로 등록한다.
      * action(search·view·validate·confirm)은 기존 권한 세트·allActions 안에 있다(ruleConfirm 과 같다). 룰 세트 편집(ruleSetEdit)의 새 action
-     * copy·lock·unlock·handover 도 이미 PERM_MDM_EDIT·allActions 안에 있어 시드를 바꾸지 않는다. FULL_SEQ 는 부팅 끝 recomputeMenuFullSeq() 가 다시 매긴다.
+     * copy·lock·unlock·handover 도 이미 PERM_MDM_EDIT·allActions 안에 있어 시드를 바꾸지 않는다. 순서는 폴더 안 MENU_SEQ 로 정한다.
      */
     private void seedMdmRuleSetConfirmMenu() {
         insertMcmSecObjIfAbsent("ruleSetConfirm", "룰 세트 확정", "mdm");
-        insertMcmSecMenuIfAbsent("ruleSetConfirm", "006", "5050600", "룰 세트 확정", "dme", "ruleSetConfirm");
+        insertMcmSecMenuIfAbsent("ruleSetConfirm", "006", "룰 세트 확정", "dme", "ruleSetConfirm");
         insertIfAbsentComposite(
                 "TB_MCM_SEC_ROLE_MAPPING",
                 new String[]{"ROLE_ID",  "OBJECT_ID",      "PERMISSION_ID"},
@@ -485,12 +482,11 @@ public final class MdmMenuSeeder extends SeedSupport {
      * TSK-04-03 — 도메인 관리 화면(dma/domainMng). 기존 마스터관리·업무기준관리 메뉴는 고치지 않고 dma 폴더 아래 새 leaf 로
      * 등록한다(design.md §3.9). 부모 폴더 mdm·dma 는 seedMdmMenus() 가 이미 멱등 시드한다. OBJECT_ID = screenId = BPMN
      * process id(불변 I17). action(search·view·validate·execute·save)은 모두 기존 권한 세트·allActions 안에 있다.
-     * FULL_SEQ 는 screens/README §3 순서(unitMng·termMng·domainMng·columnMng)의 셋째 자리이며 부팅 끝
-     * recomputeMenuFullSeq() 가 다시 매긴다.
+     * screens/README §3 순서는 unitMng·termMng·domainMng·columnMng 다. 실제 순서는 dma 안 MENU_SEQ 로 정한다.
      */
     private void seedMdmDomainMngMenu() {
         insertMcmSecObjIfAbsent("domainMng", "도메인 관리", "mdm");
-        insertMcmSecMenuIfAbsent("domainMng", "001", "5010130", "도메인 관리", "dma", "domainMng");
+        insertMcmSecMenuIfAbsent("domainMng", "001", "도메인 관리", "dma", "domainMng");
         insertIfAbsentComposite(
                 "TB_MCM_SEC_ROLE_MAPPING",
                 new String[]{"ROLE_ID",  "OBJECT_ID", "PERMISSION_ID"},
@@ -504,12 +500,12 @@ public final class MdmMenuSeeder extends SeedSupport {
      * TSK-06-03 — 코드 편집 화면(dmc/codeItemEdit). 기존 마스터관리 메뉴는 고치지 않고 dmc 폴더 아래 새 leaf 로 등록한다
      * (design.md §3 커밋 C). 부모 폴더 mdm·dmc 는 seedMdmMenus() 가 이미 멱등 시드한다. OBJECT_ID = screenId = BPMN
      * process id. action(search·view·compare·validate·save·restore·execute)은 모두 기존 권한 세트 안에 있고, dmc 매트릭스는
-     * 표준 관리자 READ·담당자 CONFIRM 이다. FULL_SEQ 는 screens/README §3 순서(codeMng·codeItemEdit·codeConfirm,
-     * D-101 로 codeEdit·codeCateEdit 메뉴 없음)의 둘째 자리이며 부팅 끝 recomputeMenuFullSeq() 가 다시 매긴다.
+     * 표준 관리자 READ·담당자 CONFIRM 이다. screens/README §3 순서(codeMng·codeItemEdit·codeConfirm,
+     * D-101 로 codeEdit·codeCateEdit 메뉴 없음)의 둘째 자리다. 실제 순서는 dmc 안 MENU_SEQ 로 정한다.
      */
     private void seedMdmCodeItemEditMenu() {
         insertMcmSecObjIfAbsent("codeItemEdit", "코드 편집", "mdm");
-        insertMcmSecMenuIfAbsent("codeItemEdit", "003", "5030300", "코드 편집", "dmc", "codeItemEdit");
+        insertMcmSecMenuIfAbsent("codeItemEdit", "003", "코드 편집", "dmc", "codeItemEdit");
         insertIfAbsentComposite(
                 "TB_MCM_SEC_ROLE_MAPPING",
                 new String[]{"ROLE_ID",  "OBJECT_ID",    "PERMISSION_ID"},
@@ -560,12 +556,12 @@ public final class MdmMenuSeeder extends SeedSupport {
      * TSK-06-05 — 버전 확정(dmc/codeConfirm). 기존 마스터관리 메뉴는 고치지 않고 dmc 폴더 아래 새 leaf 로 등록한다
      * (design.md §6.8). 부모 폴더 mdm·dmc 는 seedMdmMenus() 가 이미 멱등 시드한다. OBJECT_ID = screenId = BPMN process id.
      * action(search·view·validate·confirm)은 모두 기존 권한 세트 안에 있고, dmc 매트릭스는 표준 관리자 READ(search·view)·
-     * 담당자 CONFIRM(validate·confirm 포함)이다. FULL_SEQ 는 screens/README §3 순서의 셋째 자리(D-101)이며 부팅 끝
-     * recomputeMenuFullSeq() 가 다시 매긴다.
+     * 담당자 CONFIRM(validate·confirm 포함)이다. screens/README §3 순서의 셋째 자리(D-101)다.
+     * 실제 순서는 dmc 안 MENU_SEQ 로 정한다.
      */
     private void seedMdmCodeConfirmMenu() {
         insertMcmSecObjIfAbsent("codeConfirm", "버전 확정", "mdm");
-        insertMcmSecMenuIfAbsent("codeConfirm", "005", "5030500", "버전 확정", "dmc", "codeConfirm");
+        insertMcmSecMenuIfAbsent("codeConfirm", "005", "버전 확정", "dmc", "codeConfirm");
         insertIfAbsentComposite(
                 "TB_MCM_SEC_ROLE_MAPPING",
                 new String[]{"ROLE_ID",  "OBJECT_ID",   "PERMISSION_ID"},
@@ -578,13 +574,13 @@ public final class MdmMenuSeeder extends SeedSupport {
     /**
      * TSK-05-02 — 전문 헤더 정의(dmb/headerMng)·전문 레이아웃(dmb/layoutMng). 기존 마스터관리·업무기준관리 메뉴는 고치지 않고
      * 이미 시드된 dmb "레이아웃" 폴더 아래 새 leaf 로 등록한다. OBJECT_ID = screenId = BPMN process id. action(search·view·save)은
-     * 모두 기존 권한 세트·allActions 안에 있다(design.md D8). FULL_SEQ 는 부팅 끝 recomputeMenuFullSeq() 가 다시 매긴다.
+     * 모두 기존 권한 세트·allActions 안에 있다(design.md D8). 순서는 폴더 안 MENU_SEQ 로 정한다.
      */
     private void seedMdmLayoutMenus() {
         insertMcmSecObjIfAbsent("headerMng", "전문 헤더 정의", "mdm");
         insertMcmSecObjIfAbsent("layoutMng", "전문 레이아웃", "mdm");
-        insertMcmSecMenuIfAbsent("headerMng", "001", "5020110", "전문 헤더 정의", "dmb", "headerMng");
-        insertMcmSecMenuIfAbsent("layoutMng", "002", "5020120", "전문 레이아웃", "dmb", "layoutMng");
+        insertMcmSecMenuIfAbsent("headerMng", "001", "전문 헤더 정의", "dmb", "headerMng");
+        insertMcmSecMenuIfAbsent("layoutMng", "002", "전문 레이아웃", "dmb", "layoutMng");
         for (String objectId : new String[]{"headerMng", "layoutMng"}) {
             insertIfAbsentComposite(
                     "TB_MCM_SEC_ROLE_MAPPING",
@@ -610,7 +606,7 @@ public final class MdmMenuSeeder extends SeedSupport {
      */
     private void seedMdmLayoutConfirmMenu() {
         insertMcmSecObjIfAbsent("layoutConfirm", "레이아웃 확정", "mdm");
-        insertMcmSecMenuIfAbsent("layoutConfirm", "003", "5020130", "레이아웃 확정", "dmb", "layoutConfirm");
+        insertMcmSecMenuIfAbsent("layoutConfirm", "003", "레이아웃 확정", "dmb", "layoutConfirm");
         insertIfAbsentComposite(
                 "TB_MCM_SEC_ROLE_MAPPING",
                 new String[]{"ROLE_ID",  "OBJECT_ID",     "PERMISSION_ID"},

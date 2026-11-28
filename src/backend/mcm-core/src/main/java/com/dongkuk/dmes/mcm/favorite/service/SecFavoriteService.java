@@ -159,13 +159,15 @@ public class SecFavoriteService {
         String targetSysCd = pageId.substring(0, colon);
         String targetComponentPath = pageId.substring(colon + 1);
 
-        SecMenu menu = findMenuByComponentPath(targetSysCd, targetComponentPath);
+        MenuCatalog.Snapshot catalog = menuCatalog.snapshot();
+        SecMenu menu = PortalPageMenuMatcher.findMenuByComponentPath(
+                catalog.menus(), catalog.objects(), targetSysCd, targetComponentPath);
         if (menu == null) {
             throw new BusinessException(ErrorCode.INVALID_VALUE,
                     "해당 페이지에 매칭되는 메뉴가 없습니다: " + pageId);
         }
 
-        String fullId = menu.getParentMenuId() + "/" + menu.getObjectId(); // = componentPath
+        String fullId = catalog.codePathOf(menu); // = componentPath (MenuCodePath — 매칭과 같은 규칙)
         String menuId = menu.getMenuId();
         Integer menuSeq = parseIntOrZero(menu.getMenuSeq());
 
@@ -198,13 +200,6 @@ public class SecFavoriteService {
         result.put("favorited", true);
         result.put("fvtFoldId", fvtFoldId);
         return result;
-    }
-
-    /** sysCd + componentPath({@code parentMenuId/objectId}) 로 활성 메뉴 매칭 — 기본 화면과 같은 {@link PortalPageMenuMatcher} 규칙. */
-    private SecMenu findMenuByComponentPath(String targetSysCd, String targetComponentPath) {
-        MenuCatalog.Snapshot catalog = menuCatalog.snapshot();
-        return PortalPageMenuMatcher.findMenuByComponentPath(
-                catalog.menus(), catalog.objects(), targetSysCd, targetComponentPath);
     }
 
     /** 추가 대상 폴더: 선택(fvtFoldId) → 신규(fvtFoldNm) → 기본("즐겨찾기"). 신규/기본은 폴더 행 생성. */

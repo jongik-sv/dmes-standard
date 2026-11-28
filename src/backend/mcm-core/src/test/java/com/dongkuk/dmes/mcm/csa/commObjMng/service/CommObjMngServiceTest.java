@@ -258,16 +258,17 @@ class CommObjMngServiceTest extends CommSecMngJpaTestBase {
         fx.role("R1", "Y");
         fx.rolePerm("R1", "csa::a", "search", null);
 
-        Map<String, Object> out = inTx(() -> service.saveCmObj(List.of(
-                row("rowStatus", "deleted", "OBJECT_ID", "csa::a"))));
-
-        assertThat(out).containsEntry("cnt_merge", 0);
+        // 2026-11-26 — 막힌 삭제는 건너뛰지 않고 업무 예외로 저장 전체를 실패시킨다(쓰는 곳 수를 알린다).
+        assertThatThrownBy(() -> inTx(() -> service.saveCmObj(List.of(
+                row("rowStatus", "deleted", "OBJECT_ID", "csa::a")))))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("csa::a").hasMessageContaining("퍼미션 1건");
         assertThat(secObjRepository.existsById("csa::a")).isTrue();
         assertThat(events.roleEvents()).isEmpty();
     }
 
     @Test
-    void saveCmObj_deleteBlockedByMenuOrLegacyKept_andDeletesWhenFree() {
+    void saveCmObj_deleteBlockedByMenuOrLegacy_failsWholeSave_andDeletesWhenFree() {
         fx.obj("csa::menu", "Y");
         fx.menu("M1", null, "csa::menu");
         fx.obj("csa::legacy", "Y");
@@ -276,14 +277,25 @@ class CommObjMngServiceTest extends CommSecMngJpaTestBase {
         fx.obj("csa::free", "Y");
         fx.legacyMapping("SYSADMIN", "csa::free", "PERM_ALL");
 
+        // 2026-11-26 — 막힌 삭제가 하나라도 있으면 업무 예외로 저장 전체가 실패한다(같은 묶음의 free 삭제도 되돌린다).
+        assertThatThrownBy(() -> inTx(() -> service.saveCmObj(List.of(
+                row("rowStatus", "deleted", "OBJECT_ID", "csa::free"),
+                row("rowStatus", "deleted", "OBJECT_ID", "csa::menu")))))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("csa::menu").hasMessageContaining("메뉴 1건");
+        assertThatThrownBy(() -> inTx(() -> service.saveCmObj(List.of(
+                row("rowStatus", "deleted", "OBJECT_ID", "csa::legacy")))))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("역할 매핑 1건");
+        assertThat(secObjRepository.existsById("csa::menu")).isTrue();
+        assertThat(secObjRepository.existsById("csa::legacy")).isTrue();
+        assertThat(secObjRepository.existsById("csa::free")).isTrue();
+        assertThat(events.roleEvents()).isEmpty();
+
         Map<String, Object> out = inTx(() -> service.saveCmObj(List.of(
-                row("rowStatus", "deleted", "OBJECT_ID", "csa::menu"),
-                row("rowStatus", "deleted", "OBJECT_ID", "csa::legacy"),
                 row("rowStatus", "deleted", "OBJECT_ID", "csa::free"))));
 
         assertThat(out).containsEntry("cnt_merge", 1);
-        assertThat(secObjRepository.existsById("csa::menu")).isTrue();
-        assertThat(secObjRepository.existsById("csa::legacy")).isTrue();
         assertThat(secObjRepository.existsById("csa::free")).isFalse();
         // 옛 SYSADMIN 매핑 동반 삭제(그대로) + 이벤트
         assertThat(secRoleMappingRepository.findByObjectId("csa::free")).isEmpty();

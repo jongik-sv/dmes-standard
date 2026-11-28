@@ -184,13 +184,13 @@ class PermExplainParityOraTest {
     }
 
     private void fld(String id, String parent, String useTp, String seq) {
-        jdbc.update("INSERT INTO MCMAPUSER.TB_MCM_SEC_MENU_FLD (MENU_ID, MENU_SEQ, MENU_NM, PARENT_MENU_ID, FULL_SEQ, USE_TP, MENU_VIEW_YN) "
-                + "VALUES (?, '1', ?, ?, ?, ?, 'Y')", id, id, parent, seq, useTp);
+        jdbc.update("INSERT INTO MCMAPUSER.TB_MCM_SEC_MENU_FLD (MENU_ID, MENU_SEQ, MENU_NM, PARENT_MENU_ID, USE_TP, MENU_VIEW_YN) "
+                + "VALUES (?, ?, ?, ?, ?, 'Y')", id, seq, id, parent, useTp);
     }
 
     private void menu(String id, String parent, String obj, String viewYn, String useTp, String seq) {
-        jdbc.update("INSERT INTO MCMAPUSER.TB_MCM_SEC_MENU (MENU_ID, MENU_SEQ, MENU_NM, PARENT_MENU_ID, OBJECT_ID, USE_TP, MENU_TP, MENU_VIEW_YN, FULL_SEQ) "
-                + "VALUES (?, '1', ?, ?, ?, ?, 'S', ?, ?)", id, id, parent, obj, useTp, viewYn, seq);
+        jdbc.update("INSERT INTO MCMAPUSER.TB_MCM_SEC_MENU (MENU_ID, MENU_SEQ, MENU_NM, PARENT_MENU_ID, OBJECT_ID, USE_TP, MENU_TP, MENU_VIEW_YN) "
+                + "VALUES (?, ?, ?, ?, ?, ?, 'S', ?)", id, seq, id, parent, obj, useTp, viewYn);
     }
 
     private void oldPerm(String id, String common, String custom, String action, String popup) {

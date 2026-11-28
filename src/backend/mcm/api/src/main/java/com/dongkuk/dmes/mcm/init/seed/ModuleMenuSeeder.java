@@ -23,20 +23,19 @@ public final class ModuleMenuSeeder extends SeedSupport {
      *   <li>RBAC 1: SYSADMIN × logViewer × PERM_ALL — TB_MCM_SEC_ROLE_MAPPING.</li>
      * </ul>
      *
-     * <p>FULL_SEQ 인코딩(2026-06-02 사용자 결정): 모듈 백만(analog=4,000,000 — mcm=1/mpn=2/mpp=3 다음) /
-     * 그룹 만(anl=4,010,000) / 화면 백·십(4010100). MENU_SEQ analog='00000004'(mpp='00000003' 다음).
-     * 시드 후 recomputeMenuFullSeq() 가 트리 위치 기준으로 FULL_SEQ 재부여(멱등). 모두 insertIfAbsent 멱등.
+     * <p>순서: MENU_SEQ analog='00000004'(mpp='00000003' 다음). 그룹·화면은 폴더 안 MENU_SEQ 로 정한다.
+     * 모두 insertIfAbsent 멱등.
      */
     public void seedAnalogMenus() {
         // ── 폴더 (FLD) — root analog + group anl ──
-        insertMpnFld("analog", "00000004", "로그 분석", null,     4000000L);
-        insertMpnFld("anl",    "00000100", "로그 조회", "analog", 4010000L);
+        insertMpnFld("analog", "00000004", "로그 분석", null);
+        insertMpnFld("anl",    "00000100", "로그 조회", "analog");
 
         // ── OBJECT 1 — SYSTEM_CODE='analog' 가 FE moduleId(sysCd)가 된다 ──
         insertMcmSecObjIfAbsent("logViewer", "로그 뷰어", "analog");
 
         // ── 메뉴 leaf 1 (parent=anl) — componentPath = 'anl/logViewer' ──
-        insertMcmSecMenuIfAbsent("logViewer", "001", "4010100", "로그 뷰어", "anl", "logViewer");
+        insertMcmSecMenuIfAbsent("logViewer", "001", "로그 뷰어", "anl", "logViewer");
 
         // ── RBAC — SYSADMIN × 1 OBJECT × PERM_ALL ──
         insertIfAbsentComposite(
@@ -54,14 +53,14 @@ public final class ModuleMenuSeeder extends SeedSupport {
      * ANALOG DB 뷰어 메뉴/OBJECT/RBAC 시드 (ADR-0002, 2026-10-08).
      *
      * <p>읽기전용 오라클 테이블 브라우저(anl/dbViewer)의 포털 진입점 등록:
-     * OBJECT 1 + 메뉴 leaf 1(parent=anl, FULL_SEQ 4010200 = logViewer 다음) + SYSADMIN × PERM_ALL 1.
+     * OBJECT 1 + 메뉴 leaf 1(parent=anl) + SYSADMIN × PERM_ALL 1.
      * componentPath = 'anl/dbViewer' (m-analog dist 페이지, ANALOG_STATIC_PAGES 등록).
      * 모두 insert-if-absent 라 재기동해도 중복 행이 생기지 않는다.
      */
     public void seedDbViewerMenu() {
         final String objId = "dbViewer";
         insertMcmSecObjIfAbsent(objId, "DB 뷰어", "analog");
-        insertMcmSecMenuIfAbsent(objId, "001", "4010200", "DB 뷰어", "anl", objId);
+        insertMcmSecMenuIfAbsent(objId, "001", "DB 뷰어", "anl", objId);
         insertIfAbsentComposite(
                 "TB_MCM_SEC_ROLE_MAPPING",
                 new String[]{"ROLE_ID",  "OBJECT_ID", "PERMISSION_ID"},
@@ -74,13 +73,13 @@ public final class ModuleMenuSeeder extends SeedSupport {
     /**
      * 화면 사용 통계(csa/screenUsageStat) 메뉴 시드 (2026-10-02) — OBJECT 1 + 메뉴 leaf 1 + SYSADMIN × PERM_ALL 1.
      * 폴더는 기존 시스템관리 그룹 {@code csa} 를 쓰므로 더 만들지 않는다. componentPath={@code csa/screenUsageStat} 는
-     * m-mcm 페이지 레지스트리 키와 같다. FULL_SEQ 1020180 은 csa 기존 leaf(1020100~1020170) 다음이다.
+     * m-mcm 페이지 레지스트리 키와 같다.
      * 모두 insert-if-absent 라 재기동해도 중복 행이 생기지 않는다.
      */
     public void seedScreenUsageMenus() {
         final String objId = "screenUsageStat";
         insertMcmSecObjIfAbsent(objId, "화면 사용 통계", "mcm");
-        insertMcmSecMenuIfAbsent(objId, "001", "1020180", "화면 사용 통계", "csa", objId);
+        insertMcmSecMenuIfAbsent(objId, "001", "화면 사용 통계", "csa", objId);
         insertIfAbsentComposite(
                 "TB_MCM_SEC_ROLE_MAPPING",
                 new String[]{"ROLE_ID",  "OBJECT_ID", "PERMISSION_ID"},
@@ -94,12 +93,12 @@ public final class ModuleMenuSeeder extends SeedSupport {
      * 위젯관리(csa/commWidgetMng) 메뉴 시드 (2026-10-02, 스펙 2026-10-02-widget-admin-generic §5.2·W-D22) —
      * OBJECT 1 + 메뉴 leaf 1 + SYSADMIN × PERM_ALL 1. 관리자 서비스(정의 저장·SQL 미리보기·기본 배치·미디어 올리기)는
      * 이 OBJECT 의 메뉴 권한(RBAC)으로 보호한다. 사용자용 서비스는 AUTH_ONLY 라 여기 넣지 않는다.
-     * FULL_SEQ 1020190 은 csa 의 화면 사용 통계(1020180) 다음이다. 모두 insert-if-absent 라 재기동해도 중복 행이 생기지 않는다.
+     * 모두 insert-if-absent 라 재기동해도 중복 행이 생기지 않는다.
      */
     public void seedWidgetAdminMenus() {
         final String objId = "commWidgetMng";
         insertMcmSecObjIfAbsent(objId, "위젯 관리", "mcm");
-        insertMcmSecMenuIfAbsent(objId, "001", "1020190", "위젯 관리", "csa", objId);
+        insertMcmSecMenuIfAbsent(objId, "001", "위젯 관리", "csa", objId);
         insertIfAbsentComposite(
                 "TB_MCM_SEC_ROLE_MAPPING",
                 new String[]{"ROLE_ID",  "OBJECT_ID", "PERMISSION_ID"},
@@ -114,14 +113,14 @@ public final class ModuleMenuSeeder extends SeedSupport {
      * OBJECT 1 + 메뉴 leaf 1 + SYSADMIN × PERM_ALL 1. 폴더는 기존 시스템관리 그룹 {@code csa} 를 쓴다.
      * componentPath={@code csa/jobSchedMng} 는 m-mcm 페이지 레지스트리 키와 같다. 화면이 쓰는 action
      * (list·get·save·setUse·runNow·history·cronPreview·handlers·delete·collectData)은 {@link CoreRbacSeeder} 의 PERM_ALL 에 있다.
-     * FULL_SEQ 1020220 은 기록용 값이고, 시드 끝의 recomputeMenuFullSeq() 가 csa 안 순서(MENU_SEQ → MENU_ID)로 다시 매긴다.
+     * csa 안 순서는 MENU_SEQ, 같으면 MENU_ID 다.
      * 이미 운영 중인 DB 에는 docs/mcm/sql/jobSchedMng-menu.sql 로도 같은 행을 넣을 수 있다(둘 다 멱등이라 겹쳐도 중복이 없다).
      * 모두 insert-if-absent 라 재기동해도 중복 행이 생기지 않는다.
      */
     public void seedJobSchedMngMenu() {
         final String objId = "jobSchedMng";
         insertMcmSecObjIfAbsent(objId, "예약 작업 관리", "mcm");
-        insertMcmSecMenuIfAbsent(objId, "001", "1020220", "예약 작업 관리", "csa", objId);
+        insertMcmSecMenuIfAbsent(objId, "001", "예약 작업 관리", "csa", objId);
         insertIfAbsentComposite(
                 "TB_MCM_SEC_ROLE_MAPPING",
                 new String[]{"ROLE_ID",  "OBJECT_ID", "PERMISSION_ID"},
@@ -136,7 +135,7 @@ public final class ModuleMenuSeeder extends SeedSupport {
      * 폴더 1 + OBJECT 2 + 메뉴 leaf 2 + SYSADMIN × PERM_ALL 2.
      * <ul>
      *   <li>폴더 cmq(맞춤 레포트) — 공통관리 루트 {@code mcm} 아래 일곱 번째 그룹. MENU_SEQ '00000700' 은
-     *       lsh(공지관리 '00000600') 다음이다. FULL_SEQ 1070000 은 기록용 — recomputeMenuFullSeq() 가 다시 매긴다.</li>
+     *       lsh(공지관리 '00000600') 다음이다.</li>
      *   <li>userQuery(맞춤 레포트 조회) — cmq 폴더 첫째 leaf. 일반 역할은 운영자가 {@code PERM_USRQ_USE}(myList·getDef·run)로
      *       매핑한다(이 시드는 SYSADMIN × PERM_ALL 만 넣는다 — 미결 2 결정대로).</li>
      *   <li>userQueryMng(맞춤 레포트 관리) — cmq 폴더 둘째 leaf. componentPath 가 {@code PARENT_MENU_ID/OBJECT_ID} 로 조립되므로
@@ -150,11 +149,11 @@ public final class ModuleMenuSeeder extends SeedSupport {
      * 모두 insert-if-absent 라 재기동해도 중복 행이 생기지 않는다.
      */
     public void seedUserQueryMenus() {
-        insertMpnFld("cmq", "00000700", "맞춤 레포트", "mcm", 1070000L);
+        insertMpnFld("cmq", "00000700", "맞춤 레포트", "mcm");
 
         final String userId = "userQuery";
         insertMcmSecObjIfAbsent(userId, "맞춤 레포트 조회", "mcm");
-        insertMcmSecMenuIfAbsent(userId, "001", "1070100", "맞춤 레포트 조회", "cmq", userId);
+        insertMcmSecMenuIfAbsent(userId, "001", "맞춤 레포트 조회", "cmq", userId);
         insertIfAbsentComposite(
                 "TB_MCM_SEC_ROLE_MAPPING",
                 new String[]{"ROLE_ID",  "OBJECT_ID", "PERMISSION_ID"},
@@ -164,7 +163,7 @@ public final class ModuleMenuSeeder extends SeedSupport {
 
         final String mngId = "userQueryMng";
         insertMcmSecObjIfAbsent(mngId, "맞춤 레포트 관리", "mcm");
-        insertMcmSecMenuIfAbsent(mngId, "002", "1070200", "맞춤 레포트 관리", "cmq", mngId);
+        insertMcmSecMenuIfAbsent(mngId, "002", "맞춤 레포트 관리", "cmq", mngId);
         insertIfAbsentComposite(
                 "TB_MCM_SEC_ROLE_MAPPING",
                 new String[]{"ROLE_ID",  "OBJECT_ID", "PERMISSION_ID"},
@@ -183,8 +182,7 @@ public final class ModuleMenuSeeder extends SeedSupport {
      * <ul>
      *   <li>폴더 cmq: 「공용 조회」 → 「맞춤 레포트」</li>
      *   <li>OBJECT·메뉴 leaf 이름: 「공용 쿼리 조회」 → 「맞춤 레포트 조회」, 「쿼리 정의 관리」 → 「맞춤 레포트 관리」</li>
-     *   <li>관리 leaf userQueryMng: 부모 {@code csa} → {@code cmq}, MENU_SEQ '00000002'(조회 leaf 다음). FULL_SEQ 는 부팅 끝
-     *       recomputeMenuFullSeq() 가 다시 매긴다.</li>
+     *   <li>관리 leaf userQueryMng: 부모 {@code csa} → {@code cmq}, MENU_SEQ '00000002'(조회 leaf 다음).</li>
      * </ul>
      */
     private void renameUserQueryMenus() {
@@ -209,13 +207,13 @@ public final class ModuleMenuSeeder extends SeedSupport {
      * 조회 기본값 샘플(csa/searchDefaultsSample) 메뉴 시드 (2026-10-07, 스펙 2026-10-07-search-defaults-design §7.5) —
      * OBJECT 1 + 메뉴 leaf 1 + SYSADMIN × PERM_ALL 1. 기본값 동작을 눈과 e2e 로 확인하는 샘플 화면의 포털 진입점이다.
      * <b>local 프로필에서만</b> 부른다(호출하는 DataInitializer 가 판정 — 운영 메뉴에는 넣지 않는다). componentPath={@code csa/searchDefaultsSample}
-     * 은 m-mcm 페이지 레지스트리 키와 같다. FULL_SEQ 1020210 은 csa 의 MDM 캐시 관리(1020190) 다음이다.
+     * 은 m-mcm 페이지 레지스트리 키와 같다.
      * 모두 insert-if-absent 라 재기동해도 중복 행이 생기지 않는다.
      */
     public void seedSearchDefaultsSampleMenu() {
         final String objId = "searchDefaultsSample";
         insertMcmSecObjIfAbsent(objId, "조회 기본값 샘플", "mcm");
-        insertMcmSecMenuIfAbsent(objId, "001", "1020210", "조회 기본값 샘플", "csa", objId);
+        insertMcmSecMenuIfAbsent(objId, "001", "조회 기본값 샘플", "csa", objId);
         insertIfAbsentComposite(
                 "TB_MCM_SEC_ROLE_MAPPING",
                 new String[]{"ROLE_ID",  "OBJECT_ID", "PERMISSION_ID"},
@@ -230,7 +228,7 @@ public final class ModuleMenuSeeder extends SeedSupport {
      *
      * <ul>
      *   <li>폴더 1: lsh(공지관리) — 부모는 공통관리 루트 {@code mcm}. MENU_SEQ '00000600' 으로 기존 그룹
-     *       cma(100)·csa(200)·cme(300)·cmb(400)·cmz(500, 숨김 팝업) 뒤에 둔다 — 기존 그룹의 순서·FULL_SEQ 는 그대로다.
+     *       cma(100)·csa(200)·cme(300)·cmb(400)·cmz(500, 숨김 팝업) 뒤에 둔다 — 기존 그룹의 순서는 그대로다.
      *       폴더 ID {@code lsh} 는 식별자 사전의 mcm 그룹 예외(옛 mls 그룹 코드, 이전 때 메뉴·즐겨찾기 보존 위해 유지)이고,
      *       componentPath 가 {@code PARENT_MENU_ID/OBJECT_ID} 로 조립되므로 FE 경로 {@code lsh/noticeMgmt}
      *       (m-mcm {@code page-components/lsh/noticeMgmt/page}) 와 맞추려면 폴더 ID 를 바꾸면 안 된다.</li>
@@ -248,18 +246,17 @@ public final class ModuleMenuSeeder extends SeedSupport {
      * 역할로 거른다. 10-02 에 잠시 두었던 {@code PERM_SEARCH_ONLY} 권한 세트와 noticeBoard OBJECT·역할 매핑 시드는 뺐다.
      * 이미 시드된 DB 에 남은 그 행들은 지우지 않는다 — search 하나만 주는 행이라 AUTH_ONLY 와 결과가 같아 해가 없다.
      *
-     * <p>FULL_SEQ: 공통관리 모듈(1,000,000) + 그룹 6번째(lsh=1,060,000) + 화면(1060100). 부팅 끝 recomputeMenuFullSeq() 가
-     * 트리 위치 기준으로 다시 매긴다. 모두 멱등이다.
+     * <p>순서: lsh 는 공통관리(mcm) 안 여섯째 그룹(MENU_SEQ '00000600'), noticeMgmt 는 lsh 안 첫째 화면이다. 모두 멱등이다.
      */
     public void seedNoticeMenus() {
         // ── 폴더 (FLD) — 공통관리(mcm) 아래 lsh(공지관리). 이미 다른 부모로 시드된 DB 는 아래 보정이 옮긴다 ──
-        insertMpnFld("lsh", "00000600", "공지관리", "mcm", 1060000L);
+        insertMpnFld("lsh", "00000600", "공지관리", "mcm");
         relocateNoticeFolderToMcm();
 
         // ── noticeMgmt — OBJECT + 메뉴 leaf + SYSADMIN 전체 권한 ──
         insertMcmSecObjIfAbsent("noticeMgmt", "공지사항 관리", "mcm");
         moveNoticeObjectsToMcm();
-        insertMcmSecMenuIfAbsent("noticeMgmt", "001", "1060100", "공지사항 관리", "lsh", "noticeMgmt");
+        insertMcmSecMenuIfAbsent("noticeMgmt", "001", "공지사항 관리", "lsh", "noticeMgmt");
         insertIfAbsentComposite(
                 "TB_MCM_SEC_ROLE_MAPPING",
                 new String[]{"ROLE_ID",  "OBJECT_ID",  "PERMISSION_ID"},
@@ -290,8 +287,8 @@ public final class ModuleMenuSeeder extends SeedSupport {
      * 공지관리 폴더(lsh) 위치 보정 — 부모가 공통관리 루트({@code mcm})가 아니면 옮긴다 (2026-10-02, 멱등).
      *
      * <p>같은 날 잠깐 물류관리(mls) 루트 아래로 시드된 DB 를 맞춘다. 옮길 때 MENU_SEQ 도 '00000600' 으로 바꾼다 — 옛 값 '00000100' 그대로
-     * 공통관리 아래로 가면 cma(100)와 순번이 겹쳐 기존 그룹의 FULL_SEQ 가 한 칸씩 밀린다. 부모가 이미 {@code mcm} 이면 손대지 않으므로
-     * 메뉴 관리 화면에서 사용자가 바꾼 순서는 보존된다. FULL_SEQ 는 부팅 끝 recomputeMenuFullSeq() 가 다시 매긴다.
+     * 공통관리 아래로 가면 cma(100)와 순번이 겹쳐 그룹 순서가 흔들린다. 부모가 이미 {@code mcm} 이면 손대지 않으므로
+     * 메뉴 관리 화면에서 사용자가 바꾼 순서는 보존된다.
      */
     private void relocateNoticeFolderToMcm() {
         int n = nq("UPDATE MCMAPUSER.TB_MCM_SEC_MENU_FLD SET PARENT_MENU_ID = 'mcm', MENU_SEQ = '00000600' "

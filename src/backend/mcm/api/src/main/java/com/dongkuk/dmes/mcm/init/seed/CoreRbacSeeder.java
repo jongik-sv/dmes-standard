@@ -104,6 +104,8 @@ public final class CoreRbacSeeder extends SeedSupport {
                 "commonUserDept", "commonList",
                 "searchObj", "searchCmMenu", "searchMenuGrp", "saveCmMenu",
                 "searchCmMenuFld", "saveCmMenuFld",
+                // 2026-11-26 — 메뉴 관리 「메뉴 셋에 없는 오브젝트」(services/csa/commMenuMng.bpmn). 이미 시드된 DB 는 ensurePermAllActions 가 덧붙인다.
+                "searchUnplacedObj",
                 "searchCmRole", "saveCmRole",
                 "searchCmRoleMap", "saveCmRoleMap",
                 "searchCmPerm", "lov",

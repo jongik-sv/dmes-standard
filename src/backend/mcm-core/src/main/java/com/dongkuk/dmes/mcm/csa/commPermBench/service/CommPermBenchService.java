@@ -190,7 +190,7 @@ public class CommPermBenchService {
      *
      * <p>보임·이유·폴더 규칙·줄 순서는 {@link PermExplainService#userMenuTree}·{@link PermExplainService#roleMenuTree}(r4,
      * 런타임 {@code SecUserService.getMyMenus} 와 같은 규칙)를 그대로 쓴다. 여기서는 §0.3 칸으로 옮기기만 한다:
-     * SHOW_TP = hidden ? N : Y, SORT_SEQ = FULL_SEQ, VISIBLE = visible ? Y : N, REASON = r4 이유 이름
+     * SHOW_TP = hidden ? N : Y, SORT_SEQ = MENU_SEQ 8자리 0 채움(2026-11-27 FULL_SEQ 삭제), VISIBLE = visible ? Y : N, REASON = r4 이유 이름
      * (보이지만 숨김 = Y·MENU_HIDDEN, 안 보이는데 이유가 비면 NO_PERM — VISIBLE=N 이면 REASON 은 늘 채운다).
      * 끝 칸 OBJ_USE_TP = 오브젝트의 USE_TP(폴더·OBJECT_ID 없음·없는 오브젝트는 null). 역할 기준에서 FE 가 「오브젝트 사용 안 함」 표시에 쓴다.
      *

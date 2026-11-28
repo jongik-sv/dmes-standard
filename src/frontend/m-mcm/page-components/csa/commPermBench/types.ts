@@ -108,7 +108,7 @@ export interface BenchMenuRow {
   MENU_NM: string;
   /** 화면 메뉴만 값이 있다. 모듈·폴더는 null. */
   OBJECT_ID: string | null;
-  /** 서버는 FULL_SEQ 를 글로 준다(없으면 null). 줄 순서는 서버 순서를 따르고 이 값으로 정렬하지 않는다. */
+  /** 서버는 형제 순서 MENU_SEQ 를 8자리 0 채움 글로 준다(2026-11-27 FULL_SEQ 삭제, 없으면 null). 줄 순서는 서버 순서를 따르고 이 값으로 정렬하지 않는다. */
   SORT_SEQ: string | null;
   SHOW_TP: YN;
   USE_TP: YN;
