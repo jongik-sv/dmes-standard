@@ -84,6 +84,23 @@ final class ErdClaimStore {
                 modelId, tableId, session);
     }
 
+    /** 그 사용자의 표시가 걸린 모델 id(만료된 것 포함). 퇴직 처리가 지우기 전에 방송할 모델을 고른다. */
+    List<String> modelsOf(String userId) {
+        return jdbc.queryForList("""
+                SELECT DISTINCT A.ERD_MODEL_ID
+                FROM   TB_MDM_ERD_CLAIM A
+                WHERE  A.USER_ID = ?
+                """, String.class, userId);
+    }
+
+    /** 그 사용자의 표시를 모두 지운다(만료된 것 포함). 지운 행 수를 돌려준다. */
+    int deleteByUser(String userId) {
+        return jdbc.update("""
+                DELETE FROM TB_MDM_ERD_CLAIM A
+                WHERE  A.USER_ID = ?
+                """, userId);
+    }
+
     /** 만료가 지나지 않은 표시만, 표 id 순. */
     List<ErdClaimView> live(String modelId) {
         return jdbc.query("""

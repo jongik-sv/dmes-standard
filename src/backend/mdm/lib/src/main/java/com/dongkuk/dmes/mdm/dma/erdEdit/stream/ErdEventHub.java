@@ -587,6 +587,17 @@ public class ErdEventHub {
         if (n > 0) afterCommit(() -> refreshClaims(modelId));
     }
 
+    /**
+     * 그 사용자의 작업 중 표시를 세션·모델과 상관없이 모두 지운다(퇴직 처리 — MCM 서버 호출). 만료된 표시도 지운다. 지운 행 수를 돌려준다.
+     * 방송 시점은 {@link #release} 와 같다 — 표시가 있던 모델마다 커밋 뒤 목록을 다시 보낸다.
+     */
+    public int releaseAllOf(String userId) {
+        List<String> models = claimStore.modelsOf(userId);
+        int n = claimStore.deleteByUser(userId);
+        if (n > 0) afterCommit(() -> models.forEach(this::refreshClaims));
+        return n;
+    }
+
     /** 트랜잭션 안이면 커밋 뒤에, 밖이면(자동 커밋) 바로 돈다. 롤백되면 돌지 않는다. */
     private static void afterCommit(Runnable r) {
         if (TransactionSynchronizationManager.isSynchronizationActive() && TransactionSynchronizationManager.isActualTransactionActive()) {
