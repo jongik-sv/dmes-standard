@@ -11,6 +11,9 @@ src/backend/analog/api/src/test/resources/fixture-logs/** -text
 *.cmd text eol=crlf
 *.ps1 text eol=crlf
 
+# SQL(Flyway V 파일 등) — 줄끝 LF 고정. Windows CRLF 체크아웃이면 여러 줄 문자열 시드(V15)의 DB 값에 CR 이 들어가 PC 마다 달라진다(Flyway 체크섬은 줄끝과 무관).
+*.sql text eol=lf
+
 # dflow-kit — 스킬 스크립트 줄끝 고정
 .claude/skills/** text eol=lf
 # 동봉 바이너리는 줄끝 변환·diff 대상이 아니다(위 text 규칙보다 뒤에 둬야 이긴다)
