@@ -70,7 +70,8 @@ import org.springframework.transaction.support.TransactionTemplate;
  * 새로 쓴 뒤 회귀를 놓친 채 통과하는 일을 막는다). mcm 의 build.gradle 은 시스템 속성을 테스트 JVM 으로 넘기지 않으므로 gradle 실행에서는
  * 환경 변수를 쓴다: {@code FINGERPRINT_UPDATE=true ../gradlew :api:test --tests '*DataInitializerSeedFingerprintTest'}.
  * 골든은 classpath 사본이 아니라 소스 경로(작업 디렉터리 mcm/api 기준)를 읽고 쓴다. 비교 전에 읽은 골든과 실제 값의 줄바꿈을
- * {@code \n} 으로 맞춘다(Windows 체크아웃의 CRLF 대비).
+ * {@code \n} 으로 맞춘다(Windows 체크아웃의 CRLF 대비). 해시하는 칸 값의 줄바꿈도 같은 까닭으로 {@code \n} 으로 맞춘다 — V 파일 여러 줄
+ * 문자열이 체크아웃 줄끝을 그대로 DB 에 담는다(2026-11-28, TB_MCM_USRQ_DEF.SQL_TEXT 가 맥 LF·WIN30 CRLF 로 달랐다).
  */
 class DataInitializerSeedFingerprintTest {
 
@@ -304,7 +305,9 @@ class DataInitializerSeedFingerprintTest {
                     for (int i = 0; i < cols.size(); i++) {
                         if (i > 0) sb.append('\u001F');
                         String v = rs.getString(i + 1);
-                        sb.append(cols.get(i)).append('=').append(v == null ? "NULL" : "'" + v.replace("'", "''") + "'");
+                        // 값의 줄바꿈도 \n 으로 맞춘다 — V 파일의 여러 줄 문자열(TB_MCM_USRQ_DEF.SQL_TEXT 견본 SQL)은 체크아웃 줄끝을
+                        // 그대로 담는다(Windows autocrlf 체크아웃 = CRLF, 맥 = LF). 맞추지 않으면 PC 마다 해시가 다르다(2026-11-28 실측).
+                        sb.append(cols.get(i)).append('=').append(v == null ? "NULL" : "'" + normalizeNewlines(v).replace("'", "''") + "'");
                     }
                     rows.add(sb.toString());
                 });
@@ -389,7 +392,10 @@ class DataInitializerSeedFingerprintTest {
         return out;
     }
 
-    /** 줄바꿈을 {@code \n} 으로 맞춘다 — Windows 체크아웃(autocrlf)에서 골든이 CRLF 로 바뀌어도 같은 내용이면 같게 본다. */
+    /**
+     * 줄바꿈을 {@code \n} 으로 맞춘다 — Windows 체크아웃(autocrlf)에서 골든이 CRLF 로 바뀌어도 같은 내용이면 같게 본다.
+     * 해시하는 칸 값에도 쓴다(V 파일 여러 줄 문자열이 체크아웃 줄끝을 담는다).
+     */
     private static String normalizeNewlines(String s) {
         return s.replace("\r\n", "\n").replace('\r', '\n');
     }
