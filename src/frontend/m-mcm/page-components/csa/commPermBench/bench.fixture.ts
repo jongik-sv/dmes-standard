@@ -51,6 +51,7 @@ import {
   type YN,
 } from "./types";
 import { HISTORY_DEFAULT_DAYS, HISTORY_MAX_ROWS, historyRangeError, localDate, minusDays } from "./draft";
+import { BENCH_USER_LIMIT } from "./model";
 
 // ── 토큰 ─────────────────────────────────────────────────────
 
@@ -576,6 +577,8 @@ export function createMockPermBenchApi(options: MockPermBenchOptions = {}): Mock
         const gids = new Set([...g.groupRoles].filter(([, r]) => r.includes(params.roleId!)).map(([gid]) => gid));
         users = users.filter((u) => g.userGroups.get(u.USER_ID)?.some((x) => gids.has(x)));
       }
+      // 실제 서버(CommPermBenchService.USER_LIMIT)처럼 USER_ID 순 앞 200명만 준다
+      users = [...users].sort((a, b) => (a.USER_ID < b.USER_ID ? -1 : a.USER_ID > b.USER_ID ? 1 : 0)).slice(0, BENCH_USER_LIMIT);
       const userCnt = new Map<string, number>();
       for (const list of g.userGroups.values()) list.forEach((gid) => userCnt.set(gid, (userCnt.get(gid) ?? 0) + 1));
       const groups: BenchGroupRow[] = g.groups.map((x) => ({ ROLE_GROUP_ID: x.id, ROLE_GROUP_NM: x.name, USE_TP: x.use, USER_CNT: userCnt.get(x.id) ?? 0 }));

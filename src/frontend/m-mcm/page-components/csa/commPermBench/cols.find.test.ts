@@ -107,12 +107,16 @@ describe("commPermBench 칸 찾기·정렬", () => {
   it("역할 그룹 칸: ID·이름으로 찾고, 고른 그룹은 걸러져도 정렬 자리에 남는다", async () => {
     const bench = await loadBench();
     const sorted = sortRows(bench.groups, COL_SORT_DEFAULT, (g) => g.ROLE_GROUP_ID, (g) => g.ROLE_GROUP_NM);
-    const sel = sorted[sorted.length - 1];
-    const other = sorted[1];
-    const userId = bench.users.find((u) => (bench.userGroups.get(u.USER_ID) ?? []).includes(sel.ROLE_GROUP_ID))!.USER_ID;
+    // 가짜 서버는 사람을 앞 200명만 준다 — 그 안에 사람이 있는 그룹 가운데 정렬상 마지막을 고른다
+    const memberOf = (gid: string) => bench.users.find((u) => (bench.userGroups.get(u.USER_ID) ?? []).includes(gid));
+    const selAt = sorted.map((g) => !!memberOf(g.ROLE_GROUP_ID)).lastIndexOf(true);
+    const sel = sorted[selAt];
+    const other = sorted.find((g, i) => i < selAt && i > 0) ?? sorted[0];
+    expect(selAt).toBeGreaterThan(1);
+    const userId = memberOf(sel.ROLE_GROUP_ID)!.USER_ID;
     await show(bench, createElement(GroupCol, { userId, groupId: sel.ROLE_GROUP_ID, canEdit: false, onSelect: () => {}, onToggleMember: () => {} }));
     expectNames(names(), sorted.map((g) => g.ROLE_GROUP_NM));
-    expect(onIndex()).toBe(sorted.length - 1);
+    expect(onIndex()).toBe(selAt);
 
     const word = other.ROLE_GROUP_ID.toLowerCase();
     await type("그룹 이름·ROLE_GROUP_ID 찾기", word);
@@ -120,7 +124,8 @@ describe("commPermBench 칸 찾기·정렬", () => {
     expect(hint()).toContain(`${hits.length}개 찾음`);
     const want = sorted.filter((g) => hits.includes(g) || g === sel);
     expectNames(names(), want.map((g) => g.ROLE_GROUP_NM));
-    expect(onIndex()).toBe(want.length - 1); // 맨 위가 아니라 끝(자기 자리)
+    expect(onIndex()).toBe(want.indexOf(sel)); // 맨 위가 아니라 정렬된 자기 자리
+    expect(want.indexOf(sel)).toBeGreaterThan(0);
 
     await type("그룹 이름·ROLE_GROUP_ID 찾기", "없는그룹말");
     expect(hint()).toContain("0개 찾음");

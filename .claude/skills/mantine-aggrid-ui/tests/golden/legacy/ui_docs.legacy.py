@@ -31,19 +31,18 @@ SHARED = FRONT / "shared" / "src"
 # 색인 묶음: (제목, 서브패스 설명, 문서 파일명 목록). 새 문서를 추가하면 여기에 넣는다.
 GROUPS: list[tuple[str, list[str]]] = [
     ("화면 골격 (`@dk-oasis/shared/layout`)", ["page-layout", "search-area", "search-settings-menu", "content-body", "detail-form"]),
-    ("입력 (`@dk-oasis/shared/form`)", [
-        "button", "input", "select", "combo-box", "multi-select-combo-box", "date-picker",
-        "date-time-picker", "checkbox", "radio", "segmented-control", "textarea", "form-group", "loading", "badge",
-        "select-or-input",
-    ]),
+    ("입력 (`@dk-oasis/shared/form`)", ["button", "input", "select", "combo-box", "multi-select-combo-box", "date-picker", "date-range-picker", "date-time-picker", "checkbox", "radio", "segmented-control", "textarea", "form-group", "loading", "badge", "select-or-input", "use-detail-draft", "use-busy"]),
     ("목록 (`@dk-oasis/shared/grid`)", ["ag-data-grid", "grid-panel", "use-grid-data-manager", "grid-badge", "pagination", "editable-row-list", "column-settings-modal", "grid-excel-foot", "grid-limit-notice"]),
     ("팝업·메시지 (`modal`, `message-provider`, `use-api-call`)", ["modal", "message"]),
     ("대시보드 (`@dk-oasis/shared/dashboard`)", ["dashboard"]),
     ("위젯 (`@dk-oasis/shared/widget`)", ["widget"]),
     ("화면 문맥 — 업무 화면 ↔ 도구 창 위젯 (`@dk-oasis/shared/screen-context`)", ["screen-context"]),
     ("위젯 도크·떠 있는 창·탭 분리 창·분리 상태 이어받기 (`@dk-oasis/shared/portal-shell`)", ["widget-dock", "floating-window", "portal-page-window", "use-carry-state"]),
+    ("떠 있는 창 — 비모달 (`@dk-oasis/shared/floating-panel`)", ["floating-panel"]),
+    ("처음 둘러보기 — 말풍선 안내 (`@dk-oasis/shared/tour`)", ["tour"]),
+    ("React Flow 캔버스 (`@dk-oasis/shared/react-flow`)", ["react-flow"]),
     ("MDM 화면 메타 (`@dk-oasis/shared/mdm-meta`)", ["mdm-meta"]),
-    ("탭·트리·룩업·기타", ["tabs", "closable-tabs", "tree", "lookup", "lookup-multi-modal", "markdown-editor", "html-editor", "notice-body-view", "detail-popover", "grid-resize-box", "json-view", "card", "transfer-list", "matrix-table", "charts", "export-to-excel", "print-element-as-page", "icons"]),
+    ("탭·트리·룩업·기타", ["tabs", "closable-tabs", "tree", "lookup", "lookup-multi-modal", "markdown-editor", "html-editor", "notice-body-view", "code-editor", "detail-popover", "grid-resize-box", "json-view", "cron-input", "variable-table", "card", "transfer-list", "matrix-table", "resizable-columns", "token-chip-input", "toggle-chip-group", "sort-toggle", "charts", "export-to-excel", "print-element-as-page", "icons"]),
 ]
 
 # 화면 문서에 싣지 않는 shared export 와 이유. coverage 가 이 목록을 "의도적 제외"로 본다.
@@ -123,8 +122,16 @@ EXPORT_FILES = [
     "components/detail-popover/index.ts",
     "components/grid-resize-box/index.ts",
     "components/json-view/index.ts",
+    "components/react-flow/index.ts",
+    "components/code-editor/index.ts",
+    "components/cron-input/index.ts",
+    "components/variable-table/index.ts",
     "components/card/index.ts",
     "components/transfer-list/index.ts",
+    "components/resizable-columns/index.ts",
+    "components/token-chip-input/index.ts",
+    "components/toggle-chip-group/index.ts",
+    "components/sort-toggle/index.ts",
     "components/dashboard/index.ts",
     "widget/index.ts",
     "widget-dock/index.ts",
