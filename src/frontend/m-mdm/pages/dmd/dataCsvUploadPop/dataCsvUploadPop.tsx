@@ -155,7 +155,8 @@ export function DataCsvUploadPopModal({
     >
       <div
         data-testid="csv-pop"
-        style={{ display: "flex", flexDirection: "column", gap: "var(--spacing-xs)", padding: "var(--spacing-sm)" }}
+        // 팝업 높이 채움(2026-11-26) — lg 팝업의 최소 높이(70vh)에서 남는 세로 공간을 검증 결과 그리드가 채운다.
+        style={{ display: "flex", flexDirection: "column", gap: "var(--spacing-xs)", padding: "var(--spacing-sm)", flex: 1, minHeight: 0 }}
       >
         <p style={{ color: "var(--color-text-secondary)", margin: 0 }}>
           열 {lvlCnt}차까지 계층{attrLabels.length > 0 ? `, 추가 칸 ${attrLabels.map((a) => a.label).join("·")}` : ""} —
@@ -188,14 +189,17 @@ export function DataCsvUploadPopModal({
         )}
 
         {result && (
-          <div data-testid="csv-pop-rows" style={{ height: 260 }}>
-            <AgDataGrid gridId="modal-csvUploadResult"
-              columnSizing="fit"
-              columns={columns}
-              data={rows as unknown as Record<string, unknown>[]}
-              rowKey="lineNo"
-              emptyMessage="결과가 없습니다."
-            />
+          // flex 로 늘어난 칸의 높이는 자식 height:100% 의 기준이 되지 못하므로, 그리드는 absolute 칸으로 그 높이를 받는다.
+          <div data-testid="csv-pop-rows" style={{ flex: 1, minHeight: 200, position: "relative" }}>
+            <div style={{ position: "absolute", inset: 0 }}>
+              <AgDataGrid gridId="modal-csvUploadResult"
+                columnSizing="fit"
+                columns={columns}
+                data={rows as unknown as Record<string, unknown>[]}
+                rowKey="lineNo"
+                emptyMessage="결과가 없습니다."
+              />
+            </div>
           </div>
         )}
 

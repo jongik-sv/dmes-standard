@@ -59,7 +59,10 @@ export interface ModelListModalProps {
   onDelete(modelId: string): Promise<DeleteOutcome>;
 }
 
-const GRID_BOX: CSSProperties = { position: "relative", height: 320 };
+// 팝업 높이 채움(2026-11-26) — lg 팝업은 최소 높이(70vh)가 있어 고정 높이로 두면 아래가 빈다.
+// shared `.cm-modal-body`(flex column) 사슬을 BODY 가 이어 받고, GRID_BOX 가 남는 높이를 채운다. 그리드는 FILL(absolute)로 그 높이를 받는다.
+const BODY: CSSProperties = { flex: 1, minHeight: 0, display: "flex", flexDirection: "column" };
+const GRID_BOX: CSSProperties = { position: "relative", flex: 1, minHeight: 200 };
 const FILL: CSSProperties = { position: "absolute", inset: 0 };
 
 export function ModelListModal({ opened, models, currentModelId, onClose, onOpenModel, onDelete }: ModelListModalProps) {
@@ -132,7 +135,7 @@ export function ModelListModal({ opened, models, currentModelId, onClose, onOpen
             <Button data-testid="erd-models-close" onClick={onClose}>닫기</Button>
           </>
         )}>
-        <div data-testid="erd-models">
+        <div data-testid="erd-models" style={BODY}>
           <div style={GRID_BOX}>
             <div style={FILL}>
               <AgDataGrid gridId="erdModels" columnSizing="fit" columns={MODEL_LIST_COLUMNS} data={rows} rowKey="id"

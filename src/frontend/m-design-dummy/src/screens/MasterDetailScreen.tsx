@@ -585,7 +585,8 @@ export function MasterDetailScreen() {
           </>
         }
       >
-        <GridPanel title="미할당·공용 자원" count={availableResources.length}>
+        {/* 팝업 높이 채움(2026-11-26) — GridPanel 은 모달 본문에서 flex:1 1 0 으로 남는 높이를 채운다. 그리드에 height 를 주지 않는다. */}
+        <GridPanel title="미할당·공용 자원" count={availableResources.length} style={{ minHeight: 240 }}>
           <AgDataGrid
             columns={RESOURCE_LOOKUP_COLUMNS}
             data={gridRows(availableResources)}
@@ -595,7 +596,6 @@ export function MasterDetailScreen() {
             selectedRows={poolSelection}
             onRowSelect={(ids) => setPoolSelection(ids)}
             columnSizing="fit"
-            height={320}
             emptyMessage="할당 가능한 자원이 없습니다."
           />
         </GridPanel>

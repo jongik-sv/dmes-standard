@@ -353,11 +353,13 @@
   background-color: var(--color-primary-soft);
 }
 
+/* 팝업 높이 채움(2026-11-26) — xl 팝업의 최소 높이(80vh)에서 남는 세로 공간을 채운다(고정 60vh 는 아래가 빈다).
+   flex-basis 0 이라 긴 본문이 칸을 키우지 않고, 본문(.anl-db-lob-text)이 안에서 스크롤한다. */
 .anl-db-lob-body {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  height: 60vh;
+  flex: 1 1 0;
   min-height: 240px;
 }
 

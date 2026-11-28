@@ -12,6 +12,13 @@ import { ColumnPhysName } from "@/column-info";
 import type { ColumnInfo } from "./types";
 import { empty, hint, row } from "./styles";
 
+// 팝업 높이 채움(2026-11-26) — lg 팝업은 최소 높이(70vh)가 있어 그리드를 고정 높이로 두면 아래가 빈다.
+// shared `.cm-modal-body`(flex column) 사슬을 BODY 가 이어 받고, GRID_BOX 가 남는 높이를 채운다.
+// flex 로 늘어난 칸은 자식 height:100% 의 기준이 되지 못하므로 그리드는 GRID_FILL(absolute)로 그 높이를 받는다.
+const BODY = { flex: 1, minHeight: 0, display: "flex", flexDirection: "column" } as const;
+const GRID_BOX = { flex: 1, minHeight: 200, position: "relative" } as const;
+const GRID_FILL = { position: "absolute", inset: 0 } as const;
+
 const COLUMNS: GridColumn[] = [
   { key: "PHYS_NAME", header: "표준 물리명", width: 160, render: (v) => <ColumnPhysName physName={v as string | null} /> },
   { key: "DISPLAY_NAME", header: "표시명", width: 160 },
@@ -83,7 +90,7 @@ export function ColumnPickModal({ open, onClose, onPick, search, used = [], grid
         </div>
       }
     >
-      <div data-testid="column-pick-modal">
+      <div data-testid="column-pick-modal" style={BODY}>
         <div style={{ ...row, marginBottom: "var(--spacing-sm)" }}>
           <Input data-testid="column-pick-keyword" aria-label="컬럼 검색어" placeholder="물리명·논리명·표시명"
             value={keyword} onChange={setKeyword}
@@ -95,7 +102,8 @@ export function ColumnPickModal({ open, onClose, onPick, search, used = [], grid
         {error && <p className="form-error-message" style={{ whiteSpace: "pre-line" }}>{error}</p>}
         {rows === null && <p style={empty}>검색어를 넣고 조회하세요. 컬럼 사전에 있는 컬럼만 항목이 됩니다.</p>}
         {/* 조회 전·오류로 0건이면 숨기되(display:none) 그리드는 늘 마운트해 0↔N건 전환 때 다시 만들지 않는다 */}
-        <div data-testid="column-pick-grid" style={rows === null || (rows.length === 0 && error) ? { display: "none" } : undefined}>
+        <div data-testid="column-pick-grid" style={rows === null || (rows.length === 0 && error) ? { display: "none" } : GRID_BOX}>
+          <div style={GRID_FILL}>
           <AgDataGrid gridId={gridId}
             columnSizing="fit"
             columns={COLUMNS}
@@ -103,7 +111,6 @@ export function ColumnPickModal({ open, onClose, onPick, search, used = [], grid
             emptyMessage="컬럼 사전에 없습니다. 먼저 컬럼 사전에 등재하세요"
             emptyTestId="column-pick-empty"
             rowKey="PHYS_NAME"
-            height={280}
             highlightedRowKey={selected?.PHYS_NAME ?? null}
             onRowClick={(r) => setSelected(r as unknown as ColumnInfo)}
             onRowDoubleClick={(r) => {
@@ -113,6 +120,7 @@ export function ColumnPickModal({ open, onClose, onPick, search, used = [], grid
               close();
             }}
           />
+          </div>
         </div>
       </div>
     </Modal>

@@ -236,9 +236,15 @@ export function TermRegPopModal({
           flexDirection: "column",
           gap: "var(--spacing-xs)",
           padding: "var(--spacing-sm)",
+          // 팝업 높이 채움(2026-11-26) — lg 팝업의 최소 높이(70vh)에서 남는 세로 공간을 유사어 그리드가 채운다.
+          // 등록 폼·안내 줄은 내용 높이를 그대로 쓴다(flex 항목의 min-height:auto 로 줄지 않는다).
+          flex: 1,
+          minHeight: 0,
         }}
       >
-        <div data-testid="term-pop-similar" style={{ height: 180 }}>
+        {/* flex 로 늘어난 칸의 높이는 자식 height:100% 의 기준이 되지 못하므로, 그리드는 absolute 칸으로 그 높이를 받는다. */}
+        <div data-testid="term-pop-similar" style={{ flex: 1, minHeight: 180, position: "relative" }}>
+          <div style={{ position: "absolute", inset: 0 }}>
           <AgDataGrid gridId="modal-similarTerms"
             title="1. 유사어 확인"
             columnSizing="fit"
@@ -247,6 +253,7 @@ export function TermRegPopModal({
             rowKey="termId"
             emptyMessage="비슷한 용어가 없습니다."
           />
+          </div>
         </div>
 
         <p style={sectionTitleStyle}>2. 새 용어 등록</p>
