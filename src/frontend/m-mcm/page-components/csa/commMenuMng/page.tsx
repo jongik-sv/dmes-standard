@@ -25,7 +25,7 @@
  *   - G BE: END_OF_TIME = 9999-12-31 00:00:00 (W5 정합, AsIs Mapper #{} 직접 바인딩 결과 정합).
  */
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   PageLayout,
   SearchArea,
@@ -37,7 +37,7 @@ import {
   DETAIL_LABEL_CELL,
   DETAIL_VALUE_CELL,
 } from "@dk-oasis/shared/layout";
-import { GridPanel, AgDataGrid, GRID_HEADER_HEIGHT, type GridColumn } from "@dk-oasis/shared/grid";
+import { GridPanel, AgDataGrid, GRID_HEADER_HEIGHT, type GridColumn, type GridRowDropZone } from "@dk-oasis/shared/grid";
 import {
   Input,
   Select,
@@ -48,7 +48,7 @@ import {
 } from "@dk-oasis/shared/form";
 import { MdmFieldLabel } from "@dk-oasis/shared/mdm-meta";
 import { Modal } from "@dk-oasis/shared/modal";
-import { Tree, type TreeNode } from "@dk-oasis/shared/tree";
+import { Tree, treeNodeIdAt, type TreeNode } from "@dk-oasis/shared/tree";
 import "@dk-oasis/shared/tree.css";
 import { useMessage } from "@dk-oasis/shared/message-provider";
 import { useCarryRestored, useCarryState } from "@dk-oasis/shared/portal-shell";
@@ -60,6 +60,7 @@ import {
   commonList as apiCommonList,
   searchCmMenuFld as apiSearchCmMenuFld,
   saveCmMenuFld as apiSaveCmMenuFld,
+  searchUnplacedObj as apiSearchUnplacedObj,
   type CommMenuMngFldRow,
 } from "./api";
 import { useOpenWith } from "@/page-components/csa/commPermBench/nav";
@@ -69,8 +70,10 @@ import type {
   CommMenuMngObjRow,
   CommMenuMngRow,
   CommMenuMngTreeRow,
+  CommMenuMngUnplacedObjRow,
   RowStatus,
 } from "./types";
+import { applyReorder, folderOrder, maxSeqIn, moveToFolder, SEQ_STEP, sortMenuRows } from "./menu-order";
 
 interface GridRow extends Record<string, unknown> {
   __gridTempId?: string;
@@ -130,7 +133,18 @@ function fromIsoDate(iso: string): string {
   return iso;
 }
 
+/**
+ * 메뉴 셋 (2026-11-26) — 지금은 메뉴의 MENU_TP 값이다. 사용자별·외부 사용자용 셋이 생기면 여기에 더한다.
+ * 조회 조건 맨 앞에 두고 비우지 않는다(목록·순서·「메뉴에 없는 오브젝트」 는 한 셋 안에서만 맞다).
+ */
+const MENU_SET_OPTIONS: { value: string; label: string }[] = [
+  { value: "WEB", label: "웹 (WEB)" },
+  { value: "MOBIL", label: "모바일 (MOBIL)" },
+];
+const DEFAULT_MENU_SET = "WEB";
+
 const DEFAULT_FILTERS: CommMenuMngFilters = {
+  cbo_MENU_TP: DEFAULT_MENU_SET,
   edt_MENU_ID: "",
   edt_MENU_NM: "",
   cbo_USE_TP: "",
@@ -155,11 +169,9 @@ const MENU_VIEW_YN_OPTIONS: { value: string; label: string }[] = [
   { value: "N", label: "미표시" },
 ];
 
-/** D-011 — LV-003 cbo_menu_tp 내부 hardcoded WEB/MOBIL — label 포함. */
-const MENU_TP_OPTIONS: { value: string; label: string }[] = [
-  { value: "WEB", label: "WEB" },
-  { value: "MOBIL", label: "MOBIL" },
-];
+/** D-011 — 메뉴 셋 (상세 폼). 조회 조건과 같은 목록이다. */
+const MENU_TP_OPTIONS = MENU_SET_OPTIONS;
+const MENU_SET_LABEL_MAP: Record<string, string> = Object.fromEntries(MENU_SET_OPTIONS.map((o) => [o.value, o.label]));
 
 // 2026-06-02 W5 패턴 D — LABEL_MAP 통일 (Object.fromEntries 대신 명시 Record).
 const USE_TP_LABEL_MAP: Record<string, string> = { Y: "사용", N: "미사용" };
@@ -184,12 +196,51 @@ function normalizeViewYn(v: unknown): "Y" | "N" {
  * 사유: 본 화면은 "행 클릭 → Detail 폼에서 수정" 패턴 (AsIs xfdl div_main_grd_M0F0_oncellclick + BindItem).
  * AsIs xfdl 도 ds_menuList 가 Detail 폼과 BindItem 양방향 bind 되어 그리드 셀 직접 편집은 의도 ✗.
  */
-const MENU_LIST_COLUMNS: GridColumn[] = [
-  { key: "MENU_SEQ", header: "메뉴순서", width: 80, editable: false, align: "center" },
-  { key: "MENU_ID", header: "메뉴 ID *", width: 80, editable: false, align: "left" },
-  { key: "MENU_NM", header: "메뉴명 *", width: 140, editable: false, align: "left" },
+/**
+ * 2026-11-26 — 끌어 놓기 편집:
+ *   - 「순서」 칸이 끌기 손잡이다(rowDragField). 체크한 여러 행을 함께 끌 수 있다.
+ *   - 「상위 폴더」 칸을 더했다 — 폴더가 섞인 목록에서 끈 행이 어느 폴더로 들어갔는지 보이게 한다.
+ *   - MENU_ID 가 빈 신규 행은 저장 때 BE 가 OBJECT_ID 로 정한다(「저장 시 자동」 으로 보인다).
+ */
+const MENU_DRAG_FIELD = "MENU_SEQ";
+
+function buildMenuListColumns(folderNameOf: (id: string) => string): GridColumn[] {
+  return [
+    {
+      key: "MENU_SEQ",
+      header: "순서",
+      width: 80,
+      editable: false,
+      align: "right",
+      // 저장값은 8자리 0 채움("00000010")이다. 숫자로 보인다.
+      render: (v) => {
+        const t = String(v ?? "").trim();
+        return /^\d+$/.test(t) ? String(Number(t)) : t;
+      },
+    },
+    {
+      key: "MENU_ID",
+      header: "메뉴 ID",
+      width: 120,
+      editable: false,
+      align: "left",
+      render: (v) => (String(v ?? "") ? String(v) : <span style={{ color: "var(--color-text-muted)" }}>저장 시 자동</span>),
+    },
+    { key: "MENU_NM", header: "메뉴명 *", width: 140, editable: false, align: "left" },
+    {
+      key: "PARENT_MENU_ID",
+      header: "상위 폴더",
+      width: 120,
+      editable: false,
+      align: "left",
+      render: (v) => folderNameOf(String(v ?? "")),
+    },
+    ...MENU_LIST_COLUMNS_REST,
+  ];
+}
+
+const MENU_LIST_COLUMNS_REST: GridColumn[] = [
   { key: "OBJECT_ID", header: "OBJECT ID *", width: 140, editable: false, align: "left" },
-  { key: "FULL_SEQ", header: "FULL SEQ", width: 80, editable: false, align: "center" },
   {
     key: "USE_TP",
     header: "사용구분",
@@ -200,10 +251,11 @@ const MENU_LIST_COLUMNS: GridColumn[] = [
   },
   {
     key: "MENU_TP",
-    header: "메뉴타입",
-    width: 80,
+    header: "메뉴 셋",
+    width: 90,
     editable: false,
     align: "center",
+    render: (v) => MENU_SET_LABEL_MAP[String(v ?? "")] ?? String(v ?? ""),
   },
   {
     key: "START_ACTIVE_DATE",
@@ -241,9 +293,7 @@ const MENU_LIST_COLUMNS: GridColumn[] = [
  * 변환 규칙:
  *  - PARENT_MENU_ID = null/blank → root 노드 (LEV=0)
  *  - PARENT_MENU_ID = parent.MENU_ID → 자식 노드
- *  - 정렬 (2026-06-04 사용자 지시): MENU_SEQ asc (numeric) 1차 + FULL_SEQ asc (string) tiebreak.
- *    FLD owner row 는 FULL_SEQ 미보유 → MENU_SEQ 단독 정렬 (FLD 의 MENU_SEQ 는 unique 시드).
- *    leaf MENU 행 (SEC_MENU) 이 트리에 합류할 경우 FULL_SEQ tiebreak 적용.
+ *  - 정렬: 같은 부모 안에서 MENU_SEQ asc (numeric) → MENU_ID. 2026-11-27 FULL_SEQ 삭제(사이드바 BE MenuOrder 와 같은 규칙).
  *
  * AsIs `treeinitstatus="expand,all"` → ToBe 는 expanded set 에 모든 노드 ID 자동 포함 (사용자 결정 시 collapse 가능).
  */
@@ -254,7 +304,7 @@ function buildMenuTree(rows: CommMenuMngTreeRow[]): {
   if (!rows || rows.length === 0) return { nodes: [], allIds: [] };
   const nodeMap = new Map<string, TreeNode & { children: TreeNode[] }>();
   const allIds: string[] = [];
-  // raw row 보관 — 정렬 시 MENU_SEQ / FULL_SEQ 액세스용.
+  // raw row 보관 — 정렬 시 MENU_SEQ 액세스용.
   const rawMap = new Map<string, CommMenuMngTreeRow>();
 
   // 1차 패스: 모든 노드 생성 (MENU_ID 기준)
@@ -292,7 +342,7 @@ function buildMenuTree(rows: CommMenuMngTreeRow[]): {
     }
   }
 
-  // 3차 패스: 각 노드의 children 을 MENU_SEQ asc (numeric) + FULL_SEQ tiebreak 으로 정렬.
+  // 3차 패스: 각 노드의 children 을 MENU_SEQ asc (numeric) → MENU_ID 로 정렬.
   // (2026-06-04 사용자 지시 — buildMenuTree 정렬 보장).
   const cmp = (aId: string | number, bId: string | number): number => {
     const ra = rawMap.get(String(aId));
@@ -308,8 +358,8 @@ function buildMenuTree(rows: CommMenuMngTreeRow[]): {
       const cs = String(ra?.MENU_SEQ ?? "").localeCompare(String(rb?.MENU_SEQ ?? ""));
       if (cs !== 0) return cs;
     }
-    // tie-break — FULL_SEQ string asc
-    return String(ra?.FULL_SEQ ?? "").localeCompare(String(rb?.FULL_SEQ ?? ""));
+    // tie-break — MENU_ID
+    return String(aId).localeCompare(String(bId));
   };
   const sortRec = (list: TreeNode[]): void => {
     list.sort((a, b) => cmp(a.id, b.id));
@@ -322,37 +372,17 @@ function buildMenuTree(rows: CommMenuMngTreeRow[]): {
   return { nodes: roots, allIds };
 }
 
-/** OBJECT 그리드 컬럼 — GO-001~GO-009 (To-Be 8 컬럼, GO-008 BIZ_SYSTEM_CODE 폐기). 디자인 §4.3. */
-const OBJ_COLUMNS: GridColumn[] = [
-  { key: "FORM_URL", header: "FORM URL", width: 160, editable: false, align: "left" },
-  { key: "SERVICE", header: "SERVICE", meta: false, width: 120, editable: false, align: "left" },
-  { key: "PARAM", header: "PARAM", meta: false, width: 120, editable: false, align: "left" },
-  {
-    key: "USE_TP",
-    header: "사용 유무",
-    width: 70,
-    editable: false,
-    align: "center",
-    render: (v) => USE_TP_LABEL_MAP[String(v ?? "")] ?? String(v ?? ""),
-  },
-  {
-    key: "START_ACTIVE_DATE",
-    header: "유효 개시일",
-    width: 100,
-    editable: false,
-    align: "center",
-    render: (v) => toDateInputValue(v),
-  },
-  {
-    key: "END_ACTIVE_DATE",
-    header: "유효 기한일",
-    width: 100,
-    editable: false,
-    align: "center",
-    render: (v) => toDateInputValue(v),
-  },
+/**
+ * 메뉴 셋에 없는 오브젝트 그리드 (2026-11-26). 「OBJECT ID」 칸이 끌기 손잡이다 — 끌어서 왼쪽 트리 폴더에 놓으면 메뉴 행이 된다.
+ * 예전 「OBJECT 정보」 그리드(선택 메뉴의 오브젝트 1건)는 상세 폼 아래 「오브젝트 정보」 로 옮겼다.
+ */
+const UNPLACED_DRAG_FIELD = "OBJECT_ID";
+const UNPLACED_COLUMNS: GridColumn[] = [
+  { key: "OBJECT_ID", header: "OBJECT ID", width: 160, editable: false, align: "left" },
+  { key: "OBJECT_NM", header: "OBJECT 명", width: 180, editable: false, align: "left" },
   { key: "SYSTEM_CODE", header: "SYSTEM", width: 80, editable: false, align: "center" },
   { key: "OBJECT_TYPE", header: "OBJECT TYPE", width: 92, editable: false, align: "center" },
+  { key: "FORM_URL", header: "FORM URL", width: 180, editable: false, align: "left" },
 ];
 
 /**
@@ -364,7 +394,7 @@ const OBJ_COLUMNS: GridColumn[] = [
  *  - END_ACTIVE_DATE   = "99991231" (To-Be BE 정정 9999-12-31 00:00:00)
  *  - MENU_VIEW_YN = 'Y'
  */
-function emptyRow(menuIdFromTree: string): CommMenuMngRow {
+function emptyRow(menuIdFromTree: string, menuSet: string = DEFAULT_MENU_SET): CommMenuMngRow {
   const today = new Date().toISOString().slice(0, 10).replace(/-/g, "");
   return {
     // 2026-09-04 (TE-006) — MENU_ID 를 트리 노드로 채우지 않는다.
@@ -373,10 +403,9 @@ function emptyRow(menuIdFromTree: string): CommMenuMngRow {
     //   그대로 자기참조가 됐다. 트리 노드는 상위 폴더(PARENT_MENU_ID)에만 쓴다.
     MENU_ID: "",
     MENU_SEQ: "",
-    FULL_SEQ: "",
     MENU_NM: "",
     MENU_DESC: "",
-    MENU_TP: "WEB", // V-A02
+    MENU_TP: menuSet, // V-A02 — 2026-11-26: 조회 조건의 메뉴 셋
     OBJECT_ID: "",
     USE_TP: "Y", // V-A03
     START_ACTIVE_DATE: today, // V-A04
@@ -434,6 +463,32 @@ export default function CommMenuMngPage() {
   // 평면 treeRows → nested TreeNode (memoized).
   const tree = useMemo(() => buildMenuTree(treeRows), [treeRows]);
 
+  // ── 2026-11-26 메뉴 셋 · 끌어 놓기 편집 ──
+  // 이어받은 옛 조회 조건에는 메뉴 셋이 없을 수 있다 — 비면 기본 셋.
+  const menuSet = filters.cbo_MENU_TP || DEFAULT_MENU_SET;
+  /** 폴더의 트리 순서(목록 정렬용)와 모듈(최상위) 폴더 — 모듈에는 화면을 바로 두지 않는다. */
+  const folders = useMemo(() => folderOrder(treeRows), [treeRows]);
+  const folderNameMap = useMemo(
+    () => new Map(treeRows.map((r) => [String(r.MENU_ID ?? ""), String(r.MENU_NM ?? r.MENU_ID ?? "")])),
+    [treeRows],
+  );
+  const menuListColumns = useMemo(
+    () => buildMenuListColumns((id) => (id ? (folderNameMap.get(id) ?? id) : "")),
+    [folderNameMap],
+  );
+  /** 목록은 늘 트리 순서(폴더 → 순서 번호)로 보인다. 끌어 순서를 바꾸는 계산의 「예전 순서」 도 이 순서다. */
+  const displayRows = useMemo(() => sortMenuRows(rows, folders.index), [rows, folders]);
+  /** 마지막으로 조회한 조건 — 검색어로 일부만 보일 때는 순서 바꾸기를 막는다(숨은 화면과 번호가 섞인다). */
+  const [lastQuery, setLastQuery] = useState<{ filters: CommMenuMngFilters; treeId: string } | null>(null);
+  const [checkedMenuKeys, setCheckedMenuKeys] = useState<(string | number)[]>([]);
+  // 메뉴 셋에 없는 오브젝트 — 끌어서 트리 폴더에 놓으면 메뉴 행이 된다.
+  const [unplacedRows, setUnplacedRows] = useState<CommMenuMngUnplacedObjRow[]>([]);
+  const [unplacedLoading, setUnplacedLoading] = useState(false);
+  const [checkedUnplacedKeys, setCheckedUnplacedKeys] = useState<(string | number)[]>([]);
+  // 끌어 놓기 대상 트리 노드(강조용)와 그 노드에 놓을 수 없는지.
+  const [dropTarget, setDropTarget] = useState<{ id: string; blocked: boolean } | null>(null);
+  const treeBoxRef = useRef<HTMLDivElement>(null);
+
   /**
    * 상세 폼 "상위 폴더" Select 옵션 (2026-09-04 TE-006).
    *
@@ -465,6 +520,21 @@ export default function CommMenuMngPage() {
 
   const visibleCount = rows.filter((r) => r.nativeeditor_status !== "deleted").length;
 
+  /** 메뉴 셋에 없는 오브젝트 다시 읽기. */
+  const loadUnplaced = useCallback(async (set: string) => {
+    setUnplacedLoading(true);
+    try {
+      const res = await apiSearchUnplacedObj(set);
+      setUnplacedRows(res.ds_unplacedObj ?? []);
+      setCheckedUnplacedKeys([]);
+    } catch (e) {
+      setUnplacedRows([]);
+      setError(e instanceof Error ? e.message : "메뉴에 없는 오브젝트 조회 실패");
+    } finally {
+      setUnplacedLoading(false);
+    }
+  }, []);
+
   /**
    * action=searchCmMenu (B-001 / GT-001 트리 click → fn_search 또는 트리 click).
    * 트리 click 시 pMenuId 전달 (정확 일치 검색).
@@ -473,13 +543,18 @@ export default function CommMenuMngPage() {
     async (f: CommMenuMngFilters, pMenuId?: string) => {
       setIsSearching(true);
       setError(null);
+      const set = f.cbo_MENU_TP || DEFAULT_MENU_SET;
+      // 메뉴 셋에 없는 오브젝트도 같은 셋으로 다시 읽는다(목록과 따로 기다리지 않는다).
+      void loadUnplaced(set);
       try {
-        const payload = await apiSearchCmMenu(f, pMenuId);
+        const payload = await apiSearchCmMenu({ ...f, cbo_MENU_TP: set }, pMenuId);
         const list = (payload.ds_menuList ?? []).map((r, i) => ({
           ...withSyntheticId(r, i),
           nativeeditor_status: "" as RowStatus,
         }));
         setRows(list);
+        setCheckedMenuKeys([]);
+        setLastQuery({ filters: { ...f, cbo_MENU_TP: set }, treeId: pMenuId ?? "" });
         if (payload.ds_menuTreeList && payload.ds_menuTreeList.length > 0) {
           setTreeRows(payload.ds_menuTreeList);
           // AsIs treeinitstatus="expand,all" — 신규 트리 로드 직후 모든 노드 expand.
@@ -514,7 +589,7 @@ export default function CommMenuMngPage() {
         setIsSearching(false);
       }
     },
-    [showMessage, setObjRows, setRows, setSelectedKey],
+    [showMessage, setObjRows, setRows, setSelectedKey, loadUnplaced],
   );
 
   // ── load ──
@@ -577,6 +652,228 @@ export default function CommMenuMngPage() {
     },
     [],
   );
+
+  // ────────────────────────────────────────────────────────────────
+  // 2026-11-26 — 메뉴 셋 · 끌어 놓기 편집
+  //   ① 목록 안에서 끌기: 순서 바꾸기(체크한 여러 행을 함께). 다른 폴더 화면 사이에 놓으면 그 폴더로 들어간다.
+  //   ② 목록 행을 왼쪽 트리 폴더에 놓기: 그 폴더의 맨 뒤로 옮긴다.
+  //   ③ 「메뉴 셋에 없는 오브젝트」 를 트리 폴더에 놓기: 그 폴더 맨 뒤에 새 메뉴 행을 만든다(MENU_ID 는 저장 때 BE 가 정한다).
+  //   순서 번호(MENU_SEQ)는 화면이 10 간격으로 다시 매긴다. 저장 전까지는 되돌릴 수 있다(행취소·조회).
+  // ────────────────────────────────────────────────────────────────
+
+  /** 저장하지 않은 변경이 있으면 버릴지 묻는다. 없으면 true. */
+  const confirmDiscard = useCallback(
+    () =>
+      !rows.some((r) => r.nativeeditor_status) ||
+      (typeof window !== "undefined" && window.confirm("저장하지 않은 변경이 있습니다. 변경을 버리고 계속할까요?")),
+    [rows],
+  );
+
+  /** 메뉴 셋을 바꾸면 그 셋으로 바로 다시 조회한다(트리 선택은 지킨다). */
+  const handleMenuSetChange = useCallback(
+    (v: string) => {
+      const set = v || DEFAULT_MENU_SET;
+      if (set === menuSet) return;
+      if (!confirmDiscard()) return;
+      const next = { ...filters, cbo_MENU_TP: set };
+      setFilters(next);
+      void loadList(next, selectedTreeMenuId || undefined);
+    },
+    [confirmDiscard, filters, loadList, menuSet, selectedTreeMenuId, setFilters],
+  );
+
+  /** 목록 안 순서 바꾸기를 막는 이유. 검색어·사용 유무로 일부만 조회했으면 숨은 화면과 순서 번호가 섞인다. */
+  const reorderBlockedReason = useMemo(() => {
+    const f = lastQuery?.filters;
+    if (!f) return null;
+    if (f.edt_MENU_ID.trim() || f.edt_MENU_NM.trim() || f.cbo_USE_TP) {
+      return "메뉴 ID·메뉴 명·사용 유무로 일부만 조회하면 목록 안에서 순서를 바꿀 수 없습니다. 조건을 비우고 조회하세요. 트리 폴더로 옮기기는 됩니다.";
+    }
+    return null;
+  }, [lastQuery]);
+
+  /** ① 목록 안에서 끌어 순서를 바꿨다. */
+  const handleRowOrderChange = useCallback(
+    (orderedKeys: (string | number)[]) => {
+      setRows(applyReorder(displayRows, orderedKeys, getRowKey));
+    },
+    [displayRows, setRows],
+  );
+
+  /**
+   * 폴더 맨 뒤 순서 번호. 목록에 그 폴더 화면이 다 있으면 목록에서 구하고, 아니면(다른 폴더를 조회 중·검색어 조회) 서버에서 그 폴더를 읽는다.
+   */
+  const lastSeqOf = useCallback(
+    async (folderId: string): Promise<number> => {
+      const local = maxSeqIn(displayRows, folderId);
+      const q = lastQuery;
+      const listHasWholeFolder =
+        q !== null &&
+        !reorderBlockedReason &&
+        (q.treeId === "" || displayRows.some((r) => String(r.PARENT_MENU_ID ?? "") === folderId));
+      if (listHasWholeFolder) return local;
+      try {
+        const res = await apiSearchCmMenu({ ...DEFAULT_FILTERS, cbo_MENU_TP: menuSet }, folderId);
+        const remote = maxSeqIn((res.ds_menuList ?? []) as unknown as GridRow[], folderId);
+        return Math.max(local, remote);
+      } catch {
+        return local;
+      }
+    },
+    [displayRows, lastQuery, menuSet, reorderBlockedReason],
+  );
+
+  /** 트리 노드에 놓을 수 있는가. 모듈(최상위) 폴더에는 화면을 바로 두지 않는다. */
+  const dropCheck = useCallback(
+    (id: string | null): { id: string; blocked: boolean } | null =>
+      id ? { id, blocked: folders.roots.has(id) || !folders.index.has(id) } : null,
+    [folders],
+  );
+
+  // 끄는 동안 접힌 폴더 위에 잠시 머물면 펼친다.
+  const hoverRef = useRef<{ id: string; since: number } | null>(null);
+  const handleTreeDragging = useCallback(
+    (event: MouseEvent) => {
+      const next = dropCheck(treeNodeIdAt(event, treeBoxRef.current));
+      setDropTarget((prev) => (prev?.id === next?.id && prev?.blocked === next?.blocked ? prev : next));
+      if (!next) {
+        hoverRef.current = null;
+        return;
+      }
+      const now = Date.now();
+      if (hoverRef.current?.id !== next.id) {
+        hoverRef.current = { id: next.id, since: now };
+      } else if (now - hoverRef.current.since > 700) {
+        setExpandedTreeIds((prev) => (prev.map(String).includes(next.id) ? prev : [...prev, next.id]));
+      }
+    },
+    [dropCheck],
+  );
+  const handleTreeDragLeave = useCallback(() => {
+    hoverRef.current = null;
+    setDropTarget(null);
+  }, []);
+
+  /** 놓은 트리 노드를 확인한다. 놓을 수 없으면 이유를 보이고 null. */
+  const resolveDropFolder = useCallback(
+    (event: MouseEvent): string | null => {
+      hoverRef.current = null;
+      setDropTarget(null);
+      const target = dropCheck(treeNodeIdAt(event, treeBoxRef.current));
+      if (!target) return null;
+      if (target.blocked) {
+        setError("모듈(최상위) 폴더에는 화면을 바로 둘 수 없습니다. 그 아래 그룹 폴더에 놓으세요.");
+        return null;
+      }
+      return target.id;
+    },
+    [dropCheck],
+  );
+
+  /** ② 목록 행을 트리 폴더에 놓았다 — 그 폴더 맨 뒤로 옮긴다. */
+  const handleMenuDropOnTree = useCallback(
+    async (dragged: Record<string, unknown>[], event: MouseEvent) => {
+      const folderId = resolveDropFolder(event);
+      if (!folderId) return;
+      const keys = new Set(
+        dragged
+          .map((r) => r as GridRow)
+          .filter((r) => r.nativeeditor_status !== "deleted" && String(r.PARENT_MENU_ID ?? "") !== folderId)
+          .map(getRowKey),
+      );
+      if (keys.size === 0) return;
+      const lastSeq = await lastSeqOf(folderId);
+      setRows((prev) => moveToFolder(prev, keys, folderId, lastSeq, getRowKey, !reorderBlockedReason));
+      setCheckedMenuKeys([]);
+      showMessage({
+        message: `${keys.size}건을 「${folderNameMap.get(folderId) ?? folderId}」 폴더로 옮겼습니다. 저장하면 반영됩니다.`,
+        toast: true,
+      });
+    },
+    [folderNameMap, lastSeqOf, reorderBlockedReason, resolveDropFolder, setRows, showMessage],
+  );
+
+  /** ③ 오브젝트들로 폴더 맨 뒤에 새 메뉴 행을 만든다. */
+  const addObjectsToFolder = useCallback(
+    async (objects: CommMenuMngUnplacedObjRow[], folderId: string) => {
+      if (objects.length === 0) return;
+      let seq = await lastSeqOf(folderId);
+      const stamp = Date.now();
+      const created = objects.map((o, i): CommMenuMngRow & GridRow => {
+        seq += SEQ_STEP;
+        return {
+          ...emptyRow(folderId, menuSet),
+          // MENU_ID 는 비워 둔다 — 저장 때 BE 가 OBJECT_ID(겹치면 OBJECT_ID_셋)로 정한다.
+          MENU_NM: String(o.OBJECT_NM || o.OBJECT_ID),
+          OBJECT_ID: String(o.OBJECT_ID),
+          OBJECT_NM: o.OBJECT_NM,
+          MENU_SEQ: String(seq),
+          __gridTempId: `obj-${stamp}-${i}-${String(o.OBJECT_ID)}`,
+          nativeeditor_status: "inserted" as RowStatus,
+        };
+      });
+      const added = new Set(objects.map((o) => String(o.OBJECT_ID)));
+      setRows((prev) => [...prev, ...created]);
+      setUnplacedRows((prev) => prev.filter((o) => !added.has(String(o.OBJECT_ID))));
+      setCheckedUnplacedKeys([]);
+      setSelectedKey(created[0].__gridTempId as string);
+      showMessage({
+        message: `${created.length}건을 「${folderNameMap.get(folderId) ?? folderId}」 폴더에 추가했습니다. 저장하면 반영됩니다.`,
+        toast: true,
+      });
+    },
+    [folderNameMap, lastSeqOf, menuSet, setRows, setSelectedKey, showMessage],
+  );
+
+  const handleUnplacedDropOnTree = useCallback(
+    (dragged: Record<string, unknown>[], event: MouseEvent) => {
+      const folderId = resolveDropFolder(event);
+      if (!folderId) return;
+      void addObjectsToFolder(dragged as CommMenuMngUnplacedObjRow[], folderId);
+    },
+    [addObjectsToFolder, resolveDropFolder],
+  );
+
+  /** 끌지 않고 추가하기 — 체크한 오브젝트를 트리에서 고른 폴더에 넣는다. */
+  const handleAddCheckedToSelectedFolder = useCallback(() => {
+    const target = dropCheck(selectedTreeMenuId || null);
+    if (!target || target.blocked) {
+      setError("왼쪽 트리에서 오브젝트를 넣을 그룹 폴더를 먼저 고르세요.");
+      return;
+    }
+    const keys = new Set(checkedUnplacedKeys.map(String));
+    const picked = unplacedRows.filter((o) => keys.has(String(o.OBJECT_ID)));
+    if (picked.length === 0) {
+      setError("추가할 오브젝트를 체크하세요.");
+      return;
+    }
+    void addObjectsToFolder(picked, target.id);
+  }, [addObjectsToFolder, checkedUnplacedKeys, dropCheck, selectedTreeMenuId, unplacedRows]);
+
+  /** 삭제 표시한 행은 끌지 않는다. */
+  const isMenuRowDraggable = useCallback(
+    (row: Record<string, unknown>) => (row as GridRow).nativeeditor_status !== "deleted",
+    [],
+  );
+
+  // 두 그리드 모두 왼쪽 트리를 놓을 자리로 쓴다. 콜백은 그리드가 늘 최신 값으로 부른다.
+  const getTreeBox = useCallback(() => treeBoxRef.current, []);
+  const menuDropZones: GridRowDropZone[] = [
+    {
+      getContainer: getTreeBox,
+      onDragging: (_r, e) => handleTreeDragging(e),
+      onDragLeave: handleTreeDragLeave,
+      onDrop: (r, e) => void handleMenuDropOnTree(r, e),
+    },
+  ];
+  const unplacedDropZones: GridRowDropZone[] = [
+    {
+      getContainer: getTreeBox,
+      onDragging: (_r, e) => handleTreeDragging(e),
+      onDragLeave: handleTreeDragLeave,
+      onDrop: handleUnplacedDropOnTree,
+    },
+  ];
 
   /** 메뉴 리스트 행 click — UX-004 (xfdl:865) — OBJECT 그리드 자동 갱신. */
   const handleListRowClick = useCallback(
@@ -725,7 +1022,8 @@ export default function CommMenuMngPage() {
     for (const r of rows) {
       if (!r.nativeeditor_status) continue;
       if (r.nativeeditor_status === "deleted") continue;
-      if (!r.MENU_ID || String(r.MENU_ID).trim().length === 0) {
+      // 2026-11-26 — 신규 행은 MENU_ID 를 비워도 된다: 저장 때 BE 가 OBJECT_ID(겹치면 OBJECT_ID_메뉴셋)로 정한다.
+      if ((!r.MENU_ID || String(r.MENU_ID).trim().length === 0) && r.nativeeditor_status !== "inserted") {
         setError("MENU_ID 는 필수 입력입니다.");
         return;
       }
@@ -777,18 +1075,17 @@ export default function CommMenuMngPage() {
       const res = await apiSaveCmMenu(payload);
       // M-008 + M-009 (As-Is "{cnt}건 조회 되었습니다." 문구 보존 → 본 UI 는 "저장" 단어 명시)
       showMessage({ message: `${res.cnt_merge ?? 0}건 저장되었습니다.` });
-      const refreshed = (res.ds_menuList ?? []).map((r, i) => ({
-        ...withSyntheticId(r, i),
-        nativeeditor_status: "" as RowStatus,
-      }));
-      setRows(refreshed);
+      // 2026-11-26 — 저장 응답의 목록은 조회 조건(메뉴 셋·트리 폴더)을 모르는 전체 목록이다.
+      //   마지막 조회 조건으로 다시 읽는다(메뉴 셋에 없는 오브젝트도 함께 다시 읽는다). 새 행의 MENU_ID 가 여기서 보인다.
       setSelectedKey(null);
+      const q = lastQuery ?? { filters: { ...filters, cbo_MENU_TP: menuSet }, treeId: selectedTreeMenuId };
+      await loadList(q.filters, q.treeId || undefined);
     } catch (e) {
       setError(e instanceof Error ? e.message : "저장 실패 하였습니다.");
     } finally {
       setIsSaving(false);
     }
-  }, [rows, hasAnyChanges, showMessage, setRows, setSelectedKey]);
+  }, [rows, hasAnyChanges, showMessage, setSelectedKey, lastQuery, filters, menuSet, selectedTreeMenuId, loadList]);
 
   /** Detail 필드 변경 — handleCellChange 위임. */
   const updateDetailField = (field: keyof CommMenuMngRow, value: string) => {
@@ -832,17 +1129,17 @@ export default function CommMenuMngPage() {
   }, [lovQuery]);
 
   /**
-   * OBJECT LoV 선택 — 2026-06-04 round 5 (사용자 결정):
-   *  - OBJECT_ID 세트 + 상위 폴더 (PARENT_MENU_ID) 자동 동기 세트.
-   *  - BE selectMenuObjPop SQL 이 row.PARENT_MENU_ID 동봉 (TB_MCM_SEC_MENU 매핑 1행). NULL → 빈 문자열.
-   *  - AsIs commonDynamic fn_callBack "commonList" 경로에서는 OBJECT_ID 만 세트했으나, 사용자 결정에 의해
-   *    상위 폴더 매핑까지 같은 모달 클릭으로 끝내기 위한 ToBe 확장 (Detail D-008 PARENT_MENU_ID 도 동기).
+   * OBJECT LoV 선택 — OBJECT_ID 를 세트한다.
+   *  - 2026-11-26: 상위 폴더 자동 세트(2026-06-04 round 5)를 뺐다. 오브젝트는 메뉴 정보를 갖지 않고,
+   *    한 오브젝트가 여러 메뉴 셋·폴더에 들어갈 수 있어 「그 오브젝트의 폴더」 가 하나로 정해지지 않는다.
    */
   const handleLovPick = useCallback(
     (row: CommMenuMngObjLovRow) => {
       if (selected) {
         updateDetailField("OBJECT_ID", String(row.OBJECT_ID ?? ""));
-        updateDetailField("PARENT_MENU_ID", String(row.PARENT_MENU_ID ?? ""));
+        // 2026-11-26 — 오브젝트는 메뉴 정보를 갖지 않는다. 오브젝트를 골라도 상위 폴더는 바꾸지 않는다
+        //   (예전에는 같은 오브젝트를 가리키는 다른 메뉴의 폴더를 거꾸로 읽어 넣었다). 메뉴명이 비었으면 오브젝트 명으로 채운다.
+        if (!String(selected.MENU_NM ?? "").trim() && row.OBJECT_NM) updateDetailField("MENU_NM", String(row.OBJECT_NM));
       }
       setLovOpen(false);
     },
@@ -1037,6 +1334,15 @@ export default function CommMenuMngPage() {
       ]}
     >
       <SearchArea onSearch={handleSearch} autoSearch>
+        {/* 2026-11-26 — 메뉴 셋을 맨 앞에 둔다. 바꾸면 그 셋으로 바로 다시 조회한다(저장 안 한 변경이 있으면 묻는다). */}
+        <SearchField
+          label="메뉴 셋"
+          name="MENU_TP"
+          type="select"
+          options={MENU_SET_OPTIONS}
+          value={menuSet}
+          onChange={handleMenuSetChange}
+        />
         <SearchField
           label="메뉴 ID"
           name="MENU_ID"
@@ -1061,7 +1367,8 @@ export default function CommMenuMngPage() {
 
       {/* 2026-06-02 iter#5 W5 패턴 A — 3 panel:
             좌(트리 width=260 고정) / 중(메인 그리드 + OBJECT, flex:1 wider) / 우(Detail width=420 narrow). */}
-      <ContentBody root>
+      {/* 2026-11-26 — resizable: 가운데 중첩 ContentBody(상하 분할)가 높이를 채우려면 바깥이 resizable 이어야 한다(page-layout.css .content-body--nested). */}
+      <ContentBody root resizable storageKey="mcm.csa.commMenuMng">
         {/* 좌: 메뉴 트리 (A-MAIN-TREE / GT-NNN) — AsIs xfdl:87 grd_M0F1 binddataset="ds_menuTreeList"
               treeinitstatus="expand,all" edittype="tree" 등가.
               ToBe: shared Tree (TreeNode nested + expand/collapse + 키보드 ArrowDown/Up/Left/Right). */}
@@ -1113,7 +1420,8 @@ export default function CommMenuMngPage() {
                 필드 관리
               </button>
             </div>
-            <div style={{ flex: 1, overflow: "auto", padding: "4px 0" }}>
+            {/* 2026-11-26 — 이 상자가 두 그리드의 놓을 자리다(rowDropZones). 끄는 동안 마우스 아래 폴더를 강조한다. */}
+            <div ref={treeBoxRef} style={{ flex: 1, overflow: "auto", padding: "4px 0" }}>
               {tree.nodes.length > 0 ? (
                 <Tree
                   items={tree.nodes}
@@ -1121,6 +1429,8 @@ export default function CommMenuMngPage() {
                   selectedItems={selectedTreeMenuId ? [selectedTreeMenuId] : []}
                   onExpandedItemsChange={handleTreeExpand}
                   onSelectedItemsChange={handleTreeSelect}
+                  dropTargetId={dropTarget?.id ?? null}
+                  dropBlocked={dropTarget?.blocked ?? false}
                 />
               ) : (
                 <div style={{ padding: 16, color: "#888", fontSize: 12 }}>메뉴 트리가 없습니다.</div>
@@ -1129,65 +1439,104 @@ export default function CommMenuMngPage() {
           </div>
         </ContentPanel>
 
-        {/* 중앙: 메뉴 리스트 + OBJECT 그리드 (A-MAIN-LIST + A-MAIN-OBJECT) — flex:1 wider */}
-        <ContentPanel>
-          <GridPanel
-            title="메뉴 목록"
-            count={visibleCount}
-            showAddButton
-            showCopyButton
-            showDeleteButton
-            buttons={[
-              {
-                id: "btn_rowCancel",
-                label: "행취소",
-                onClick: handleRowCancel,
-                disabled: isSearching || isSaving,
-              },
-            ]}
-            data={rows}
-            rowKey="__rowId"
-            columns={MENU_LIST_COLUMNS}
-            selectedRowKey={selectedKey}
-            onDataChange={handleDataChange}
-            loading={isSaving}
-          >
-            <AgDataGrid
-              gridId="menuList"
-              columnSizing="fit"
-              columns={MENU_LIST_COLUMNS}
-              data={rows}
-              rowKey="__rowId"
-              sortable
-              highlightedRowKey={selectedKey}
-              onRowClick={(row) => void handleListRowClick(row as GridRow)}
-              onCellValueChanged={handleCellChange}
-              loading={isSearching}
-              loadingMessage="조회 중..."
-              emptyMessage="조회된 메뉴가 없습니다."
-            />
-          </GridPanel>
-
-          <div style={{ marginTop: 8 }}>
+        {/* 중앙(2026-11-26): 위 메뉴 목록 / 아래 「메뉴 셋에 없는 오브젝트」 상하 분할.
+              예전 아래 「OBJECT 정보」 그리드(선택 메뉴의 오브젝트 1건)는 오른쪽 상세 폼 아래로 옮겼다.
+              두 그리드 모두 행을 끌어 왼쪽 트리 폴더에 놓을 수 있다(rowDropZones). */}
+        <ContentBody direction="column" resizable storageKey="mcm.csa.commMenuMng.center">
+          <ContentPanel>
             <GridPanel
-              title="OBJECT 정보"
-              count={objRows.length}
-              data={objRows}
-              rowKey="__objRowId"
-              columns={OBJ_COLUMNS}
+              title="메뉴 목록"
+              count={visibleCount}
+              showAddButton
+              showCopyButton
+              showDeleteButton
+              buttons={[
+                {
+                  id: "btn_rowCancel",
+                  label: "행취소",
+                  onClick: handleRowCancel,
+                  disabled: isSearching || isSaving,
+                },
+              ]}
+              titleExtra={
+                <span style={{ fontWeight: 400, fontSize: "var(--font-size-sm)", color: "var(--color-text-muted)" }}>
+                  {reorderBlockedReason
+                    ? "검색 조건으로 일부만 보여 순서 끌기는 꺼져 있습니다 · 트리 폴더로 옮기기는 됩니다"
+                    : "「순서」 칸을 끌어 순서·폴더 변경 · 여러 행은 체크 후 끌기"}
+                </span>
+              }
+              data={displayRows}
+              rowKey="__rowId"
+              columns={menuListColumns}
+              selectedRowKey={selectedKey}
+              onDataChange={handleDataChange}
+              loading={isSaving}
             >
               <AgDataGrid
-                gridId="menuObject"
+                gridId="menuList"
                 columnSizing="fit"
-                columns={OBJ_COLUMNS}
-                data={objRows.map((r, i) => ({ ...r, __objRowId: `obj-${i}` }))}
-                rowKey="__objRowId"
-                sortable={false}
-                emptyMessage="OBJECT 정보가 없습니다."
+                columns={menuListColumns}
+                data={displayRows}
+                rowKey="__rowId"
+                selectable
+                multiSelect
+                selectedRows={checkedMenuKeys}
+                onRowSelect={(ids) => setCheckedMenuKeys(ids)}
+                rowDragField={MENU_DRAG_FIELD}
+                rowDragMultiRow
+                isRowDraggable={isMenuRowDraggable}
+                onRowOrderChange={reorderBlockedReason ? undefined : handleRowOrderChange}
+                rowDropZones={menuDropZones}
+                highlightedRowKey={selectedKey}
+                onRowClick={(row) => void handleListRowClick(row as GridRow)}
+                onCellValueChanged={handleCellChange}
+                loading={isSearching}
+                loadingMessage="조회 중..."
+                emptyMessage="조회된 메뉴가 없습니다."
               />
             </GridPanel>
-          </div>
-        </ContentPanel>
+          </ContentPanel>
+          <ContentPanel height={260}>
+            <GridPanel
+              title="메뉴에 없는 오브젝트"
+              count={unplacedRows.length}
+              buttons={[
+                {
+                  id: "btn_addToFolder",
+                  label: "선택 폴더에 추가",
+                  onClick: handleAddCheckedToSelectedFolder,
+                  disabled: isSearching || isSaving || checkedUnplacedKeys.length === 0,
+                },
+              ]}
+              titleExtra={
+                <span style={{ fontWeight: 400, fontSize: "var(--font-size-sm)", color: "var(--color-text-muted)" }}>
+                  {MENU_SET_LABEL_MAP[menuSet] ?? menuSet} 셋 기준 · 끌어서 트리 폴더에 놓으면 추가
+                </span>
+              }
+              data={unplacedRows}
+              rowKey="OBJECT_ID"
+              columns={UNPLACED_COLUMNS}
+              loading={unplacedLoading}
+            >
+              <AgDataGrid
+                gridId="menuUnplacedObject"
+                columnSizing="fit"
+                columns={UNPLACED_COLUMNS}
+                data={unplacedRows}
+                rowKey="OBJECT_ID"
+                selectable
+                multiSelect
+                selectedRows={checkedUnplacedKeys}
+                onRowSelect={(ids) => setCheckedUnplacedKeys(ids)}
+                rowDragField={UNPLACED_DRAG_FIELD}
+                rowDragMultiRow
+                rowDropZones={unplacedDropZones}
+                loading={unplacedLoading}
+                emptyMessage="이 메뉴 셋에 넣지 않은 오브젝트가 없습니다."
+              />
+            </GridPanel>
+          </ContentPanel>
+        </ContentBody>
 
         {/* 우: 상세 폼 (A-MAIN-DETAIL / D-001~D-018) — 2026-06-02 iter#5 W5 패턴 A/B:
               - Detail narrow (width=420 — W5 commUserMng width=480 보다 좁게: commMenuMng 은 메인 그리드 + OBJECT 가 중앙에 더 많은 공간 필요).
@@ -1224,6 +1573,7 @@ export default function CommMenuMngPage() {
                   updateDetailField={updateDetailField}
                   onObjectLovOpen={openObjectLov}
                   parentFolderOptions={parentFolderOptions}
+                  obj={objRows[0] ?? null}
                 />
               </div>
             </div>
@@ -1334,12 +1684,14 @@ export default function CommMenuMngPage() {
           .cm-fldmng-grid .ag-header,
           .cm-fldmng-grid .ag-header-cell { border-radius: 0 !important; }
         `}</style>
-        <div style={{ display: "flex", flexDirection: "column", gap: 10, width: "100%", minHeight: 480 }}>
+        {/* 2026-11-26 — 팝업 높이 채움. xl 팝업은 최소 높이(80vh)가 있어 고정 높이(430px)로 두면 아래가 빈다.
+              shared `.cm-modal`·`.cm-modal-body` 의 flex column 사슬을 이어 받아 GridPanel 이 남는 높이를 채운다.
+              .grid-panel 은 contain:strict 라 내용 높이가 0 이므로 flex 로 크기를 받고, 화면이 낮을 때를 대비해 minHeight 를 둔다.
+              안의 AgDataGrid 는 height 를 주지 않는다 — .grid-panel-content 를 absolute 로 채운다. */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 10, flex: 1, minHeight: 0 }}>
           <GridPanel
             title="메뉴 필드 목록"
-            // 모달 내부는 명시 높이 부모가 없어 .grid-panel(height:100% + contain:strict)이 0 으로
-            // 붕괴한다 — 인라인 height 로 크기를 확정한다 (헤더 32 + 그리드 360 + 테두리 여유).
-            style={{ height: 430, flex: "0 0 auto" }}
+            style={{ flex: "1 1 0", minHeight: 240 }}
             count={fldRows.filter((r) => r.nativeeditor_status !== "deleted").length}
             showAddButton
             showCopyButton
@@ -1356,8 +1708,6 @@ export default function CommMenuMngPage() {
               { key: "MENU_SEQ", header: "MENU_SEQ *", width: 140, editable: true, align: "left" },
               { key: "MENU_NM", header: "MENU_NM *", width: 220, editable: true, align: "left" },
               { key: "PARENT_MENU_ID", header: "PARENT_MENU_ID", width: 180, editable: true, align: "left" },
-              // FULL SEQ — 2026-06-04 사용자 지시: 자동 부여 (모듈 백만 / 그룹 만). 보기 전용(editable:false).
-              { key: "FULL_SEQ", header: "FULL SEQ", width: 110, editable: false, align: "center" },
               // 표시 여부 — 2026-08-13 신설. leaf 화면 D-014 (MENU_LIST_COLUMNS / Detail Radio) 와 동일
               // 라벨·값 도메인(Y=표시 / N=미표시). 폴더를 사이드바에서 숨기려면 여기서 'N' 으로 바꾼다.
               {
@@ -1376,7 +1726,7 @@ export default function CommMenuMngPage() {
             onDataChange={handleFldDataChange}
             loading={fldSaving || fldLoading}
           >
-            <div className="cm-fldmng-grid" style={{ height: 360 }}>
+            <div className="cm-fldmng-grid">
               <AgDataGrid
                 gridId="modal-menuField"
                 // ※ 위 GridPanel 의 columns 와 동일해야 한다 — 컬럼 추가·변경 시 두 곳을 함께 고칠 것.
@@ -1385,8 +1735,6 @@ export default function CommMenuMngPage() {
                   { key: "MENU_SEQ", header: "MENU_SEQ *", width: 140, editable: true, align: "left" },
                   { key: "MENU_NM", header: "MENU_NM *", width: 220, editable: true, align: "left" },
                   { key: "PARENT_MENU_ID", header: "PARENT_MENU_ID", width: 180, editable: true, align: "left" },
-                  // FULL SEQ — 자동 부여 (BE recomputeMenuFullSeq). 보기 전용(editable:false).
-                  { key: "FULL_SEQ", header: "FULL SEQ", width: 110, editable: false, align: "center" },
                   // 표시 여부 — 2026-08-13 신설. leaf 화면 D-014 와 동일 라벨·값 도메인(Y=표시 / N=미표시).
                   // 편집 위젯은 select (자유 텍스트 입력 시 'Y'/'N' 외 값이 들어가는 것을 원천 차단).
                   {
@@ -1403,7 +1751,6 @@ export default function CommMenuMngPage() {
                 ]}
                 data={fldRows.filter((r) => r.nativeeditor_status !== "deleted") as unknown as Record<string, unknown>[]}
                 rowKey="__rowId"
-                height={360}
                 highlightedRowKey={fldSelectedKey}
                 onRowClick={(row) => setFldSelectedKey(getFldRowKey(row as CommMenuMngFldRow & GridRow))}
                 onCellValueChanged={handleFldCellChange}
@@ -1442,6 +1789,7 @@ function MenuDetailForm({
   updateDetailField,
   onObjectLovOpen,
   parentFolderOptions,
+  obj,
 }: {
   selected: CommMenuMngRow & GridRow;
   isNewRow: boolean;
@@ -1449,18 +1797,22 @@ function MenuDetailForm({
   onObjectLovOpen: () => void;
   /** 상위 폴더 Select 옵션 — 좌측 트리와 동일 원천(TB_MCM_SEC_MENU_FLD). */
   parentFolderOptions: { value: string; label: string }[];
+  /** 고른 메뉴가 가리키는 오브젝트(읽기 전용). 2026-11-26 — 예전 가운데 「OBJECT 정보」 그리드를 여기로 옮겼다. */
+  obj: CommMenuMngObjRow | null;
 }) {
   return (
+    <>
     <table style={DETAIL_TABLE_STYLE}>
       <tbody>
         {/* D-002 메뉴 ID (Essential, 신규 행에서만 편집 — AsIs xfdl D-002 PK readonly 룰) */}
         <tr>
-          <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="MENU_ID" label="메뉴 ID" required /></th>
+          <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="MENU_ID" label="메뉴 ID" required={!isNewRow} /></th>
           <td style={DETAIL_VALUE_CELL}>
             <Input
               value={String(selected.MENU_ID ?? "")}
               maxLength={30}
               readOnly={!isNewRow}
+              placeholder={isNewRow ? "비우면 저장 때 OBJECT ID 로 자동 부여" : undefined}
               onChange={(v: string) => updateDetailField("MENU_ID", v)}
             />
           </td>
@@ -1539,18 +1891,6 @@ function MenuDetailForm({
             />
           </td>
         </tr>
-        {/* D-009 FULL SEQ — 2026-06-04 사용자 지시: 자동 부여 (모듈 백만 / 그룹 만 / 화면 100+10 인코딩)
-              → 보기 전용(readOnly). 저장 시 BE recomputeMenuFullSeq() 가 트리 위치 기준으로 자동 산출. */}
-        <tr>
-          <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="FULL_SEQ" label="FULL SEQ" /></th>
-          <td style={DETAIL_VALUE_CELL}>
-            <Input
-              value={String(selected.FULL_SEQ ?? "")}
-              readOnly
-              placeholder="저장 시 자동 부여"
-            />
-          </td>
-        </tr>
         {/* D-010 사용 구분 (Radio Y/N) */}
         <tr>
           <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="USE_TP" label="사용 구분" /></th>
@@ -1563,9 +1903,9 @@ function MenuDetailForm({
             />
           </td>
         </tr>
-        {/* D-011 메뉴 타입 (Select WEB/MOBIL) */}
+        {/* D-011 메뉴 셋 (Select WEB/MOBIL) — 2026-11-26 「메뉴 타입」 에서 이름을 바꿨다. 다른 셋으로 바꾸면 이 목록에서 빠진다. */}
         <tr>
-          <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="MENU_TP" label="메뉴 타입" /></th>
+          <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="MENU_TP" label="메뉴 셋" /></th>
           <td style={DETAIL_VALUE_CELL}>
             <Select
               value={String(selected.MENU_TP ?? "")}
@@ -1654,5 +1994,45 @@ function MenuDetailForm({
         </tr>
       </tbody>
     </table>
+    {/* 오브젝트 정보 — 읽기 전용. 화면 코드 경로(FORM URL)는 오브젝트의 값이며 메뉴 폴더와 상관없다. 고치려면 오브젝트 관리에서 고친다. */}
+    <div
+      style={{
+        height: 28,
+        marginTop: 8,
+        background: "var(--color-bg-header)",
+        borderTop: "1px solid var(--color-border)",
+        borderBottom: "1px solid var(--color-border)",
+        padding: "0 10px",
+        display: "flex",
+        alignItems: "center",
+        fontWeight: 600,
+        fontSize: "var(--font-size-md)",
+      }}
+    >
+      오브젝트 정보
+    </div>
+    {obj ? (
+      <table style={DETAIL_TABLE_STYLE}>
+        <tbody>
+          {(
+            [
+              ["FORM_URL", "FORM URL", String(obj.FORM_URL ?? "")],
+              ["SYSTEM_CODE", "SYSTEM", String(obj.SYSTEM_CODE ?? "")],
+              ["OBJECT_TYPE", "OBJECT TYPE", String(obj.OBJECT_TYPE ?? "")],
+              ["USE_TP", "사용 유무", USE_TP_LABEL_MAP[String(obj.USE_TP ?? "")] ?? String(obj.USE_TP ?? "")],
+              ["START_ACTIVE_DATE", "유효 기간", `${toDateInputValue(obj.START_ACTIVE_DATE)} ~ ${toDateInputValue(obj.END_ACTIVE_DATE)}`],
+            ] as const
+          ).map(([name, label, value]) => (
+            <tr key={name}>
+              <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name={name} label={label} /></th>
+              <td style={DETAIL_VALUE_CELL}>{value || "-"}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    ) : (
+      <div style={{ padding: 10, color: "var(--color-text-muted)" }}>OBJECT ID 를 고르면 보입니다.</div>
+    )}
+    </>
   );
 }

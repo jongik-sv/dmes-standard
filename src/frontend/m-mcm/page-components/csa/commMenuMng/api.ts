@@ -21,6 +21,7 @@ import type {
   CommMenuMngObjRow,
   CommMenuMngRow,
   CommMenuMngTreeRow,
+  CommMenuMngUnplacedObjRow,
 } from "./types";
 
 const api = createJsonApiClient();
@@ -117,6 +118,7 @@ export async function searchCmMenu(
   pMenuId?: string,
 ): Promise<SearchCmMenuPayload> {
   return callAction<SearchCmMenuPayload>("search", {
+    cboMENUTP: filters.cbo_MENU_TP,
     edtMENUID: filters.edt_MENU_ID,
     edtMENUNM: filters.edt_MENU_NM,
     cboUSETP: filters.cbo_USE_TP,
@@ -166,17 +168,26 @@ export async function commonList(edtObjectId: string): Promise<CommonListPayload
 }
 
 /** 메뉴 필드 row — TB_MCM_SEC_MENU_FLD. */
+interface SearchUnplacedObjPayload {
+  ds_unplacedObj?: CommMenuMngUnplacedObjRow[];
+}
+
+/**
+ * 메뉴 셋에 없는 오브젝트 (2026-11-26) — 등록은 됐지만 이 셋의 어느 메뉴도 가리키지 않는 오브젝트(USE_TP='Y').
+ * `keyword` 는 OBJECT_ID 또는 OBJECT_NM 부분 일치.
+ */
+export async function searchUnplacedObj(menuTp: string, keyword = ""): Promise<SearchUnplacedObjPayload> {
+  return callAction<SearchUnplacedObjPayload>("searchUnplacedObj", {
+    cboMENUTP: menuTp,
+    edtOBJECTID: keyword,
+  });
+}
+
 export interface CommMenuMngFldRow extends Record<string, unknown> {
   MENU_ID: string;
   MENU_SEQ?: string;
   MENU_NM?: string;
   PARENT_MENU_ID?: string | null;
-  /**
-   * FULL_SEQ — 2026-06-04 사용자 지시: 자동 부여 (모듈 백만 / 그룹 만 인코딩).
-   * 저장 시 BE recomputeMenuFullSeq() 가 산출 → 그리드에 read-only 표시. FE 입력 ✗.
-   * NUMERIC(10,0) 이라 응답이 number 일 수 있음.
-   */
-  FULL_SEQ?: string | number | null;
   /**
    * MENU_VIEW_YN — 2026-08-13: 폴더(그룹) 표시/미표시. leaf 화면의 D-014 와 동일한 Y/N 도메인.
    * 'N' 이면 BE SecUserService 가 hiddenYn='Y' 로 변환 → 포털 사이드바 트리에서 제외된다.
@@ -225,4 +236,5 @@ export type {
   CommonListPayload,
   SearchCmMenuFldPayload,
   SaveCmMenuFldPayload,
+  SearchUnplacedObjPayload,
 };
