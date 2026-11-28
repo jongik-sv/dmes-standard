@@ -175,7 +175,7 @@ class RuntimeV2SwitchTest {
         m.setObjectId(objectId);
         m.setUseTp("Y");
         m.setMenuViewYn("Y");
-        m.setFullSeq(id);
+        m.setMenuSeq(id);
         return m;
     }
 

@@ -64,7 +64,21 @@ import type {
   RowStatus,
 } from "./types";
 
-const DEFAULT_FILTERS: CommObjMngFilters = { edt_OBJECT_ID: "", cbo_USE_TP: "", menuFolderId: "" };
+const DEFAULT_FILTERS: CommObjMngFilters = {
+  edt_OBJECT_ID: "",
+  cbo_USE_TP: "",
+  menuFolderId: "",
+  cbo_SYSTEM_CODE: "",
+  edt_OBJECT_TYPE: "",
+  cbo_ACCESS_TP: "",
+};
+
+/** 조회조건 접속 경로 — "전체" + 내부/외부 (2026-11-26). */
+const ACCESS_TP_SEARCH_OPTIONS: { value: string; label: string }[] = [
+  { value: "", label: "전체" },
+  { value: "내부", label: "내부" },
+  { value: "외부", label: "외부" },
+];
 
 /** S-003 (검색) — Combo 정적 옵션 "전체" + Y/N (xfdl:161 displaynulltext="전체"). */
 const USE_TP_SEARCH_OPTIONS: { value: string; label: string }[] = [
@@ -246,6 +260,12 @@ export default function CommObjMngPage() {
   const panels = useObjPanels(panelObjectId);
   const reloadPanels = panels.reload;
 
+  /** 조회조건 SYSTEM — "전체" + SYSTEM LoV (2026-11-26). */
+  const systemSearchOptions = useMemo(
+    () => [{ value: "", label: "전체" }, ...systemOptions],
+    [systemOptions],
+  );
+
   // 조회 조건 「메뉴 폴더」 옵션 = lov 의 ds_lovMenuId (BE 새 action 없음).
   // ds_lovMenuId 는 루트 폴더를 뺀다 — 루트(모듈) 단위로도 거를 수 있게 ds_systemLov(루트 폴더)를 앞에 붙인다.
   const folderOptions = useMemo(() => {
@@ -365,7 +385,7 @@ export default function CommObjMngPage() {
   /**
    * 행추가 / 행복사 / 행삭제 통합 핸들러 (GridPanel onDataChange 시그니처).
    * addedRowKey 있음 → 신규/복사 (emptyRow() default 5종 — V-301).
-   * 없음 → 행삭제 → newData 비교 → 사라진 행은 deleted 마킹 (V-101 MENU_ID 차단 포함).
+   * 없음 → 행삭제 → newData 비교 → 사라진 행은 deleted 마킹 (V-101 메뉴·퍼미션 사용 오브젝트 차단 포함).
    */
   const handleDataChange = useCallback(
     (newData: Record<string, unknown>[], addedRowKey?: string) => {
@@ -392,16 +412,13 @@ export default function CommObjMngPage() {
         });
         setSelectedKey(addedRowKey);
       } else {
-        // 행삭제 — V-101 MENU_ID 존재 시 차단. 새 모델: 가리키는 메뉴(MENU_CNT)·퍼미션(PERM_CNT)이 있어도 차단(서버도 거절한다).
+        // 행삭제 — 가리키는 메뉴(MENU_CNT)·퍼미션(PERM_CNT)이 있으면 차단한다(서버도 업무 예외로 거절한다).
+        //   2026-11-26 — 응답의 MENU_ID(메뉴 역조회 값)로 막던 검사는 뺐다. 오브젝트는 메뉴 정보를 갖지 않는다.
         setRows((prev) => {
           const newKeys = new Set(newData.map((r) => getRowKey(r as GridRow)));
           const removed = prev.filter((r) => !newKeys.has(getRowKey(r)));
           for (const r of removed) {
             if (r.nativeeditor_status === "inserted") continue;
-            if (r.MENU_ID && String(r.MENU_ID).length > 0) {
-              setError("연결된 메뉴가 존재합니다. 제외 후 삭제 하세요.");
-              return prev;
-            }
             if (toCount(r.MENU_CNT) > 0) {
               setError(`「${r.OBJECT_ID}」을(를) 가리키는 메뉴가 ${toCount(r.MENU_CNT)}개 있습니다. 메뉴에서 제외한 뒤 삭제하세요.`);
               return prev;
@@ -442,7 +459,7 @@ export default function CommObjMngPage() {
       if (hit) return void setSelectedKey(getRowKey(hit));
       // 목록에 없으면 그 ID 로 한 번만 조회한다(고친 행이 있으면 목록을 바꾸지 않는다).
       if (!ow.id || attempt > 0 || hasAnyChanges) return;
-      const f: CommObjMngFilters = { edt_OBJECT_ID: ow.id, cbo_USE_TP: "", menuFolderId: "" };
+      const f: CommObjMngFilters = { ...DEFAULT_FILTERS, edt_OBJECT_ID: ow.id };
       setFilters(f);
       void loadList(f);
       return "wait";
@@ -581,6 +598,28 @@ export default function CommObjMngPage() {
           value={filters.cbo_USE_TP}
           onChange={(v) => handleFilterChange("cbo_USE_TP", v)}
         />
+        <SearchField
+          label="SYSTEM"
+          name="SYSTEM_CODE"
+          type="select"
+          options={systemSearchOptions}
+          value={filters.cbo_SYSTEM_CODE ?? ""}
+          onChange={(v) => handleFilterChange("cbo_SYSTEM_CODE", v)}
+        />
+        <SearchField
+          label="OBJECT TYPE"
+          name="OBJECT_TYPE"
+          value={filters.edt_OBJECT_TYPE ?? ""}
+          onChange={(v) => handleFilterChange("edt_OBJECT_TYPE", v)}
+        />
+        <SearchField
+          label="접속 경로"
+          name="ACCESS_TP"
+          type="select"
+          options={ACCESS_TP_SEARCH_OPTIONS}
+          value={filters.cbo_ACCESS_TP ?? ""}
+          onChange={(v) => handleFilterChange("cbo_ACCESS_TP", v)}
+        />
       </SearchArea>
 
       <ContentBody root direction="column" resizable storageKey="mcm.csa.commObjMng">
@@ -622,7 +661,6 @@ export default function CommObjMngPage() {
               ref={detailRef}
               row={selected}
               onCommit={handleDetailCommit}
-              menuLov={menuLov}
               systemOptions={systemOptions}
               perm={panels.perm}
               disabled={isSaving}

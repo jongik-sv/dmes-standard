@@ -17,6 +17,12 @@ public class ColumnMngSaveRequest {
     private String labelShort;
     private String description;
     private Long domainId;
+    /** 컬럼 기본 타입(NUMBER·STRING·BOOLEAN·DATE). 도메인이 있으면 무시하고 NULL 로 저장한다. */
+    private String dataType;
+    /** 컬럼 기본 길이. 도메인이 있으면 무시한다. */
+    private Integer length;
+    /** 컬럼 기본 소수 자릿수. 도메인이 있으면 무시한다. */
+    private Integer scale;
     private Boolean required;
     private String defaultValue;
     /** null 또는 {@code MASTER}. */
@@ -33,6 +39,9 @@ public class ColumnMngSaveRequest {
     public String getLabelShort() { return labelShort; }
     public String getDescription() { return description; }
     public Long getDomainId() { return domainId; }
+    public String getDataType() { return dataType; }
+    public Integer getLength() { return length; }
+    public Integer getScale() { return scale; }
     public Boolean getRequired() { return required; }
     public String getDefaultValue() { return defaultValue; }
     public String getRefKind() { return refKind; }
@@ -48,6 +57,9 @@ public class ColumnMngSaveRequest {
     public void setLabelShort(String v) { this.labelShort = v; }
     public void setDescription(String v) { this.description = v; }
     public void setDomainId(Long v) { this.domainId = v; }
+    public void setDataType(String v) { this.dataType = v; }
+    public void setLength(Integer v) { this.length = v; }
+    public void setScale(Integer v) { this.scale = v; }
     public void setRequired(Boolean v) { this.required = v; }
     public void setDefaultValue(String v) { this.defaultValue = v; }
     public void setRefKind(String v) { this.refKind = v; }

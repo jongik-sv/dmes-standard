@@ -22,6 +22,9 @@ import { DispatchInquiryScreen } from "./screens/m30/DispatchInquiryScreen";
 import { StockByGroupScreen } from "./screens/m30/StockByGroupScreen";
 import { IncomingInspectionScreen } from "./screens/m30/IncomingInspectionScreen";
 import { ConsumptionResultScreen } from "./screens/m30/ConsumptionResultScreen";
+import { RoleTableScreen } from "./screens/role-mgmt/RoleTableScreen";
+import { RoleFlowScreen } from "./screens/role-mgmt/RoleFlowScreen";
+import { RoleViewAsScreen } from "./screens/role-mgmt/RoleViewAsScreen";
 
 const MODULE_ID = "design-dummy";
 const HOME_PAGE_ID = `${MODULE_ID}:guide/overview`;
@@ -154,6 +157,11 @@ const PORTAL_MENU: PortalShellMenuResponse = {
         "system-screens",
       ),
     ]),
+    directory("role-mgmt-screens", "역할 관리 시안", [
+      page("role-table", "A. 표로 관리(일반형)", "role-mgmt/table", "role-mgmt-screens"),
+      page("role-flow", "B. 권한 흐름도", "role-mgmt/flow", "role-mgmt-screens"),
+      page("role-view-as", "D. 그 사람 눈으로 보기", "role-mgmt/view-as", "role-mgmt-screens"),
+    ]),
   ],
 };
 
@@ -208,6 +216,10 @@ const M30StockGroupPage: PortalShellPageComponent = () => (
   <StockByGroupScreen />
 );
 
+const RoleTablePage: PortalShellPageComponent = () => <RoleTableScreen />;
+const RoleFlowPage: PortalShellPageComponent = () => <RoleFlowScreen />;
+const RoleViewAsPage: PortalShellPageComponent = () => <RoleViewAsScreen />;
+
 const PAGE_COMPONENTS = new Map<string, PortalShellPageComponent>([
   [HOME_PAGE_ID, OverviewPage],
   [`${MODULE_ID}:catalog/form-feedback`, FormFeedbackPage],
@@ -225,6 +237,9 @@ const PAGE_COMPONENTS = new Map<string, PortalShellPageComponent>([
   [`${MODULE_ID}:m30/inspection`, M30InspectionPage],
   [`${MODULE_ID}:m30/consumption`, M30ConsumptionPage],
   [`${MODULE_ID}:m30/stock-group`, M30StockGroupPage],
+  [`${MODULE_ID}:role-mgmt/table`, RoleTablePage],
+  [`${MODULE_ID}:role-mgmt/flow`, RoleFlowPage],
+  [`${MODULE_ID}:role-mgmt/view-as`, RoleViewAsPage],
 ]);
 
 export function App() {

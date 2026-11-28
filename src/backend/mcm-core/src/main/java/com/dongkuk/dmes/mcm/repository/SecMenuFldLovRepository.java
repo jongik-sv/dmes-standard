@@ -53,16 +53,16 @@ public class SecMenuFldLovRepository {
      * <p>Round 3 (2026-06-02) — SEC_MENU 가 leaf 화면만 보관하도록 분리됨에 따라
      * portal 사이드바 트리 (SecUserService.getMyMenus) 가 SEC_MENU_FLD 의 폴더 row 도 함께
      * 결합해야 트리 계층이 정상 구성됨. 본 메서드는 SEC_MENU_FLD 전체 행을 myMenus 응답 row 와
-     * 호환되는 컬럼명 (MENU_ID / MENU_NM / PARENT_MENU_ID / FULL_SEQ / USE_TP / MENU_TP /
-     * MENU_VIEW_YN / MENU_SEQ) 으로 반환.
+     * 호환되는 컬럼명 (MENU_ID / MENU_NM / PARENT_MENU_ID / USE_TP / MENU_TP /
+     * MENU_VIEW_YN / MENU_SEQ) 으로 반환. 형제 순서는 받는 쪽(SecUserService.sortTree)이 MENU_SEQ 로 정한다.
      */
     @SuppressWarnings("unchecked")
     public List<Map<String, Object>> findAllForMyMenus() {
         List<Object[]> rows = entityManager.createNativeQuery(
-                "SELECT MENU_ID, MENU_NM, PARENT_MENU_ID, FULL_SEQ, USE_TP, MENU_TP, " +
+                "SELECT MENU_ID, MENU_NM, PARENT_MENU_ID, USE_TP, MENU_TP, " +
                 "       MENU_VIEW_YN, MENU_SEQ " +
                 "  FROM MCMAPUSER.TB_MCM_SEC_MENU_FLD " +
-                " ORDER BY FULL_SEQ")
+                " ORDER BY MENU_ID")
                 .getResultList();
         List<Map<String, Object>> out = new ArrayList<>(rows.size());
         for (Object[] row : rows) {
@@ -70,11 +70,10 @@ public class SecMenuFldLovRepository {
             map.put("MENU_ID", row[0]);
             map.put("MENU_NM", row[1]);
             map.put("PARENT_MENU_ID", row[2]);
-            map.put("FULL_SEQ", row[3]);
-            map.put("USE_TP", row[4]);
-            map.put("MENU_TP", row[5]);
-            map.put("MENU_VIEW_YN", row[6]);
-            map.put("MENU_SEQ", row[7]);
+            map.put("USE_TP", row[3]);
+            map.put("MENU_TP", row[4]);
+            map.put("MENU_VIEW_YN", row[5]);
+            map.put("MENU_SEQ", row[6]);
             out.add(map);
         }
         return out;
@@ -120,7 +119,7 @@ public class SecMenuFldLovRepository {
                 "  FROM MCMAPUSER.TB_MCM_SEC_MENU_FLD " +
                 " WHERE PARENT_MENU_ID IS NULL " +
                 "   AND (USE_TP IS NULL OR USE_TP = 'Y') " +
-                " ORDER BY FULL_SEQ, MENU_ID")
+                " ORDER BY LPAD(MENU_SEQ, 8, '0'), MENU_ID")
                 .getResultList();
         List<Map<String, Object>> out = new ArrayList<>(rows.size());
         for (Object[] row : rows) {

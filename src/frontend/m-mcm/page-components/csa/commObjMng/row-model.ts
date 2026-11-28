@@ -56,18 +56,23 @@ export function stripInternal(row: GridRow): Record<string, unknown> {
   return Object.fromEntries(Object.entries(row).filter(([k]) => !NOT_SENT.has(k)));
 }
 
-/** FORM URL 자동 산출 — `${PARENT_MENU_ID}/${OBJECT_ID}`, 한쪽이라도 비면 빈 값(componentPath 정합). */
-export function calcFormUrl(row: Pick<CommObjMngRow, "PARENT_MENU_ID" | "OBJECT_ID">): string {
-  const mid = String(row.PARENT_MENU_ID ?? "").trim();
-  const oid = String(row.OBJECT_ID ?? "").trim();
-  return mid && oid ? `${mid}/${oid}` : "";
-}
-
-/** 한 칸을 바꾼 새 행 — OBJECT_ID·PARENT_MENU_ID 가 바뀌면 FORM_URL, OBJECT_ID 가 바뀌면 MENU_ID(redundant alias)도 맞춘다. */
-export function withField<T extends CommObjMngRow>(row: T, field: string, value: unknown): T {
+/**
+ * 한 칸을 바꾼 새 행.
+ * 2026-11-26 — FORM URL 을 메뉴 폴더 + OBJECT ID 로 계산하던 것(calcFormUrl)과 MENU_ID 별칭 맞추기를 없앴다.
+ * FORM URL 은 오브젝트의 화면 코드 경로이고 사용자가 고른다(메뉴가 오브젝트를 가리킬 뿐, 오브젝트는 메뉴 정보를 갖지 않는다).
+ * OBJECT ID 를 바꿨는데 FORM URL 이 비었으면 `resolveFormUrl`(같은 이름의 화면 코드 경로 찾기)이 준 값을 채운다.
+ */
+export function withField<T extends CommObjMngRow>(
+  row: T,
+  field: string,
+  value: unknown,
+  resolveFormUrl?: (objectId: string) => string | null,
+): T {
   const next: T = { ...row, [field]: value };
-  if (field === "PARENT_MENU_ID" || field === "OBJECT_ID") next.FORM_URL = calcFormUrl(next);
-  if (field === "OBJECT_ID") next.MENU_ID = String(next.OBJECT_ID ?? "");
+  if (field === "OBJECT_ID" && resolveFormUrl && !String(next.FORM_URL ?? "").trim()) {
+    const found = resolveFormUrl(String(next.OBJECT_ID ?? "").trim());
+    if (found) next.FORM_URL = found;
+  }
   return next;
 }
 
@@ -108,7 +113,6 @@ export function emptyRow(defaultSystemCode: string = "mcm"): CommObjMngRow {
     PARAM: "",
     START_ACTIVE_DATE: today,
     END_ACTIVE_DATE: "99991231", // ST-005 — BE 가 9999-12-31 23:59:59 정정
-    MENU_ID: "",
     ID: "",
     BTN_PERM: "",
     POPUP_PERM: "",

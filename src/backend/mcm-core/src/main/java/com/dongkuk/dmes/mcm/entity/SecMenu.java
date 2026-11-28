@@ -22,7 +22,7 @@ import java.time.LocalDateTime;
  * <p>분석리포트 §9.1 — TB_MCM_SEC_MENU 본 15 컬럼 (PARENT_MENU_ID 가 본 행의 MENU_ID 자기참조 — As-Is 보존):
  * <ul>
  *   <li>PK 복합 = (MENU_ID, MENU_SEQ) — xml:101/107 WHERE 절</li>
- *   <li>본 15 컬럼: MENU_ID(PK) / MENU_SEQ(PK) / FULL_SEQ / MENU_NM / MENU_DESC / MENU_TP /
+ *   <li>본 15 컬럼: MENU_ID(PK) / MENU_SEQ(PK) / MENU_NM / MENU_DESC / MENU_TP /
  *       OBJECT_ID(FK) / USE_TP / START_ACTIVE_DATE / END_ACTIVE_DATE / MENU_VIEW_YN /
  *       PARENT_MENU_ID (xml:77/96 = #{MENU_ID} 자기참조 보존) /
  *       MENU_PARAM1 / MENU_PARAM2 / MENU_PARAM3</li>
@@ -48,7 +48,8 @@ public class SecMenu extends McmAuditEntity {
     /**
      * PK — 메뉴 ID (xfdl G-003 / D-002 / 분석 §9.1 #1). VARCHAR(30).
      * <p>2026-06-05 사용자 결정 — 단독 PK 로 변경 (기존 복합 (MENU_ID, MENU_SEQ) → MENU_ID).
-     * MENU_SEQ 는 PK 에서 분리되어 순수 "메뉴 순서" 컬럼으로 사용. FULL_SEQ 는 자동부여 정렬값.
+     * MENU_SEQ 는 PK 에서 분리되어 순수 "메뉴 순서" 컬럼으로 사용.
+     * 2026-11-27 — FULL_SEQ(트리 위치 인코딩) 칸을 없앴다. 순서는 같은 부모 안 MENU_SEQ 로 정한다({@code mcm.menu.MenuOrder}).
      */
     @Id
     @Column(name = "MENU_ID", length = 30, nullable = false)
@@ -61,10 +62,6 @@ public class SecMenu extends McmAuditEntity {
      */
     @Column(name = "MENU_SEQ", length = 30)
     private String menuSeq;
-
-    /** FULL 정렬 순서 (xfdl G-006 / D-009 inputtype=digit / 분석 §9.1 #3). VARCHAR(30). */
-    @Column(name = "FULL_SEQ", length = 30)
-    private String fullSeq;
 
     /** 메뉴 명칭 (xfdl G-004 / D-006 Essential / 분석 §9.1 #4). VARCHAR(300). */
     @Column(name = "MENU_NM", length = 300)
@@ -148,8 +145,6 @@ public class SecMenu extends McmAuditEntity {
     public String getMenuSeq() { return menuSeq; }
     public void setMenuSeq(String menuSeq) { this.menuSeq = menuSeq; }
 
-    public String getFullSeq() { return fullSeq; }
-    public void setFullSeq(String fullSeq) { this.fullSeq = fullSeq; }
 
     public String getMenuNm() { return menuNm; }
     public void setMenuNm(String menuNm) { this.menuNm = menuNm; }

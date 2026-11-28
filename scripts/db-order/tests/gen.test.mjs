@@ -145,14 +145,31 @@ test("DDL 파서: 한 줄 여러 컬럼 정의를 모두 읽고(괄호 안 쉼�
 });
 
 test("DDL 파서: 주석 뒤 create + 같은 파일 ALTER 순서 유지 · 문자열 안 drop 무시 · 모르는 ALTER 는 알림", () => {
-  const sql = `${"-- 머리말 주석\n".repeat(30)}create table T (\n  A number,\n  constraint PK primary key (\n    A\n  )\n);\nalter table T add (C number);\ninsert into Q values ('drop table T');\nalter table T drop column C;\n`;
+  const sql = `${"-- 머리말 주석\n".repeat(30)}create table T (\n  A number,\n  constraint PK primary key (\n    A\n  )\n);\nalter table T add (C number);\ninsert into Q values ('drop table T');\nalter table T rename column C to D;\n`;
   const p = parseSqlFile(sql);
   const t = simulate([{ file: "V1", parsed: p }]).get("T");
   assert.deepEqual(t.cols, ["A", "C"]);
   assert.deepEqual(t.pk, ["A"]);
   assert.equal(t.dropped, false);
   assert.equal(p.issues.length, 1);
-  assert.match(p.issues[0], /이해하지 못한 ALTER: drop column C/);
+  assert.match(p.issues[0], /이해하지 못한 ALTER: rename column C to D/);
+});
+
+test("DDL 파서: DROP COLUMN·DROP (…) 은 컬럼을 빼고 남은 순서를 지킨다 · 없는 컬럼이면 알린다", () => {
+  const sql =
+    "create table T (\n  A number,\n  B number,\n  C number,\n  D number\n);\n" +
+    "alter table T modify (D invisible);\n" +
+    "alter table T drop column B;\n" +
+    "begin execute immediate 'alter table T drop (D, C)'; end;\n/\n" +
+    "alter table T drop column Z;\n";
+  const p = parseSqlFile(sql);
+  assert.deepEqual(p.issues, []);
+  const tables = simulate([{ file: "V1", parsed: p }]);
+  const t = tables.get("T");
+  assert.deepEqual(t.cols, ["A"]);
+  assert.deepEqual(t.hidden, []);
+  assert.equal(tables.issues.length, 1);
+  assert.match(tables.issues[0], /T\.Z 없는 컬럼을 DROP/);
 });
 
 test("DDL 파서: q'[..]' 등 대체 인용 리터럴 안 따옴표·세미콜론·괄호·drop 을 가린다", () => {

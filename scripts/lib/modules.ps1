@@ -2,9 +2,11 @@
 #
 #   . (Join-Path $RootDir 'scripts\lib\modules.ps1')
 #
-# 채우는 값 (platforms 에 ps1 이 있는 줄만):
+# 채우는 값 (platforms 에 ps1 또는 ps1-flag 가 있는 줄만):
 #   $DmesBeModules    [ordered] 모듈 이름 → 포트(int). 파일 순서 = --all 기동 순서
-#   $DmesBeTagColors  로그 태그 'be-<모듈>' → ConsoleColor 이름
+#   $DmesBeTagColors  로그 태그 'be-<모듈>' → ConsoleColor 이름 (ps1-flag 줄 포함)
+#   $DmesBeFlagModules [ordered] platforms 에 ps1-flag 가 있는 모듈 → 포트. be-run.ps1 의 --<모듈> 플래그로만 띄우고
+#                     --all 에는 넣지 않는다($DmesBeModules 에 들지 않는다)
 #   $DmesPortalPort   프론트 포털 dev 포트(int)
 # 같은 파일을 sh 쪽은 scripts/lib/modules.sh 가 읽는다 — 값은 modules.conf 한 곳에서만 고친다.
 
@@ -28,13 +30,20 @@ function ConvertTo-DmesConsoleColor {
 
 $DmesBeModules   = [ordered]@{}
 $DmesBeTagColors = @{}
+$DmesBeFlagModules = [ordered]@{}
 $DmesPortalPort  = 0
 foreach ($raw in Get-Content -LiteralPath $DmesModulesConf -Encoding UTF8) {
     $line = $raw.Trim()   # Trim 이 CRLF 체크아웃의 줄 끝 \r 도 떼어 낸다
     if (-not $line -or $line.StartsWith('#')) { continue }
     $f = @($line -split '\s+')
     if ($f.Count -lt 5) { continue }
-    if (@($f[4] -split ',') -notcontains 'ps1') { continue }
+    $platforms = @($f[4] -split ',')
+    if ($f[0] -eq 'be' -and $platforms -contains 'ps1-flag' -and $platforms -notcontains 'ps1') {
+        $DmesBeFlagModules[$f[1]] = [int] $f[2]
+        $DmesBeTagColors['be-' + $f[1]] = ConvertTo-DmesConsoleColor $f[3]
+        continue
+    }
+    if ($platforms -notcontains 'ps1') { continue }
     if ($f[0] -eq 'be') {
         $DmesBeModules[$f[1]] = [int] $f[2]
         $DmesBeTagColors['be-' + $f[1]] = ConvertTo-DmesConsoleColor $f[3]

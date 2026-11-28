@@ -1,0 +1,198 @@
+/* ── 역할 관리 시안 A·B·D (screens/role-mgmt) ─────────────────────────────── */
+/* 색은 shared 의미 토큰만 쓴다. */
+
+/* 공통: 권한 수준 색 — 권한이 셀수록 짙은 파랑. 업무 전용 묶음은 테두리형. */
+.role-lv--0 { background: var(--color-bg-disabled); color: var(--color-text-muted); }
+.role-lv--1 { background: color-mix(in srgb, var(--color-primary) 14%, var(--color-bg)); color: var(--color-text); }
+.role-lv--2 { background: color-mix(in srgb, var(--color-primary) 34%, var(--color-bg)); color: var(--color-text); }
+.role-lv--3 { background: color-mix(in srgb, var(--color-primary) 62%, var(--color-bg)); color: var(--color-bg); }
+.role-lv--4 { background: var(--color-primary-active); color: var(--color-bg); }
+.role-lv--special { background: var(--color-bg); color: var(--color-primary); box-shadow: inset 0 0 0 1px var(--color-primary); }
+
+.role-muted { color: var(--color-text-muted); font-size: var(--font-size-sm); }
+.role-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--spacing-sm); padding: var(--spacing-xs) var(--spacing-sm); }
+.role-legend { display: inline-flex; flex-wrap: wrap; gap: var(--spacing-xs); }
+.role-chip-wrap { display: flex; flex-wrap: wrap; gap: var(--spacing-xs); }
+.role-chip-pair { display: inline-flex; align-items: center; gap: 2px; }
+.role-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  border-radius: var(--radius-md);
+  padding: 3px 8px;
+  font-size: var(--font-size-sm);
+  line-height: 1.4;
+  font-family: inherit;
+}
+.role-chip--compact { padding: 1px 6px; font-size: var(--font-size-xs); }
+.role-chip--button { cursor: pointer; }
+.role-chip--button:hover { outline: 2px solid var(--color-selection-border); }
+.role-chip--changed { outline: 2px dashed var(--color-warning); outline-offset: 1px; }
+.role-chip__level { font-weight: 600; opacity: 0.9; }
+.role-chip__name + .role-chip__level::before { content: "·"; margin-right: 6px; opacity: 0.6; }
+.role-section-title { margin: var(--spacing-md) 0 var(--spacing-xs); font-size: var(--font-size-md); }
+.role-link { border: 0; background: none; padding: 0; color: var(--color-primary); cursor: pointer; text-align: left; font: inherit; }
+
+/* A. 표로 관리 */
+.role-draft-summary { padding: var(--spacing-xs) var(--spacing-sm); display: flex; flex-direction: column; gap: 2px; flex-shrink: 0; }
+.role-draft-summary__title { display: flex; align-items: center; gap: var(--spacing-sm); font-size: var(--font-size-lg); }
+.role-draft-summary__text { font-size: var(--font-size-md); }
+.role-draft-summary__muted { color: var(--color-text-muted); font-size: var(--font-size-sm); }
+.role-draft-tab { display: flex; flex-direction: column; flex: 1 1 0; min-height: 0; gap: var(--spacing-xs); padding-top: var(--spacing-xs); }
+.role-draft-tab--scroll { overflow-y: auto; }
+.role-draft-legend { display: flex; flex-wrap: wrap; align-items: center; gap: var(--spacing-xs); flex-shrink: 0; }
+.role-draft-period { display: flex; align-items: center; gap: var(--spacing-xs); }
+.role-draft-note { padding: var(--spacing-sm); }
+
+/* B. 권한 흐름도 */
+.role-flow { position: relative; margin: var(--spacing-sm); }
+.role-flow__cols { position: relative; height: 24px; }
+.role-flow__col-title { position: absolute; top: 0; font-weight: 600; color: var(--color-text-secondary); }
+.role-flow__canvas { position: relative; }
+.role-flow__svg { position: absolute; inset: 0; pointer-events: none; }
+.role-flow__edge { fill: none; stroke: var(--color-border-medium); opacity: 0.7; transition: opacity 0.15s; }
+.role-flow__edge--lv1 { stroke: color-mix(in srgb, var(--color-primary) 30%, var(--color-bg)); }
+.role-flow__edge--lv2 { stroke: color-mix(in srgb, var(--color-primary) 50%, var(--color-bg)); }
+.role-flow__edge--lv3 { stroke: color-mix(in srgb, var(--color-primary) 75%, var(--color-bg)); }
+.role-flow__edge--lv4 { stroke: var(--color-primary-active); }
+.role-flow__edge--lvx { stroke: var(--color-primary); stroke-dasharray: 4 3; }
+.role-flow__edge--off { opacity: 0.03; }
+.role-flow__edge--on { opacity: 1; }
+.role-flow__head { position: absolute; font-size: var(--font-size-xs); color: var(--color-text-muted); }
+.role-flow__node {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 0 8px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  overflow: hidden;
+  transition: opacity 0.15s;
+}
+.role-flow__node--g { background: var(--color-bg-light); }
+.role-flow__node--r { background: var(--color-primary-soft); border-color: var(--color-selection-border); }
+.role-flow__node--off { opacity: 0.25; }
+.role-flow__node--focus { box-shadow: var(--shadow-focus); border-color: var(--color-primary); }
+.role-flow__node--dim .role-flow__label { color: var(--color-text-disabled); text-decoration: line-through; }
+.role-flow__node--changed { outline: 2px dashed var(--color-warning); outline-offset: 1px; }
+.role-flow__label { font-size: var(--font-size-sm); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.role-flow__sub { font-size: var(--font-size-xs); color: var(--color-text-muted); line-height: 1.1; }
+.role-flow-explain { padding: var(--spacing-sm) var(--spacing-md); display: flex; flex-direction: column; gap: var(--spacing-sm); }
+.role-flow-explain h3,
+.role-flow-explain h4 { margin: 0; }
+.role-flow-explain p { margin: 0; line-height: 1.6; }
+.role-flow-menu { display: flex; flex-direction: column; gap: 4px; }
+.role-flow-menu__title { font-size: var(--font-size-xs); color: var(--color-text-muted); }
+.role-flow-giver { display: flex; justify-content: space-between; align-items: center; }
+.role-flow-changes { border-top: 1px solid var(--color-border-light); }
+.role-flow-change { display: flex; gap: var(--spacing-xs); align-items: center; font-size: var(--font-size-sm); }
+
+/* D. 그 사람 눈으로 보기 */
+.role-viewas-people { display: flex; flex-direction: column; gap: 4px; padding: var(--spacing-sm); }
+.role-person {
+  display: flex;
+  flex-direction: column;
+  padding: 6px 8px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  background: none;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+}
+.role-person:hover { background: var(--color-bg-hover); }
+.role-person--on { background: var(--color-selection); border-color: var(--color-selection-border); }
+.role-person__name { font-weight: 600; }
+.role-person__dept { font-size: var(--font-size-xs); color: var(--color-text-muted); }
+.role-viewas-roles { padding: var(--spacing-sm) var(--spacing-md); display: flex; flex-direction: column; gap: var(--spacing-xs); }
+.role-viewas-roles p { margin: 0; }
+.role-toggle { display: flex; flex-direction: column; gap: 2px; padding: 6px 8px; border: 1px solid var(--color-border-light); border-radius: var(--radius-md); }
+.role-toggle--off { opacity: 0.65; }
+.role-toggle--added { border-color: var(--color-success); background: var(--color-success-soft); }
+.role-viewas-diff {
+  margin-top: var(--spacing-sm);
+  padding: var(--spacing-sm);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-light);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.role-viewas-preview { padding: var(--spacing-sm); display: flex; flex-direction: column; gap: var(--spacing-sm); }
+.role-preview-bar { display: flex; justify-content: space-between; align-items: center; gap: var(--spacing-sm); flex-wrap: wrap; }
+.role-preview { display: flex; border: 1px solid var(--color-border-strong); border-radius: var(--radius-md); overflow: hidden; min-height: 420px; }
+.role-preview__menu {
+  width: 220px;
+  flex-shrink: 0;
+  background: var(--color-bg-header);
+  padding: var(--spacing-sm) 0;
+  border-right: 1px solid var(--color-border);
+}
+.role-preview__group { margin-bottom: var(--spacing-sm); }
+.role-preview__group-title { padding: 2px var(--spacing-sm); font-size: var(--font-size-xs); color: var(--color-text-muted); }
+.role-preview__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  width: 100%;
+  padding: 4px var(--spacing-md);
+  border: 0;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--font-size-sm);
+}
+.role-preview__item:hover { background: var(--color-bg-hover); }
+.role-preview__item--on { background: var(--color-selection); }
+.role-preview__item--gone span:first-child { text-decoration: line-through; color: var(--color-text-disabled); }
+.role-preview__item--hidden { color: var(--color-text-disabled); }
+.role-preview__screen {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: var(--spacing-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+  background: var(--color-bg);
+}
+.role-preview__screen-head { display: flex; align-items: center; gap: var(--spacing-sm); font-size: var(--font-size-lg); }
+.role-preview__buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-xs);
+  padding-bottom: var(--spacing-sm);
+  border-bottom: 1px solid var(--color-border-light);
+}
+.role-fake-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 12px;
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius-sm);
+  color: var(--color-primary);
+  font-size: var(--font-size-sm);
+  cursor: default;
+}
+.role-fake-btn--locked { border-color: var(--color-border); color: var(--color-text-disabled); background: var(--color-bg-disabled); }
+.role-preview__body { display: flex; flex-direction: column; gap: 8px; }
+.role-skeleton { display: block; height: 14px; width: 60%; border-radius: var(--radius-sm); background: var(--color-bg-light); }
+.role-skeleton--wide { width: 95%; }
+.role-skeleton--mid { width: 78%; }
+.role-preview__why {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--spacing-sm);
+  border-radius: var(--radius-md);
+  background: var(--color-primary-soft);
+  font-size: var(--font-size-sm);
+}

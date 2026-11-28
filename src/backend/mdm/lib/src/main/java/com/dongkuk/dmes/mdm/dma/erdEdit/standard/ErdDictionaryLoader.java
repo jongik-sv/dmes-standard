@@ -6,6 +6,7 @@ import com.dongkuk.dmes.mdm.common.dictionary.DomainTreeSnapshot;
 import com.dongkuk.dmes.mdm.dma.erdEdit.engine.ErdDomainSpec;
 import com.dongkuk.dmes.mdm.dma.naming.DomainEntry;
 import com.dongkuk.dmes.mdm.dma.support.TermDictionaryLoader;
+import com.dongkuk.dmes.mdm.entity.MdmColumn;
 import com.dongkuk.dmes.mdm.entity.MdmDomain;
 import com.dongkuk.dmes.mdm.repository.MdmColumnRepository;
 import com.dongkuk.dmes.mdm.repository.MdmColumnSystemRepository;
@@ -50,9 +51,17 @@ public class ErdDictionaryLoader {
                 .collect(Collectors.toSet());
         Map<String, ErdDictionary.ColumnEntry> byPhys = ErdDictionary.index(
                 columnList.stream().map(c -> new ErdDictionary.ColumnRow(c.getColumnId(), c.getPhysName(),
-                        c.getColumnName(), c.getDomainId())).toList(),
+                        c.getColumnName(), c.getDomainId(), baseSpec(c))).toList(),
                 aliasList.stream().map(a -> new ErdDictionary.AliasRow(a.getColumnId(), a.getPhysName())).toList());
         return new ErdDictionary(TermDictionaryLoader.load(terms), phys, alias, specs, entries, byPhys);
+    }
+
+    /** 도메인 없는 컬럼의 기본 타입. 도메인이 있거나 타입이 비면 null. 도메인 id·이름은 설계상 null 이다. */
+    static ErdDomainSpec baseSpec(MdmColumn c) {
+        if (c.getDomainId() != null || c.getDataType() == null || c.getDataType().isBlank()) {
+            return null;
+        }
+        return new ErdDomainSpec(null, null, c.getDataType(), c.getLength(), c.getScale());
     }
 
     /**

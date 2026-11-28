@@ -35,13 +35,14 @@ import { useGridMdm, mdmHeaderLabelSignature } from "./grid-mdm";
 import { buildColumnDefs, hasEditableColumn, resolveRowDrag } from "./column-defs";
 import { displayedRowKeys, useRowCursor } from "./row-cursor";
 import { useGridSelection } from "./useGridSelection";
+import { useGridRowDropZones } from "./useGridRowDropZones";
 import { useGridScreenContext } from "./useGridScreenContext";
 import { useGridEditing, useGridRowClass } from "./useGridEditing";
 import { useGridAutoSize } from "./useGridAutoSize";
 import { useGridCarry } from "./useGridCarry";
 import { GRID_FILTER_LOCALE_TEXT, GRID_FILTER_ROW_CLOSED_CLASS, GRID_FILTER_ROW_HEIGHT, useGridFilter } from "./useGridFilter";
 
-export type { GridColumn, AgDataGridProps, AgDataGridFieldError } from "./grid-types";
+export type { GridColumn, AgDataGridProps, AgDataGridFieldError, GridRowDropZone } from "./grid-types";
 export { gridRowIdOf, indexFieldErrors } from "./field-errors";
 export type { MdmCellCheck, MdmGridTooltipParams } from "./grid-mdm";
 export type { BuildColumnDefsOptions } from "./column-defs";
@@ -55,6 +56,11 @@ export {
   sameGridMdmValues,
   useResolvedGridColumns,
 } from "./grid-mdm";
+
+/** 여러 행을 끌 때 따라다니는 글 — 한 행이면 셀 값, 여러 행이면 「N건」. */
+function multiRowDragText(params: { defaultTextValue: string }, dragItemCount: number): string {
+  return dragItemCount > 1 ? `${dragItemCount}건` : params.defaultTextValue;
+}
 
 /** `rowNumber` 로 넣는 행번호 열의 colId — 테스트·화면이 이 칸을 집을 때 쓴다. */
 export const ROW_NUMBER_COL_ID = "__rowNo";
@@ -133,6 +139,8 @@ function AgDataGridInner({
   rowDragField,
   isRowDraggable,
   onRowOrderChange,
+  rowDragMultiRow = false,
+  rowDropZones,
   mdmValidate = false,
   fieldErrors,
   excelExport,
@@ -322,6 +330,10 @@ function AgDataGridInner({
   const onGridReady = useCallback((_params: GridReadyEvent) => {
     setGridReady(true);
   }, []);
+
+  // 그리드 밖 놓을 자리(rowDropZones) — 준비 뒤·자리 개수가 바뀔 때만 등록한다(useGridRowDropZones.ts).
+  useGridRowDropZones(gridRef, gridReady, rowDropZones);
+  const hasDropZones = (rowDropZones?.length ?? 0) > 0;
 
   // 행 선택(useGridSelection.ts) — 제어형 선택 동기화·선택 변경 알림·행 클릭의 선택 토글.
   const { handleSelectionChanged, applyRowClickSelection } = useGridSelection({
@@ -848,6 +860,10 @@ function AgDataGridInner({
         localeText={gridFilter.filterColumns ? GRID_FILTER_LOCALE_TEXT : undefined}
         {...gridFilter.gridProps}
         {...rowDrag.gridProps}
+        // 여러 행 끌기(rowDragMultiRow) — 끄는 글은 여러 행이면 「N건」. 밖에 놓을 자리가 있으면 끄는 동안 행을 미리 옮기지 않는다(grid-types 참고).
+        rowDragMultiRow={rowDragMultiRow || undefined}
+        rowDragText={rowDragMultiRow ? multiRowDragText : undefined}
+        suppressMoveWhenRowDragging={hasDropZones && onRowOrderChange ? true : undefined}
       />
       {showSettingsOverlay ? <GridSettingsOverlay controls={host === "dialog" ? dialogControls : overlayControls} /> : null}
     </div>

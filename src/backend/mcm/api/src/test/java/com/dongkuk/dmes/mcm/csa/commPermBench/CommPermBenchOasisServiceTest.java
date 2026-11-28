@@ -71,7 +71,8 @@ import static org.assertj.core.api.Assertions.assertThat;
  * multi-tx, 기본 매니저 {@code txBiz} = JPA) → {@link OasisServiceExecutor} → 실제 {@code services/csa/commPermBench/commPermBench.bpmn}
  * → {@code commPermBenchService}. 응답 변환기에는 운영처럼 {@link McmBusinessErrorTranslator} 를 넣어 mcm-core 업무 예외가
  * {@code meta.success=false}·{@code meta.message="CODE: 상세"} 로 나가는지 본다.
- * 빈은 운영 그대로 컴포넌트 스캔한다 — {@code csa.commPermBench}(서비스·저장소) + {@code security.perm}(V2 로더·계산기·설명 서비스).
+ * 빈은 운영 그대로 컴포넌트 스캔한다 — {@code csa.commPermBench}(서비스·저장소) + {@code csa.commPerm}(SysadminGuard)
+ * + {@code security.perm}(V2 로더·계산기·설명 서비스).
  *
  * <p>DB 는 Oracle 시험 PDB(Flyway 기준선 + V20·V21). 이 시험이 CommPermBenchQueryRepository·PermScopeRowRepository·
  * PermHistoryRepository·PermApplyRepository·PermDraftRowLockRepository·PermImpactNameRepository 의 네이티브 SQL 을 실제로 돌린다.
@@ -132,14 +133,14 @@ class CommPermBenchOasisServiceTest {
         jdbc.update("INSERT INTO TB_MCM_SEC_USER_MAPPING (USER_ID, ROLE_GROUP_ID) VALUES ('admin', 'G_ADMIN')");
         jdbc.update("INSERT INTO TB_MCM_SEC_USER_MAPPING (USER_ID, ROLE_GROUP_ID) VALUES ('u1', 'G_VIEW')");
         jdbc.update("INSERT INTO TB_MCM_SEC_USER_MAPPING (USER_ID, ROLE_GROUP_ID) VALUES ('u_off', 'G_VIEW')");
-        jdbc.update("INSERT INTO TB_MCM_SEC_MENU_FLD (MENU_ID, MENU_SEQ, MENU_NM, PARENT_MENU_ID, FULL_SEQ, USE_TP, MENU_VIEW_YN)"
-                + " VALUES ('mcm', '1', '공통관리', NULL, 1, 'Y', 'Y')");
-        jdbc.update("INSERT INTO TB_MCM_SEC_MENU_FLD (MENU_ID, MENU_SEQ, MENU_NM, PARENT_MENU_ID, FULL_SEQ, USE_TP, MENU_VIEW_YN)"
-                + " VALUES ('csa', '1', '시스템관리', 'mcm', 2, 'Y', 'Y')");
+        jdbc.update("INSERT INTO TB_MCM_SEC_MENU_FLD (MENU_ID, MENU_SEQ, MENU_NM, PARENT_MENU_ID, USE_TP, MENU_VIEW_YN)"
+                + " VALUES ('mcm', '1', '공통관리', NULL, 'Y', 'Y')");
+        jdbc.update("INSERT INTO TB_MCM_SEC_MENU_FLD (MENU_ID, MENU_SEQ, MENU_NM, PARENT_MENU_ID, USE_TP, MENU_VIEW_YN)"
+                + " VALUES ('csa', '1', '시스템관리', 'mcm', 'Y', 'Y')");
         jdbc.update("INSERT INTO TB_MCM_SEC_OBJ (OBJECT_ID, OBJECT_NM, SYSTEM_CODE, USE_TP, BTN_PERM, POPUP_PERM)"
                 + " VALUES ('objA', '화면A', 'mcm', 'Y', 'search,save,excelDown', NULL)");
-        jdbc.update("INSERT INTO TB_MCM_SEC_MENU (MENU_ID, MENU_SEQ, FULL_SEQ, MENU_NM, MENU_TP, OBJECT_ID, USE_TP, MENU_VIEW_YN, PARENT_MENU_ID)"
-                + " VALUES ('M_A', '002', '1020240', '화면A', 'S', 'objA', 'Y', 'Y', 'csa')");
+        jdbc.update("INSERT INTO TB_MCM_SEC_MENU (MENU_ID, MENU_SEQ, MENU_NM, MENU_TP, OBJECT_ID, USE_TP, MENU_VIEW_YN, PARENT_MENU_ID)"
+                + " VALUES ('M_A', '002', '화면A', 'S', 'objA', 'Y', 'Y', 'csa')");
         // c4 시더 — 권한 작업대 OBJECT(BTN_PERM = 11 action) + 메뉴 leaf(csa/commPermBench) + 옛 SYSADMIN 매핑
         tx.executeWithoutResult(s -> new McmMenuSeeder(new SeedSupport(
                 SharedEntityManagerCreator.createSharedEntityManager(ctx.getBean(EntityManagerFactory.class))))
@@ -415,7 +416,8 @@ class CommPermBenchOasisServiceTest {
                     SecObjRepository.class, SecUserRepository.class, SecRoleGroupRepository.class, SecRoleRepository.class}),
             transactionManagerRef = "transactionManager")
     @ComponentScan(
-            basePackages = {"com.dongkuk.dmes.mcm.csa.commPermBench", "com.dongkuk.dmes.mcm.security.perm"},
+            basePackages = {"com.dongkuk.dmes.mcm.csa.commPermBench", "com.dongkuk.dmes.mcm.csa.commPerm",
+                    "com.dongkuk.dmes.mcm.security.perm"},
             excludeFilters = @ComponentScan.Filter(type = FilterType.ANNOTATION, classes = Configuration.class))
     static class Config {
 

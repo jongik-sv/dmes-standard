@@ -194,9 +194,9 @@ const nameOf = (x) => unquote(/^("?[\w$#]+"?)/.exec(x)?.[1] ?? "?");
 /**
  * 파일 하나를 읽어 문장 목록을 낸다. 위치(at) = 원본 글자 위치(가린 텍스트와 같다).
  * create: {kind:'create', table, startLine, endLine, colLines:[{line, name, multi, ...}], pk, declared}
- * add:    {kind:'add', table, cols:[...] } · drop: {kind:'drop', table}
+ * add:    {kind:'add', table, cols:[...] } · drop: {kind:'drop', table} · dropCol: {kind:'dropCol', table, cols:[...]}
  * modify: {kind:'modify', table, cols:[{name, vis:'INVISIBLE'|'VISIBLE'}]} · addPk: {kind:'addPk', table, pk}
- * 이해하지 못한 모양(괄호 없는 ALTER ADD·DROP COLUMN·RENAME·SET UNUSED·다른 create table 머리 등)은 issues 에 남긴다.
+ * 이해하지 못한 모양(괄호 없는 ALTER ADD·RENAME·SET UNUSED·다른 create table 머리 등)은 issues 에 남긴다.
  */
 export function parseSqlFile(text, file = "") {
   const lines = text.split("\n");
@@ -294,12 +294,19 @@ export function parseSqlFile(text, file = "") {
       }
       continue;
     }
+    // DROP COLUMN x · DROP (x, y): 컬럼이 빠질 뿐 남은 컬럼 순서는 그대로다(2026-11-27 mcmapuser V23 FULL_SEQ 삭제).
+    const dc = /^drop\s+(?:column\s+("?[\w$#]+"?)|\(([^)]*)\))/i.exec(rest);
+    if (dc) {
+      const cols = dc[1] ? [unquote(dc[1])] : dc[2].split(",").map((x) => unquote(x.trim()));
+      stmts.push({ kind: "dropCol", table, cols, at });
+      continue;
+    }
     const pkc = /^add\s+(?:constraint\s+\S+\s+)?primary\s+key\s*\(([^)]*)\)/i.exec(rest);
     if (pkc) {
       stmts.push({ kind: "addPk", table, pk: pkc[1].split(",").map((x) => unquote(x.trim())), at });
       continue;
     }
-    // 순서와 무관한 제약·상태 변경은 넘긴다. 그 밖(괄호 없는 ADD/MODIFY, DROP COLUMN, RENAME COLUMN, SET UNUSED, DROP PRIMARY KEY …)은 알린다.
+    // 순서와 무관한 제약·상태 변경은 넘긴다. 그 밖(괄호 없는 ADD/MODIFY, RENAME COLUMN, SET UNUSED, DROP PRIMARY KEY …)은 알린다.
     // 괄호 없는 MODIFY <컬럼> …: INVISIBLE|VISIBLE 만이면 순서 변경, 그 밖(NOT NULL·DEFAULT·타입)은 순서와 무관해 넘긴다.
     const pm = /^modify\s+(?!partition\b|subpartition\b|lob\b|nested\b|varray\b|constraint\b|default\b|storage\b)("?[\w$#]+"?)\s+([\s\S]*)$/i.exec(rest);
     if (pm) {
@@ -338,6 +345,18 @@ export function simulate(parsedFiles) {
         t.declared?.push(...s.cols);
       } else if (s.kind === "addPk") {
         t.pk = s.pk;
+      } else if (s.kind === "dropCol") {
+        for (const c of s.cols) {
+          let found = false;
+          for (const l of [t.cols, t.hidden, t.declared].filter(Boolean)) {
+            const k = l.indexOf(c);
+            if (k >= 0) {
+              l.splice(k, 1);
+              found = true;
+            }
+          }
+          if (!found) tables.issues.push(`${file}: ${s.table}.${c} 없는 컬럼을 DROP`);
+        }
       } else if (s.kind === "modify") {
         for (const c of s.cols) {
           const from = c.vis === "INVISIBLE" ? t.cols : t.hidden;

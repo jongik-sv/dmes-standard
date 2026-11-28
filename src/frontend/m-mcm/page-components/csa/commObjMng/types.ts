@@ -10,7 +10,7 @@
  * To-Be 정책 #1 (BIZ_SYSTEM_CODE 폐기) 반영.
  */
 
-/** 조회조건 — 분석 §3.2 / 기능 §3.1 / To-Be 2 파라미터 (S-001 폐기). */
+/** 조회조건 — 분석 §3.2 / 기능 §3.1 / To-Be 2 파라미터 (S-001 폐기) + 2026-11-26 SYSTEM / OBJECT TYPE / 접속 경로 추가. */
 export interface CommObjMngFilters {
   /** S-002 — OBJECT (UPPER LIKE OBJECT_ID OR OBJECT_NM). */
   edt_OBJECT_ID: string;
@@ -18,11 +18,18 @@ export interface CommObjMngFilters {
   cbo_USE_TP: string;
   /** 퍼미션 모델 v2 — 메뉴 폴더(하위 포함). 빈 값 = 전체. 옵션 = `lov` 의 ds_lovMenuId. */
   menuFolderId: string;
+
+  /** 2026-11-26 — SYSTEM_CODE 일치 (빈 값 = 전체). */
+  cbo_SYSTEM_CODE: string;
+  /** 2026-11-26 — OBJECT_TYPE 부분 일치 (대소문자 무시 / 빈 값 = 전체). */
+  edt_OBJECT_TYPE: string;
+  /** 2026-11-26 — 접속 경로 ACCESS_TP 일치 ("내부"/"외부" / 빈 값 = 전체). */
+  cbo_ACCESS_TP: string;
 }
 
 /**
  * Master 그리드 row — As-Is ds_main (xfdl:168~187) + To-Be 정책 #1 (BIZ_SYSTEM_CODE 제거).
- * 본 13 컬럼 + scalar subquery MENU_ID + 계산 ID + FE row state.
+ * 본 13 컬럼 + 계산 ID + FE row state.
  */
 export interface CommObjMngRow extends Record<string, unknown> {
   /** G-002 / D-001 — PK (자동 조합 `{MENU_ID}::{ID}`). */
@@ -55,12 +62,7 @@ export interface CommObjMngRow extends Record<string, unknown> {
   START_ACTIVE_DATE?: string | null;
   /** G-014 / D-016 — As-Is 행추가 default "99991231" 8자 → To-Be 정정 9999-12-31 23:59:59. */
   END_ACTIVE_DATE?: string | null;
-  /** D-004 cbo_folder — scalar subquery (TB_MCM_SEC_MENU.MENU_ID).
-   *  2026-06-05 — BE searchCmObj 응답에서 OBJECT_ID 와 동일한 redundant alias 로 사용. BE 호환성 유지. */
-  MENU_ID?: string;
-  /** 2026-06-05 — 실제 그룹 토큰 (csa/cma/cme) source. FORM_URL 자동 산출 = `${PARENT_MENU_ID}/${OBJECT_ID}`.
-   *  componentPath 정합 (Phase 1+2 라우팅 패턴). Detail MENU ID 콤보의 binding 필드. */
-  PARENT_MENU_ID?: string;
+  // 2026-11-26 — MENU_ID·PARENT_MENU_ID(메뉴 역조회 값)를 뺐다. 오브젝트는 메뉴 정보를 갖지 않는다. 메뉴가 오브젝트를 가리킨다.
   /** D-005 — OBJECT_ID 의 "::" 이후 (As-Is SUBSTR/INSTR/LENGTH 계산). */
   ID?: string;
   /** 퍼미션 모델 v2 — 버튼 허용 값(콤마로 잇는 코드, 최대 500자). */

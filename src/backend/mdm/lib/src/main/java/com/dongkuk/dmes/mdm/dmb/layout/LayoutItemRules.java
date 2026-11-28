@@ -85,7 +85,7 @@ public final class LayoutItemRules {
             checkNumFormat(seq, item.numFormat(), column, issues);
         } else if (column.length() == null || column.length() < 1) {
             issues.add(LayoutIssue.of(LayoutIssueCode.L07, seq, Field.COLUMN.key(),
-                    "도메인 길이가 없어 항목 길이를 정할 수 없다: " + item.columnPhys()));
+                    "도메인 길이도 컬럼 기본 길이도 없어 항목 길이를 정할 수 없다: " + item.columnPhys()));
         }
     }
 
@@ -93,7 +93,7 @@ public final class LayoutItemRules {
         String key = Field.NUM_FORMAT.key();
         if (!NUMBER.equals(column.dataType())) {
             issues.add(LayoutIssue.of(LayoutIssueCode.L08, seq, key,
-                    "숫자 표현 형식은 숫자 도메인에만 넣는다: " + column.physName() + "(" + column.dataType() + ")"));
+                    "숫자 표현 형식은 숫자 타입(도메인 또는 컬럼 기본 타입) 컬럼에만 넣는다: " + column.physName() + "(" + column.dataType() + ")"));
             return;
         }
         LayoutNumFormat f;

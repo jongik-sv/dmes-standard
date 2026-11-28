@@ -216,6 +216,8 @@
   - `finished` = 이 회차의 팀원 키를 모두 내렸다는 마감 표식
   - 상세 = `office-contract.md` §4
 - `lanes.<l>.group` = WBS 묶음 이름(`lane-add` json 으로 설정, 없으면 기본 묶음 「레인」). `lanes.<l>.runner` = WBS 실행 칸 글(없으면 `session.kind`·`model`·`effort` 로 만듦)
+- `lanes.<l>.pc` = WBS 「pc」 칸 글. 없으면 `worktree` 의 `<pc>:<경로>` 앞부분(드라이브 글자 한 자는 제외) → `run.pc` → 설정 `.pc` → 이 PC 호스트 이름(소문자)
+- `run.coordinator.window` = 조정 세션 컨텍스트 창 크기(예: `1000000`). 틱의 `CTX_OVER_SELF` 판정이 `ctx-usage --window` 로 넘김. 없으면 `compact.default_window`
 - `wbs` = 조정자 몫 단계·이슈(WBS 전용, 키 없어도 됨)
   - 쓰기 = `coord-state.mjs wbs-phase`·`wbs-done`·`wbs-issue`. `opened_at` = `wbs.mjs --open` 이 엶 성공 때 기록
   - 항목 `weight` 기본 1, 진도는 레인 항목과 같은 가중치 합산. `progress` 명령은 레인만 셈

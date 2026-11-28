@@ -60,7 +60,8 @@ class ColumnMngSearchCharacterizationTest extends AbstractMdmSharedDbTest {
             "Ärger", "가나", "경로\\구분", "매핑 컬럼", "코일 두께", "코일ID");
 
     private static final List<String> ROW_KEYS = List.of("columnId", "columnName", "physName", "labelLong", "labelMid",
-            "labelShort", "domainId", "domainName", "domainStdName", "required", "termNames", "systemFields");
+            "labelShort", "domainId", "domainName", "domainStdName", "effectiveDataType", "effectiveLength",
+            "effectiveScale", "typeSource", "required", "termNames", "systemFields");
 
     private static final String USAGE_HTML = "<p>메모 <b>굵게</b></p>";
 

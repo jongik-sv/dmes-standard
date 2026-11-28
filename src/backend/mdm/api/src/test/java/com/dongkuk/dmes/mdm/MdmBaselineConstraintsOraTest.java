@@ -19,6 +19,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.core.io.ClassPathResource;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 
@@ -46,6 +48,12 @@ class MdmBaselineConstraintsOraTest extends AbstractMdmSharedDbTest {
     private static final Map<String, String> TYPE = Map.of("PRIMARY", "P", "UNIQUE", "U", "FOREIGN", "R", "CHECK", "C");
 
     private static String v1;
+    /** V1 표 이름(따옴표 붙은 대문자) — readV1 이 채운다. */
+    private static Set<String> V1_TABLES;
+    /** 후속 마이그레이션이 V1 표에 더한 이름 붙은 제약(예: V11 {@code CK_TB_MDM_COLUMN_DTYPE}). */
+    private static final Pattern ALTER_ADD_CONSTRAINT = Pattern.compile(
+            "ALTER\\s+TABLE\\s+(\\w+)\\s+ADD\\s+CONSTRAINT\\s+(\\w+)\\s+(PRIMARY\\s+KEY|UNIQUE|FOREIGN\\s+KEY|CHECK)",
+            Pattern.CASE_INSENSITIVE);
 
     @Autowired
     JdbcTemplate jdbc;
@@ -60,7 +68,35 @@ class MdmBaselineConstraintsOraTest extends AbstractMdmSharedDbTest {
             tables.add("'" + t.group(1).toUpperCase() + "'");
         }
         assertTrue(tables.size() >= 39, "V1 에서 표 이름을 읽지 못했다: " + tables.size());
+        V1_TABLES = tables;
         NOT_HOUSEKEEPING = "TABLE_NAME IN (" + String.join(",", tables) + ")";
+    }
+
+    /**
+     * V1 뒤 마이그레이션(V2~)의 {@code ALTER TABLE <V1 표> ADD CONSTRAINT <이름> <종류>} — 기준선 밖이지만 V1 표에 정식으로 더한 제약이라
+     * 기대값에 넣는다(V1 밖 표는 각자 시험이 본다). 주석 줄은 뺀다.
+     */
+    private static Map<String, String> laterConstraintsOnV1Tables() {
+        Map<String, String> out = new TreeMap<>();
+        try {
+            for (Resource r : new PathMatchingResourcePatternResolver().getResources("classpath:db/migration/mdm/oracle/V*__*.sql")) {
+                String name = r.getFilename();
+                if (name == null || name.startsWith("V1__")) {
+                    continue;
+                }
+                String sql = r.getContentAsString(StandardCharsets.UTF_8).lines()
+                        .filter(l -> !l.stripLeading().startsWith("--")).reduce("", (a, b) -> a + "\n" + b);
+                Matcher m = ALTER_ADD_CONSTRAINT.matcher(sql);
+                while (m.find()) {
+                    if (V1_TABLES.contains("'" + m.group(1).toUpperCase() + "'")) {
+                        out.put(m.group(2).toUpperCase(), TYPE.get(m.group(3).split("\\s+")[0].toUpperCase()));
+                    }
+                }
+            }
+        } catch (IOException e) {
+            throw new IllegalStateException("마이그레이션 파일을 읽지 못했다", e);
+        }
+        return out;
     }
 
     @Test
@@ -71,6 +107,7 @@ class MdmBaselineConstraintsOraTest extends AbstractMdmSharedDbTest {
             expected.put(m.group(1).toUpperCase(), TYPE.get(m.group(2).split("\\s+")[0].toUpperCase()));
         }
         assertTrue(expected.size() > 100, "V1 에서 제약 이름을 읽지 못했다: " + expected.size());
+        expected.putAll(laterConstraintsOnV1Tables());
 
         Map<String, String> actual = new TreeMap<>();
         Set<String> disabled = new TreeSet<>();

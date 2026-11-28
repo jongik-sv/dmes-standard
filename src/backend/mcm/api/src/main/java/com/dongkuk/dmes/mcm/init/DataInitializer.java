@@ -64,7 +64,7 @@ public class DataInitializer implements ApplicationRunner {
     @PersistenceContext(unitName = "default")
     private EntityManager entityManager;
 
-    // 2026-06-04 사용자 지시 — 메뉴 FULL_SEQ 7자리 인코딩 기동 시 강제 재계산용 (mcm-core read-only 어댑터).
+    // 메뉴 시드 마무리(MenuFinalizer)가 쓰는 mcm-core 어댑터 — OBJECT FORM_URL 채우기.
     @Autowired
     private SecMenuNativeRepository secMenuNativeRepository;
 
@@ -150,9 +150,7 @@ public class DataInitializer implements ApplicationRunner {
         // TB_MCM_SEC_MENU — 메뉴 트리 시드 leaf 13 row (화면 only). round 3 (2026-06-02): 모듈/그룹 폴더 4 row 는
         // 본 테이블 owner ✗ — 모두 TB_MCM_SEC_MENU_FLD owner. PARENT_MENU_ID 는 SEC_MENU_FLD.MENU_ID 참조.
         // SecUserService.getMyMenusTree 가 두 테이블 JOIN 으로 트리 조립.
-        // FULL_SEQ 는 사용자 지정 7자리 인코딩 체계 (2026-06-02 R3 P1):
-        //   백만 +1,000,000 = 모듈 / 만 +10,000 = 그룹 폴더 / 백/십 +100~+990 = 화면.
-        //   화면=각 그룹 +100,+110,... (폴더 FULL_SEQ 는 SEC_MENU_FLD 시드 또는 본 화면 외 범위)
+        // 표시 순서는 같은 부모 안의 MENU_SEQ 로 정한다(숫자 비교, 같으면 MENU_ID). 2026-11-27 FULL_SEQ 컬럼은 없앴다.
         mcmMenu.seedMcmSecMenu();
 
         // TB_MCM_DEPT_INFO — 부서 LoV 시드 3 row (정책 #2 / Q-002 — EAI 폐기 대체).
@@ -219,20 +217,17 @@ public class DataInitializer implements ApplicationRunner {
         //   처음 채운다. 모든 OBJECT 시드 뒤에 둔다(칸이 비었을 때만 쓴다 — 관리자 수정 보존). SYSADMIN 은 이 값으로 계산한다(D13).
         new CoreRbacSeeder(support, passwordEncoder, environment).fillObjPermFromCatalog();
 
-        // 2026-06-04 사용자 지시 — 모든 메뉴 시드 적재 후 FULL_SEQ 7자리 인코딩 강제 재계산 (멱등).
-        //   결함: seedMcmSecMenuFld 의 INSERT 는 FULL_SEQ 미포함 + upgradeTbMcmSecMenuFldToFullOwner 의
-        //   FULL_SEQ UPDATE 가 initMcmCsaCommObjMngArtifacts(line 69) 단계 = INSERT 보다 먼저 실행되어,
-        //   신규(클린) DB 에서 폴더 FULL_SEQ 가 NULL 로 남아 메뉴 필드 관리 그리드에 빈 값이 표시됨.
-        //   본 호출이 시드 순서와 무관하게 폴더(모듈 백만 / 그룹 만) + 화면(그룹 + 100,+10) FULL_SEQ 를
-        //   트리 위치 기준으로 일괄 정정. saveCmMenu / saveCmMenuFld 의 저장 시 재계산과 동일 로직 (SoT).
         // 2026-06-11: 모듈 루트 폴더 표시 순서 고정 — 공정계획(mpn) 위 / 공통관리(mcm) 아래.
         //   b1eac364 가 시드 리터럴 MENU_SEQ 를 swap 했으나 seedMcmSecMenuFld/seedMpnMenus 는 insertIfAbsent 라
         //   이미 시드된 DB(개발계·다른 개발자 로컬 DB)엔 옛 값(mcm=00000001, mpn=00000002)이 남아 순서가 안 바뀐다.
-        //   루트 2행만 멱등 보정(그룹/화면 정렬은 사용자 편집 보존) 후, 아래 recompute 가 FULL_SEQ 를 재부여한다.
+        //   루트 2행만 멱등 보정한다(그룹/화면 정렬은 사용자 편집 보존).
+        // 2026-11-27 — 뒤따르던 FULL_SEQ 재계산은 컬럼과 함께 없앴다. 시드는 모두 native SQL 이고,
+        //   아래 backfillObjectFormUrl 이 먼저 flush 하므로 따로 flush 할 일은 없다.
         menuFinalizer.fixModuleRootMenuSeqOrder();
 
-        // recomputeMenuFullSeq 는 mcm-core SecMenuNativeRepository 의 native @Query(MCMAPUSER. schema 접두) 다.
-        menuFinalizer.recomputeMenuFullSeq();
+        // 2026-11-26 — 화면 코드 경로는 OBJECT.FORM_URL 이다(mcm.menu.MenuCodePath). 시드 OBJECT 는 FORM_URL 없이 들어가므로
+        //   메뉴 시드가 다 끝난 뒤 PARENT_MENU_ID/OBJECT_ID 로 채운다(멱등 — 값이 있는 OBJECT 는 건드리지 않는다).
+        menuFinalizer.backfillObjectFormUrl();
 
         // 메뉴 카탈로그 무효화 — 이 메서드의 @Transactional 안이므로 즉시 한 번, 트랜잭션이 끝난 뒤(커밋·롤백) 한 번 더 비운다(MenuCatalog javadoc).
         if (eventPublisher != null) {

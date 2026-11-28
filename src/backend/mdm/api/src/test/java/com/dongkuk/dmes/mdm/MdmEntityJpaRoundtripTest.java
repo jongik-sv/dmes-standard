@@ -135,6 +135,23 @@ class MdmEntityJpaRoundtripTest extends AbstractMdmSharedDbTest {
     }
 
     @Test
+    void MdmColumn_은_도메인_없이_기본_타입_길이_소수를_왕복한다() {
+        MdmColumn column = new MdmColumn("기본타입컬럼", "RT_BASE_PHYS", null);
+        column.setDataType("NUMBER");
+        column.setLength(13);
+        column.setScale(3);
+        MdmColumn saved = columnRepository.save(column);
+        entityManager.flush();
+        entityManager.clear();
+
+        MdmColumn reloaded = columnRepository.findById(saved.getColumnId()).orElseThrow();
+        assertEquals(null, reloaded.getDomainId());
+        assertEquals("NUMBER", reloaded.getDataType());
+        assertEquals(13, reloaded.getLength());
+        assertEquals(3, reloaded.getScale());
+    }
+
+    @Test
     void MdmColumnSystem_은_IdClass_복합_PK_로_저장_조회_왕복한다() {
         MdmDomain domain = domainRepository.save(new MdmDomain("전문도메인", "RT_SYS_DOMAIN", "TEXT", "STRING"));
         entityManager.flush();

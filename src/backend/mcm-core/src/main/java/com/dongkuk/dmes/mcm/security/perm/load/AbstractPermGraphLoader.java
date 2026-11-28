@@ -126,15 +126,15 @@ abstract class AbstractPermGraphLoader implements PermGraphLoader {
         return out;
     }
 
-    /** 폴더 먼저, 그다음 화면 메뉴. 각각 FULL_SEQ 순. */
+    /** 폴더 먼저, 그다음 화면 메뉴. 각각 MENU_SEQ(8자리 0 채움) → MENU_ID 순(2026-11-27 FULL_SEQ 삭제 — 형제 순서는 MENU_SEQ, mcm.menu.MenuOrder). */
     private List<MenuNode> loadMenus() {
         List<MenuNode> out = new ArrayList<>();
         for (Object[] r : rows("SELECT MENU_ID, PARENT_MENU_ID, MENU_VIEW_YN, USE_TP FROM " + S
-                + "TB_MCM_SEC_MENU_FLD ORDER BY FULL_SEQ, MENU_ID", null)) {
+                + "TB_MCM_SEC_MENU_FLD ORDER BY LPAD(CAST(MENU_SEQ AS VARCHAR2(30)), 8, '0'), MENU_ID", null)) {
             out.add(new MenuNode(str(r[0]), str(r[1]), null, !"N".equals(str(r[2])), str(r[3])));
         }
         for (Object[] r : rows("SELECT MENU_ID, PARENT_MENU_ID, OBJECT_ID, MENU_VIEW_YN, USE_TP FROM " + S
-                + "TB_MCM_SEC_MENU ORDER BY FULL_SEQ, MENU_ID", null)) {
+                + "TB_MCM_SEC_MENU ORDER BY LPAD(CAST(MENU_SEQ AS VARCHAR2(30)), 8, '0'), MENU_ID", null)) {
             out.add(new MenuNode(str(r[0]), str(r[1]), str(r[2]), !"N".equals(str(r[3])), str(r[4])));
         }
         return out;

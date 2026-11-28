@@ -207,17 +207,18 @@ public class CommPermBenchQueryRepository {
     }
 
     /**
-     * 메뉴 트리 전체 = 폴더(TB_MCM_SEC_MENU_FLD) 다음 화면(TB_MCM_SEC_MENU). 각각 FULL_SEQ 순(Q-024).
+     * 메뉴 트리 전체 = 폴더(TB_MCM_SEC_MENU_FLD) 다음 화면(TB_MCM_SEC_MENU). 각각 MENU_SEQ(8자리 0 채움) → MENU_ID 순(Q-024).
+     * 2026-11-27 FULL_SEQ 삭제 — 형제 순서는 같은 부모 안 MENU_SEQ 로 정한다(mcm.menu.MenuOrder). SORT_SEQ 는 그 8자리 값이다.
      * SHOW_TP = MENU_VIEW_YN 이 'N' 이면 N, 아니면 Y(런타임 hiddenYn 과 같은 뜻 — SecUserService.getMyMenus).
      */
     @SuppressWarnings("unchecked")
     public List<MenuRow> searchMenus() {
-        String fldSql = "SELECT F.MENU_ID, F.PARENT_MENU_ID, F.MENU_NM, F.FULL_SEQ, F.MENU_VIEW_YN, F.USE_TP "
+        String fldSql = "SELECT F.MENU_ID, F.PARENT_MENU_ID, F.MENU_NM, LPAD(CAST(F.MENU_SEQ AS VARCHAR2(30)), 8, '0') AS SORT_SEQ, F.MENU_VIEW_YN, F.USE_TP "
                 + "  FROM " + S + "TB_MCM_SEC_MENU_FLD F "
-                + " ORDER BY CASE WHEN F.FULL_SEQ IS NULL THEN 1 ELSE 0 END, F.FULL_SEQ, F.MENU_SEQ, F.MENU_ID";
-        String menuSql = "SELECT M.MENU_ID, M.PARENT_MENU_ID, M.MENU_NM, M.OBJECT_ID, M.FULL_SEQ, M.MENU_VIEW_YN, M.USE_TP "
+                + " ORDER BY CASE WHEN F.MENU_SEQ IS NULL THEN 1 ELSE 0 END, SORT_SEQ, F.MENU_ID";
+        String menuSql = "SELECT M.MENU_ID, M.PARENT_MENU_ID, M.MENU_NM, M.OBJECT_ID, LPAD(CAST(M.MENU_SEQ AS VARCHAR2(30)), 8, '0') AS SORT_SEQ, M.MENU_VIEW_YN, M.USE_TP "
                 + "  FROM " + S + "TB_MCM_SEC_MENU M "
-                + " ORDER BY CASE WHEN M.FULL_SEQ IS NULL THEN 1 ELSE 0 END, M.FULL_SEQ, M.MENU_SEQ, M.MENU_ID";
+                + " ORDER BY CASE WHEN M.MENU_SEQ IS NULL THEN 1 ELSE 0 END, SORT_SEQ, M.MENU_ID";
         List<MenuRow> out = new ArrayList<>();
         for (Object[] r : (List<Object[]>) entityManager.createNativeQuery(fldSql).getResultList()) {
             out.add(new MenuRow(str(r[0]), str(r[1]), str(r[2]), null, str(r[3]), showTp(r[4]), str(r[5]), true));

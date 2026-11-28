@@ -166,7 +166,7 @@ public final class LayoutRegistrationRules {
             issues.add(LayoutIssue.of(LayoutIssueCode.L13, item.seq(), key, "단위 마스터에 없는 전송 단위다: " + trans));
         } else if (col.unitCode() == null) {
             issues.add(LayoutIssue.of(LayoutIssueCode.L13, item.seq(), key,
-                    "도메인 " + col.domainName() + " 에 기준 단위가 없어 전송 단위를 쓸 수 없다: " + trans));
+                    typeOwner(col) + " 에 기준 단위가 없어 전송 단위를 쓸 수 없다: " + trans));
         } else if (!units.has(col.unitCode())) {
             issues.add(LayoutIssue.of(LayoutIssueCode.L13, item.seq(), key, "단위 마스터에 없는 기준 단위다: " + col.unitCode()));
         } else {
@@ -196,8 +196,16 @@ public final class LayoutRegistrationRules {
         if (w < need) {
             int s = col.scale() == null ? 0 : col.scale();
             issues.add(LayoutIssue.of(LayoutIssueCode.L14, item.seq(), Field.NUM_FORMAT.key(),
-                    "표현 자리 " + w + "는 도메인 " + col.domainName() + "(숫자 " + col.length() + "," + s + ")를 담지 못합니다"));
+                    "표현 자리 " + w + "는 " + typeOwner(col) + "(숫자 " + col.length() + "," + s + ")를 담지 못합니다"));
         }
+    }
+
+    /**
+     * 문구용 타입 출처 — 도메인이 있으면 기존 문구 "도메인 X" 를 그대로 쓴다(도메인 컬럼 문구 불변),
+     * 없으면 "컬럼 X 기본 타입". 도메인 사슬이 깨져 기본 타입으로 대체된 드문 경우도 도메인 이름을 보인다.
+     */
+    private static String typeOwner(LayoutColumnInfo col) {
+        return col.domainName() != null ? "도메인 " + col.domainName() : "컬럼 " + col.physName() + " 기본 타입";
     }
 
     private static void unitItem(LayoutItemDraft item, List<LayoutItemDraft> items, List<LayoutIssue> issues) {

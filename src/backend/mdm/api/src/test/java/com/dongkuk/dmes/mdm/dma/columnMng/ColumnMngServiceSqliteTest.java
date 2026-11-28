@@ -327,6 +327,105 @@ class ColumnMngServiceSqliteTest extends AbstractMdmSharedDbTest {
     }
 
     @Test
+    void 도메인_있는_컬럼은_기본_타입을_저장하지_않고_유효_타입은_도메인_값이다() {
+        ColumnMngSaveRequest req = valid();
+        req.setDataType("STRING"); // 도메인이 있으면 무시된다
+        req.setLength(5);
+        Long columnId = save(req, List.of(), termRows(rmtl.getTermId(), coil.getTermId(), thk.getTermId()));
+
+        Map<String, Object> dbRow = jdbc.queryForMap("SELECT DATA_TYPE, LENGTH, SCALE FROM TB_MDM_COLUMN");
+        assertNull(dbRow.get("DATA_TYPE"));
+        assertNull(dbRow.get("LENGTH"));
+        assertNull(dbRow.get("SCALE"));
+        Map<String, Object> column = map(service.view(view(columnId)).get("column"));
+        assertNull(column.get("dataType"));
+        assertEquals("NUMBER", column.get("effectiveDataType"));
+        assertEquals("DOMAIN", column.get("typeSource"));
+        Map<String, Object> row = maps(service.search(new ColumnMngSearchRequest()).get("list")).get(0);
+        assertEquals("NUMBER", row.get("effectiveDataType"));
+        assertEquals("DOMAIN", row.get("typeSource"));
+    }
+
+    @Test
+    void 도메인_없는_컬럼은_기본_타입을_저장하고_유효_타입의_출처는_BASE_다() {
+        ColumnMngSaveRequest req = valid();
+        req.setDomainId(null);
+        req.setDataType("NUMBER");
+        req.setLength(13);
+        req.setScale(3);
+        Long columnId = save(req, List.of(), termRows(rmtl.getTermId(), coil.getTermId(), thk.getTermId()));
+
+        Map<String, Object> column = map(service.view(view(columnId)).get("column"));
+        assertEquals("NUMBER", column.get("dataType"));
+        assertEquals(13, column.get("length"));
+        assertEquals(3, column.get("scale"));
+        assertEquals("NUMBER", column.get("effectiveDataType"));
+        assertEquals(13, column.get("effectiveLength"));
+        assertEquals(3, column.get("effectiveScale"));
+        assertEquals("BASE", column.get("typeSource"));
+        Map<String, Object> row = maps(service.search(new ColumnMngSearchRequest()).get("list")).get(0);
+        assertEquals("NUMBER", row.get("effectiveDataType"));
+        assertEquals(13, row.get("effectiveLength"));
+        assertEquals("BASE", row.get("typeSource"));
+
+        req.setColumnId(columnId);
+        req.setDataType("TEXT");
+        assertCode(MdmErrorCode.INVALID_INPUT, () -> save(req, List.of(), List.of()));
+        req.setDataType("NUMBER");
+        req.setScale(14);
+        assertCode(MdmErrorCode.INVALID_INPUT, () -> save(req, List.of(), List.of()));
+        req.setDataType(null);
+        req.setScale(null);
+        assertCode(MdmErrorCode.INVALID_INPUT, () -> save(req, List.of(), List.of())); // 타입 없이 길이만
+    }
+
+    @Test
+    void 하위_도메인_컬럼의_유효_타입은_조상까지_읽고_기본_타입과_도메인을_오가며_저장한다() {
+        coilThk.setLength(10);
+        domains.save(coilThk);
+        rmtlCoilThk.setParentDomainId(coilThk.getDomainId()); // 하위 — 자기 DATA_TYPE 이 있어도 유효 타입은 최상위 값
+        rmtlCoilThk.setDataType("STRING");
+        domains.save(rmtlCoilThk);
+        DmaTestSupport.column(columns, "가 먼저", "A_FIRST", rmtlCoilThk.getDomainId());
+        Long columnId = save(valid(), List.of(), termRows(rmtl.getTermId(), coil.getTermId(), thk.getTermId()));
+
+        // 상한 조회는 화면 앞쪽 행의 도메인만 읽는다 — 빠진 부모(coilThk)를 더 읽어 체인을 닫아야 최상위 타입이 나온다
+        ColumnMngSearchRequest paged = new ColumnMngSearchRequest();
+        paged.setLimit(1);
+        Map<String, Object> row = maps(service.search(paged).get("list")).get(0);
+        assertEquals("가 먼저", row.get("columnName"));
+        assertEquals("NUMBER", row.get("effectiveDataType"));
+        assertEquals(10, row.get("effectiveLength"), "길이는 상위에서 물려받는다");
+        assertEquals("DOMAIN", row.get("typeSource"));
+        Map<String, Object> viewed = map(service.view(view(columnId)).get("column"));
+        assertEquals("NUMBER", viewed.get("effectiveDataType"), "상세와 목록의 유효 타입이 같다");
+        assertEquals(10, viewed.get("effectiveLength"));
+
+        // 도메인 → 기본 타입
+        ColumnMngSaveRequest base = valid();
+        base.setColumnId(columnId);
+        base.setDomainId(null);
+        base.setDataType("STRING");
+        base.setLength(8);
+        save(base, List.of(), List.of());
+        Map<String, Object> stored = jdbc.queryForMap("SELECT DATA_TYPE, LENGTH, SCALE FROM TB_MDM_COLUMN WHERE COLUMN_ID = ?", columnId);
+        assertEquals("STRING", stored.get("DATA_TYPE"));
+        assertEquals(8, ((Number) stored.get("LENGTH")).intValue());
+        assertEquals("BASE", map(service.view(view(columnId)).get("column")).get("typeSource"));
+
+        // 기본 타입 → 도메인: 기본 칸은 비운다
+        ColumnMngSaveRequest back = valid();
+        back.setColumnId(columnId);
+        back.setDataType("STRING");
+        back.setLength(8);
+        save(back, List.of(), List.of());
+        stored = jdbc.queryForMap("SELECT DATA_TYPE, LENGTH, SCALE FROM TB_MDM_COLUMN WHERE COLUMN_ID = ?", columnId);
+        assertNull(stored.get("DATA_TYPE"));
+        assertNull(stored.get("LENGTH"));
+        assertEquals("DOMAIN", map(service.view(view(columnId)).get("column")).get("typeSource"));
+    }
+
+    @Test
     void C2b_TERM_IDS_는_토큰_순서를_지키고_정렬하지_않는다() {
         // 변이 검증(I22) 보강 — ID 오름차순과 다른 순서로 보내도 그대로 저장한다.
         save(valid(), List.of(), termRows(thk.getTermId(), rmtl.getTermId(), coil.getTermId()));

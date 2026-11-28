@@ -29,7 +29,7 @@ WITH CAT AS (
     UNION ALL
     SELECT 'columnMng', 'compare,save,search,view', NULL FROM DUAL
     UNION ALL
-    SELECT 'commMenuMng', 'commonList,save,saveCmMenuFld,search,searchCmMenuFld,searchMenuGrp,searchObj', NULL FROM DUAL
+    SELECT 'commMenuMng', 'commonList,save,saveCmMenuFld,search,searchCmMenuFld,searchMenuGrp,searchObj,searchUnplacedObj', NULL FROM DUAL
     UNION ALL
     SELECT 'commObjMng', 'lov,save,search,searchObjMenu,searchObjPerm,searchSystemLov', NULL FROM DUAL
     UNION ALL

@@ -47,7 +47,7 @@ export const ERD_EDIT_CSS = `
 .erd-wizard__steps { display: flex; gap: var(--spacing-sm); margin-bottom: var(--spacing-sm); font-size: var(--font-size-sm); color: var(--color-text-muted); }
 .erd-wizard__steps [data-current] { font-weight: 600; color: var(--color-text); }
 .erd-wizard__tools { display: flex; flex-wrap: wrap; align-items: center; gap: var(--spacing-sm); margin-bottom: var(--spacing-xs); }
-.erd-wizard__list { max-height: 320px; overflow-y: auto; padding: var(--spacing-xs); border: 1px solid var(--color-border); border-radius: var(--radius-sm); }
+.erd-wizard__list { flex: 1 1 0; min-height: 160px; overflow-y: auto; padding: var(--spacing-xs); border: 1px solid var(--color-border); border-radius: var(--radius-sm); }
 .erd-wizard__row { display: flex; align-items: center; gap: var(--spacing-xs); min-height: 24px; }
 .erd-wizard__logical { color: var(--color-text-muted); font-size: var(--font-size-sm); }
 .erd-tree__actions { margin-bottom: var(--spacing-sm); }

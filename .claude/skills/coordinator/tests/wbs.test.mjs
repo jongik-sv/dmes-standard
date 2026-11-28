@@ -7,7 +7,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, utimesSync, w
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { COORD_ROOT } from './support/rng.mjs';
-import { renderWbs, splitArgv, tally } from '../scripts/wbs.mjs';
+import { pcOf, renderWbs, splitArgv, tally } from '../scripts/wbs.mjs';
 import { lastReport, memoNext, parseBriefTodo, reportDoneIds } from '../scripts/lib/wbs-ahead.mjs';
 
 const WBS = join(COORD_ROOT, 'scripts', 'wbs.mjs');
@@ -74,7 +74,15 @@ test('순수 함수: tally 가중치·내림, splitArgv 따옴표', () => {
     { now: '2026-01-01 00:00', commits: () => 3, branchState: () => ({ gone: false, merged: false }), metrics: null });
   assert.equal(pct, 100);
   assert.match(text, /^# WBS — r\n/);
-  assert.match(text, /\| l \| - \| ██████████ 100% \| - \| active \| ☑ 1\.t \|/, '브랜치가 없으면 커밋 -, 실행자 -');
+  assert.match(text, /\| l \| - \| - \| ██████████ 100% \| - \| active \| ☑ 1\.t \|/, '브랜치가 없으면 커밋 -, 실행자 -');
+});
+
+test('pcOf: lane.pc → 워크트리 앞부분(드라이브 글자 제외) → 이 PC → -', () => {
+  assert.equal(pcOf({ pc: 'linux', worktree: 'mac:../x' }, 'win30'), 'linux');
+  assert.equal(pcOf({ worktree: 'win144:../dmes-perm-w1' }, 'win30'), 'win144');
+  assert.equal(pcOf({ worktree: 'C:/Users/x/dmes' }, 'win30'), 'win30', '드라이브 글자는 PC 이름이 아니다');
+  assert.equal(pcOf({ worktree: '../dmes' }, ''), '-');
+  assert.equal(pcOf(undefined), '-');
 });
 
 test('wbs.mjs: 묶음·가중치·실행자·커밋 수·머지됨 상태를 그린다', () => {
@@ -86,10 +94,10 @@ test('wbs.mjs: 묶음·가중치·실행자·커밋 수·머지됨 상태를 그
     assert.equal(r.stdout, `WBS 60% ${w.file}\n`, '완료 가중치 2+1 / 전체 3+1+1');
     const md = w.md();
     assert.match(md, /^# WBS — r1\n\n- 목표: WBS 시험\n- 갱신: \d{4}-\d{2}-\d{2} \d{2}:\d{2}\n\n\*\*전체 ██████░░░░ 60%\*\*/);
-    assert.match(md, /## 1\. 앞단 — 75%\n\n\| lane \| runner \| progress \| commits \| state \| items \|/);
-    assert.match(md, /\| a1 \| Claude sonnet·high \| ███████░░░ 66% \| 2 \| active \| ☑ 1\.첫 일<br>☐ 2\.둘째\\\|일 \|/);
-    assert.match(md, /\| m1 \| opencode \| ██████████ 100% \| 0 \| merged \| ☑ 1\.끝난 일 \|/);
-    assert.match(md, /## 레인 — 0%\n\n[^]*\| z1 \| GLM 인수 \| ░░░░░░░░░░ 0% \| - \| active \|/);
+    assert.match(md, /## 1\. 앞단 — 75%\n\n\| lane \| pc \| runner \| progress \| commits \| state \| items \|/);
+    assert.match(md, /\| a1 \| [^|]+ \| Claude sonnet·high \| ███████░░░ 66% \| 2 \| active \| ☑ 1\.첫 일<br>☐ 2\.둘째\\\|일 \|/);
+    assert.match(md, /\| m1 \| [^|]+ \| opencode \| ██████████ 100% \| 0 \| merged \| ☑ 1\.끝난 일 \|/);
+    assert.match(md, /## 레인 — 0%\n\n[^]*\| z1 \| [^|]+ \| GLM 인수 \| ░░░░░░░░░░ 0% \| - \| active \|/);
   } finally { w.clean(); }
 });
 
@@ -298,8 +306,8 @@ test('renderWbs: 항목 미등록 레인은 brief 추정·전체 줄에 등록 �
   assert.equal(r.unknown, 1);
   // 추정: a = t1(2) 끝 / 2+3+1+1, c = closed 라 모두 끝(7/7) → (1+2+7)/(2+7+7) = 10/16 = 62%
   assert.match(r.text, /\*\*전체 █████░░░░░ 50%\*\* \(가중치 S=1·M=2·L=3 또는 항목 weight, 완료 1\/2\) · 추정 포함 62% \(brief 추정 가중치 9\/14 — 항목 미등록 레인 a, c\) · 항목·brief 모두 없음: z/);
-  assert.match(r.text, /\| a \| - \| 추정 ███░░░░░░░ 28% \| - \| active \| \(brief 추정\)<br>☑ t1\.순수/);
-  assert.match(r.text, /\| z \| - \| 항목 미등록 \| - \| active \|  \|/);
+  assert.match(r.text, /\| a \| - \| - \| 추정 ███░░░░░░░ 28% \| - \| active \| \(brief 추정\)<br>☑ t1\.순수/);
+  assert.match(r.text, /\| z \| - \| - \| 항목 미등록 \| - \| active \|  \|/);
   const a = r.ahead;
   assert.match(a, /^## 앞으로\n\n### 레인\n\n- \*\*a\*\* \(active\) — 남은 3\/4 \(brief 추정\)\n  - ☐ t2\. 정렬 연결\(가: 나, 다\)\n/);
   assert.match(a, /  - 마지막 보고: 2026-10-11T16:00:00\+09:00 t1 완료\n  - 다음\(메모\): t2 착수\n  - 보류: merge-wait\n  - 질문 대기: A 안\?\n/);
@@ -346,7 +354,7 @@ test('items-from-brief·자동 등록: lane-add·instr start 에서 active·항�
     w.cs('lane-add', 'd', JSON.stringify({ memo: '/x' }));
     assert.equal(w.cs('items-from-brief', 'd'), 'ITEMS d skip no-brief\n');
     assert.equal(w.run(CSTATE, ['items-from-brief', 'nope']).status, 2, '없는 레인');
-    assert.match(w.md(), /\| a \| Claude \| ░░░░░░░░░░ 0% \|/, '등록 뒤 WBS 를 다시 만듦');
+    assert.match(w.md(), /\| a \| [^|]+ \| Claude \| ░░░░░░░░░░ 0% \|/, '등록 뒤 WBS 를 다시 만듦');
   } finally { w.clean(); }
   const off = world({ opener: 'none', cfg: { wbs: { auto_items: false } } });
   try {

@@ -176,7 +176,7 @@ class MdmOasisActionVocabularyTest {
     @Test
     void layoutConfirm_메뉴가_dmb_아래_시드된다() throws Exception {
         String seed = Files.readString(MDM_MENU_SEEDER_SOURCE);
-        assertTrue(seed.contains("insertMcmSecMenuIfAbsent(\"layoutConfirm\", \"003\", \"5020130\", \"레이아웃 확정\", \"dmb\", \"layoutConfirm\")"));
+        assertTrue(seed.contains("insertMcmSecMenuIfAbsent(\"layoutConfirm\", \"003\", \"레이아웃 확정\", \"dmb\", \"layoutConfirm\")"));
         assertTrue(seed.contains("seedMdmObjectRbac(\"layoutConfirm\", \"dmb\")"));
     }
 

@@ -2,6 +2,7 @@ package com.dongkuk.dmes.mcm.csa;
 
 import com.dongkuk.dmes.mcm.common.event.MenuChangedEvent;
 import com.dongkuk.dmes.mcm.common.event.RoleChangedEvent;
+import com.dongkuk.dmes.mcm.common.exception.BusinessException;
 import com.dongkuk.dmes.mcm.csa.commMenuMng.service.CommMenuMngService;
 import com.dongkuk.dmes.mcm.csa.commObjMng.query.CommObjMngQuery;
 import com.dongkuk.dmes.mcm.csa.commObjMng.service.CommObjMngService;
@@ -24,6 +25,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.context.ApplicationEventPublisher;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.never;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
@@ -104,7 +107,7 @@ class MenuChangedEventPublishTest {
     }
 
     @Test
-    @DisplayName("OBJECT 저장 — insert 는 SYSADMIN 역할 이벤트와 OBJECT 이벤트를 내고(D30·D13), 막힌 삭제만 있으면 아무것도 내지 않는다")
+    @DisplayName("OBJECT 저장 — insert 는 SYSADMIN 역할 이벤트와 OBJECT 이벤트를 내고(D30·D13), 막힌 삭제는 업무 예외로 실패하며 아무것도 내지 않는다")
     void saveCmObjInsertAndBlockedDelete() {
         when(objRepo.findById("O1")).thenReturn(Optional.empty());
         objService.saveCmObj(List.of(row("rowStatus", "C", "OBJECT_ID", "O1")));
@@ -116,8 +119,30 @@ class MenuChangedEventPublishTest {
         events.clear();
         when(objRepo.countMenuByObjectId("O2")).thenReturn(1L);
         when(roleMappingRepo.findByObjectId("O2")).thenReturn(List.of());
-        objService.saveCmObj(List.of(row("rowStatus", "D", "OBJECT_ID", "O2")));
+        assertThatThrownBy(() -> objService.saveCmObj(List.of(row("rowStatus", "D", "OBJECT_ID", "O2"))))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("O2").hasMessageContaining("메뉴 1건");
+        verify(objRepo, never()).deleteById("O2");
         assertThat(events).isEmpty();
+    }
+
+    @Test
+    @DisplayName("OBJECT 삭제 차단 — 비-SYSADMIN 역할 매핑만 있어도 막고, 문구에 메뉴·역할 매핑·퍼미션 수를 모두 적는다")
+    void saveCmObjDeleteBlockedByRoleMapping() {
+        SecRoleMapping other = new SecRoleMapping();
+        other.setRoleId("OPERATOR");
+        other.setObjectId("O5");
+        other.setPermissionId("PERM_ALL");
+        when(objRepo.countMenuByObjectId("O5")).thenReturn(0L);
+        when(roleMappingRepo.findByObjectId("O5")).thenReturn(List.of(other));
+
+        assertThatThrownBy(() -> objService.saveCmObj(List.of(row("rowStatus", "D", "OBJECT_ID", "O5"))))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("역할 매핑 1건").hasMessageNotContaining("메뉴 0건");
+        verify(objRepo, never()).deleteById("O5");
+        assertThat(CommObjMngService.deleteBlockedMessage("X", 2, 3, 4))
+                .isEqualTo("OBJECT 'X' 은(는) 메뉴 2건, 역할 매핑 3건, 퍼미션 4건에서 쓰고 있어 삭제할 수 없습니다. "
+                        + "메뉴 관리·역할 관리에서 먼저 연결을 뺀 뒤 삭제하세요.");
     }
 
     @Test

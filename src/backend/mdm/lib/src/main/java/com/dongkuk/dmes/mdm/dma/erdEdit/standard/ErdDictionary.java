@@ -28,9 +28,20 @@ public final class ErdDictionary implements ErdNaming {
     private final List<DomainEntry> domainEntries;
 
     /** 가져오기 논리명 채우기 재료(README S9). logical 은 컬럼 사전의 논리명(TB_MDM_COLUMN.COLUMN_NAME)이다. */
-    public record ColumnEntry(String logical, Long domainId) {}
-    /** 컬럼 사전 한 행. */
-    public record ColumnRow(Long columnId, String phys, String logical, Long domainId) {}
+    public record ColumnEntry(String logical, Long domainId, ErdDomainSpec baseType) {
+        public ColumnEntry(String logical, Long domainId) {
+            this(logical, domainId, null);
+        }
+    }
+    /**
+     * 컬럼 사전 한 행. {@code baseType} 은 컬럼 자체 기본 타입(TB_MDM_COLUMN.DATA_TYPE·LENGTH·SCALE)이며 도메인이 없는 컬럼에만 의미가 있다
+     * (도메인 있는 컬럼은 도메인 타입이 우선이라 색인에서 버린다).
+     */
+    public record ColumnRow(Long columnId, String phys, String logical, Long domainId, ErdDomainSpec baseType) {
+        public ColumnRow(Long columnId, String phys, String logical, Long domainId) {
+            this(columnId, phys, logical, domainId, null);
+        }
+    }
     /** 시스템별 별칭 한 행(TB_MDM_COLUMN_SYSTEM). SYSTEM_CODE 는 보지 않는다(S9). */
     public record AliasRow(Long columnId, String phys) {}
 
@@ -73,7 +84,7 @@ public final class ErdDictionary implements ErdNaming {
         columns.stream().filter(c -> c.phys() != null && c.columnId() != null)
                 .sorted(Comparator.comparing(ColumnRow::columnId))
                 .forEach(c -> {
-                    ColumnEntry e = new ColumnEntry(c.logical(), c.domainId());
+                    ColumnEntry e = new ColumnEntry(c.logical(), c.domainId(), c.domainId() == null ? c.baseType() : null);
                     out.putIfAbsent(c.phys().toUpperCase(Locale.ROOT), e);
                     byId.put(c.columnId(), e);
                 });
@@ -98,6 +109,12 @@ public final class ErdDictionary implements ErdNaming {
         // 컬럼 사전·별칭 적중만 돌려준다. 역분해(*** 자리표시)로 채우면 고정 논리명이 쓰이지 못한다.
         ColumnEntry e = phys == null ? null : columnsByPhys.get(phys.toUpperCase(Locale.ROOT));
         return e == null ? new PhysFill(null, null) : new PhysFill(e.logical(), e.domainId());
+    }
+
+    /** 도메인 없는 컬럼의 기본 타입(물리명·별칭 적중). 없으면 비어 있다. 도메인 있는 컬럼은 항상 비어 있다. */
+    public Optional<ErdDomainSpec> baseType(String phys) {
+        ColumnEntry e = phys == null ? null : columnsByPhys.get(phys.toUpperCase(Locale.ROOT));
+        return e == null ? Optional.empty() : Optional.ofNullable(e.baseType());
     }
 
     @Override

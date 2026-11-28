@@ -13,6 +13,11 @@
 
 /** 조회조건 — 분석 §3.2 / 기능 §3.1 / To-Be 3 파라미터 (S-001 cbo_bizSystemCode 폐기). */
 export interface CommMenuMngFilters {
+  /**
+   * 메뉴 셋 (2026-11-26) — 지금은 TB_MCM_SEC_MENU.MENU_TP 값(WEB / MOBIL)이다. 비우지 않는다:
+   * 목록·순서 바꾸기·「메뉴에 없는 오브젝트」 는 늘 한 셋 안에서 다룬다.
+   */
+  cbo_MENU_TP: string;
   /** S-002 — 메뉴 ID UPPER LIKE 부분 일치. */
   edt_MENU_ID: string;
   /** S-003 — 메뉴 명 LIKE 부분 일치. */
@@ -30,13 +35,11 @@ export interface CommMenuMngRow extends Record<string, unknown> {
   MENU_ID: string;
   /** G-002 / D-005 — PK#2 (xfdl D-002 substr(0,5) + D-004 edt_lst_seq lpad("0",3) = 8 char). */
   MENU_SEQ: string;
-  /** G-006 / D-009 — FULL 정렬 순서 (inputtype=digit). */
-  FULL_SEQ?: string;
   /** G-004 / D-006 — 메뉴 명칭 (Essential V-002). */
   MENU_NM?: string;
   /** G-012 / D-015 — 메뉴 설명 (TextArea). */
   MENU_DESC?: string;
-  /** G-008 / D-011 — 메뉴 타입 (WEB/MOBIL, 신규 행 default 'WEB'). */
+  /** G-008 / D-011 — 메뉴 셋 (WEB/MOBIL). 신규 행은 조회 조건의 메뉴 셋. */
   MENU_TP?: string;
   /** G-005 / D-007 — FK to TB_MCM_SEC_OBJ (Essential V-002, commonDynamic.xfdl LoV). */
   OBJECT_ID?: string;
@@ -70,9 +73,6 @@ export interface CommMenuMngTreeRow extends Record<string, unknown> {
   MENU_ID: string;
   /** 트리 노드의 순서 정렬 키 (1차 정렬). */
   MENU_SEQ?: string;
-  /** 트리 노드 2차 정렬 키 (MENU_SEQ tie-break). 2026-06-04 자동부여 후 FLD owner row 도 FULL_SEQ 보유
-   *  (NUMERIC(10,0) → 응답이 number 일 수 있음. buildMenuTree 가 String() 코어션). */
-  FULL_SEQ?: string | number | null;
   /** GT-001 표시 텍스트 (treeitemcontrol). */
   MENU_NM?: string;
   /** 트리 부모-자식 관계. */
@@ -116,6 +116,18 @@ export interface CommMenuMngObjLovRow extends Record<string, unknown> {
   FORM_URL?: string;
   PARAM?: string;
   PARENT_MENU_ID?: string | null;
+}
+
+/**
+ * 메뉴 셋에 없는 오브젝트 (action searchUnplacedObj → ds_unplacedObj, 2026-11-26).
+ * 등록은 됐지만 지금 메뉴 셋의 어느 메뉴도 가리키지 않는 오브젝트다. 트리 폴더에 끌어 놓으면 메뉴 행이 된다.
+ */
+export interface CommMenuMngUnplacedObjRow extends Record<string, unknown> {
+  OBJECT_ID: string;
+  OBJECT_NM?: string;
+  SYSTEM_CODE?: string;
+  OBJECT_TYPE?: string;
+  FORM_URL?: string;
 }
 
 /** Nexacro row status (As-Is !nativeeditor_status) — To-Be rowStatus 표준화 (W1 / cma 정본 패턴). */

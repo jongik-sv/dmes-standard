@@ -41,12 +41,15 @@ describe("perm-impact", () => {
 });
 
 describe("row-model", () => {
-  const base: ObjRow = { OBJECT_ID: "O1", PARENT_MENU_ID: "csa", __rowId: "r-0-O1", nativeeditor_status: "" };
+  const base: ObjRow = { OBJECT_ID: "O1", __rowId: "r-0-O1", nativeeditor_status: "" };
 
-  it("OBJECT_ID 를 바꾸면 FORM_URL·MENU_ID 가 따라 바뀐다", () => {
-    const n = withField(base, "OBJECT_ID", "O2");
-    expect(n.FORM_URL).toBe("csa/O2");
-    expect(n.MENU_ID).toBe("O2");
+  it("OBJECT_ID 를 바꾸면 비어 있는 FORM_URL 만 화면 코드 경로로 채우고, 메뉴 폴더로 계산하지 않는다(2026-11-26)", () => {
+    const resolve = (id: string) => (id === "O2" ? "csa/O2" : null);
+    expect(withField(base, "OBJECT_ID", "O2", resolve).FORM_URL).toBe("csa/O2");
+    expect(withField({ ...base, FORM_URL: "cma/keep" }, "OBJECT_ID", "O2", resolve).FORM_URL).toBe("cma/keep");
+    expect(withField(base, "OBJECT_ID", "O9", resolve).FORM_URL).toBeUndefined();
+    expect(withField(base, "OBJECT_ID", "O2").FORM_URL).toBeUndefined();
+    expect(withField(base, "OBJECT_ID", "O2", resolve)).not.toHaveProperty("MENU_ID");
   });
 
   it("초안 반영은 inserted 를 지키고 나머지는 updated, 없는 행이면 prev 를 그대로 둔다", () => {
@@ -60,7 +63,7 @@ describe("row-model", () => {
 
   it("저장 body 에서 FE 전용 칸·집계를 뗀다", () => {
     const body = stripInternal({ ...base, MENU_CNT: 1, PERM_CNT: 2, BTN_PERM: "a", __orig: { BTN_PERM: "", POPUP_PERM: "", USE_TP: "Y" } });
-    expect(Object.keys(body).sort()).toEqual(["BTN_PERM", "OBJECT_ID", "PARENT_MENU_ID"]);
+    expect(Object.keys(body).sort()).toEqual(["BTN_PERM", "OBJECT_ID"]);
   });
 
   it("삭제 표시한 행은 초안을 반영해도 삭제로 남는다", () => {

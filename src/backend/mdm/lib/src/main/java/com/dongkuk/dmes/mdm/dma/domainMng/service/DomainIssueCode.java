@@ -27,7 +27,8 @@ public enum DomainIssueCode {
     W02(Level.WARN, "코드 판정을 할 수 없어 건너뛰었습니다"),
     W03(Level.WARN, "테스트 케이스를 추가하세요"),
     W04(Level.WARN, "부모 연결을 바꾸면 이 도메인을 참조하는 컬럼과 하위 도메인이 영향을 받습니다"),
-    W05(Level.WARN, "상속받던 값을 이 도메인에 복사해 같은 정의를 유지합니다");
+    W05(Level.WARN, "상속받던 값을 이 도메인에 복사해 같은 정의를 유지합니다"),
+    W06(Level.WARN, "컬럼 기본 타입으로 쓸 수 없는 데이터 타입이라 기본 타입을 남기지 못했습니다");
 
     public enum Level { ERROR, WARN }
 

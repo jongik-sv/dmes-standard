@@ -47,7 +47,7 @@ final class MdmDictionaryExpectations {
                 "BIZ_RULE", "BIZ_AST", "DESCRIPTION", "EXAMPLES", "TEST_CASES", "CHG_SEQ"));
         BUSINESS_COLUMNS.put("TB_MDM_COLUMN", Set.of(
                 "COLUMN_ID", "COLUMN_NAME", "LABEL_LONG", "LABEL_MID", "LABEL_SHORT", "PHYS_NAME",
-                "DESCRIPTION", "DOMAIN_ID", "REQUIRED", "DEFAULT_VALUE", "REF_KIND", "REF_TARGET",
+                "DESCRIPTION", "DOMAIN_ID", "DATA_TYPE", "LENGTH", "SCALE", "REQUIRED", "DEFAULT_VALUE", "REF_KIND", "REF_TARGET",
                 "REF_CATE_ID", "TERM_IDS", "USAGE_NOTE", "CHG_SEQ"));
         BUSINESS_COLUMNS.put("TB_MDM_COLUMN_SYSTEM", Set.of(
                 "COLUMN_ID", "SYSTEM_CODE", "PHYS_NAME", "TRANSFORM", "NOTE"));

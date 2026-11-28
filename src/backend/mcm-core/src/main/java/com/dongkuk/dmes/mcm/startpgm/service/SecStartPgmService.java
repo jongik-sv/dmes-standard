@@ -115,7 +115,7 @@ public class SecStartPgmService {
                     "해당 페이지에 매칭되는 메뉴가 없습니다: " + pageId);
         }
 
-        String fullId = menu.getParentMenuId() + "/" + menu.getObjectId(); // = componentPath
+        String fullId = catalog.codePathOf(menu); // = componentPath (MenuCodePath — 매칭과 같은 규칙)
         String menuId = menu.getMenuId();
         Integer menuSeq = parseIntOrZero(menu.getMenuSeq());
 

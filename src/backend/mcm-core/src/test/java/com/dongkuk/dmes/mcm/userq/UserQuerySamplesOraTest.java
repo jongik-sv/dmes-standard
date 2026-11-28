@@ -82,21 +82,30 @@ class UserQuerySamplesOraTest {
         jdbc.update("DELETE FROM MCMAPUSER.TB_MCM_SEC_USER WHERE USER_ID = 'admin'");
     }
 
-    /** V15 문장(주석 제외, 「;」 줄바꿈으로 나눔)을 실행한다. 두 번 실행해도 중복이 없는지(멱등)도 함께 본다. */
+    /**
+     * V15 문장(주석 제외, 「;」 줄바꿈으로 나눔)을 실행한다. 두 번 실행해도 중복이 없는지(멱등)도 함께 본다.
+     * 이어서 뒤 V 파일이 견본을 고친 문장(V23 — 견본 SQL 의 ORDER BY FULL_SEQ 를 MENU_SEQ 로)도 같은 순서로 두 번 실행한다.
+     * 칸을 지우는 PL/SQL 블록 등 견본 표가 아닌 문장은 건너뛴다(시험 PDB 는 Flyway 가 이미 적용했다).
+     */
     private void insertSamples() {
+        for (int pass = 0; pass < 2; pass++) {
+            for (String statement : statementsOf("V15__user_query_samples.sql")) jdbc.execute(statement);
+            for (String statement : statementsOf("V23__drop_menu_full_seq.sql")) {
+                if (statement.stripLeading().startsWith("UPDATE TB_MCM_USRQ_DEF")) jdbc.execute(statement);
+            }
+        }
+    }
+
+    private static List<String> statementsOf(String file) {
         String script;
         try {
-            script = new String(new ClassPathResource("db/migration/oracle/mcmapuser/V15__user_query_samples.sql").getInputStream().readAllBytes(),
+            script = new String(new ClassPathResource("db/migration/oracle/mcmapuser/" + file).getInputStream().readAllBytes(),
                     StandardCharsets.UTF_8);
         } catch (Exception e) {
             throw new IllegalStateException(e);
         }
-        String body = Arrays.stream(script.split("\n")).filter(l -> !l.startsWith("--")).reduce("", (a, b) -> a + b + "\n");
-        for (int pass = 0; pass < 2; pass++) {
-            for (String statement : body.split(";\\s*\n")) {
-                if (!statement.isBlank()) jdbc.execute(statement);
-            }
-        }
+        String body = Arrays.stream(script.split("\r?\n")).filter(l -> !l.startsWith("--")).reduce("", (a, b) -> a + b + "\n");
+        return Arrays.stream(body.split(";\\s*\n")).filter(s -> !s.isBlank()).toList();
     }
 
     @Test

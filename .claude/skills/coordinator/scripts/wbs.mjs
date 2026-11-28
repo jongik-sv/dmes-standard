@@ -15,6 +15,7 @@
 import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync, renameSync, rmSync } from 'node:fs';
 import * as path from 'node:path';
+import { hostname } from 'node:os';
 import { CoordDie, Ctx, cfgJson, cfgSub, hasRun, nowIso, repo, runDir } from './lib/common.mjs';
 import { coordDefaultRepo, coordStateCall, runSync } from './lib/common-ext.mjs';
 import { isMain, scriptMain } from './lib/js-cli.mjs';
@@ -53,8 +54,18 @@ export function runnerOf(lane) {
 }
 
 /**
+ * 레인 실행 PC 글: lane.pc → 워크트리 `<pc>:<경로>` 앞부분(드라이브 글자 한 자는 제외) → localPc(이 PC) → '-'
+ */
+export function pcOf(lane, localPc) {
+  if (typeof lane?.pc === 'string' && lane.pc !== '') return lane.pc;
+  const m = typeof lane?.worktree === 'string' ? /^([^:/\\]{2,}):/.exec(lane.worktree) : null;
+  if (m) return m[1];
+  return typeof localPc === 'string' && localPc !== '' ? localPc : '-';
+}
+
+/**
  * state(JSON 객체) → WBS 글.
- * info = {now: 'YYYY-MM-DD HH:MM', commits(branch) → 수|null, branchState(branch) → {gone, merged}, metrics: string|null,
+ * info = {now: 'YYYY-MM-DD HH:MM', localPc?: 이 PC 이름(pc 칸 기본값), commits(branch) → 수|null, branchState(branch) → {gone, merged}, metrics: string|null,
  *         ahead?: {files: {<레인>: {brief, reports, memo}}, events: [{kind, data}], runFiles: {runReport, metrics}}}
  * 항목이 0개인 레인은 brief.md 「할 일」 로 추정한 항목을 보여 주고(표시함), 전체 줄에 등록 기준·추정 포함 진도를 나눠 적는다.
  * 반환 {text, pct(등록 항목 기준 — coord-state progress 와 같은 셈), estPct(추정 포함), est(추정 항목 수), unknown(항목·brief 없는 레인 수), ahead(`## 앞으로` 글), summary(레인별 한 줄)}
@@ -84,7 +95,7 @@ export function renderWbs(st, info) {
   for (const [g, list] of groups) {
     const gi = list.flatMap(([n]) => views.get(n).items);
     const gt = tally(gi);
-    body.push(`## ${g} — ${gt.t > 0 ? `${gt.p}%` : '-'}`, '', '| lane | runner | progress | commits | state | items |', '|---|---|---|---|---|---|');
+    body.push(`## ${g} — ${gt.t > 0 ? `${gt.p}%` : '-'}`, '', '| lane | pc | runner | progress | commits | state | items |', '|---|---|---|---|---|---|---|');
     for (const [name, lane] of list) {
       const v = views.get(name);
       const x = tally(v.items);
@@ -98,7 +109,7 @@ export function renderWbs(st, info) {
       const its = v.items.map((i) => `${i.done ? '☑' : '☐'} ${cell(i.id)}.${cell(i.title)}`);
       if (v.mode === 'brief') its.unshift('(brief 추정)');
       const prog = v.mode === 'items' ? `${bar(x.p)} ${x.p}%` : v.mode === 'brief' ? `추정 ${bar(x.p)} ${x.p}%` : '항목 미등록';
-      body.push(`| ${cell(name)} | ${cell(runnerOf(lane))} | ${prog} | ${cm === null ? '-' : cm} | ${cell(state)} | ${its.join('<br>')} |`);
+      body.push(`| ${cell(name)} | ${cell(pcOf(lane, info.localPc))} | ${cell(runnerOf(lane))} | ${prog} | ${cm === null ? '-' : cm} | ${cell(state)} | ${its.join('<br>')} |`);
       summary.push(`- ${name}: ${v.mode === 'none' ? '항목 미등록' : `${v.mode === 'brief' ? '추정 ' : ''}${x.p}% (끝난 항목 ${v.items.filter((i) => i.done).length}/${v.items.length})`} · ${state}`);
     }
     body.push('');
@@ -227,6 +238,7 @@ export async function main(argv, { env = process.env, cwd = process.cwd() } = {}
     const g = (...a) => runSync(git, ['-C', root, ...a], { env: c.env, cwd: root });
     const info = {
       now: nowIso(c).slice(0, 16).replace('T', ' '),
+      localPc: (isObj(st.run) && typeof st.run.pc === 'string' && st.run.pc) || cfgSub(c, '.pc') || hostname().toLowerCase(),
       commits: (br) => { const r = g('rev-list', '--count', `${integ}..${br}`); const n = Number(r.out.toString('utf8').trim()); return r.rc === 0 && Number.isInteger(n) ? n : null; },
       branchState: (br) => ({
         gone: g('rev-parse', '--verify', '-q', br).rc !== 0,

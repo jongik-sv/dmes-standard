@@ -112,8 +112,8 @@ class PermGraphLoaderOraTest {
     }
 
     private void fld(String id, String parent, String viewYn, String useTp) {
-        jdbc.update("INSERT INTO MCMAPUSER.TB_MCM_SEC_MENU_FLD (MENU_ID, MENU_SEQ, MENU_NM, PARENT_MENU_ID, FULL_SEQ, USE_TP, MENU_VIEW_YN) "
-                + "VALUES (?, '1', ?, ?, 1, ?, ?)", id, id, parent, useTp, viewYn);
+        jdbc.update("INSERT INTO MCMAPUSER.TB_MCM_SEC_MENU_FLD (MENU_ID, MENU_SEQ, MENU_NM, PARENT_MENU_ID, USE_TP, MENU_VIEW_YN) "
+                + "VALUES (?, '1', ?, ?, ?, ?)", id, id, parent, useTp, viewYn);
     }
 
     private void menu(String id, String parent, String obj, String viewYn) {

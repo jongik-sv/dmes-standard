@@ -28,7 +28,9 @@ import org.springframework.stereotype.Component;
  *   <li>COND 이고 {@code DISP_TYPE='Expression'} → STRING, EXPRESSION_COLUMN</li>
  *   <li>{@code DOMAIN_ID} 가 있다 → 그 도메인, DECLARED</li>
  *   <li>{@code DATA_TYPE} 이 있다 → 그 값, DECLARED</li>
- *   <li>이름 변수이고 컬럼 사전에 있다 → 컬럼의 도메인, COLUMN(라벨이 비면 컬럼 중간명·긴 이름, 설명은 컬럼 설명)</li>
+ *   <li>이름 변수이고 컬럼 사전에 있다 → 컬럼의 도메인, COLUMN(라벨이 비면 컬럼 중간명·긴 이름, 설명은 컬럼 설명). 도메인이 없거나
+ *       체인을 풀 수 없으면 컬럼 기본 타입(DATA_TYPE·SCALE, 단위 없음). 이 단계는 5번(RULE_RESULT)보다 먼저 이긴다 — 도메인 없는 컬럼과
+ *       이름이 같은 앞 룰 결과 변수가 있어도 COLUMN 이다(도메인 삭제 전 동작)</li>
  *   <li>이름 변수이고 다른 룰의 최신 RELEASED 결과 변수 이름(또는 결과 열 그룹)이다 → 그 결과 변수의 DOMAIN_ID/DATA_TYPE, RULE_RESULT</li>
  *   <li>그 밖 → STRING, UNRESOLVED</li>
  * </ol>
@@ -99,15 +101,22 @@ public class RuleVarTypeResolver {
         }
         if (!exprVar && notBlank(v.getVarName())) {
             Optional<MdmColumn> column = lazy.column(v.getVarName());
-            if (column.isPresent() && column.get().getDomainId() != null) {
+            if (column.isPresent()) {
                 MdmColumn c = column.get();
                 String label = notBlank(v.getLabel()) ? v.getLabel() : notBlank(c.getLabelMid()) ? c.getLabelMid() : c.getLabelLong();
                 // 컬럼 설명이 HTML 이면 글자만 쓴다(D-150). 태그만 있어 글자가 없으면 변수 자신의 설명으로 돌아간다
                 String columnText = ColumnDescriptionSanitizer.plainText(c.getDescription());
                 String description = notBlank(columnText) ? columnText : v.getDescription();
-                Optional<ResolvedVar> byColumn = fromDomain(v, false, c.getDomainId(), COLUMN, label, description, lazy);
-                if (byColumn.isPresent()) {
-                    return byColumn.get();
+                if (c.getDomainId() != null) {
+                    Optional<ResolvedVar> byColumn = fromDomain(v, false, c.getDomainId(), COLUMN, label, description, lazy);
+                    if (byColumn.isPresent()) {
+                        return byColumn.get();
+                    }
+                }
+                // 도메인이 없거나 체인을 풀 수 없으면 컬럼 기본 타입(2026-11-26). 단위 없음, 같은 출처 COLUMN.
+                // ColumnEffectiveType 과 같은 순서(도메인 → 기본 타입)이며, 아래 RULE_RESULT 보다 먼저 이긴다
+                if (notBlank(c.getDataType())) {
+                    return build(v, false, c.getDataType(), c.getScale(), false, null, null, null, COLUMN, label, description);
                 }
             }
             MdmRuleVar producer = lazy.producers().get(v.getVarName());

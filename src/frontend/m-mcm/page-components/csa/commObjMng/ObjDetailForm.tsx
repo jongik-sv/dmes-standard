@@ -9,15 +9,22 @@
  * 허용 값 편집기 = shared TokenChipInput(칩 안에 숫자를 넣는 칸이 없어 값별 퍼미션 수는 칩 아래 요약 줄로 보인다).
  * 값을 빼면 그 값을 켠 퍼미션 수·사람 수를 저장 전에 바로 안내한다(searchObjPerm 행으로 계산, 사람 수는 최대치).
  */
-import { memo, useCallback, useImperativeHandle, useMemo, type Ref } from "react";
+import { memo, useCallback, useImperativeHandle, type Ref } from "react";
 import { DETAIL_TABLE_STYLE, DETAIL_LABEL_CELL, DETAIL_VALUE_CELL } from "@dk-oasis/shared/layout";
 import { Input, Select, Radio, DatePicker, ComboBox, useDetailDraft, type DetailDraftHandle } from "@dk-oasis/shared/form";
 import { MdmFieldLabel } from "@dk-oasis/shared/mdm-meta";
 import { useMessage } from "@dk-oasis/shared/message-provider";
 import { TokenChipInput, joinTokens, parseTokens } from "@dk-oasis/shared/token-chip-input";
 import { countByToken, removalImpacts, removalMessage, type PermKind } from "./perm-impact";
-import { calcFormUrl, getRowKey, toCount, withField, type ObjRow } from "./row-model";
-import type { MenuIdLov, ObjPermRow } from "./types";
+import { PAGE_REGISTRY_KEYS, resolveRegistryPath } from "@/lib/generated/page-registry";
+import { getRowKey, toCount, withField, type ObjRow } from "./row-model";
+import type { ObjPermRow } from "./types";
+
+/**
+ * FORM URL 고르기 목록 (2026-11-26) — 포털이 열 수 있는 화면 코드 경로(page-components 등의 page.tsx, 빌드 때 생성).
+ * FORM URL 은 오브젝트의 값이다. 메뉴 폴더로 계산하지 않는다 — 메뉴는 오브젝트를 가리킬 뿐이고, 한 오브젝트가 여러 메뉴 셋·폴더에 들어간다.
+ */
+const FORM_URL_OPTIONS = [...PAGE_REGISTRY_KEYS].sort().map((k) => ({ value: k, label: k }));
 
 /** S-003 / D-013 / G-009 — Y/N (LV-002 정적 — 분석 §3.8 DS-005). */
 const USE_TP_OPTIONS: { value: string; label: string }[] = [
@@ -63,7 +70,6 @@ export interface ObjDetailFormProps {
   row: ObjRow | null;
   /** 초안을 목록 행에 반영 — 호출하는 쪽은 안정된 함수를 넘긴다. */
   onCommit: (draft: ObjRow) => void;
-  menuLov: MenuIdLov[];
   systemOptions: { value: string; label: string }[];
   perm: ObjPermInfo;
   /** 저장 중 — 입력을 잠가 응답 뒤에 입력이 사라지지 않게 한다. */
@@ -71,12 +77,12 @@ export interface ObjDetailFormProps {
 }
 
 /**
- * 상세 정보 폼 — As-Is OBJECT 관리 스크린샷 정합 (2026-06-01 shared 컴포넌트 교체 · 2026-06-05 FORM URL 자동 산출).
- *   - FORM URL 은 사용자 직접 수정 ✗, 항상 `${PARENT_MENU_ID}/${OBJECT_ID}`.
- *   - MENU ID 콤보는 PARENT_MENU_ID 에 연결(BE 의 MENU_ID 는 OBJECT_ID 와 같은 redundant alias).
+ * 상세 정보 폼 — As-Is OBJECT 관리 스크린샷 정합 (2026-06-01 shared 컴포넌트 교체).
+ *   - 2026-11-26: MENU ID(PARENT_MENU_ID) 칸을 뺐다 — 오브젝트는 메뉴 정보를 갖지 않는다.
+ *     FORM URL 은 화면 코드 경로 ComboBox 로 고른다(메뉴 폴더로 계산하지 않는다). OBJECT ID 를 넣었는데 비어 있으면 같은 이름의 화면 코드 경로를 채운다.
  *   - 외부 접속 주소는 접속 경로가 "외부" 일 때만 활성.
  */
-export const ObjDetailForm = memo(function ObjDetailForm({ ref, row, onCommit, menuLov, systemOptions, perm, disabled = false }: ObjDetailFormProps) {
+export const ObjDetailForm = memo(function ObjDetailForm({ ref, row, onCommit, systemOptions, perm, disabled = false }: ObjDetailFormProps) {
   const { showMessage } = useMessage();
   const { draft, setDraft, containerProps, handle } = useDetailDraft<ObjRow>(row, {
     onCommit: (d) => onCommit(d),
@@ -84,13 +90,11 @@ export const ObjDetailForm = memo(function ObjDetailForm({ ref, row, onCommit, m
   });
   useImperativeHandle(ref, () => handle, [handle]);
 
-  const menuLovData = useMemo(() => menuLov.map((m) => ({ value: m.MENU_ID, label: m.MENU_ID_NM })), [menuLov]);
-
   /** 한 칸 바꾸기 — 항상 최신 초안 위에서 계산한다(연속 입력에도 낡은 값을 쓰지 않는다). */
   const update = useCallback(
     (field: string, value: unknown) => {
       const cur = handle.getDraft();
-      if (cur) setDraft(withField(cur, field, value));
+      if (cur) setDraft(withField(cur, field, value, resolveRegistryPath));
     },
     [handle, setDraft],
   );
@@ -129,6 +133,11 @@ export const ObjDetailForm = memo(function ObjDetailForm({ ref, row, onCommit, m
   }
 
   const outAccessIpDisabled = draft.ACCESS_TP !== "외부";
+  // FORM URL 목록에 없는 옛 값(외부 URL 등)도 보이게 지금 값을 목록에 더한다.
+  const formUrl = String(draft.FORM_URL ?? "");
+  const formUrlOptions = formUrl && !FORM_URL_OPTIONS.some((o) => o.value === formUrl)
+    ? [{ value: formUrl, label: `${formUrl} (화면 코드 없음)` }, ...FORM_URL_OPTIONS]
+    : FORM_URL_OPTIONS;
   const isDeleted = draft.nativeeditor_status === "deleted";
   const permRows = perm.objectId && perm.objectId === draft.OBJECT_ID ? perm.rows : [];
   const orig = draft.__orig;
@@ -177,20 +186,6 @@ export const ObjDetailForm = memo(function ObjDetailForm({ ref, row, onCommit, m
             </td>
           </tr>
           <tr>
-            <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="PARENT_MENU_ID" label="MENU ID" /></th>
-            <td style={DETAIL_VALUE_CELL}>
-              <ComboBox
-                aria-label="MENU ID"
-                data={menuLovData}
-                valueField="value"
-                labelField="label"
-                value={String(draft.PARENT_MENU_ID ?? "")}
-                onChange={(v: string) => update("PARENT_MENU_ID", v)}
-                placeholder="(선택)"
-              />
-            </td>
-          </tr>
-          <tr>
             <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="ID" meta={false} label="ID" required /></th>
             <td style={DETAIL_VALUE_CELL}>
               <Input aria-label="ID" value={String(draft.ID ?? "")} maxLength={100} onChange={(v: string) => update("ID", v)} />
@@ -233,14 +228,17 @@ export const ObjDetailForm = memo(function ObjDetailForm({ ref, row, onCommit, m
             </td>
           </tr>
           <tr>
-            <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="computedFormUrl" meta={false} label="FORM URL" /></th>
+            <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="FORM_URL" label="FORM URL" /></th>
             <td style={DETAIL_VALUE_CELL}>
-              <Input
+              {/* 2026-11-26 — 화면 코드 경로 고르기. 포털은 메뉴가 가리키는 이 값으로 화면을 연다(메뉴 폴더와 상관없다). */}
+              <ComboBox
                 aria-label="FORM URL"
-                value={calcFormUrl(draft)}
-                maxLength={100}
-                readOnly
-                onChange={() => { /* readOnly — MENU_ID/OBJECT_ID 변경 시 자동 동기화 */ }}
+                data={formUrlOptions}
+                valueField="value"
+                labelField="label"
+                value={formUrl}
+                onChange={(v: string) => update("FORM_URL", v)}
+                placeholder="화면 코드 경로 (예: csa/commMenuMng)"
               />
             </td>
           </tr>

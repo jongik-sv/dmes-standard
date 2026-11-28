@@ -27,6 +27,10 @@ public class RuleDomainSearchResult {
         private Integer length;
         private Integer scale;
         private String stdRule;
+        /** 유효 타입·길이·소수 — 상위 도메인에서 물려받은 값까지 조립한 결과(자기 칸이 비어도 채워진다). 체인을 못 읽으면 null. */
+        private String effectiveDataType;
+        private Integer effectiveLength;
+        private Integer effectiveScale;
 
         public Row() {
         }
@@ -60,5 +64,11 @@ public class RuleDomainSearchResult {
         public void setLength(Integer v) { this.length = v; }
         public void setScale(Integer v) { this.scale = v; }
         public void setStdRule(String v) { this.stdRule = v; }
+        public String getEffectiveDataType() { return effectiveDataType; }
+        public Integer getEffectiveLength() { return effectiveLength; }
+        public Integer getEffectiveScale() { return effectiveScale; }
+        public void setEffectiveDataType(String v) { this.effectiveDataType = v; }
+        public void setEffectiveLength(Integer v) { this.effectiveLength = v; }
+        public void setEffectiveScale(Integer v) { this.effectiveScale = v; }
     }
 }

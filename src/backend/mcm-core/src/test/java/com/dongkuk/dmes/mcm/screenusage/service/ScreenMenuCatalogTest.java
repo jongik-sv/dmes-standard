@@ -1,6 +1,7 @@
 package com.dongkuk.dmes.mcm.screenusage.service;
 
 import com.dongkuk.dmes.mcm.entity.SecMenu;
+import com.dongkuk.dmes.mcm.entity.SecObj;
 import com.dongkuk.dmes.mcm.menu.MenuCatalog;
 import com.dongkuk.dmes.mcm.repository.SecMenuNativeRepository;
 import com.dongkuk.dmes.mcm.screenusage.service.ScreenMenuCatalog.MenuInfo;
@@ -49,11 +50,11 @@ class ScreenMenuCatalogTest {
     void buildsCatalog() {
         when(secMenuNativeRepository.searchMenuFld()).thenReturn(List.of(
                 folder("mcm", "공통관리", null), folder("csa", "시스템관리", "mcm")));
-        when(menuCatalog.menus()).thenReturn(List.of(
+        when(menuCatalog.snapshot()).thenReturn(snapshot(List.of(
                 menu("commUserMng", "csa", "commUserMng", "사용자 관리", "Y", "Y"),
                 menu("hidden", "csa", "hiddenScreen", "숨김 화면", "N", "Y"),
                 menu("stopped", "csa", "stoppedScreen", "중지 화면", "Y", "N"),
-                menu("noObj", "csa", null, "객체 없음", "Y", "Y")));
+                menu("noObj", "csa", null, "객체 없음", "Y", "Y")), List.of()));
 
         Map<String, MenuInfo> menus = catalog.load();
 
@@ -68,11 +69,32 @@ class ScreenMenuCatalogTest {
     @DisplayName("같은 pageId 가 둘이면 표시되는 메뉴를 고른다")
     void prefersViewableDuplicate() {
         when(secMenuNativeRepository.searchMenuFld()).thenReturn(List.of(folder("csa", "시스템관리", null)));
-        when(menuCatalog.menus()).thenReturn(List.of(
+        when(menuCatalog.snapshot()).thenReturn(snapshot(List.of(
                 menu("old", "csa", "commUserMng", "옛 메뉴", "N", "Y"),
-                menu("new", "csa", "commUserMng", "사용자 관리", "Y", "Y")));
+                menu("new", "csa", "commUserMng", "사용자 관리", "Y", "Y")), List.of()));
 
         assertThat(catalog.load().get("csa/commUserMng").menuNm()).isEqualTo("사용자 관리");
+    }
+
+    @Test
+    @DisplayName("pageId 는 OBJECT 의 FORM_URL 이 먼저다 — 메뉴를 다른 폴더로 옮겨도 pageId 는 그대로, 메뉴 경로만 바뀐다")
+    void pageIdFollowsObjectFormUrl() {
+        when(secMenuNativeRepository.searchMenuFld()).thenReturn(List.of(
+                folder("mcm", "공통관리", null), folder("csa", "시스템관리", "mcm"), folder("cmq", "맞춤 레포트", "mcm")));
+        SecObj moved = new SecObj();
+        moved.setObjectId("commUserMng");
+        moved.setFormUrl("csa/commUserMng");
+        when(menuCatalog.snapshot()).thenReturn(snapshot(List.of(
+                menu("commUserMng", "cmq", "commUserMng", "사용자 관리", "Y", "Y")), List.of(moved)));
+
+        Map<String, MenuInfo> menus = catalog.load();
+
+        assertThat(menus).containsOnlyKeys("csa/commUserMng");
+        assertThat(menus.get("csa/commUserMng").menuPath()).isEqualTo("공통관리 > 맞춤 레포트");
+    }
+
+    private static MenuCatalog.Snapshot snapshot(List<SecMenu> menus, List<SecObj> objects) {
+        return MenuCatalog.Snapshot.of(menus, objects);
     }
 
     @Test

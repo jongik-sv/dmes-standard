@@ -6,6 +6,7 @@ import com.dongkuk.dmes.mcm.entity.SecObj;
 import com.dongkuk.dmes.mcm.entity.SecPerm;
 import com.dongkuk.dmes.mcm.entity.SecRoleMapping;
 import com.dongkuk.dmes.mcm.menu.MenuCatalog;
+import com.dongkuk.dmes.mcm.menu.MenuOrder;
 import com.dongkuk.dmes.mcm.repository.SecMenuFldLovRepository;
 import com.dongkuk.dmes.mcm.repository.SecPermRepository;
 import com.dongkuk.dmes.mcm.repository.SecRoleGroupMappingRepository;
@@ -20,7 +21,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -51,7 +51,7 @@ import java.util.Set;
  *   <li>{@code mcm.role.entity.SecObj} (legacy OBJ_ID/OBJ_NM/SYS_CD) →
  *       {@code mcm.entity.SecObj} (W1 OBJECT_ID/OBJECT_NM/SYSTEM_CODE)</li>
  *   <li>{@code mcm.menu.entity.SecMenu} (legacy 단일 PK MENU_ID + ROW_SEQ 정렬) →
- *       {@code mcm.entity.SecMenu} (W2 복합 PK + FULL_SEQ 정렬 + PARENT_MENU_ID 트리)</li>
+ *       {@code mcm.entity.SecMenu} (W2 복합 PK + MENU_SEQ 정렬 + PARENT_MENU_ID 트리)</li>
  *   <li>{@code mcm.role.entity.SecPerm} (legacy PERM_ID/OBJ_ID 1:1) →
  *       {@code mcm.entity.SecPerm} (W6 PERMISSION_ID + PERMISSION_ACTION 콤마 텍스트)</li>
  *   <li>{@code mcm.role.entity.SecPermButton} (legacy ENDPOINT/ACTION 1:N) →
@@ -136,8 +136,7 @@ public class SecUserService {
      * <p>Phase R3 재작성 — W2 신규 SecMenu (복합 PK + 다른 컬럼명) 사용:
      * <ul>
      *   <li>{@code useYn='Y'} → {@code useTp='Y'} (W2 컬럼 명)</li>
-     *   <li>{@code rowSeq} 정렬 → {@code fullSeq} 정렬 (legacy ROW_SEQ NUMERIC 정렬 → 신규 FULL_SEQ
-     *       VARCHAR 사전순 정렬 — As-Is 의도 보존)</li>
+     *   <li>{@code rowSeq} 정렬 → 형제끼리 {@code MENU_SEQ} 숫자 정렬 ({@link MenuOrder}, 2026-11-27 FULL_SEQ 제거)</li>
      *   <li>{@code uprLvMenuId} (legacy) → {@code parentMenuId} (W2)</li>
      *   <li>{@code menuType} 'dir' 분류 / {@code serviceUrl} / {@code param} / {@code sq} 등
      *       legacy-only 필드는 신규 SecMenu 에 없음 — 응답에서 제거 또는 null 채움.</li>
@@ -147,11 +146,10 @@ public class SecUserService {
         String userId = securityIdentity.requireUserId();
         // 메뉴·OBJECT 전수 목록은 카탈로그 캐시(사용자 무관) — 같은 스냅샷 하나에서 둘 다 읽는다.
         MenuCatalog.Snapshot catalog = menuCatalog.snapshot();
-        // useTp='Y' 만 보존, FULL_SEQ 정렬
+        // useTp='Y' 만 보존. 형제 순서는 트리를 만든 뒤 sortTree 가 MENU_SEQ 로 정한다(MenuOrder) — 여기 정렬은 결과를 늘 같게 하려는 것.
         List<SecMenu> allMenus = catalog.menus().stream()
                 .filter(m -> "Y".equals(m.getUseTp()))
-                .sorted(Comparator.comparing(SecMenu::getFullSeq,
-                        Comparator.nullsLast(Comparator.naturalOrder())))
+                .sorted(MenuOrder.MENUS)
                 .toList();
         List<SecMenu> menus = filterMenusByRole(allMenus, userId);
 
@@ -183,7 +181,6 @@ public class SecUserService {
             row.put("serviceUrl",  null);
             row.put("param",       null);
             row.put("sq",          null);
-            row.put("rowSeq",      fld.get("FULL_SEQ"));
             row.put("hiddenYn",    "N".equals(String.valueOf(fld.get("MENU_VIEW_YN"))) ? "Y" : "N");
             row.put("useYn",       fld.get("USE_TP"));
             row.put("sysCd",       null);
@@ -206,7 +203,6 @@ public class SecUserService {
             row.put("serviceUrl",  null);
             row.put("param",       null);
             row.put("sq",          null);
-            row.put("rowSeq",      menu.getFullSeq());
             row.put("hiddenYn",    "N".equals(menu.getMenuViewYn()) ? "Y" : "N");
             row.put("useYn",       menu.getUseTp());
 
@@ -224,16 +220,10 @@ public class SecUserService {
                 row.put("sysCd", null);
                 row.put("objNm", null);
             }
-            // 2026-06-05 Phase 1 — DB derived componentPath = PARENT_MENU_ID + "/" + OBJECT_ID.
-            //   FE Sidebar 가 본 값을 그대로 사용해 page-components/{PARENT_MENU_ID}/{OBJECT_ID}/page.tsx 동적 import.
-            //   PARENT_MENU_ID 가 group 토큰 (cma/csa/cme) 이고 OBJECT_ID 가 camelCase leaf 토큰이라는 규약 정합 (reference_naming_standards §A.3).
-            //   둘 중 하나라도 null/blank 면 componentPath = null (FE 가 fallback 으로 sysCd+objId 조립 유지).
-            String parentMenuId = menu.getParentMenuId();
-            if (objectId != null && !objectId.isBlank() && parentMenuId != null && !parentMenuId.isBlank()) {
-                row.put("componentPath", parentMenuId + "/" + objectId);
-            } else {
-                row.put("componentPath", null);
-            }
+            // componentPath — FE Sidebar 가 이 값으로 page-components/{componentPath}/page.tsx 를 동적 import 한다.
+            //   2026-11-26 — 화면 코드 경로는 OBJECT 의 것(OBJECT.FORM_URL)이다. FORM_URL 이 비었거나 '/' 가 없으면 옛 규칙
+            //   PARENT_MENU_ID/OBJECT_ID 로 물러난다(MenuCodePath). 정할 수 없으면 null (FE 가 sysCd+objId 조립으로 물러난다).
+            row.put("componentPath", catalog.codePathOf(menu));
             result.add(row);
         }
         return result;
@@ -499,11 +489,8 @@ public class SecUserService {
 
     @SuppressWarnings("unchecked")
     private void sortTree(List<Map<String, Object>> nodes) {
-        nodes.sort((a, b) -> {
-            String sa = String.valueOf(a.get("rowSeq") == null ? "" : a.get("rowSeq"));
-            String sb = String.valueOf(b.get("rowSeq") == null ? "" : b.get("rowSeq"));
-            return sa.compareTo(sb);
-        });
+        // 2026-11-27 — FULL_SEQ 를 없앴다. 형제끼리 MENU_SEQ(숫자) → MENU_ID 순(MenuOrder).
+        nodes.sort(MenuOrder.rows("menuSeq", "menuId"));
         for (Map<String, Object> node : nodes) {
             List<Map<String, Object>> children = (List<Map<String, Object>>) node.get("items");
             if (children != null && !children.isEmpty()) {

@@ -292,8 +292,7 @@ class MenuCatalogCallersSelectCountTest {
     static SecMenu menu(String menuId, String parent, String objectId, String nm) {
         SecMenu m = new SecMenu();
         m.setMenuId(menuId);
-        m.setMenuSeq("1");
-        m.setFullSeq(menuId.equals("M_USER") ? "1010100" : "1010110");
+        m.setMenuSeq(menuId.equals("M_USER") ? "1" : "2");
         m.setParentMenuId(parent);
         m.setObjectId(objectId);
         m.setMenuNm(nm);

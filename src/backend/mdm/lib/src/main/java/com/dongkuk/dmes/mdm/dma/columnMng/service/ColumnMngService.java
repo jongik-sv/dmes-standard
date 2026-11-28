@@ -4,6 +4,9 @@ import static com.dongkuk.dmes.mdm.common.support.MdmStrings.trimToNull;
 import static com.dongkuk.dmes.mdm.common.support.MdmErrors.invalid;
 
 import com.dongkuk.dmes.mdm.common.dictionary.ColumnDescriptionSanitizer;
+import com.dongkuk.dmes.mdm.common.dictionary.ColumnEffectiveType;
+import com.dongkuk.dmes.mdm.common.dictionary.ColumnEffectiveTypes;
+import com.dongkuk.dmes.mdm.common.dictionary.DomainTreeSnapshot;
 import com.dongkuk.dmes.mdm.common.metarev.MetaRevisionRecorder;
 import com.dongkuk.dmes.mdm.common.naming.NamingRules;
 import com.dongkuk.dmes.mdm.common.security.MdmStdAdminGuard;
@@ -14,6 +17,7 @@ import com.dongkuk.dmes.mdm.contract.category.MaruIdKind;
 import com.dongkuk.dmes.mdm.contract.category.MaruIdNamespace;
 import com.dongkuk.dmes.mdm.contract.common.MdmCheckIssue;
 import com.dongkuk.dmes.mdm.contract.common.MdmErrorCode;
+import com.dongkuk.dmes.mdm.contract.dictionary.MdmDataType;
 import com.dongkuk.dmes.mdm.dma.columnMng.dto.ColumnMngCompareRequest;
 import com.dongkuk.dmes.mdm.dma.columnMng.dto.ColumnMngSaveRequest;
 import com.dongkuk.dmes.mdm.dma.columnMng.dto.ColumnMngSearchRequest;
@@ -39,6 +43,7 @@ import com.dongkuk.dmes.mdm.repository.MdmColumnSystemRepository;
 import com.dongkuk.dmes.mdm.repository.MdmDomainRepository;
 import com.dongkuk.dmes.mdm.repository.MdmTermRepository;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -75,6 +80,8 @@ import org.springframework.stereotype.Service;
 public class ColumnMngService {
 
     private static final String REF_KIND_MASTER = "MASTER";
+    /** 컬럼 기본 타입 값 — 룰 엔진 DataType 4종({@code MdmDataType}, V11 CHECK {@code CK_TB_MDM_COLUMN_DTYPE}). */
+    private static final List<String> BASE_TYPES = Arrays.stream(MdmDataType.values()).map(Enum::name).toList();
     /** IN 목록 한 번에 넣는 최대 수 — Oracle 의 IN 1,000 개 제한 안으로 나눠 읽는다. */
     private static final int IN_CHUNK = 500;
 
@@ -87,11 +94,14 @@ public class ColumnMngService {
     private final ObjectProvider<MaruIdNamespace> maruIdNamespaces;
     private final ColumnDomainDetailReader domainDetailReader;
     private final MetaRevisionRecorder recorder;
+    private final ColumnEffectiveTypes effectiveTypes;
 
     public ColumnMngService(MdmColumnRepository columnRepository, MdmColumnSystemRepository columnSystemRepository,
                             MdmDomainRepository domainRepository, MdmTermRepository termRepository, JdbcTemplate jdbc,
                             MdmStdAdminGuard guard, ObjectProvider<MaruIdNamespace> maruIdNamespaces,
-                            ColumnDomainDetailReader domainDetailReader, MetaRevisionRecorder recorder) {
+                            ColumnDomainDetailReader domainDetailReader, MetaRevisionRecorder recorder,
+                            ColumnEffectiveTypes effectiveTypes) {
+        this.effectiveTypes = effectiveTypes;
         this.columnRepository = columnRepository;
         this.columnSystemRepository = columnSystemRepository;
         this.domainRepository = domainRepository;
@@ -186,10 +196,13 @@ public class ColumnMngService {
         Map<Long, MdmTerm> termById = findAllInChunks(
                 termIdsByColumn.values().stream().flatMap(List::stream).toList(), termRepository::findAllById).stream()
                 .collect(Collectors.toMap(MdmTerm::getTermId, Function.identity()));
+        // 유효 타입 — 읽은 도메인에 빠진 조상만 더 읽는다(조건 없는 전체 조회는 이미 전부 있어 SQL 이 늘지 않는다)
+        DomainTreeSnapshot domainTree = hits.stream().anyMatch(c -> c.getDomainId() != null)
+                ? effectiveTypes.snapshotWithAncestors(domainById.values()) : null;
 
         List<Map<String, Object>> list = new ArrayList<>();
         for (MdmColumn column : hits) {
-            list.add(listRow(column, domainById.get(column.getDomainId()),
+            list.add(listRow(column, domainById.get(column.getDomainId()), ColumnEffectiveType.of(column, domainTree),
                     mappingsByColumn.getOrDefault(column.getColumnId(), List.of()), termIdsByColumn.get(column), termById));
         }
 
@@ -210,7 +223,8 @@ public class ColumnMngService {
     /**
      * 컬럼 상세. {@code columnId} 또는 표준 물리명 {@code physName} 으로 찾는다(둘 다 오면 columnId). 물리명은 그대로 찾고 없으면
      * 대문자로 한 번 더 찾는다. {@code withDomain}(비우면 물리명 조회일 때만)이면 {@code domain} 에 도메인 상세를 싣는다 —
-     * columnId 조회의 응답 모양·SQL 문 수는 그대로다({@code ColumnMngQueryCountTest}).
+     * columnId 조회의 응답 모양은 그대로다. 유효 타입(effective*·typeSource)을 위해 도메인 있는 컬럼은 {@code withDomain} 과
+     * 무관하게 도메인 상세를 읽는다(SQL +2, {@code ColumnMngQueryCountTest} 상한 5).
      */
     public Map<String, Object> view(ColumnMngViewRequest request) {
         Long columnId = request == null ? null : request.getColumnId();
@@ -231,6 +245,16 @@ public class ColumnMngService {
         // 설명·활용처 메모(D-150): 저장값을 다시 정규화한다 — 소독 없이 들어간 옛 HTML 도 소독본으로 준다(새 저장값은 그대로). 일반 글은 그대로다
         detail.put("description", ColumnDescriptionSanitizer.normalize(column.getDescription()));
         detail.put("domainId", column.getDomainId());
+        // 컬럼 기본 타입(저장값, 도메인이 있으면 null) + 유효 타입(도메인 → 기본 타입 순)과 출처(DOMAIN·BASE, 없으면 null)
+        detail.put("dataType", column.getDataType());
+        detail.put("length", column.getLength());
+        detail.put("scale", column.getScale());
+        Map<String, Object> domain = column.getDomainId() == null ? null : domainDetailReader.read(column.getDomainId());
+        ColumnEffectiveType effective = effectiveOf(column, domain);
+        detail.put("effectiveDataType", effective.dataType());
+        detail.put("effectiveLength", effective.length());
+        detail.put("effectiveScale", effective.scale());
+        detail.put("typeSource", effective.sourceName());
         detail.put("required", column.isRequired());
         detail.put("defaultValue", column.getDefaultValue());
         detail.put("refKind", column.getRefKind());
@@ -269,9 +293,22 @@ public class ColumnMngService {
         out.put("systems", systems);
         out.put("terms", terms);
         if (withDomain) {
-            out.put("domain", domainDetailReader.read(column.getDomainId()));
+            out.put("domain", domain);
         }
         return out;
+    }
+
+    /**
+     * 상세의 유효 타입 — {@link ColumnDomainDetailReader} 가 조립한 도메인 값(체인이 깨져 타입이 null 이면 없는 것으로 본다)을 먼저,
+     * 없으면 컬럼 기본 타입. {@link ColumnEffectiveType#of} 와 같은 규칙이다(도메인 체인을 두 번 읽지 않으려고 읽은 결과를 쓴다).
+     */
+    private static ColumnEffectiveType effectiveOf(MdmColumn column, Map<String, Object> domain) {
+        Object dataType = domain == null ? null : domain.get("dataType");
+        if (dataType instanceof String type && !type.isBlank()) {
+            return new ColumnEffectiveType(type, (Integer) domain.get("length"), (Integer) domain.get("scale"),
+                    ColumnEffectiveType.Source.DOMAIN);
+        }
+        return ColumnEffectiveType.ofBase(column.getDataType(), column.getLength(), column.getScale());
     }
 
     /** 빈 물리명은 찾지 않는다. 그대로 없으면 대문자로 한 번 더(표준 물리명은 대문자다). */
@@ -389,19 +426,33 @@ public class ColumnMngService {
         List<MdmColumnSystem> requested = validateMappings(systems, selfId);
 
         // 7. 컬럼 저장
+        // 기본 타입 — 도메인을 고른 컬럼은 도메인 값만 쓴다(기본 칸은 저장하지 않는다, NULL). 검사는 4 에서 끝났다
+        boolean hasDomain = req.getDomainId() != null;
+        String baseType = hasDomain ? null : trimToNull(req.getDataType());
+        Integer baseLength = hasDomain ? null : req.getLength();
+        Integer baseScale = hasDomain ? null : req.getScale();
         MdmColumn column;
         String oldPhysName = null;
         Long oldDomainId = null;
+        String oldType = null;
+        Integer oldLength = null;
+        Integer oldScale = null;
         if (selfId == null) {
             column = new MdmColumn(columnName, physName, req.getDomainId());
         } else {
             column = columnRepository.findById(selfId).orElseThrow(() -> invalid("컬럼을 찾을 수 없습니다"));
             oldPhysName = column.getPhysName(); // 메타 캐시 무효화 — 물리명 변경 전 이름(spec 2026-10-02 §3.3)
             oldDomainId = column.getDomainId();
+            oldType = column.getDataType();
+            oldLength = column.getLength();
+            oldScale = column.getScale();
             column.setColumnName(columnName);
             column.setPhysName(physName);
             column.setDomainId(req.getDomainId());
         }
+        column.setDataType(baseType);
+        column.setLength(baseLength);
+        column.setScale(baseScale);
         column.setLabelLong(trimToNull(req.getLabelLong()));
         column.setLabelMid(trimToNull(req.getLabelMid()));
         column.setLabelShort(trimToNull(req.getLabelShort()));
@@ -418,9 +469,11 @@ public class ColumnMngService {
         // 바뀌기 전 시스템 매핑 — 신규면 없다. 메타 기록(별칭 전·후)과 8 의 차분이 함께 쓴다
         List<MdmColumnSystem> before = selfId == null ? List.of() : columnSystemRepository.findByColumnId(columnId);
         // 전문 합성은 항목의 타입·단위·소수를 컬럼 → 도메인에서 읽는다 — 신규·물리명 변경·도메인 교체면 그 물리명을 쓰는 RELEASED 전문까지
-        // LAYOUT 키로 펼친다(검토 I1). 이름·라벨·설명만 바뀐 저장은 전문 피드 값과 무관하다
+        // LAYOUT 키로 펼친다(검토 I1). 기본 타입·길이·소수 변경도 도메인 없는 컬럼의 유효 타입을 바꾸므로 같다.
+        // 이름·라벨·설명만 바뀐 저장은 전문 피드 값과 무관하다
         boolean layoutFeedMayChange = selfId == null || !Objects.equals(oldPhysName, physName)
-                || !Objects.equals(oldDomainId, req.getDomainId());
+                || !Objects.equals(oldDomainId, req.getDomainId()) || !Objects.equals(oldType, baseType)
+                || !Objects.equals(oldLength, baseLength) || !Objects.equals(oldScale, baseScale);
         // 업무 모듈 캐시는 시스템 별칭 이름으로도 키를 둔다 — 바뀌기 전·뒤 별칭을 모두 남긴다(별칭이 그대로여도, spec 2026-10-03 L6)
         Set<String> aliases = new LinkedHashSet<>();
         before.forEach(m -> aliases.add(m.getPhysName()));
@@ -503,6 +556,9 @@ public class ColumnMngService {
         if (req.getDomainId() != null && !domainRepository.existsById(req.getDomainId())) {
             throw invalid("도메인을 찾을 수 없습니다");
         }
+        if (req.getDomainId() == null) {
+            validateBaseType(trimToNull(req.getDataType()), req.getLength(), req.getScale());
+        }
         String refKind = trimToNull(req.getRefKind());
         String refTarget = trimToNull(req.getRefTarget());
         if (refKind != null && !REF_KIND_MASTER.equals(refKind)) {
@@ -520,6 +576,31 @@ public class ColumnMngService {
             if (!masterData.isEmpty() && masterData.stream().noneMatch(ns -> ns.contains(refTarget))) {
                 throw invalid("참조 대상 '" + refTarget + "' 가 마루 데이터에 없습니다");
             }
+        }
+    }
+
+    /**
+     * 도메인 없는 컬럼의 기본 타입 — 룰 엔진 DataType 4종, 길이·소수는 0 이상, 소수 ≤ 길이(도메인 검사 S06 과 같은 범위).
+     * 타입이 비면 길이·소수도 비어야 한다. 타입 자체는 아직 필수가 아니다(빈 컬럼 채우기 뒤 켠다).
+     */
+    private static void validateBaseType(String dataType, Integer length, Integer scale) {
+        if (dataType == null) {
+            if (length != null || scale != null) {
+                throw invalid("기본 타입이 비면 길이·소수 자릿수도 비워야 합니다");
+            }
+            return;
+        }
+        if (!BASE_TYPES.contains(dataType)) {
+            throw invalid("기본 타입은 " + String.join("·", BASE_TYPES) + " 중 하나여야 합니다: " + dataType);
+        }
+        if (length != null && length < 0) {
+            throw invalid("길이는 음수일 수 없습니다");
+        }
+        if (scale != null && scale < 0) {
+            throw invalid("소수 자릿수는 음수일 수 없습니다");
+        }
+        if (scale != null && length != null && scale > length) {
+            throw invalid("소수 자릿수 " + scale + " 이(가) 길이 " + length + " 보다 클 수 없습니다");
         }
     }
 
@@ -655,8 +736,9 @@ public class ColumnMngService {
         return mappings.stream().anyMatch(m -> lower(m.getPhysName()).contains(needle));
     }
 
-    private static Map<String, Object> listRow(MdmColumn column, MdmDomain domain, List<MdmColumnSystem> mappings,
-                                               List<Long> termIds, Map<Long, MdmTerm> termById) {
+    private static Map<String, Object> listRow(MdmColumn column, MdmDomain domain, ColumnEffectiveType effective,
+                                               List<MdmColumnSystem> mappings, List<Long> termIds,
+                                               Map<Long, MdmTerm> termById) {
         Map<String, Object> row = new LinkedHashMap<>();
         row.put("columnId", column.getColumnId());
         row.put("columnName", column.getColumnName());
@@ -667,6 +749,11 @@ public class ColumnMngService {
         row.put("domainId", column.getDomainId());
         row.put("domainName", domain == null ? null : domain.getDomainName());
         row.put("domainStdName", domain == null ? null : domain.getStdName());
+        // 유효 타입(도메인 → 컬럼 기본 타입 순)과 출처(DOMAIN·BASE, 없으면 null)
+        row.put("effectiveDataType", effective.dataType());
+        row.put("effectiveLength", effective.length());
+        row.put("effectiveScale", effective.scale());
+        row.put("typeSource", effective.sourceName());
         row.put("required", column.isRequired() ? "Y" : "N");
         row.put("termNames", termIds.stream()
                 .map(id -> id == null ? NamingRules.PLACEHOLDER
