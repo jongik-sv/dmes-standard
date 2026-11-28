@@ -71,7 +71,8 @@ import static org.assertj.core.api.Assertions.assertThat;
  * multi-tx, 기본 매니저 {@code txBiz} = JPA) → {@link OasisServiceExecutor} → 실제 {@code services/csa/commPermBench/commPermBench.bpmn}
  * → {@code commPermBenchService}. 응답 변환기에는 운영처럼 {@link McmBusinessErrorTranslator} 를 넣어 mcm-core 업무 예외가
  * {@code meta.success=false}·{@code meta.message="CODE: 상세"} 로 나가는지 본다.
- * 빈은 운영 그대로 컴포넌트 스캔한다 — {@code csa.commPermBench}(서비스·저장소) + {@code security.perm}(V2 로더·계산기·설명 서비스).
+ * 빈은 운영 그대로 컴포넌트 스캔한다 — {@code csa.commPermBench}(서비스·저장소) + {@code csa.commPerm}(SysadminGuard)
+ * + {@code security.perm}(V2 로더·계산기·설명 서비스).
  *
  * <p>DB 는 Oracle 시험 PDB(Flyway 기준선 + V20·V21). 이 시험이 CommPermBenchQueryRepository·PermScopeRowRepository·
  * PermHistoryRepository·PermApplyRepository·PermDraftRowLockRepository·PermImpactNameRepository 의 네이티브 SQL 을 실제로 돌린다.
@@ -415,7 +416,8 @@ class CommPermBenchOasisServiceTest {
                     SecObjRepository.class, SecUserRepository.class, SecRoleGroupRepository.class, SecRoleRepository.class}),
             transactionManagerRef = "transactionManager")
     @ComponentScan(
-            basePackages = {"com.dongkuk.dmes.mcm.csa.commPermBench", "com.dongkuk.dmes.mcm.security.perm"},
+            basePackages = {"com.dongkuk.dmes.mcm.csa.commPermBench", "com.dongkuk.dmes.mcm.csa.commPerm",
+                    "com.dongkuk.dmes.mcm.security.perm"},
             excludeFilters = @ComponentScan.Filter(type = FilterType.ANNOTATION, classes = Configuration.class))
     static class Config {
 
