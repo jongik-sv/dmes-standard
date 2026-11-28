@@ -18,7 +18,8 @@ import { MdmFieldLabel } from "@dk-oasis/shared/mdm-meta";
 import { searchCmUser as apiSearchCmUser, searchOwned as apiSearchOwned } from "./api";
 import { todayYmd } from "./detailUtils";
 import type { OwnedRow } from "./types";
-import { RETIRE_REASONS, SUSPEND_REASONS, bizErrorText, fmtYmd, joinReason, ownedTotal } from "./userState";
+import { bizErrorText } from "@/lib/utils/biz-error";
+import { RETIRE_REASONS, SUSPEND_REASONS, fmtYmd, joinReason, ownedTotal } from "./userState";
 
 /** 바뀌는 내용 한 줄 — do: 바뀜, ask: 확인할 것, keep: 그대로 둠. */
 export interface ImpactLine {

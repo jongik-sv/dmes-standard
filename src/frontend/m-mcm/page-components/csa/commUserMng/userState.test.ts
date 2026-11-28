@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { bizErrorText, parseBizError } from "@/lib/utils/biz-error";
 import {
   addDaysYmd,
-  bizErrorText,
   fmtDateTime,
   handoverText,
   isHrLeaveOnly,
@@ -9,7 +9,6 @@ import {
   joinReason,
   ownedSummary,
   ownedTotal,
-  parseBizError,
   retireText,
   retrySummary,
   stateActionsOf,
@@ -73,10 +72,12 @@ describe("stateNotes", () => {
   });
 });
 
+// 공용 유틸(@/lib/utils/biz-error)을 사용자 관리 서버 코드로 확인한다. 유틸 자체 시험은 lib/utils/biz-error.test.ts.
 describe("업무 오류 문구", () => {
   it("「CODE: 문구」 에서 문구만", () => {
     expect(parseBizError("LAST_SYSADMIN: 마지막 시스템관리자는 막을 수 없습니다")).toEqual({
       code: "LAST_SYSADMIN",
+      codes: ["LAST_SYSADMIN"],
       text: "마지막 시스템관리자는 막을 수 없습니다",
     });
     expect(bizErrorText(new Error("HR_LEAVE: 인사 휴직은 인사 복직 정보가 오면 풀립니다"))).toBe(
@@ -84,8 +85,12 @@ describe("업무 오류 문구", () => {
     );
   });
 
+  it("앞에 붙은 코드가 여럿이면 모두 뗀다", () => {
+    expect(bizErrorText(new Error("E010: SELF_LOCKOUT: 자기 계정은 잠글 수 없습니다"))).toBe("자기 계정은 잠글 수 없습니다");
+  });
+
   it("코드가 없으면 그대로, 비면 기본 문구", () => {
-    expect(parseBizError("비활성 사유를 고르세요")).toEqual({ code: null, text: "비활성 사유를 고르세요" });
+    expect(parseBizError("비활성 사유를 고르세요")).toEqual({ code: null, codes: [], text: "비활성 사유를 고르세요" });
     expect(bizErrorText(new Error(""), "실패")).toBe("실패");
   });
 });

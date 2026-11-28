@@ -86,11 +86,11 @@ import {
   resumeLines,
   type RetireSubmit,
 } from "./UserStateModals";
+import { bizErrorText } from "@/lib/utils/biz-error";
 import {
   MANAGE_TP_SEARCH_OPTIONS,
   USER_ST_LABEL,
   USER_ST_SEARCH_OPTIONS,
-  bizErrorText,
   fmtDateTime,
   handoverText,
   isSelf,

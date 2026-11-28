@@ -192,21 +192,6 @@ export function fmtYmd(v: unknown): string {
   return /^\d{8}$/.test(s) ? `${s.slice(0, 4)}-${s.slice(4, 6)}-${s.slice(6, 8)}` : s;
 }
 
-/**
- * 업무 오류 메시지 「CODE: 문구」 를 나눈다. 코드가 없으면 code 는 null 이고 문구는 그대로다.
- * 서버(UserLifecycleCore·SysadminGuard)는 LAST_SYSADMIN·SELF_LOCKOUT·HR_LEAVE·ALREADY_RETIRED 같은 코드를 앞에 붙인다.
- */
-export function parseBizError(message: string): { code: string | null; text: string } {
-  const m = /^([A-Z][A-Z0-9_]+):\s*([\s\S]*)$/.exec(message.trim());
-  return m ? { code: m[1], text: m[2].trim() || message.trim() } : { code: null, text: message.trim() };
-}
-
-/** 사용자에게 보일 오류 문구 — 코드는 떼고 문구만. */
-export function bizErrorText(e: unknown, fallback = "요청을 처리하지 못했습니다."): string {
-  const msg = e instanceof Error ? e.message : typeof e === "string" ? e : "";
-  return msg ? parseBizError(msg).text : fallback;
-}
-
 /** 담당 데이터 합계(건너뛴 항목 포함). */
 export function ownedTotal(rows: readonly OwnedRow[] | null | undefined): number {
   return (rows ?? []).reduce((n, r) => n + (Number(r.CNT) || 0), 0);

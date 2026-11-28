@@ -14,11 +14,11 @@ import { Button, Input, Select } from "@dk-oasis/shared/form";
 
 import { regHrEvtUser as apiRegHrEvtUser, retryHrEvt as apiRetryHrEvt, searchHrEvt as apiSearchHrEvt } from "./api";
 import type { HrEvtRow } from "./types";
+import { bizErrorText } from "@/lib/utils/biz-error";
 import {
   HR_EVT_TP_LABEL,
   HR_PROC_ST_LABEL,
   HR_PROC_ST_OPTIONS,
-  bizErrorText,
   fmtDateTime,
   fmtYmd,
   hrProcTone,
