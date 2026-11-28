@@ -302,6 +302,17 @@
   line-height: 1.8;
 }
 
+/* 2026-11-28 — 변경 창 맨 위 안내(임시 비밀번호·사용 기간 지남) */
+.pw-modal-notice {
+  padding: 8px 12px;
+  margin-bottom: 12px;
+  background: var(--color-primary-soft);
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
 .pw-modal-error {
   padding: 8px 12px;
   margin-bottom: 12px;

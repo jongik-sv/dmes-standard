@@ -1,6 +1,6 @@
 "use client";
 
-import { signIn } from "next-auth/react";
+import { getSession, signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { type FormEvent, useCallback, useEffect, useState, useTransition } from "react";
 import {
@@ -18,6 +18,7 @@ import {
 import { clearCurrentUserCache } from "../portal-shell/current-user";
 import { resetPortalSessionState } from "../portal-shell/start-pages";
 import { PasswordChangeModal } from "./PasswordChangeModal";
+import { changeNotice, parseLoginError } from "./login-reason";
 import "./login-form.css";
 
 const SAVE_ID_STORAGE_KEY = "oasis.login.savedUserId";
@@ -40,6 +41,11 @@ export function PortalLoginForm({ appName, callbackUrl }: PortalLoginFormProps) 
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [modalDefaultEmail, setModalDefaultEmail] = useState("");
   const [modalDefaultPassword, setModalDefaultPassword] = useState("");
+  // 2026-11-28 — 바꾸기 전에는 못 들어가는 변경 창(임시 비밀번호·사용 기간 지남). 닫을 수 없고 「취소」는 로그인 화면으로.
+  const [mandatoryNotice, setMandatoryNotice] = useState<string | null>(null);
+  // 만료 N일 전 알림 — 로그인은 됐고, 홈으로 가기 전에 한 번 묻는다
+  const [expiryDaysLeft, setExpiryDaysLeft] = useState<number | null>(null);
+  const [pendingUrl, setPendingUrl] = useState<string | null>(null);
   // hydration 이전에는 handleSubmit 의 preventDefault 가 아직 붙지 않아, 제출이
   // 네이티브 GET 으로 나가 비밀번호가 쿼리스트링에 노출될 수 있다(e2e 실측:
   // portal-tab-history.spec.ts 가 domcontentloaded 직후 클릭). hydration 완료
@@ -81,51 +87,60 @@ export function PortalLoginForm({ appName, callbackUrl }: PortalLoginFormProps) 
       // localStorage 접근 불가 시 무시
     }
 
-    // 비밀번호가 dmes이면 mustChangePassword 체크를 위해 백엔드에 먼저 확인
-    if (password === "dmes") {
-      startTransition(async () => {
-        // signIn을 시도해서 인증 자체는 되는지 확인
-        const signInResponse = await signIn("credentials", {
-          userId: userId.trim(),
-          password,
-          callbackUrl,
-          redirect: false,
-        });
+    // 2026-11-28 — 비밀번호 글자("dmes") 비교를 지웠다. 변경 창은 서버 응답(A011·A012)으로만 연다.
+    const id = userId.trim();
+    const pw = password;
+    startTransition(async () => {
+      await signInAndGo(id, pw);
+    });
+  }
 
-        if (!signInResponse || signInResponse.error) {
-          setErrorMessage("아이디 또는 비밀번호가 올바르지 않습니다.");
-          return;
-        }
+  /** 로그인 → 사유별 안내 또는 변경 창 → 성공이면 (만료 전 알림 뒤) 홈으로. */
+  async function signInAndGo(id: string, pw: string) {
+    const signInResponse = await signIn("credentials", {
+      userId: id,
+      password: pw,
+      callbackUrl,
+      redirect: false,
+    });
 
-        // 인증은 성공했지만 비밀번호가 dmes → 비밀번호 변경 강제
-        setModalDefaultEmail(userId.trim());
-        setModalDefaultPassword("dmes");
+    if (!signInResponse || signInResponse.error) {
+      const { code, message } = parseLoginError(signInResponse?.error);
+      if (code === "A011" || code === "A012") {
+        setModalDefaultEmail(id);
+        setModalDefaultPassword(pw);
+        setMandatoryNotice(changeNotice(code, message));
         setShowPasswordModal(true);
-        setErrorMessage("비밀번호를 변경해주세요.");
-      });
+        setErrorMessage(null);
+        return;
+      }
+      setErrorMessage(message);
       return;
     }
 
-    startTransition(async () => {
-      const signInResponse = await signIn("credentials", {
-        userId: userId.trim(),
-        password,
-        callbackUrl,
-        redirect: false,
-      });
-
-      if (!signInResponse || signInResponse.error) {
-        setErrorMessage("아이디 또는 비밀번호가 올바르지 않습니다.");
+    const target = signInResponse.url ?? callbackUrl;
+    try {
+      const session = (await getSession()) as { pwdExpiresInDays?: number } | null;
+      if (session && typeof session.pwdExpiresInDays === "number") {
+        setPendingUrl(target);
+        setExpiryDaysLeft(session.pwdExpiresInDays);
+        setModalDefaultEmail(id);
+        setModalDefaultPassword(pw);
         return;
       }
+    } catch {
+      // 알림을 못 읽어도 로그인은 이어 간다
+    }
+    goHome(target);
+  }
 
-      // 클라이언트 이동이라 이전 화면의 사용자·RBAC 캐시가 남을 수 있다 — 새 사용자로 다시 확인하게 비운다(K3).
-      clearCurrentUserCache();
-      // 로그인 직후에는 홈 + 기본 화면만 연다 — 이전 세션에 남은 탭과 기본 화면 표지를 비운다(새로고침은 영향 없음).
-      resetPortalSessionState();
-      router.replace(signInResponse.url ?? callbackUrl);
-      router.refresh();
-    });
+  function goHome(target: string) {
+    // 클라이언트 이동이라 이전 화면의 사용자·RBAC 캐시가 남을 수 있다 — 새 사용자로 다시 확인하게 비운다(K3).
+    clearCurrentUserCache();
+    // 로그인 직후에는 홈 + 기본 화면만 연다 — 이전 세션에 남은 탭과 기본 화면 표지를 비운다(새로고침은 영향 없음).
+    resetPortalSessionState();
+    router.replace(target);
+    router.refresh();
   }
 
   const handleOpenPasswordModal = useCallback(() => {
@@ -136,12 +151,37 @@ export function PortalLoginForm({ appName, callbackUrl }: PortalLoginFormProps) 
 
   const handleClosePasswordModal = useCallback(() => {
     setShowPasswordModal(false);
-  }, []);
+    if (mandatoryNotice) {
+      // 「취소」 — 로그인 화면으로 돌아간다(세션은 처음부터 없다)
+      setMandatoryNotice(null);
+      setPassword("");
+    }
+    if (pendingUrl) {
+      // 만료 전 알림에서 「지금 바꾸기」를 열었다가 닫음 — 그대로 들어간다
+      const url = pendingUrl;
+      setPendingUrl(null);
+      goHome(url);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mandatoryNotice, pendingUrl]);
 
-  const handlePasswordChangeSuccess = useCallback(() => {
-    setPassword("");
-    setErrorMessage(null);
-  }, []);
+  const handlePasswordChangeSuccess = useCallback(
+    (newPassword: string) => {
+      setPassword("");
+      setErrorMessage(null);
+      if (mandatoryNotice) {
+        // 바꾼 비밀번호로 바로 로그인한다 — 세션은 이때 처음 생긴다
+        const id = modalDefaultEmail;
+        setMandatoryNotice(null);
+        setShowPasswordModal(false);
+        startTransition(async () => {
+          await signInAndGo(id, newPassword);
+        });
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [mandatoryNotice, modalDefaultEmail]
+  );
 
   const handleResetSuccess = useCallback(() => {
     setSuccessMessage("초기화가 완료되었습니다.");
@@ -250,7 +290,49 @@ export function PortalLoginForm({ appName, callbackUrl }: PortalLoginFormProps) 
           onClose={handleClosePasswordModal}
           onSuccess={handlePasswordChangeSuccess}
           onResetSuccess={handleResetSuccess}
+          mandatory={mandatoryNotice !== null}
+          notice={mandatoryNotice ?? undefined}
+          hideCurrentPassword={mandatoryNotice !== null || pendingUrl !== null}
         />
+      )}
+
+      {expiryDaysLeft !== null && !showPasswordModal && (
+        <div className="pw-modal-overlay">
+          <div className="pw-modal" role="dialog" aria-modal="true">
+            <div className="pw-modal-header">
+              <h3 className="pw-modal-title">비밀번호 사용 기간</h3>
+            </div>
+            <div className="pw-modal-body">
+              <div className="pw-modal-notice">
+                비밀번호 사용 기간이 {expiryDaysLeft}일 남았습니다. 지금 바꿀 수 있습니다.
+              </div>
+              <div className="pw-modal-footer">
+                <button
+                  type="button"
+                  className="pw-modal-btn pw-modal-btn-reset"
+                  onClick={() => {
+                    const url = pendingUrl ?? callbackUrl;
+                    setExpiryDaysLeft(null);
+                    setPendingUrl(null);
+                    goHome(url);
+                  }}
+                >
+                  나중에
+                </button>
+                <button
+                  type="button"
+                  className="pw-modal-btn pw-modal-btn-submit"
+                  onClick={() => {
+                    setExpiryDaysLeft(null);
+                    setShowPasswordModal(true);
+                  }}
+                >
+                  지금 바꾸기
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

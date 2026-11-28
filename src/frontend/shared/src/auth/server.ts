@@ -371,6 +371,39 @@ function logAuthFailure(reason: string, details?: Record<string, unknown>) {
   });
 }
 
+/** BE 가 로그인을 사유와 함께 거절함 — 로그인 화면이 사유별로 안내한다. */
+export interface LoginRejected {
+  rejected: true;
+  code: string;
+  message: string;
+}
+
+/**
+ * 로그인 화면에 넘길 BE 사유 코드(cactus ErrorCode).
+ * A005 잠금 · A006 사용 중지·기간 · A011 비밀번호 변경 필요(임시) · A012 사용 기간 지남 · A013 임시 비밀번호 만료.
+ */
+export const LOGIN_REASON_CODES = new Set(["A005", "A006", "A011", "A012", "A013"]);
+
+export async function readLoginRejected(response: Response): Promise<LoginRejected | null> {
+  try {
+    const body = (await response.json()) as unknown;
+    if (!isObjectRecord(body)) return null;
+    const meta = Reflect.get(body, "meta");
+    const code =
+      getObjectStringField(body, "errorCode") ??
+      getObjectStringField(body, "code") ??
+      (isObjectRecord(meta) ? getObjectStringField(meta, "code") : null);
+    if (!code || !LOGIN_REASON_CODES.has(code)) return null;
+    const message =
+      getObjectStringField(body, "message") ??
+      (isObjectRecord(meta) ? getObjectStringField(meta, "message") : null) ??
+      "";
+    return { rejected: true, code, message: message.replace(/\|/g, " ") };
+  } catch {
+    return null;
+  }
+}
+
 export function createPortalAuthKit(options: CreatePortalAuthKitOptions): PortalAuthKit {
   const authSecret = options.authSecret?.trim() || process.env.AUTH_SECRET?.trim() || "";
   const resolvedBackendApiUrl =
@@ -440,7 +473,8 @@ export function createPortalAuthKit(options: CreatePortalAuthKitOptions): Portal
     permKeys: string[];
     backendAccessToken?: string;
     backendRefreshToken?: string;
-  } | null> {
+    pwdExpiresInDays?: number;
+  } | LoginRejected | null> {
     try {
       // BFF→BE 는 X-Client-Key 신뢰 채널. BE 의 ClientKeyFilter 가 auth 경로(WAR `/mcm/api/auth/login` 등)
       // 에서 키를 요구할 수 있으므로, OASIS/be-proxy 와 동일하게 클라이언트 키를 함께 전송한다.
@@ -454,7 +488,10 @@ export function createPortalAuthKit(options: CreatePortalAuthKitOptions): Portal
 
       if (!response.ok) {
         logAuthFailure("backend_auth_failed", { userId, status: response.status });
-        return null;
+        // 2026-11-28 — 로그인 화면이 사유별 안내·비밀번호 변경 창을 열 수 있게 BE 사유 코드를 넘긴다(시안 「로그인 화면 안내 문구」).
+        // 일반 실패(A004)는 넘기지 않는다 — 상태를 드러내지 않는 같은 문구를 쓴다.
+        const rejected = await readLoginRejected(response);
+        return rejected;
       }
 
       const body = (await response.json()) as unknown;
@@ -500,6 +537,8 @@ export function createPortalAuthKit(options: CreatePortalAuthKitOptions): Portal
         : [];
 
       const refreshToken = getObjectStringField(data, "refreshToken");
+      const expiresRaw = Reflect.get(data, "passwordExpiresInDays");
+      const pwdExpiresInDays = typeof expiresRaw === "number" ? expiresRaw : undefined;
 
       return {
         id: sub ?? userId,
@@ -509,6 +548,7 @@ export function createPortalAuthKit(options: CreatePortalAuthKitOptions): Portal
         permKeys,
         backendAccessToken: accessToken,
         backendRefreshToken: refreshToken ?? undefined,
+        pwdExpiresInDays,
       };
     } catch (error) {
       logAuthFailure("backend_auth_error", {
@@ -619,7 +659,12 @@ export function createPortalAuthKit(options: CreatePortalAuthKitOptions): Portal
             return null;
           }
 
-          return await authenticateViaBackend(userId, password);
+          const result = await authenticateViaBackend(userId, password);
+          if (result && "rejected" in result) {
+            // next-auth v4 — authorize 가 던진 Error 의 message 가 signIn 응답 error 로 간다. 형식 "코드|문구"
+            throw new Error(`${result.code}|${result.message}`);
+          }
+          return result;
         },
       }),
     ],
@@ -641,6 +686,12 @@ export function createPortalAuthKit(options: CreatePortalAuthKitOptions): Portal
           token.backendRefreshToken = user.backendRefreshToken;
         }
 
+        // 2026-11-28 — 비밀번호 사용 기간 만료 전 알림(로그인 직후 로그인 화면이 한 번 읽는다)
+        if (user && "pwdExpiresInDays" in user) {
+          const d = (user as { pwdExpiresInDays?: unknown }).pwdExpiresInDays;
+          token.pwdExpiresInDays = typeof d === "number" ? d : undefined;
+        }
+
         // RBAC 역할 배열 저장
         if (user && "roles" in user && Array.isArray((user as { roles?: unknown }).roles)) {
           token.roles = (user as { roles: string[] }).roles;
@@ -654,6 +705,9 @@ export function createPortalAuthKit(options: CreatePortalAuthKitOptions): Portal
       },
       async session({ session, token }) {
         session.user = normalizeSessionUser(session.user, token);
+        if (typeof token.pwdExpiresInDays === "number") {
+          (session as { pwdExpiresInDays?: number }).pwdExpiresInDays = token.pwdExpiresInDays;
+        }
         // 백엔드 JWT 토큰은 서버 사이드(BFF 프록시)에서만 사용 — 클라이언트에 노출하지 않음
         return session;
       },

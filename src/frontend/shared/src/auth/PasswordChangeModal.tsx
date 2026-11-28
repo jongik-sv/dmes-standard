@@ -6,15 +6,28 @@ export interface PasswordChangeModalProps {
   defaultEmail?: string;
   defaultCurrentPassword?: string;
   onClose: () => void;
-  onSuccess?: () => void;
+  /** 바꾼 새 비밀번호를 넘긴다 — 첫 로그인 변경 뒤 자동 로그인에 쓴다. */
+  onSuccess?: (newPassword: string) => void;
   onResetSuccess?: () => void;
+  /**
+   * 바꾸기 전에는 들어갈 수 없는 변경(임시 비밀번호·사용 기간 지남). 닫기(×)·바깥 누르기로 닫히지 않고,
+   * 「취소」가 로그인 화면으로 돌아간다. 비밀번호 초기화 버튼은 숨긴다.
+   */
+  mandatory?: boolean;
+  /** 창 맨 위 안내 문구(왜 바꾸는지). */
+  notice?: string;
+  /** 아이디·기존 비밀번호 칸을 숨긴다 — 로그인 화면에서 방금 입력한 값으로 채운 경우. */
+  hideCurrentPassword?: boolean;
 }
 
-function validatePassword(pw: string): string | null {
+/**
+ * 화면 쪽 규칙 — 서버 규칙(mcm.password.min-length 8 · 영문+숫자, 2026-11-28 D11)과 같다.
+ * 임시 비밀번호 금지·최근 5개 재사용 금지는 서버만 안다(값을 화면에 두지 않는다).
+ */
+export function validatePassword(pw: string): string | null {
   if (pw.length < 8) return "8자 이상 입력해주세요";
   if (!/[a-zA-Z]/.test(pw)) return "영문자를 포함해주세요";
   if (!/[0-9]/.test(pw)) return "숫자를 포함해주세요";
-  if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>/?]/.test(pw)) return "특수문자를 포함해주세요";
   return null;
 }
 
@@ -24,6 +37,9 @@ export function PasswordChangeModal({
   onClose,
   onSuccess,
   onResetSuccess,
+  mandatory = false,
+  notice,
+  hideCurrentPassword = false,
 }: PasswordChangeModalProps) {
   const [email, setEmail] = useState(defaultEmail);
   const [currentPassword, setCurrentPassword] = useState(defaultCurrentPassword);
@@ -68,8 +84,13 @@ export function PasswordChangeModal({
           return;
         }
         setSuccessMessage("비밀번호가 변경되었습니다");
+        if (mandatory) {
+          // 첫 로그인 변경 — 부르는 쪽이 새 비밀번호로 바로 로그인한다(창은 부르는 쪽이 닫는다)
+          onSuccess?.(newPassword);
+          return;
+        }
         setTimeout(() => {
-          onSuccess?.();
+          onSuccess?.(newPassword);
           onClose();
         }, 1200);
       } catch {
@@ -78,7 +99,7 @@ export function PasswordChangeModal({
         setIsSubmitting(false);
       }
     },
-    [email, currentPassword, newPassword, confirmPassword, onClose, onSuccess]
+    [email, currentPassword, newPassword, confirmPassword, onClose, onSuccess, mandatory]
   );
 
   const handleReset = useCallback(async () => {
@@ -109,14 +130,15 @@ export function PasswordChangeModal({
   }, [email]);
 
   return (
-    <div className="pw-modal-overlay" onClick={onClose}>
-      <div className="pw-modal" onClick={(e) => e.stopPropagation()}>
+    <div className="pw-modal-overlay" onClick={mandatory ? undefined : onClose}>
+      <div className="pw-modal" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
         <div className="pw-modal-header">
           <h3 className="pw-modal-title">비밀번호 변경</h3>
-          <button type="button" className="pw-modal-close" onClick={onClose}>×</button>
+          {!mandatory && <button type="button" className="pw-modal-close" onClick={onClose}>×</button>}
         </div>
-
         <form className="pw-modal-body" onSubmit={handleSubmit}>
+          {notice && <div className="pw-modal-notice">{notice}</div>}
+          {!hideCurrentPassword && <>
           <div className="pw-modal-field">
             <label>아이디</label>
             <input
@@ -138,6 +160,7 @@ export function PasswordChangeModal({
               autoComplete="current-password"
             />
           </div>
+          </>}
 
           <div className="pw-modal-field">
             <label>새 비밀번호</label>
@@ -167,7 +190,7 @@ export function PasswordChangeModal({
               <li>8자 이상</li>
               <li>영문자 포함</li>
               <li>숫자 포함</li>
-              <li>특수문자 포함</li>
+              <li>최근에 쓴 비밀번호·임시 비밀번호는 쓸 수 없음</li>
             </ul>
           </div>
 
@@ -175,14 +198,25 @@ export function PasswordChangeModal({
           {successMessage && <div className="pw-modal-success">{successMessage}</div>}
 
           <div className="pw-modal-footer">
-            <button
-              type="button"
-              className="pw-modal-btn pw-modal-btn-reset"
-              onClick={handleReset}
-              disabled={isSubmitting}
-            >
-              비밀번호 초기화
-            </button>
+            {mandatory ? (
+              <button
+                type="button"
+                className="pw-modal-btn pw-modal-btn-reset"
+                onClick={onClose}
+                disabled={isSubmitting}
+              >
+                취소
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="pw-modal-btn pw-modal-btn-reset"
+                onClick={handleReset}
+                disabled={isSubmitting}
+              >
+                비밀번호 초기화
+              </button>
+            )}
             <button
               type="submit"
               className="pw-modal-btn pw-modal-btn-submit"
