@@ -25,11 +25,40 @@ scripts\oracle\pdb.cmd <명령>           # Windows
 | `sessions <PDB>` | 열린 PDB 의 세션 수(max·limit·cur) 한 줄. 시험 하니스가 끝에 로그로 남긴다 |
 | `repair <PDB> [--dry-run]` | 바뀐 V 파일의 체크섬만 각 스키마 `flyway_schema_history` 에 맞춘다(버전·파일 이름이 같고 체크섬만 다른 성공 행만. 다른 행·실패 행 무변경). 컬럼 순서를 다시 배열한 V1 을 기존 DB 에 받아들일 때 쓴다(`docs/db-column-order/runbook.md`). 봉인된 템플릿은 `template-unseal` 먼저 |
 | `migrate <PDB> [--dry-run] [--exclude <글자>]` | 이력에 없는 V 파일을 스키마마다 버전 순으로 적용하고 이력 행을 더한다(앱 기동 없이 반영). 이력 최고 버전보다 낮은 새 파일(out-of-order)은 멈춘다. `--exclude` = 파일 이름에 그 글자가 든 V 파일을 이번에는 건너뜀 |
+| `renumber-check <PDB> [--fix \| --mark]` | 번호를 바꾼 V 파일(MCMAPUSER V18·V19 → V22·V23)의 옛 이력 행을 보고한다. `--fix` = 옛 행을 지운다, `--mark` = 옛 행을 새 번호의 적용됨 행으로 바꿔 적는다. 아래 「번호를 바꾼 V 파일의 옛 이력」 절 |
 | `schema-users` | 만드는 사용자 목록 |
 | `lock-hold [--wait-sec N]` | CDB 잠금을 쥐고 `LOCKED <pid>` 를 낸 뒤 표준 입력이 닫힐 때까지 유지(e2e 무거운 적재·옛 하니스용) |
 | `seat-hold [--wait-sec N] [--pdb PDB]` | 시험 자리 하나를 쥐고 `SEATED <pid> <번호>` 를 낸 뒤 표준 입력이 닫힐 때까지 유지(시험 하니스용). `--pdb` = 기존 PDB 모드의 PDB 사용 잠금도 쥔다 |
 | `seat-held` | `DMES_ORA_SEAT_HELD` 가 가리키는 자리가 유효하면 `SEAT <번호>`·exit 0 |
 | `seats` | CDB 잠금·시험 자리 주인 보기(Oracle 접속 없음) |
+
+## 번호를 바꾼 V 파일의 옛 이력(renumber-check, 2026-11-28)
+
+`claude/mdm-domain-delete` 는 MCMAPUSER 의 `V18__backfill_obj_form_url.sql`·`V19__drop_menu_full_seq.sql` 을 dev 에 넣기 전에 `V22`·`V23` 으로 번호를 바꿨다(내용은 같다). 번호를 바꾸기 전에 그 브랜치로 앱을 띄운 DB 는 `flyway_schema_history` 에 옛 행이 남는다. 그래서 MCM 이 `Detected applied migration not resolved locally: 18`(·`19`)로 기동을 멈춘다. WIN30 `L_MAIN` 에서 일어났다(V18 만 남음).
+
+```
+node scripts/oracle/pdb.mjs renumber-check <PDB>          # 보고만
+node scripts/oracle/pdb.mjs renumber-check <PDB> --fix    # 옛 행을 지운다(기본 복구)
+node scripts/oracle/pdb.mjs renumber-check <PDB> --mark   # 옛 행을 V22·V23 적용됨으로 바꿔 적는다
+```
+
+- 보고 내용: 옛 행(rank·버전·파일·체크섬·성공 여부), 지금 V22·V23 파일의 체크섬과 같은지(「내용 같음」), 새 번호가 이미 이력에 있는지, out-of-order 여부, `TB_MCM_SEC_MENU`·`TB_MCM_SEC_MENU_FLD` 의 `FULL_SEQ` 칸이 남았는지.
+- `--fix`: 옛 행을 지운다. 다음 기동(또는 `migrate`)에서 V22·V23 이 다시 돈다. 둘 다 다시 돌아도 안전하다.
+  - V22 는 DML 하나다. 이미 채운 행은 조건에서 빠진다.
+  - V23 은 견본 SQL 에 `FULL_SEQ` 가 있을 때만 고치고(VER 도 그때만 오른다), 칸이 있을 때만 지운다. 그래서 옛 V19 가 이미 돌아 `FULL_SEQ` 칸이 없는 DB 에서도 깨지지 않는다.
+  - 새 번호가 이력 최고 버전보다 낮으면(out-of-order) 지워도 다시 돌지 않으므로 지우지 않고 `--mark` 를 권한다.
+- `--mark`: 옛 행의 버전·설명·파일 이름을 새 번호로 바꾸고 체크섬을 지금 파일 값으로 적는다. 행은 늘리지 않는다. 다음 경우는 바꾸지 않고 `--fix` 를 권한다.
+  - 실패 행이다.
+  - 내용이 다르다(체크섬이 다르다).
+  - 새 번호가 이미 이력에 있다.
+  - 새 번호보다 낮은 V 파일(V20·V21)이 아직 적용되지 않았다. 바꾸면 그 파일들이 out-of-order 가 되어 Flyway(`outOfOrder=false`)가 돌리지 않는다.
+  - `--mark` 뒤 `flyway info` 에는 V20·V21 이 `OUT_OF_ORDER`(성공 상태)로 보인다. 기동·검증에는 영향이 없다.
+- 운영·개발 DB(DBA 적용) 판단: 이 브랜치를 그 DB 에 띄운 적이 없으면 옛 행이 없다. 먼저 보고만 돌린다. `L_*`·`T_*`·`TPL_*` 이름의 PDB 만 받으므로, 다른 DB 는 같은 조건의 `DELETE`(`"version" = '18' and "script" = 'V18__backfill_obj_form_url.sql'`)를 DBA 가 MCMAPUSER 로 실행한다.
+- 맥 하니스 확인(2026-11-28, 앱과 같은 Flyway 11.14.1 로 실제 migrate):
+  - V18 만 남은 DB: 옛 V18 행 → 기동 오류 재현 → `--fix` → V20~V25 적용, `FULL_SEQ` 없어짐.
+  - V18·V19 둘 다 남은 DB(`FULL_SEQ` 이미 없음): `--mark` 는 V20·V21 미적용이라 거부 → `--fix` → V20~V25 적용. V23 재실행은 오류 없고 견본 VER 그대로.
+  - V18·V19·V20·V21 이 적용된 DB: `--mark` → V24·V25 만 적용.
+  - 이 도구의 체크섬 계산은 Flyway 가 적은 값과 같았다(V22 `-41189981`, V23 `1222657832`).
 
 ## 이름 규칙
 

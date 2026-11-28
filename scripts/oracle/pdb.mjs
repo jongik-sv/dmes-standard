@@ -744,6 +744,73 @@ const commands = {
     });
   },
 
+  // 번호를 바꾼 V 파일의 옛 이력 행을 찾아 보고하고 고친다(2026-11-28, claude/mdm-domain-delete 의 V18·V19 → V22·V23).
+  // 번호를 바꾸기 전 브랜치로 앱을 띄운 DB 는 옛 행이 남아 Flyway 가 「Detected applied migration not resolved locally」로 기동을 멈춘다.
+  //   --fix  옛 행을 지운다. 다음 기동(또는 migrate)에서 새 번호 파일이 다시 돈다(V22·V23 은 다시 돌아도 안전하다).
+  //   --mark 옛 행을 새 번호의 「적용됨」 행으로 바꿔 적는다(체크섬 = 지금 파일 값). 내용이 같은 성공 행만. 새 번호가 이력 최고 버전보다 낮아
+  //          다시 돌릴 수 없을 때(out-of-order) 쓴다.
+  //   renumber-check <PDB> [--fix | --mark]
+  async 'renumber-check'(args) {
+    const fix = args.includes('--fix');
+    const mark = args.includes('--mark');
+    if (fix && mark) die('--fix 와 --mark 는 함께 쓰지 않는다.');
+    const n = checkName(args.find((a) => !a.startsWith('--')));
+    const RENUMBERED = [
+      { schema: 'MCMAPUSER', oldVersion: '18', oldScript: 'V18__backfill_obj_form_url.sql', script: 'V22__backfill_obj_form_url.sql' },
+      { schema: 'MCMAPUSER', oldVersion: '19', oldScript: 'V19__drop_menu_full_seq.sql', script: 'V23__drop_menu_full_seq.sql' },
+    ];
+    const vkey = (v) => v.split('.').map((x) => x.padStart(8, '0')).join('.');
+    await withLock(async () => {
+      await openPdbOrDie(n);
+      const { found } = findMigrations();
+      const hist = await readHistory(n);
+      const out = (s) => process.stdout.write(`${s}\n`);
+      let stale = 0;
+      let changed = 0;
+      for (const schema of [...new Set(RENUMBERED.map((r) => r.schema))]) {
+        const rows = hist.get(schema);
+        if (!rows) { out(`${schema}: 이력 표 없음 — 건너뜀`); continue; }
+        const cols = await sql(`select table_name || '=' || count(*) from dba_tab_columns where owner = '${schema}' and table_name in ('TB_MCM_SEC_MENU','TB_MCM_SEC_MENU_FLD') and column_name = 'FULL_SEQ' group by table_name;`, { service: n });
+        out(`${schema}: FULL_SEQ 칸 ${cols.split('\n').map((l) => l.trim()).filter(Boolean).join(' ') || '없음'}`);
+        const hits = [];
+        for (const r of RENUMBERED.filter((x) => x.schema === schema)) {
+          const mig = found.find((m) => m.schema === schema && m.script === r.script);
+          if (!mig) die(`${r.script} 를 찾지 못했다(${schema}).`);
+          const row = rows.find((x) => x.version === r.oldVersion && x.script === r.oldScript);
+          if (row) hits.push({ r, mig, row, sum: flywayChecksum(readFileSync(mig.path, 'utf8')) });
+        }
+        const rest = rows.filter((x) => !hits.some((h) => h.row.rank === x.rank));
+        const top = rest.filter((x) => x.version).map((x) => x.version).sort((a, b) => vkey(a).localeCompare(vkey(b))).at(-1);
+        for (const { r, mig, row, sum } of hits) {
+          stale++;
+          const same = row.checksum === sum;
+          const already = rest.some((x) => x.version === mig.version);
+          const ooo = !already && top && vkey(mig.version) < vkey(top);
+          out(`${schema} 옛 행 rank ${row.rank} V${row.version} ${row.script} 체크섬 ${row.checksum} 성공 ${row.success ? 'Y' : 'N'}`
+            + ` · 지금 ${r.script} 체크섬 ${sum} ${same ? '(내용 같음)' : '(내용 다름)'}`
+            + `${already ? ` · V${mig.version} 이미 이력에 있음` : ''}${ooo ? ` · V${mig.version} 이 이력 최고 V${top} 보다 낮음(out-of-order — 지우면 다시 돌지 않는다)` : ''}`);
+          if (fix) {
+            if (ooo) { out(`  → 지우지 않음: out-of-order 라 V${mig.version} 이 다시 돌지 않는다. --mark 를 쓴다.`); continue; }
+            await sql(`delete from ${schema}."flyway_schema_history" where "installed_rank" = ${row.rank} and "version" = '${r.oldVersion}' and "script" = '${r.oldScript}';\ncommit;`, { service: n });
+            out(`  → 지움${already ? '' : `(다음 기동·migrate 에서 V${mig.version} 이 돈다)`}`);
+            changed++;
+          } else if (mark) {
+            if (already) { out(`  → 바꾸지 않음: V${mig.version} 이 이미 이력에 있다. --fix 로 옛 행만 지운다.`); continue; }
+            if (!row.success || !same) { out(`  → 바꾸지 않음: ${row.success ? '내용이 다르다' : '실패 행이다'}. --fix 로 지우고 V${mig.version} 을 다시 돌린다.`); continue; }
+            const below = found.filter((m) => m.schema === schema && vkey(m.version) < vkey(mig.version)
+              && !rest.some((x) => x.version === m.version) && !hits.some((h) => h.mig.version === m.version));
+            if (below.length) { out(`  → 바꾸지 않음: 아래 번호 ${below.map((m) => `V${m.version}`).join(',')} 가 아직 적용되지 않아 out-of-order 가 된다. --fix 를 쓴다.`); continue; }
+            const esc = (x) => x.replace(/'/g, "''");
+            await sql(`update ${schema}."flyway_schema_history" set "version" = '${esc(mig.version)}', "description" = '${esc(mig.description)}', "script" = '${esc(mig.script)}', "checksum" = ${sum} where "installed_rank" = ${row.rank} and "version" = '${r.oldVersion}' and "script" = '${r.oldScript}';\ncommit;`, { service: n });
+            out(`  → V${mig.version} ${mig.script} 적용됨으로 바꿔 적음(체크섬 ${sum})`);
+            changed++;
+          }
+        }
+      }
+      out(`${n}: 옛 번호 행 ${stale}개${fix || mark ? `, 고친 행 ${changed}개` : stale ? ' — 고치려면 --fix(지움) 또는 --mark(새 번호로 바꿔 적음)' : ''}.`);
+    });
+  },
+
   async 'schema-users'() {
     process.stdout.write(`${SCHEMA_USERS.join('\n')}\n`);
   },
@@ -765,6 +832,7 @@ const commands = {
   migrations                    적용 없이 V 파일 탐색 결과(스키마·경로)만 출력
   repair <PDB> [--dry-run]      바뀐 V 파일의 체크섬만 Flyway 이력에 맞춤(다른 행 무변경. 예: 컬럼 순서 다시 배열한 V1)
   migrate <PDB> [--dry-run] [--exclude <글자>]   이력에 없는 V 파일을 스키마마다 버전 순으로 적용(앱 기동 없이 반영)
+  renumber-check <PDB> [--fix | --mark]   번호를 바꾼 V 파일(MCMAPUSER V18·V19 → V22·V23)의 옛 이력 행 보고. --fix 지움, --mark 새 번호 적용됨으로 바꿔 적음
   schema-users                  만드는 사용자 목록
   quiet <PDB>                   열린 PDB 의 autotask·AWR 자동 스냅숏을 끄고 확인(create·clone 은 자동으로 거친다)
   sessions <PDB>                열린 PDB 의 세션 수(max·limit·cur) 한 줄
