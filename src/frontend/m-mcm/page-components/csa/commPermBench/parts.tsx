@@ -7,8 +7,9 @@
 import { createContext, memo, useContext, type ReactNode } from "react";
 import { IconPencil } from "@tabler/icons-react";
 import { Button } from "@dk-oasis/shared/form";
+import { SortToggle, type SortState } from "@dk-oasis/shared/sort-toggle";
 import { legacyTip, openLegacy, type LegacyMode, type LegacyTarget } from "./nav";
-import { roleColorIndex, type BenchIndex } from "./model";
+import { COL_SORT_OPTIONS, roleColorIndex, type BenchIndex, type ColSortKey } from "./model";
 
 /** 작업대 자료 색인 + 3단계 링크 사용 여부. 자료를 다 읽은 뒤에만 그린다. */
 export interface BenchCtx {
@@ -122,3 +123,13 @@ export function FolderPen({ folderId, name, canLink }: { folderId: string; name:
     </button>
   );
 }
+
+/** 칸 머리 정렬 단추(ID·이름, 오름·내림). 상태는 칸이 쥔다. */
+export const ColSort = memo(function ColSort({ label, value, onChange, testId }: {
+  label: string;
+  value: SortState<ColSortKey>;
+  onChange: (next: SortState<ColSortKey>) => void;
+  testId: string;
+}) {
+  return <SortToggle options={COL_SORT_OPTIONS} value={value} onChange={onChange} aria-label={label} testId={testId} />;
+});

@@ -83,6 +83,9 @@
   "col|REG|false",
   "col|STATE|false"
  ],
+ "m-mcm/page-components/csa/commPermBench/model.ts": [
+  "col|id|-"
+ ],
  "m-mcm/page-components/csa/commPermMng/page.tsx": [
   "col|BTN_PERM|-",
   "col|DATA_PERM|-",

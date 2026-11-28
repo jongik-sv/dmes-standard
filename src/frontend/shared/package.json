@@ -194,6 +194,10 @@
       "types": "./dist/types/components/toggle-chip-group/index.d.ts",
       "import": "./dist/toggle-chip-group.js"
     },
+    "./sort-toggle": {
+      "types": "./dist/types/components/sort-toggle/index.d.ts",
+      "import": "./dist/sort-toggle.js"
+    },
     "./dashboard": {
       "types": "./dist/types/components/dashboard/index.d.ts",
       "import": "./dist/dashboard.js"

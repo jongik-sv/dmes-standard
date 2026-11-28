@@ -68,7 +68,7 @@ export const GROUPS = [
   ['탭·트리·룩업·기타', [
     'tabs', 'closable-tabs', 'tree', 'lookup', 'lookup-multi-modal', 'markdown-editor', 'html-editor',
     'notice-body-view', 'code-editor', 'detail-popover', 'grid-resize-box', 'json-view', 'cron-input', 'variable-table', 'card', 'transfer-list', 'matrix-table',
-    'resizable-columns', 'token-chip-input', 'toggle-chip-group',
+    'resizable-columns', 'token-chip-input', 'toggle-chip-group', 'sort-toggle',
     'charts', 'export-to-excel', 'print-element-as-page', 'icons',
   ]],
 ];
@@ -159,6 +159,7 @@ export const EXPORT_FILES = [
   'components/resizable-columns/index.ts',
   'components/token-chip-input/index.ts',
   'components/toggle-chip-group/index.ts',
+  'components/sort-toggle/index.ts',
   'components/dashboard/index.ts',
   'widget/index.ts',
   'widget-dock/index.ts',

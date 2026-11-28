@@ -8,6 +8,7 @@
  *
  * 2단계(f3)는 같은 함수에 DRAFT 값을 넣어 현재(CUR)와 비교한다. 그래서 함수는 값 묶음을 인자로 받고 원본을 바꾸지 않는다.
  */
+import type { SortState, SortToggleOption } from "@dk-oasis/shared/sort-toggle";
 import { parseTokens } from "@dk-oasis/shared/token-chip-input";
 import {
   PERM_SYSADMIN_ROLE_ID,
@@ -160,8 +161,29 @@ export function defaultUserId(idx: BenchIndex): string | null {
 /** 서버가 돌려주는 사람 상한(CommPermBenchService.USER_LIMIT). 이만큼 오면 뒤 사람이 잘렸을 수 있다. */
 export const BENCH_USER_LIMIT = 200;
 
+/** 칸 정렬 기준 — ID 또는 이름. 기본은 ID 오름(서버가 주는 순서). */
+export type ColSortKey = "id" | "name";
+export const COL_SORT_DEFAULT: SortState<ColSortKey> = { key: "id", dir: "asc" };
+export const COL_SORT_OPTIONS: readonly SortToggleOption<ColSortKey>[] = [
+  { value: "id", label: "ID" },
+  { value: "name", label: "이름" },
+];
+
+const byCode = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
+const byName = new Intl.Collator("ko").compare;
+
 /**
- * 칸 목록 찾기. 찾는 말(대소문자 무시, 부분 일치)로 거르고, 고른 항목은 걸러져도 맨 위에 둔다.
+ * 칸 목록 정렬. ID 는 글자 코드 순(서버 ORDER BY 와 같다), 이름은 한국어 순이고 같으면 ID 순.
+ * 내림은 그 순서를 뒤집는다. 입력은 바꾸지 않는다.
+ */
+export function sortRows<T>(rows: readonly T[], sort: SortState<ColSortKey>, idOf: (r: T) => string, nameOf: (r: T) => string): T[] {
+  const cmp = sort.key === "name" ? (a: T, b: T) => byName(nameOf(a), nameOf(b)) || byCode(idOf(a), idOf(b)) : (a: T, b: T) => byCode(idOf(a), idOf(b));
+  const out = [...rows].sort(cmp);
+  return sort.dir === "desc" ? out.reverse() : out;
+}
+
+/**
+ * 칸 목록 찾기. 찾는 말(대소문자 무시, 부분 일치)로 거른다. 고른 항목은 걸러져도 목록에 남기되 자기 자리(받은 순서)에 둔다.
  * 찾는 말이 없으면 받은 순서 그대로 둔다. found = 찾는 말에 맞은 개수(찾는 말이 없으면 null).
  */
 export function pickList<T>(
@@ -173,19 +195,24 @@ export function pickList<T>(
 ): { list: T[]; found: number | null } {
   const q = query.trim().toLowerCase();
   if (!q) return { list: [...rows], found: null };
-  const hit = rows.filter((r) => textOf(r).toLowerCase().includes(q));
-  const sel = selectedId ? rows.find((r) => idOf(r) === selectedId) : undefined;
-  return { list: sel ? [sel, ...hit.filter((r) => idOf(r) !== selectedId)] : hit, found: hit.length };
+  let found = 0;
+  const list = rows.filter((r) => {
+    const hit = textOf(r).toLowerCase().includes(q);
+    if (hit) found++;
+    return hit || (selectedId !== null && idOf(r) === selectedId);
+  });
+  return { list, found };
 }
 
-/** 사람 칸 목록. 받은 사람 전부(USER_ID 순), 고른 사람을 맨 위에 둔다. 찾는 말은 이름·부서·사번. */
-export function peopleList(idx: BenchIndex, selectedUserId: string | null, query: string): { list: BenchUserRow[]; found: number | null } {
-  const q = query.trim().toLowerCase();
-  const all = [...idx.users].sort((a, b) => (a.USER_ID < b.USER_ID ? -1 : a.USER_ID > b.USER_ID ? 1 : 0));
-  const list = q ? all.filter((u) => `${u.USER_NM} ${u.DEPT_NM ?? ""} ${u.USER_ID}`.toLowerCase().includes(q)) : all;
-  const sel = selectedUserId ? idx.userById.get(selectedUserId) : undefined;
-  const merged = sel ? [sel, ...list.filter((u) => u.USER_ID !== sel.USER_ID)] : list;
-  return { list: merged, found: q ? list.length : null };
+/** 사람 칸 목록. 받은 사람 전부를 정렬 기준대로(기본 USER_ID 오름) 둔다. 찾는 말은 이름·부서·사번. 고른 사람은 자기 자리에 남는다. */
+export function peopleList(
+  idx: BenchIndex,
+  selectedUserId: string | null,
+  query: string,
+  sort: SortState<ColSortKey> = COL_SORT_DEFAULT,
+): { list: BenchUserRow[]; found: number | null } {
+  const sorted = sortRows(idx.users, sort, (u) => u.USER_ID, (u) => u.USER_NM);
+  return pickList(sorted, selectedUserId, query, (u) => u.USER_ID, (u) => `${u.USER_NM} ${u.DEPT_NM ?? ""} ${u.USER_ID}`);
 }
 
 /** 사람 칸 안내 한 줄. 찾는 중이면 「N명 찾음」, 서버 상한에 닿았으면 좁히라는 안내, 그 밖에는 없음. */

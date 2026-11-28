@@ -3,14 +3,15 @@
 /**
  * 역할 그룹 칸(시안 colGroups). 체크 = 고른 사람이 속한 그룹(초안 포함). 2단계부터 체크로 넣고 뺀다(USER_GRP).
  * SYSADMIN 을 주는 그룹의 소속은 SYSADMIN 사용자만 바꾼다 — 그렇지 않으면 체크를 잠그고 이유를 보인다.
- * 찾는 말(ROLE_GROUP_ID·ROLE_GROUP_NM)은 이 칸 안에만 둔다 — 한 글자마다 다른 칸을 다시 그리지 않는다.
+ * 찾는 말(ROLE_GROUP_ID·ROLE_GROUP_NM)과 정렬(ID·이름, 오름·내림)은 이 칸 안에만 둔다 — 다른 칸을 다시 그리지 않는다.
+ * 고른 그룹은 맨 위로 올리지 않고 정렬된 자리에 둔다(찾기로 걸러져도 목록에 남는다).
  */
 import { memo, useMemo, useState } from "react";
 import { IconPencil, IconPlus } from "@tabler/icons-react";
 import { Checkbox, Input } from "@dk-oasis/shared/form";
-import { fmtNum, foundHint, groupsOfUser, pickList, rolesOfGroup } from "./model";
+import { COL_SORT_DEFAULT, fmtNum, foundHint, groupsOfUser, pickList, rolesOfGroup, sortRows } from "./model";
 import { groupGivesSysadmin, linkDiffKind } from "./draft";
-import { LegacyIconButton, Panel, StatusTag, useBench } from "./parts";
+import { ColSort, LegacyIconButton, Panel, StatusTag, useBench } from "./parts";
 
 const SYS_LOCK = "시스템 관리자(SYSADMIN) 역할을 주는 그룹의 소속은 SYSADMIN 사용자만 바꿉니다";
 
@@ -28,10 +29,11 @@ export const GroupCol = memo(function GroupCol({ userId, groupId, canEdit, onSel
   const was = userId ? groupsOfUser(base, userId) : [];
   const uname = user?.USER_NM ?? "";
   const [q, setQ] = useState("");
-  const { list, found } = useMemo(
-    () => pickList(bench.groups, groupId, q, (g) => g.ROLE_GROUP_ID, (g) => `${g.ROLE_GROUP_ID} ${g.ROLE_GROUP_NM}`),
-    [bench.groups, groupId, q],
-  );
+  const [sort, setSort] = useState(COL_SORT_DEFAULT);
+  const { list, found } = useMemo(() => {
+    const sorted = sortRows(bench.groups, sort, (g) => g.ROLE_GROUP_ID, (g) => g.ROLE_GROUP_NM);
+    return pickList(sorted, groupId, q, (g) => g.ROLE_GROUP_ID, (g) => `${g.ROLE_GROUP_ID} ${g.ROLE_GROUP_NM}`);
+  }, [bench.groups, groupId, q, sort]);
   const note = foundHint(found);
 
   return (
@@ -40,6 +42,7 @@ export const GroupCol = memo(function GroupCol({ userId, groupId, canEdit, onSel
       count={bench.groups.length}
       icons={
         <>
+          <ColSort label="그룹 정렬" value={sort} onChange={setSort} testId="pb-sort-group" />
           <LegacyIconButton target="group" mode="edit" id={groupId} label="고른 역할 그룹 편집" icon={<IconPencil size={16} />} disabled={!groupId} />
           <LegacyIconButton target="group" mode="new" label="역할 그룹 추가" icon={<IconPlus size={16} />} />
         </>

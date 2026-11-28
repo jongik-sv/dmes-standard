@@ -2,13 +2,14 @@
 
 /**
  * 역할 칸 — 사람 기준(시안 colRoles: 고른 그룹에 든 역할)과 역할 기준(시안 colRoleAll: 모든 역할에서 고름).
- * 찾는 말(ROLE_ID·ROLE_NM)은 칸 안에만 둔다 — 한 글자마다 다른 칸을 다시 그리지 않는다. 고른 역할은 걸러져도 맨 위에 둔다.
+ * 찾는 말(ROLE_ID·ROLE_NM)과 정렬(ID·이름, 오름·내림)은 칸 안에만 둔다 — 다른 칸을 다시 그리지 않는다.
+ * 고른 역할은 맨 위로 올리지 않고 정렬된 자리에 둔다(찾기로 걸러져도 목록에 남는다).
  */
-import { memo, useMemo, useState } from "react";
+import { memo, useMemo, useState, type ReactNode } from "react";
 import { IconPencil, IconPlus } from "@tabler/icons-react";
 import { Checkbox, Input } from "@dk-oasis/shared/form";
-import { fmtNum, foundHint, permCntText, pickList, rolesOfGroup } from "./model";
-import { LegacyIconButton, Panel, RoleChip, StatusTag, useBench } from "./parts";
+import { COL_SORT_DEFAULT, fmtNum, foundHint, permCntText, pickList, rolesOfGroup, sortRows } from "./model";
+import { ColSort, LegacyIconButton, Panel, RoleChip, StatusTag, useBench } from "./parts";
 import { linkDiffKind } from "./draft";
 import { PERM_SYSADMIN_ROLE_ID, type BenchRoleRow } from "./types";
 
@@ -17,14 +18,20 @@ const FIND_LABEL = "역할 이름·ROLE_ID 찾기";
 
 function useRoleFind(roles: readonly BenchRoleRow[], roleId: string | null) {
   const [q, setQ] = useState("");
-  const { list, found } = useMemo(() => pickList(roles, roleId, q, (r) => r.ROLE_ID, (r) => `${r.ROLE_ID} ${r.ROLE_NM}`), [roles, roleId, q]);
+  const [sort, setSort] = useState(COL_SORT_DEFAULT);
+  const { list, found } = useMemo(() => {
+    const sorted = sortRows(roles, sort, (r) => r.ROLE_ID, (r) => r.ROLE_NM);
+    return pickList(sorted, roleId, q, (r) => r.ROLE_ID, (r) => `${r.ROLE_ID} ${r.ROLE_NM}`);
+  }, [roles, roleId, q, sort]);
   const input = <Input value={q} onChange={setQ} placeholder={FIND_LABEL} aria-label={FIND_LABEL} autoComplete="off" />;
-  return { list, note: foundHint(found), input };
+  const sortBtn = <ColSort label="역할 정렬" value={sort} onChange={setSort} testId="pb-sort-role" />;
+  return { list, note: foundHint(found), input, sortBtn };
 }
 
-function RoleIcons({ roleId }: { roleId: string | null }) {
+function RoleIcons({ roleId, sortBtn }: { roleId: string | null; sortBtn?: ReactNode }) {
   return (
     <>
+      {sortBtn}
       <LegacyIconButton target="role" mode="edit" id={roleId} label="고른 역할 편집" icon={<IconPencil size={16} />} disabled={!roleId} />
       <LegacyIconButton target="role" mode="new" label="역할 추가" icon={<IconPlus size={16} />} />
     </>
@@ -43,13 +50,13 @@ export const RoleCol = memo(function RoleCol({ groupId, roleId, canEdit, onSelec
   const inGroup = rolesOfGroup(bench, groupId);
   const wasIn = rolesOfGroup(base, groupId);
   const gname = groupId ? bench.groupById.get(groupId)?.ROLE_GROUP_NM ?? groupId : "";
-  const { list, note, input } = useRoleFind(bench.roles, roleId);
+  const { list, note, input, sortBtn } = useRoleFind(bench.roles, roleId);
 
   return (
     <Panel
       title="역할"
       count={bench.roles.length}
-      icons={<RoleIcons roleId={roleId} />}
+      icons={<RoleIcons roleId={roleId} sortBtn={groupId ? sortBtn : undefined} />}
       hint={
         groupId ? (
           <>
@@ -107,13 +114,13 @@ export const RoleCol = memo(function RoleCol({ groupId, roleId, canEdit, onSelec
 
 export const RoleAllCol = memo(function RoleAllCol({ roleId, onSelect }: { roleId: string | null; onSelect: (roleId: string) => void }) {
   const { bench } = useBench();
-  const { list, note, input } = useRoleFind(bench.roles, roleId);
+  const { list, note, input, sortBtn } = useRoleFind(bench.roles, roleId);
 
   return (
     <Panel
       title="역할"
       count={bench.roles.length}
-      icons={<RoleIcons roleId={roleId} />}
+      icons={<RoleIcons roleId={roleId} sortBtn={sortBtn} />}
       hint={
         <>
           {input}

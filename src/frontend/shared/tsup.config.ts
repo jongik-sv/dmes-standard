@@ -48,6 +48,7 @@ export default defineConfig((options) => ({
     "resizable-columns": "src/components/resizable-columns/index.ts",
     "token-chip-input": "src/components/token-chip-input/index.ts",
     "toggle-chip-group": "src/components/toggle-chip-group/index.ts",
+    "sort-toggle": "src/components/sort-toggle/index.ts",
     dashboard: "src/components/dashboard/index.ts",
     "code-editor": "src/components/code-editor/index.ts",
     "floating-panel": "src/components/floating-panel/index.ts",

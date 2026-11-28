@@ -4,13 +4,14 @@
 import { memo, useMemo, useState } from "react";
 import { IconPencil, IconPlus } from "@tabler/icons-react";
 import { Input } from "@dk-oasis/shared/form";
-import { fmtNum, groupsOfUser, peopleHint, peopleList } from "./model";
-import { LegacyIconButton, Panel, StatusTag, useBench } from "./parts";
+import { COL_SORT_DEFAULT, fmtNum, groupsOfUser, peopleHint, peopleList } from "./model";
+import { ColSort, LegacyIconButton, Panel, StatusTag, useBench } from "./parts";
 
 export const PeopleCol = memo(function PeopleCol({ userId, onSelect }: { userId: string | null; onSelect: (userId: string) => void }) {
   const { bench } = useBench();
   const [q, setQ] = useState("");
-  const { list, found } = useMemo(() => peopleList(bench, userId, q), [bench, userId, q]);
+  const [sort, setSort] = useState(COL_SORT_DEFAULT);
+  const { list, found } = useMemo(() => peopleList(bench, userId, q, sort), [bench, userId, q, sort]);
   const note = peopleHint(bench.users.length, found);
 
   return (
@@ -19,6 +20,7 @@ export const PeopleCol = memo(function PeopleCol({ userId, onSelect }: { userId:
       count={fmtNum(bench.users.length)}
       icons={
         <>
+          <ColSort label="사람 정렬" value={sort} onChange={setSort} testId="pb-sort-user" />
           <LegacyIconButton target="user" mode="edit" id={userId} label="고른 사람 편집" icon={<IconPencil size={16} />} disabled={!userId} />
           <LegacyIconButton target="user" mode="new" label="사용자 추가" icon={<IconPlus size={16} />} />
         </>

@@ -112,6 +112,7 @@
 - [ResizableColumns](resizable-columns.md): 칸 N 개를 가로 격자로 놓고 칸 사이 손잡이(10px)를 끌어 폭을 바꾸는 부품이다(`ResizableColumns`). 폭 규칙·저장 모양을 계산하는 순수 함수도 함께 낸다.
 - [TokenChipInput](token-chip-input.md): 쉼표로 이은 짧은 코드 목록(`alpha,beta,gamma`)을 칩으로 보이고 고치는 제어형 입력이다(`TokenChipInput`). 쪼개기·잇기·규칙 거르기 순수 함수도 함께 낸다.
 - [ToggleChipGroup](toggle-chip-group.md): 정해진 옵션 목록에서 여러 개를 켜고 끄는 칩 묶음이다(`ToggleChipGroup`). 칩은 `aria-pressed` 단추다. 기준과 비교한 추가·제거 모양과 일괄 선택 단추도 낸다.
+- [SortToggle](sort-toggle.md): 목록의 정렬 기준(ID·이름 등)과 방향(오름·내림)을 바꾸는 작은 단추 묶음이다(`SortToggle`). 기준 단추는 누르면 다음 기준으로, 방향 단추는 누르면 오름·내림을 뒤집는다.
 - [차트 (DonutChart · PieChart · HBarChart · LineChart · StackedBarChart · StackedColumnChart)](charts.md): 현황 대시보드에서 비율(도넛·파이), 항목별 크기(가로 막대), 추이(선), 구성 비율(누적 막대), 기간별 누적 실적과 계획선(세로 누적 막대)을 간단한 SVG 차트로 보일 때 쓴다.
 - [exportToExcel](export-to-excel.md): 화면의 목록 데이터를 엑셀(.xlsx) 파일로 내려받게 할 때 쓴다. ag-grid 의 Excel Export 는 Enterprise 기능이라 쓰지 않는다.
 - [printElementAsPage](print-element-as-page.md): 화면의 한 영역(요소 하나)을 그 크기의 한 장짜리 페이지로 인쇄할 때 쓴다. 인쇄 창에서 「PDF로 저장」을 고르면 잘림 없는 PDF 한 장이 된다. 다른 출처 iframe(외부 웹 주소, sandbox srcdoc)도 찍힌다.
