@@ -21,7 +21,7 @@ WITH CAT AS (
     UNION ALL
     SELECT 'codeConfirm', 'confirm,search,validate,view', NULL FROM DUAL
     UNION ALL
-    SELECT 'codeEdit', 'delete,execute,handover,lock,reg,restore,save,search,unlock,view', NULL FROM DUAL
+    SELECT 'codeEdit', 'confirm,delete,execute,handover,lock,reg,restore,save,search,unlock,view', NULL FROM DUAL
     UNION ALL
     SELECT 'codeItemEdit', 'compare,execute,restore,save,search,validate,view', NULL FROM DUAL
     UNION ALL
@@ -29,17 +29,17 @@ WITH CAT AS (
     UNION ALL
     SELECT 'columnMng', 'compare,save,search,view', NULL FROM DUAL
     UNION ALL
-    SELECT 'commMenuMng', 'commonList,save,saveCmMenuFld,search,searchCmMenuFld,searchMenuGrp,searchObj,searchUnplacedObj', NULL FROM DUAL
+    SELECT 'commMenuMng', 'cancel,commonList,save,saveCmMenuFld,search,searchCmMenuFld,searchMenuGrp,searchObj,searchUnplacedObj', NULL FROM DUAL
     UNION ALL
-    SELECT 'commObjMng', 'lov,save,search,searchObjMenu,searchObjPerm,searchSystemLov', NULL FROM DUAL
+    SELECT 'commObjMng', 'cancel,lov,save,search,searchObjMenu,searchObjPerm,searchSystemLov', NULL FROM DUAL
     UNION ALL
     SELECT 'commPermBench', 'apply,discardDraft,explain,impact,loadDraft,saveDraft,searchBench,searchHistory,searchHistoryDtl,searchMenuTree,searchRolePerm', NULL FROM DUAL
     UNION ALL
-    SELECT 'commPermMng', 'lov,save,search,searchPermOne', NULL FROM DUAL
+    SELECT 'commPermMng', 'cancel,lov,save,search,searchPermOne', NULL FROM DUAL
     UNION ALL
-    SELECT 'commRoleGrpMng', 'save,saveCmRoleGrpMap,search,searchCmRole,searchCmRoleGrpMap,searchCmRoleGrpMenu', NULL FROM DUAL
+    SELECT 'commRoleGrpMng', 'cancel,save,saveCmRoleGrpMap,search,searchCmRole,searchCmRoleGrpMap,searchCmRoleGrpMenu', NULL FROM DUAL
     UNION ALL
-    SELECT 'commRoleMng', 'lov,save,saveCmRoleMap,search,searchCmPerm,searchCmRoleMap,searchFolderObj,searchObjectLov,searchRoleGroups', NULL FROM DUAL
+    SELECT 'commRoleMng', 'cancel,lov,save,saveCmRoleMap,search,searchCmPerm,searchCmRoleMap,searchFolderObj,searchObjectLov,searchRoleGroups', NULL FROM DUAL
     UNION ALL
     SELECT 'commUserMng', 'commonUserDept,deleteCmUser,handover,pwdinit,reRegCmUser,regCmUser,regHrEvtUser,resume,retire,retryHrEvt,save,saveUserRoleGrp,saveUserRoleGrpCopy,search,searchActiveUserLov,searchDeptLov,searchHrEvt,searchOwned,searchRetirePreview,searchRoleGrp,searchUserRoleGrp,suspend,unlock', NULL FROM DUAL
     UNION ALL
@@ -65,17 +65,17 @@ WITH CAT AS (
     UNION ALL
     SELECT 'erdEdit', 'compare,confirm,copy,delete,execute,handover,import,lock,reg,restore,save,search,unlock,validate,view', NULL FROM DUAL
     UNION ALL
-    SELECT 'headerMng', 'copy,delete,handover,lock,save,search,unlock,view', NULL FROM DUAL
+    SELECT 'headerMng', 'confirm,copy,delete,handover,lock,save,search,unlock,view', NULL FROM DUAL
     UNION ALL
-    SELECT 'jobSchedMng', 'collectData,cronPreview,delete,get,handlers,history,list,runNow,save,setUse', NULL FROM DUAL
+    SELECT 'jobSchedMng', 'collectData,cronPreview,delete,get,handlers,history,list,runNow,save,search,setUse', NULL FROM DUAL
     UNION ALL
     SELECT 'layoutConfirm', 'confirm,search,validate,view', NULL FROM DUAL
     UNION ALL
-    SELECT 'layoutMng', 'copy,delete,execute,export,handover,lock,save,search,unlock,validate,view', NULL FROM DUAL
+    SELECT 'layoutMng', 'confirm,copy,delete,execute,export,handover,lock,save,search,unlock,validate,view', NULL FROM DUAL
     UNION ALL
     SELECT 'logViewer', 'search', NULL FROM DUAL
     UNION ALL
-    SELECT 'mdmCacheMng', 'reload', NULL FROM DUAL
+    SELECT 'mdmCacheMng', 'delete,reload,save,search', NULL FROM DUAL
     UNION ALL
     SELECT 'mdmSample', 'search', NULL FROM DUAL
     UNION ALL
@@ -83,7 +83,7 @@ WITH CAT AS (
     UNION ALL
     SELECT 'noticeBoard', 'search', NULL FROM DUAL
     UNION ALL
-    SELECT 'noticeMgmt', 'changeStatus,save,search', NULL FROM DUAL
+    SELECT 'noticeMgmt', 'changeStatus,delete,save,search', NULL FROM DUAL
     UNION ALL
     SELECT 'ruleCalc', 'execute,search,view', NULL FROM DUAL
     UNION ALL
@@ -95,13 +95,13 @@ WITH CAT AS (
     UNION ALL
     SELECT 'ruleSetConfirm', 'confirm,search,validate,view', NULL FROM DUAL
     UNION ALL
-    SELECT 'ruleSetEdit', 'copy,delete,execute,handover,lock,restore,save,search,unlock,validate,view', NULL FROM DUAL
+    SELECT 'ruleSetEdit', 'confirm,copy,delete,execute,handover,lock,restore,save,search,unlock,validate,view', NULL FROM DUAL
     UNION ALL
     SELECT 'ruleSetMng', 'reg,search', NULL FROM DUAL
     UNION ALL
     SELECT 'screenUsage', 'record', NULL FROM DUAL
     UNION ALL
-    SELECT 'screenUsageStat', 'byDept,byScreen,byUser,history,overview,unused', NULL FROM DUAL
+    SELECT 'screenUsageStat', 'byDept,byScreen,byUser,export,history,overview,search,unused', NULL FROM DUAL
     UNION ALL
     SELECT 'searchDefaultsSample', 'search', NULL FROM DUAL
     UNION ALL

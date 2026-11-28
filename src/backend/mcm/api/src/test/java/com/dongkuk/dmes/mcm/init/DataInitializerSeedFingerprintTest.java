@@ -244,7 +244,7 @@ class DataInitializerSeedFingerprintTest {
      * 뜻을 따로 본다.
      */
     @Test
-    @DisplayName("퍼미션 v2 시드 — SYSADMIN 행 없음, MDM 옛 매핑마다 새 퍼미션 1건(합집합·빈 BTN 없음), 권한 작업대 OBJECT·메뉴")
+    @DisplayName("퍼미션 v2 시드 — SYSADMIN 행 없음, MDM 옛 매핑마다 새 퍼미션 1건(묶음 ∩ 화면 허용 값·빈 BTN 없음), 허용 값 = 카탈로그, 권한 작업대 OBJECT·메뉴")
     void permModelV2SeedRules() {
         JdbcTemplate jdbc = new JdbcTemplate(dataSource);
         assertThat(jdbc.queryForObject(
@@ -253,21 +253,34 @@ class DataInitializerSeedFingerprintTest {
         assertThat(jdbc.queryForList(
                 "SELECT ROLE_ID || '/' || OBJECT_ID FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID <> 'SYSADMIN'"
                         + " MINUS SELECT ROLE_ID || '/' || OBJECT_ID FROM MCMAPUSER.TB_MCM_SEC_ROLE_PERM", String.class))
-                .as("옛 역할×오브젝트 매핑(SYSADMIN 제외)마다 새 퍼미션 행이 있다").isEmpty();
+                .as("옛 역할×오브젝트 매핑(SYSADMIN 제외)마다 새 퍼미션 행이 있다 — 묶음 ∩ 화면 허용 값이 비는 매핑만 빠진다(m10:"
+                        + " dataCsvUploadPop 허용 값 save·validate ∩ READ = 없음)")
+                .containsExactly("MDM_STD_ADMIN/dataCsvUploadPop");
         assertThat(jdbc.queryForObject(
                 "SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE_PERM WHERE TRIM(BTN_PERM) IS NULL", Integer.class))
                 .as("빈 BTN 퍼미션 없음(D14)").isZero();
-        // BTN = 옛 권한 세트 COMMON ∪ CUSTOM ∪ ACTION(D11). MDM 세트는 ACTION 칸만 쓴다. headerMng 담당자 = dmb 매트릭스 CONFIRM(D-144).
+        // BTN = 옛 권한 세트 COMMON ∪ CUSTOM ∪ ACTION(D11) 중 그 화면 허용 값(ObjPermCatalog) 안 토큰, 묶음 순서 그대로(m10).
+        // MDM 세트는 ACTION 칸만 쓴다. headerMng 담당자 = dmb 매트릭스 CONFIRM(D-144).
         String stewardHeader = jdbc.queryForObject(
                 "SELECT BTN_PERM FROM MCMAPUSER.TB_MCM_SEC_ROLE_PERM WHERE ROLE_ID = 'MDM_STEWARD' AND OBJECT_ID = 'headerMng'", String.class);
         String confirmActions = jdbc.queryForObject(
                 "SELECT PERMISSION_ACTION FROM MCMAPUSER.TB_MCM_SEC_PERM WHERE PERMISSION_ID = 'PERM_MDM_CONFIRM'", String.class);
-        assertThat(stewardHeader).isEqualTo(confirmActions);
+        assertThat(stewardHeader).isEqualTo(keepCatalog(confirmActions, "headerMng"))
+                .isEqualTo("search,view,save,delete,copy,lock,unlock,handover,confirm");
         String editActions = jdbc.queryForObject(
                 "SELECT PERMISSION_ACTION FROM MCMAPUSER.TB_MCM_SEC_PERM WHERE PERMISSION_ID = 'PERM_MDM_EDIT'", String.class);
         assertThat(jdbc.queryForObject(
                 "SELECT BTN_PERM FROM MCMAPUSER.TB_MCM_SEC_ROLE_PERM WHERE ROLE_ID = 'MDM_STD_ADMIN' AND OBJECT_ID = 'mdmSample'", String.class))
-                .isEqualTo(editActions);
+                .isEqualTo(keepCatalog(editActions, "mdmSample"))
+                .isEqualTo("search");
+
+        // 오브젝트 허용 값 = 화면의 실제 버튼(카탈로그) — 옛 묶음의 범용 목록이 섞이지 않는다(m10).
+        List<String> notCatalog = new ArrayList<>();
+        jdbc.query("SELECT OBJECT_ID, BTN_PERM FROM MCMAPUSER.TB_MCM_SEC_OBJ", rs -> {
+            String cat = com.dongkuk.dmes.mcm.init.seed.ObjPermCatalog.btnPerm(rs.getString(1));
+            if (cat != null && !cat.equals(rs.getString(2))) notCatalog.add(rs.getString(1) + "=" + rs.getString(2));
+        });
+        assertThat(notCatalog).as("카탈로그와 다른 오브젝트 허용 값").isEmpty();
 
         // 시드한 퍼미션 값은 오브젝트 허용 값 안에 있다(D12·D15 ⊆) — 허용 값 = 카탈로그 ∪ 퍼미션 토큰.
         List<String> outside = new ArrayList<>();
@@ -286,6 +299,17 @@ class DataInitializerSeedFingerprintTest {
         assertThat(jdbc.queryForObject(
                 "SELECT PARENT_MENU_ID || '|' || MENU_NM FROM MCMAPUSER.TB_MCM_SEC_MENU WHERE MENU_ID = 'commPermBench'", String.class))
                 .as("메뉴 공통관리 › 시스템관리 › 권한 작업대(D25)").isEqualTo("csa|권한 작업대");
+    }
+
+    /** csv 토큰 중 그 오브젝트 카탈로그 허용 값 안 토큰(순서 유지) — 시더 SeedSupport.ensureRolePerm 과 같은 규칙. */
+    private static String keepCatalog(String csv, String objectId) {
+        List<String> allow = com.dongkuk.dmes.mcm.security.perm.PermTokens.parse(
+                com.dongkuk.dmes.mcm.init.seed.ObjPermCatalog.btnPerm(objectId));
+        List<String> out = new ArrayList<>();
+        for (String t : com.dongkuk.dmes.mcm.security.perm.PermTokens.parse(csv)) {
+            if (allow.contains(t)) out.add(t);
+        }
+        return String.join(",", out);
     }
 
     // ─────────────────────────────────────────────────────────────────────

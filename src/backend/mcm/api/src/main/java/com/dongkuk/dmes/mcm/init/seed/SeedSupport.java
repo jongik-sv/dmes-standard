@@ -355,6 +355,10 @@ public class SeedSupport {
      * <p>행이 없으면 넣는다. 있으면 기존 토큰 뒤에 빠진 토큰만 덧붙인다(합집합, 기존 순서 유지 — {@link #ensurePermActions} 와 같은 계열).
      * 값이 같으면 쓰지 않는다. 행이 없는데 버튼 토큰이 비면 넣지 않는다(D14 — 버튼 없는 퍼미션 금지).
      *
+     * <p>2026-11-28 m10 — {@link ObjPermCatalog} 가 아는 오브젝트는 카탈로그 안 토큰만 쓴다(옛 값 ∩ 허용 값, V26 과 같은 규칙).
+     * MDM 옛 묶음(PERM_MDM_*)은 MDM 동작을 모두 나열한 범용 목록이라 그대로 옮기면 화면에 없는 버튼이 퍼미션·오브젝트 허용 값에
+     * 들어간다({@code CoreRbacSeeder.fillObjPermFromCatalog} 가 퍼미션 토큰을 합친다).
+     *
      * @param btnCsv   버튼 권한 action 코드(쉼표 구분)
      * @param popupCsv 팝업 권한 action 코드(쉼표 구분, null 가능)
      * @return 넣거나 고친 행 수(0 또는 1)
@@ -362,6 +366,15 @@ public class SeedSupport {
     protected int ensureRolePerm(String roleId, String objectId, String btnCsv, String popupCsv) {
         List<String> btn = com.dongkuk.dmes.mcm.security.perm.PermTokens.parse(btnCsv);
         List<String> popup = com.dongkuk.dmes.mcm.security.perm.PermTokens.parse(popupCsv);
+        if (ObjPermCatalog.objectIds().contains(objectId)) {
+            boolean hadBtn = !btn.isEmpty();
+            btn = keepAllowed(btn, ObjPermCatalog.btnPerm(objectId));
+            popup = keepAllowed(popup, ObjPermCatalog.popupPerm(objectId));
+            if (hadBtn && btn.isEmpty()) {
+                log.info("[DataInitializer] ROLE_PERM 건너뜀 — 화면 허용 값 안 버튼 토큰이 없다 role={} object={}", roleId, objectId);
+                return 0;
+            }
+        }
         @SuppressWarnings("unchecked")
         List<Object[]> rows = nq(
                 "SELECT BTN_PERM, POPUP_PERM FROM MCMAPUSER.TB_MCM_SEC_ROLE_PERM WHERE ROLE_ID = :r AND OBJECT_ID = :o")
@@ -402,6 +415,18 @@ public class SeedSupport {
                 .executeUpdate();
         log.info("[DataInitializer] ROLE_PERM 토큰 보정 — {}/{} btn={} popup={}", roleId, objectId, newBtn, newPopup);
         return n;
+    }
+
+    /** tokens 중 allowedCsv 에 있는 것(tokens 순서 유지). allowedCsv 가 비면 빈 목록. */
+    private static List<String> keepAllowed(List<String> tokens, String allowedCsv) {
+        Set<String> allow = new LinkedHashSet<>(com.dongkuk.dmes.mcm.security.perm.PermTokens.parse(allowedCsv));
+        List<String> out = new java.util.ArrayList<>();
+        for (String t : tokens) {
+            if (allow.contains(t)) {
+                out.add(t);
+            }
+        }
+        return out;
     }
 
     /**

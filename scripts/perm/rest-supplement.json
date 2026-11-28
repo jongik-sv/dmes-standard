@@ -1,20 +1,32 @@
 {
   "_doc": "BPMN actionGateway 에서 읽히지 않는 action 의 손으로 쓰는 보충 목록. objectId -> {btn:[], popup:[], note}. gen-obj-perm.mjs 가 BPMN 분기 이름과 합친다(합집합).",
+  "codeEdit": {
+    "btn": ["confirm"],
+    "note": "FE 버튼 게이트 키(m10, 2026-11-28): 확정 화면으로 가는 버전 확정 버튼(CodeDetail) — BE 호출은 codeConfirm"
+  },
+  "commMenuMng": {
+    "btn": ["cancel"],
+    "note": "FE 버튼 게이트 키(m10, 2026-11-28): 행 취소 버튼 — FE 전용, BE 호출 없음"
+  },
   "commObjMng": {
-    "btn": ["searchObjMenu", "searchObjPerm"],
-    "note": "결정 7 — l3 가 BPMN 에 더할 action. 아직 머지 전이라 보충한다"
+    "btn": ["cancel", "searchObjMenu", "searchObjPerm"],
+    "note": "결정 7 — l3 가 BPMN 에 더할 action. 아직 머지 전이라 보충한다 · FE 버튼 게이트 키(m10, 2026-11-28): 행 취소 버튼 — FE 전용, BE 호출 없음"
   },
   "commPermBench": {
     "btn": ["apply", "discardDraft", "explain", "impact", "loadDraft", "saveDraft", "searchBench", "searchHistory", "searchHistoryDtl", "searchMenuTree", "searchRolePerm"],
     "note": "decompose §0.3 표. b1 이 BPMN 을 머지하면 생성기 분기와 겹친다(합집합이라 무해)"
   },
   "commPermMng": {
-    "btn": ["lov", "searchPermOne"],
-    "note": "결정 8 — l1 이 BPMN 에 더할 action"
+    "btn": ["cancel", "lov", "searchPermOne"],
+    "note": "결정 8 — l1 이 BPMN 에 더할 action · FE 버튼 게이트 키(m10, 2026-11-28): 행 취소 버튼 — FE 전용, BE 호출 없음"
+  },
+  "commRoleGrpMng": {
+    "btn": ["cancel"],
+    "note": "FE 버튼 게이트 키(m10, 2026-11-28): 행 취소 버튼 — FE 전용, BE 호출 없음"
   },
   "commRoleMng": {
-    "btn": ["searchFolderObj", "searchRoleGroups"],
-    "note": "결정 8 — l2 가 BPMN 에 더할 action"
+    "btn": ["cancel", "searchFolderObj", "searchRoleGroups"],
+    "note": "결정 8 — l2 가 BPMN 에 더할 action · FE 버튼 게이트 키(m10, 2026-11-28): 행 취소 버튼 — FE 전용, BE 호출 없음"
   },
   "commWidgetMng": {
     "btn": ["upload"],
@@ -24,17 +36,41 @@
     "btn": ["query"],
     "note": "analog REST rest/dbViewer/query (BPMN 없음)"
   },
+  "headerMng": {
+    "btn": ["confirm"],
+    "note": "FE 버튼 게이트 키(m10, 2026-11-28): versionActionState 확정 버튼 — 확정 화면으로 이동(BE 호출 없음)"
+  },
+  "jobSchedMng": {
+    "btn": ["search"],
+    "note": "FE 버튼 게이트 키(m10, 2026-11-28): 조회 버튼 게이트 키 — BE action 은 list"
+  },
+  "layoutMng": {
+    "btn": ["confirm"],
+    "note": "FE 버튼 게이트 키(m10, 2026-11-28): versionActionState 확정 버튼 — 확정 화면으로 이동(BE 호출 없음)"
+  },
   "logViewer": {
     "btn": ["search"],
     "note": "analog REST rest/logViewer/search (BPMN 없음)"
   },
   "mdmCacheMng": {
-    "btn": ["reload"],
-    "note": "MDM 캐시 관리 재등록 버튼(BPMN 없음). 시더 allActions 의 reload"
+    "btn": ["delete", "reload", "save", "search"],
+    "note": "MDM 캐시 관리 재등록 버튼(BPMN 없음). 시더 allActions 의 reload · FE 버튼 게이트 키(m10, 2026-11-28): 조회·신규·삭제 버튼 — cactus /api/{module}/mdmMeta·MDM metaFeed/save REST"
   },
   "mdmSample": {
     "btn": ["search"],
     "note": "빈 샘플 화면(BPMN 없음). 옛 PERM_SEARCH_ONLY 와 같게 search 만"
+  },
+  "noticeMgmt": {
+    "btn": ["delete"],
+    "note": "FE 버튼 게이트 키(m10, 2026-11-28): 삭제 버튼 게이트 키 — BE 는 save(행 상태)로 지운다"
+  },
+  "ruleSetEdit": {
+    "btn": ["confirm"],
+    "note": "FE 버튼 게이트 키(m10, 2026-11-28): 버전 확정 버튼 — 확정 화면으로 이동(BE 호출 없음)"
+  },
+  "screenUsageStat": {
+    "btn": ["export", "search"],
+    "note": "FE 버튼 게이트 키(m10, 2026-11-28): 조회·내보내기 버튼 게이트 키 — BE action 은 overview·byScreen 등, 내보내기는 FE 엑셀"
   },
   "searchDefaultsSample": {
     "btn": ["search"],
