@@ -136,12 +136,18 @@ mcm:
     # false(기본) = SYSADMIN 도 TB_MCM_SEC_ROLE_MAPPING 멤버십으로 판정.
     # true = 舊 전면통과 복원 (긴급 복구 전용 — JVM: -Dmcm.security.sysadmin-freepass=true)
     sysadmin-freepass: false
+    # SYSADMIN 비밀번호 실패 시간 잠금(D15) — n 번째 연속 잠금의 분. 시간이 지나면 저절로 풀린다. 일반 사용자는 관리자가 풀 때까지 잠근다
+    sysadmin-lock-minutes: 15,30,60
     perm-model: v2          # 권한 계산 모델(perm-bench D10). v2 = TB_MCM_SEC_ROLE_PERM, legacy = 옛 ROLE_MAPPING·SEC_PERM(되돌림)
+  # 비밀번호 정책(2026-11-28 시안 「사용자 비활성화·퇴직 처리」 D9·D10·D11·D14). 숫자 90·7·5 는 회사 정책을 받기 전 가정이다(D14).
   password:
-    expiry-days: 0          # 만료 검증 끔
-    history-count: 0        # 마지막 N개 비교 끔
-    min-length: 0           # 길이 검증 끔
-    complexity-pattern: ""  # 복잡도 검증 끔
+    initial: ${MCM_PASSWORD_INITIAL:dmes0000}  # 임시(최초) 비밀번호 — 계정 생성·초기화·재생성이 모두 쓴다. 새 비밀번호로는 받지 않는다
+    new-user-temp-days: 7   # 신규 계정 임시 비밀번호 기한(생성일 + 7일 23:59:59). 초기화는 그날 23:59:59
+    expiry-days: 90         # 사용 기간 — 지나면 토큰 없이 변경 창(PASSWORD_EXPIRED). 0 이면 끔
+    warn-days: 7            # 만료 N일 전부터 로그인 응답에 passwordExpiresInDays
+    history-count: 5        # 최근 N개 재사용 금지(TB_MCM_SEC_USER_PWD_HIS)
+    min-length: 8           # D11 추천안 — 8자 이상
+    complexity-pattern: '^(?=.*[A-Za-z])(?=.*\d).+$'  # D11 추천안 — 영문 + 숫자(작은따옴표 — YAML 이스케이프 없음)
     legacy-grace-days: -1
   # ── BE → BFF 권한 캐시 무효화(RoleChangedEventListener, 2026-10-03 보안 지적) ──
   #  두 값이 다 있어야 부른다. 하나라도 비면 부르지 않고 BFF 캐시 TTL(5분)로 반영된다. 코드 기본값은 없다(옛 http://localhost:3000 제거).

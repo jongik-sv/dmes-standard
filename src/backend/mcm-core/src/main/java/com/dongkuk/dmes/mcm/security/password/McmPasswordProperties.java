@@ -42,6 +42,18 @@ public class McmPasswordProperties {
      */
     private int legacyGraceDays = 60;
 
+    /**
+     * 임시(최초) 비밀번호 — 계정 생성·초기화·재생성 때 모두 이 값을 쓴다(D9, 2026-11-28 사용자 결정 dmes0000).
+     * 임시 상태 판정은 이 값과의 비교가 아니라 {@code LAST_PWD_CHNG_DATE} 빈칸으로 한다. 새 비밀번호로는 받지 않는다.
+     */
+    private String initial = "dmes0000";
+
+    /** 신규 계정의 임시 비밀번호 유효 일수 — 생성일 + N일 23:59:59 까지(D10). 초기화는 그날 23:59:59 까지. */
+    private int newUserTempDays = 7;
+
+    /** 만료 전 알림 일수 — 남은 일수가 이 값 이하면 로그인 응답에 남은 일수를 싣는다(D14 가정 7일). 0 이하면 알림 없음. */
+    private int warnDays = 7;
+
     public int getExpiryDays() { return expiryDays; }
     public void setExpiryDays(int expiryDays) { this.expiryDays = expiryDays; }
     public int getHistoryCount() { return historyCount; }
@@ -52,4 +64,10 @@ public class McmPasswordProperties {
     public void setComplexityPattern(String complexityPattern) { this.complexityPattern = complexityPattern; }
     public int getLegacyGraceDays() { return legacyGraceDays; }
     public void setLegacyGraceDays(int legacyGraceDays) { this.legacyGraceDays = legacyGraceDays; }
+    public String getInitial() { return initial; }
+    public void setInitial(String initial) { this.initial = initial; }
+    public int getNewUserTempDays() { return newUserTempDays; }
+    public void setNewUserTempDays(int newUserTempDays) { this.newUserTempDays = newUserTempDays; }
+    public int getWarnDays() { return warnDays; }
+    public void setWarnDays(int warnDays) { this.warnDays = warnDays; }
 }

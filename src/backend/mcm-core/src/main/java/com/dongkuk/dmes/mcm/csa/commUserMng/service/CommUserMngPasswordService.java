@@ -20,9 +20,11 @@ import java.util.Map;
 public class CommUserMngPasswordService {
 
     private final CommUserMngPwdWriter pwdWriter;
+    private final CommUserMngHisWriter hisWriter;
 
-    CommUserMngPasswordService(CommUserMngPwdWriter pwdWriter) {
+    CommUserMngPasswordService(CommUserMngPwdWriter pwdWriter, CommUserMngHisWriter hisWriter) {
         this.pwdWriter = pwdWriter;
+        this.hisWriter = hisWriter;
     }
 
     /**
@@ -34,8 +36,10 @@ public class CommUserMngPasswordService {
      * (분석 §5.5 / 기능설계서 M-032) To-Be 화면 팝업 + 클립보드 복사로 대체하기 위한 것이다 — 초기 비밀번호가
      * bcrypt 해시로만 남으면 관리자가 사용자에게 전달할 값 자체를 알 수 없어 "초기화는 되는데 로그인할 수 없다" 가 된다.
      *
-     * <p>보안 주의: {@code INIT_PWD} 는 <b>응답으로만</b> 나가고 로그에는 남기지 않는다. 값이 고정
-     * 상수인 점은 {@link CommUserMngPwdWriter#DEFAULT_PASSWORD} 주석의 외부화 선행 과제(운영 적용 전 반드시 처리) 그대로다.
+     * <p>보안 주의: {@code INIT_PWD} 는 <b>응답으로만</b> 나가고 로그에는 남기지 않는다.
+     *
+     * <p>2026-11-28 (D9·D10) — 값은 설정 {@code mcm.password.initial}(기본 dmes0000) 하나다. 초기화하면 마지막 변경일을 비우고
+     * 임시 만료일을 그날 23:59:59 로 쓴다 → 그 사람은 로그인에서 비밀번호 변경만 할 수 있다. 사용자 이력에 「비밀번호 초기화」(P)를 남긴다.
      *
      * <p>응답 키 순서: {@code cnt_save} → (성공 시) {@code INIT_PWD} → {@code INIT_PWD_USER_ID}.
      * USER_ID 가 null·공백(또는 request 가 null)이면 {@code cnt_save=0} 만 담는다.
@@ -47,13 +51,15 @@ public class CommUserMngPasswordService {
         String userEmpNo = request != null ? request.getUSER_EMP_NO() : null;
         if (userId != null && !userId.isBlank()) {
             pwdWriter.resetToInitial(userId, userEmpNo);
+            hisWriter.userHis(userId, CommUserMngHisWriter.TP_PWD_INIT, CommUserMngHisWriter.CASE_MANUAL, null,
+                    "비밀번호 초기화(임시 비밀번호, 오늘 23:59까지)");
             cnt = 1;
             initPwdUserId = userId;
         }
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("cnt_save", cnt);
         if (initPwdUserId != null) {
-            out.put("INIT_PWD", CommUserMngPwdWriter.DEFAULT_PASSWORD);
+            out.put("INIT_PWD", pwdWriter.initialPassword());
             out.put("INIT_PWD_USER_ID", initPwdUserId);
         }
         return out;

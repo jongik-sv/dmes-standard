@@ -38,7 +38,7 @@ import java.util.TreeSet;
  *   <li>그룹·역할 = 런타임 {@code PermEvaluator.active} 와 같다: 시작 ≤ 지금, 끝이 자정이면 그날 끝까지, 아니면 끝 시각까지.
  *       그룹·역할 행이 없으면 활성으로 본다</li>
  * </ul>
- * 알려진 한계: 「지금」 하나만 본다. 마지막 보유자의 종료일을 오늘·미래로 두는 저장은 통과하고, 그날이 지나면 0명이 된다.
+ * 알려진 한계: {@link Check#verify} 는 「지금」 하나만 본다. 2026-11-28 — 미래 종료일은 {@link #verifyFutureEnd} 로 따로 본다.
  *
  * <p><b>쓰는 법</b>(한 트랜잭션 안, 쓰기 전에 시작):
  * <pre>
@@ -81,9 +81,14 @@ public class SysadminGuard {
     private static final String SYSADMIN_IN_SQL =
             "'" + String.join("','", new TreeSet<>(CommPermQueryRepository.SYSADMIN_ROLE_IDS)) + "'";
 
-    /** 사람 활성 — 별칭 X 의 USE_TP·기간(날짜 단위, 끝 날 포함 — 로그인 검사와 같다). */
+    /**
+     * 사람 활성 — 별칭 X 의 USE_TP·기간(날짜 단위, 끝 날 포함 — 로그인 검사와 같다)·ERP 인사 상태.
+     * 2026-11-28 — 인사 휴직·퇴직(HR_ST LEAVE·RETIRED)도 활성에서 뺀다(로그인이 막히므로). 잠금(LOCK_YN)은 빼지 않는다 —
+     * SYSADMIN 잠금은 시간이 지나면 저절로 풀린다(D15).
+     */
     private static String activeByDay(String x) {
         return x + ".USE_TP = 'Y'"
+                + " AND (" + x + ".HR_ST IS NULL OR " + x + ".HR_ST = 'ACTIVE')"
                 + " AND (" + x + ".START_ACTIVE_DATE IS NULL OR TRUNC(" + x + ".START_ACTIVE_DATE) <= :today)"
                 + " AND (" + x + ".END_ACTIVE_DATE IS NULL OR TRUNC(" + x + ".END_ACTIVE_DATE) >= :today)";
     }
@@ -148,11 +153,23 @@ public class SysadminGuard {
     }
 
     /** 지금 DB 상태의 활성 SYSADMIN 보유자(같은 트랜잭션의 flush 된 쓰기 포함). */
-    @SuppressWarnings("unchecked")
     public Set<String> activeHolders() {
+        return holdersAt(today(), now());
+    }
+
+    /**
+     * 그날 0시 기준 활성 SYSADMIN 보유자 — 유효 기한일을 미래로 바꾸는 저장이 「그날 뒤 0명」을 만드는지 본다(D15).
+     * 지금 DB 의 칸 값으로 계산한다(그날까지 다른 저장이 없다고 본다).
+     */
+    public Set<String> holdersOn(LocalDate day) {
+        return holdersAt(day, day.atStartOfDay());
+    }
+
+    @SuppressWarnings("unchecked")
+    private Set<String> holdersAt(LocalDate day, LocalDateTime at) {
         List<Object> rows = entityManager.createNativeQuery(HOLDERS_SQL)
-                .setParameter("today", today())
-                .setParameter("now", now())
+                .setParameter("today", day)
+                .setParameter("now", at)
                 .getResultList();
         Set<String> out = new LinkedHashSet<>();
         for (Object r : rows) {
@@ -230,6 +247,27 @@ public class SysadminGuard {
                 // 잠글 SYSADMIN 역할 행이 없으면 동시 저장을 줄 세우지 못한다 — 보유자를 줄이는 저장만 막는다(fail closed)
                 throw new BusinessException(ErrorCode.BUSINESS_ERROR, lastCode
                         + ": 시스템관리자(SYSADMIN) 역할 행이 없어 시스템관리자를 줄이는 저장을 할 수 없습니다. 역할 관리에서 SYSADMIN 역할을 먼저 등록하세요");
+            }
+        }
+    }
+
+    /**
+     * 유효 기한일을 미래 날짜로 바꾼 저장 — 그 날짜 다음 날 활성 SYSADMIN 이 0명이 되면 거절한다(지금 판정만 보던 한계, D15).
+     * 저장(쓰기) 뒤에 부른다. 지금 보유자가 0명인 DB(새 설치·시험 DB)는 막지 않는다.
+     *
+     * @param endDays 이번 저장이 SYSADMIN 후보에게 넣은 미래 기한일들
+     * @throws BusinessException 「lastCode: 그날 뒤에 남는 시스템관리자가 없습니다」
+     */
+    public void verifyFutureEnd(java.util.Collection<LocalDate> endDays, String lastCode) {
+        if (endDays == null || endDays.isEmpty()) return;
+        flush();
+        if (activeHolders().isEmpty()) return;
+        LocalDate today = today();
+        for (LocalDate end : new java.util.TreeSet<>(endDays)) {
+            if (end == null || !end.isAfter(today.minusDays(1)) || end.getYear() >= 9999) continue;
+            if (holdersOn(end.plusDays(1)).isEmpty()) {
+                throw new BusinessException(ErrorCode.BUSINESS_ERROR, lastCode + ": " + end
+                        + " 뒤에 남는 시스템관리자가 없습니다. 다른 시스템관리자를 먼저 지정하세요");
             }
         }
     }

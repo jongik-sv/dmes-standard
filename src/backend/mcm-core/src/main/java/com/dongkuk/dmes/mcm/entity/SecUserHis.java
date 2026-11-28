@@ -54,6 +54,11 @@ public class SecUserHis extends McmAuditEntity {
     @Column(name = "ACTIVE_DT", length = 8, nullable = false)
     private String activeDt;
 
+    /** 같은 날 안의 이력 순번(V24) — 하루 한 줄 PK 라 같은 날 두 번째 처리가 앞 이력을 덮던 문제를 막는다. */
+    @Id
+    @Column(name = "HIS_SEQ", nullable = false)
+    private Integer hisSeq;
+
     /** 구분 — C=Create / D=Delete (RegCommUserMng:64 / DeleteCommUserMng:58 / ReRegCommUserMng:72). VARCHAR(1). */
     @Column(name = "PROC_TYPE", length = 1)
     private String procType;
@@ -84,6 +89,9 @@ public class SecUserHis extends McmAuditEntity {
     public String getActiveDt() { return activeDt; }
     public void setActiveDt(String activeDt) { this.activeDt = activeDt; }
 
+    public Integer getHisSeq() { return hisSeq; }
+    public void setHisSeq(Integer hisSeq) { this.hisSeq = hisSeq; }
+
     public String getProcType() { return procType; }
     public void setProcType(String procType) { this.procType = procType; }
 
@@ -107,12 +115,14 @@ public class SecUserHis extends McmAuditEntity {
 
         private String userId;
         private String activeDt;
+        private Integer hisSeq;
 
         public PK() {}
 
-        public PK(String userId, String activeDt) {
+        public PK(String userId, String activeDt, Integer hisSeq) {
             this.userId = userId;
             this.activeDt = activeDt;
+            this.hisSeq = hisSeq;
         }
 
         public String getUserId() { return userId; }
@@ -121,18 +131,22 @@ public class SecUserHis extends McmAuditEntity {
         public String getActiveDt() { return activeDt; }
         public void setActiveDt(String activeDt) { this.activeDt = activeDt; }
 
+        public Integer getHisSeq() { return hisSeq; }
+        public void setHisSeq(Integer hisSeq) { this.hisSeq = hisSeq; }
+
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
             if (!(o instanceof PK)) return false;
             PK pk = (PK) o;
             return Objects.equals(userId, pk.userId)
-                && Objects.equals(activeDt, pk.activeDt);
+                && Objects.equals(activeDt, pk.activeDt)
+                && Objects.equals(hisSeq, pk.hisSeq);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(userId, activeDt);
+            return Objects.hash(userId, activeDt, hisSeq);
         }
     }
 }

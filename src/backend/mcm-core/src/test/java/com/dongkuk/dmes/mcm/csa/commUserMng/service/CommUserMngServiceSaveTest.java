@@ -227,18 +227,18 @@ class CommUserMngServiceSaveTest extends CommUserMngJpaTestBase {
     // ────────────────────────────────────────────────────────────────
 
     @Nested
-    @DisplayName("saveCmUser — deleted / D (논리삭제)")
+    @DisplayName("saveCmUser — deleted / D = 퇴직 처리(2026-11-28)")
     class Delete {
 
         @Test
-        @DisplayName("9999-12-31 은 오늘 00:00 으로 바꿔 마감, USE_TP=N, 이력(D/M) — 행은 지우지 않고 역할그룹 매핑도 그대로")
-        void sentinelBecomesToday() {
+        @DisplayName("삭제 행 = 퇴직 — 기한일 오늘 00:00(행 값 무시), USE_TP=N, 역할그룹 회수(ROLL_HIS D), 이력 R/M 「계정 삭제」")
+        void deleteRetires() {
             fx.user("del1", "D01", LocalDateTime.of(2026, 1, 1, 0, 0));
             fx.mapping("del1", "RG1", "RG2");
 
             LocalDate before = LocalDate.now();
             Map<String, Object> out = inTx(() -> service.saveCmUser(List.of(row(
-                    "rowStatus", "deleted", "USER_ID", "del1", "USER_NM", "삭제됨", "END_ACTIVE_DATE", "9999-12-31",
+                    "rowStatus", "deleted", "USER_ID", "del1", "USER_NM", "삭제됨", "END_ACTIVE_DATE", "2026-12-31",
                     "USE_TP", "Y"))));
             LocalDate after = LocalDate.now();
 
@@ -248,63 +248,41 @@ class CommUserMngServiceSaveTest extends CommUserMngJpaTestBase {
             assertThat(u.getEndActiveDate().toLocalTime()).isEqualTo(java.time.LocalTime.MIDNIGHT);
             assertTodayBetween(u.getEndActiveDate().toLocalDate(), before, after);
             assertThat(u.getUseTp()).isEqualTo("N");
-            assertThat(u.getUserNm()).isEqualTo("이름del1"); // 행의 USER_NM 은 이력에만 들어간다
 
             List<SecUserHis> his = hisOf("del1");
             assertThat(his).hasSize(1);
-            assertThat(his.get(0).getActiveDt()).isEqualTo(yyyymmdd(u.getEndActiveDate().toLocalDate()));
-            assertThat(his.get(0).getProcType()).isEqualTo("D");
+            assertThat(his.get(0).getProcType()).isEqualTo("R");
             assertThat(his.get(0).getProcCase()).isEqualTo("M");
-            assertThat(his.get(0).getUserNm()).isEqualTo("삭제됨");
+            assertThat(his.get(0).getDescription()).startsWith("퇴직: 계정 삭제");
 
-            assertThat(fx.roleGroupIdsOf("del1")).containsExactly("RG1", "RG2");
+            assertThat(fx.roleGroupIdsOf("del1")).isEmpty();
+            assertThat(rollHis()).allMatch(r -> r.contains("/D/P/"));
         }
 
         @Test
-        @DisplayName("마감일이 주어지면 그 날짜로 마감하고 이력 ACTIVE_DT 도 그 날짜, 없으면 호출 시각으로 마감")
-        void givenOrNowEndDate() {
-            fx.user("del2", null, LocalDateTime.of(2026, 1, 1, 0, 0));
-            fx.user("del3", null, LocalDateTime.of(2026, 1, 1, 0, 0));
-
-            LocalDateTime before = LocalDateTime.now().minusSeconds(1);
+        @DisplayName("없는 사용자·이미 퇴직한 사용자 삭제는 cnt 0, 이력 없음")
+        void missingOrRetired() {
+            SecUser gone = fx.user("gone", null, LocalDateTime.of(2026, 1, 1, 0, 0));
+            gone.setUseTp("N");
+            gone.setEndActiveDate(LocalDateTime.of(2026, 2, 1, 0, 0));
+            fx.user(gone);
             Map<String, Object> out = inTx(() -> service.saveCmUser(List.of(
-                    row("rowStatus", "D", "USER_ID", "del2", "END_ACTIVE_DATE", "2026-12-31"),
-                    row("rowStatus", "deleted", "USER_ID", "del3"))));
-            LocalDateTime after = LocalDateTime.now().plusSeconds(1);
-
-            assertThat(out).containsExactly(Map.entry("cnt_save", 2));
-            assertThat(userOf("del2").getEndActiveDate()).isEqualTo(LocalDateTime.of(2026, 12, 31, 0, 0));
-            assertThat(userOf("del2").getUseTp()).isEqualTo("N");
-            assertThat(hisOf("del2")).extracting(SecUserHis::getActiveDt).containsExactly("20261231");
-            assertThat(hisOf("del2").get(0).getUserNm()).isNull();
-
-            // 마감일 미지정 → 00:00 이 아닌 호출 시각(LocalDateTime.now())
-            assertThat(userOf("del3").getEndActiveDate()).isBetween(before, after);
-            assertThat(hisOf("del3")).extracting(SecUserHis::getActiveDt)
-                    .containsExactly(yyyymmdd(userOf("del3").getEndActiveDate().toLocalDate()));
-        }
-
-        @Test
-        @DisplayName("없는 사용자 삭제는 cnt 0, 이력 없음")
-        void missingUser() {
-            Map<String, Object> out = inTx(() -> service.saveCmUser(List.of(
-                    row("rowStatus", "deleted", "USER_ID", "ghost", "END_ACTIVE_DATE", "2026-12-31"))));
+                    row("rowStatus", "deleted", "USER_ID", "ghost"),
+                    row("rowStatus", "deleted", "USER_ID", "gone"))));
             assertThat(out).containsExactly(Map.entry("cnt_save", 0));
             assertThat(secUserHisRepository.findAll()).isEmpty();
         }
 
         @Test
-        @DisplayName("같은 날 생성 후 삭제하면 이력 PK(USER_ID, ACTIVE_DT)가 같아 생성 이력이 삭제 이력으로 덮인다")
-        void sameDayInsertThenDeleteOverwritesHistory() {
+        @DisplayName("같은 날 생성 후 삭제 — 이력 순번(HIS_SEQ)으로 두 줄 다 남는다(V24)")
+        void sameDayInsertThenDeleteKeepsBoth() {
             inTx(() -> service.saveCmUser(List.of(row("rowStatus", "inserted", "USER_ID", "sameday", "USER_NM", "생성"))));
-            inTx(() -> service.saveCmUser(List.of(row(
-                    "rowStatus", "deleted", "USER_ID", "sameday", "USER_NM", "삭제", "END_ACTIVE_DATE", "9999-12-31"))));
+            inTx(() -> service.saveCmUser(List.of(row("rowStatus", "deleted", "USER_ID", "sameday"))));
 
-            // 결함 의심: 이력 PK 가 날짜 단위라 같은 날 두 번째 처리가 첫 이력을 덮어쓴다.
-            List<SecUserHis> his = hisOf("sameday");
-            assertThat(his).hasSize(1);
-            assertThat(his.get(0).getProcType()).isEqualTo("D");
-            assertThat(his.get(0).getUserNm()).isEqualTo("삭제");
+            List<SecUserHis> his = hisOf("sameday").stream()
+                    .sorted(java.util.Comparator.comparing(SecUserHis::getHisSeq)).toList();
+            assertThat(his).extracting(SecUserHis::getProcType).containsExactly("C", "R");
+            assertThat(his).extracting(SecUserHis::getHisSeq).containsExactly(1, 2);
         }
     }
 
@@ -325,7 +303,7 @@ class CommUserMngServiceSaveTest extends CommUserMngJpaTestBase {
                     null,
                     row("rowStatus", "inserted", "USER_ID", "m_new", "USER_NM", "새사람"),
                     row("rowStatus", "updated", "USER_ID", "m_upd", "USER_NM", "고친사람"),
-                    row("rowStatus", "deleted", "USER_ID", "m_del", "END_ACTIVE_DATE", "2026-11-30"),
+                    row("rowStatus", "deleted", "USER_ID", "m_del"),
                     row("rowStatus", "X", "USER_ID", "m_upd", "USER_NM", "무시"),
                     row("rowStatus", "inserted", "USER_ID", "  "),
                     row("rowStatus", "deleted")));
@@ -336,7 +314,7 @@ class CommUserMngServiceSaveTest extends CommUserMngJpaTestBase {
             assertThat(userOf("m_new").getUserNm()).isEqualTo("새사람");
             assertThat(userOf("m_upd").getUserNm()).isEqualTo("고친사람");
             assertThat(userOf("m_del").getUseTp()).isEqualTo("N");
-            assertThat(userOf("m_del").getEndActiveDate()).isEqualTo(LocalDateTime.of(2026, 11, 30, 0, 0));
+            assertThat(userOf("m_del").getEndActiveDate()).isEqualTo(LocalDate.now().atStartOfDay());
             assertThat(secUserRepository.count()).isEqualTo(3);
         }
 
@@ -375,13 +353,14 @@ class CommUserMngServiceSaveTest extends CommUserMngJpaTestBase {
     class ReReg {
 
         @Test
-        @DisplayName("첫 행만 — 시작 오늘 00:00, 종료 9999-12-31, USE_TP=Y, 실패횟수 0, 비밀번호 둘 다 초기화, 이력(C/M)")
+        @DisplayName("첫 행만 — 시작 오늘 00:00, 종료 9999-12-31, USE_TP=Y, 실패횟수 0, 비밀번호 임시 상태(7일), 역할그룹 없이, 이력(C/M)")
         void reRegistersFirstRowOnly() {
             SecUser u = fx.user("rr", "D01", LocalDateTime.of(2025, 1, 1, 0, 0));
             u.setUseTp("N");
             u.setEndActiveDate(LocalDateTime.of(2025, 6, 30, 0, 0));
             u.setPwdFailCount(5L);
             fx.user(u);
+            fx.mapping("rr", "RG_OLD");
             SecUser other = fx.user("other", "D01", LocalDateTime.of(2025, 1, 1, 0, 0));
             other.setUseTp("N");
             fx.user(other);
@@ -405,8 +384,10 @@ class CommUserMngServiceSaveTest extends CommUserMngJpaTestBase {
             SecUserPwd p = secUserPwdRepository.findById("rr").orElseThrow();
             assertThat(BCRYPT.matches(DEFAULT_PASSWORD, p.getUserEncPwd())).isTrue();
             assertThat(BCRYPT.matches("rr777", p.getUserSsoPwd())).isTrue();
-            // 두 해시만 바꾼다 — 마지막 변경일(만료 판정 기준)·SALT·임시 비밀번호·임시 만료일은 그대로.
-            assertOtherPwdColumnsKept("rr");
+            // 2026-11-28 — 임시 상태(마지막 변경일 빈칸), 재생성은 신규와 같이 7일 기한. SALT·USER_ENC_TEMP_PWD 는 그대로.
+            assertTempPwdState("rr", true, true);
+            // D7 — 역할그룹 없이 새로 시작
+            assertThat(fx.roleGroupIdsOf("rr")).isEmpty();
 
             List<SecUserHis> his = hisOf("rr");
             assertThat(his).hasSize(1);

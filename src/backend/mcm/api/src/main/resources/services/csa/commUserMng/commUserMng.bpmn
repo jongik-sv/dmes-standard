@@ -1,59 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
-                  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
-                  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
-                  xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
-                  xmlns:camunda="http://camunda.org/schema/1.0/bpmn"
-                  id="Definitions_commUserMng"
-                  targetNamespace="http://bpmn.io/schema/bpmn">
-
-  <!--
-    사용자 관리 — commUserMng BPMN (csa 그룹 / mcm 모듈 / W5)
-
-    분석리포트 §8 + BPMN설계서 §2 의 As-Is 11 action 보존 (To-Be 11 — As-Is 1:1):
-      - searchCmUser          — 메인 사용자 그리드 조회 (selectCommUser + selectCommUserAll chain 통합)
-      - saveCmUser            — 메인 사용자 그리드 저장 (status="updated" 분기만 — Reg/Delete 별도 분리)
-      - regCmUser             — 계정 생성 (insertCommUser + mergeCommonPwdInit + TB_MCM_SEC_USER_HIS)
-      - deleteCmUser          — 계정 삭제 (논리삭제 END_ACTIVE_DATE + TB_MCM_SEC_USER_HIS)
-      - reRegCmUser           — 계정 재생성 (updateReRegUser + mergeCommonPwdInit + 이력)
-      - searchUserRoleGrp     — 선택 사용자 보유 역할그룹 조회 (selectCommUserRoleGrp 2-table JOIN)
-      - saveUserRoleGrp       — 역할그룹 추가/삭제 (SaveRoleGroupHis + CommonMultiSaveTask 통합)
-      - searchRoleGrp         — 추가 가능 역할그룹 조회 (selectCommRoleGrpList NOT EXISTS)
-      - pwdinit               — 비밀번호 / SSO 비밀번호 초기화 (PasswordInit.java 분기)
-      - saveUserRoleGrpCopy   — 역할그룹 복사 (SaveRoleGroupCopyHis + mergeCommonCopyRoleGrp 통합)
-      - commonUserDept        — 부서 팝업 조회 (selectCommDept — To-Be TB_MCM_DEPT_INFO 단독 조회)
-      - searchDeptLov         — Detail 부서 LoV 모달 (2026-06-04 신설 / 사용자 결정 — Detail 직접 타이핑 ✗,
-                                검색 버튼 + 모달 그리드 (DEPT_CD/DEPT_NM) → 선택 시 자동 세트.
-                                commRoleMng round-3 의 searchObjectLov 정합 패턴)
-
-    To-Be 정책 (분석 §11.0):
-      - #1 — schema=MCMAPUSER / Entity 모듈 직속 / McmAuditEntity 자동
-      - #2 / Q-002 — EAI 폐기 + DMES 자체 TB_MCM_DEPT_INFO 신설 (DeptInfoRepository 사용)
-      - #3 (B) / Q-003 / Q-009 — 미사용 SQL 5종 폐기 + SaveCommUserMng inserted/deleted 분기 미반영
-      - #3 (C) / Q-004 — TB_MCM_SEC_USER_HIS / ROLL_HIS 외부 Mapper → JPA Entity 흡수
-      - #3 (D) / Q-005 — D-013~015 GROUP_ID 콤보 UI 미반영 (DB 컬럼 보존)
-      - #3 (E) / Q-010 / Q-014 — nexacro roleSearch / Grid STATUS — To-Be FE 자연 흡수
-      - #3 (F) / Q-012 / Q-013 — yml prefix / 신규 페이지 / 신규 BE 엔드포인트는 본 cycle 미적용 (기존 mcm-core 자산 보존)
-      - #3 (G) / Q-015 — RBAC PortalShell 통합
-
-    OASIS executor 가 actionGateway 의 input='action' 으로 분기.
-    serviceTask 별 Spring bean 'commUserMngService' 의 method 호출 → 결과 Map 을 process variable 로 누적.
-
-    가이드 §6-C/D/E 정합 (W1·W2·W3·W4 정본 패턴):
-      - grid property 사용 ✗ (saveCmUser / regCmUser / deleteCmUser / reRegCmUser / saveUserRoleGrp / pwdinit
-        는 grids.master.rows → method param `master` 자동 매핑)
-      - output="result" 명시 (응답 누락 결함 회피 — 가이드 §6-D)
-      - dto property: searchCmUser / searchUserRoleGrp / searchRoleGrp / saveUserRoleGrpCopy / pwdinit / commonUserDept
-      - <conditionExpression> 미사용 — sequenceFlow `name` 만으로 분기
-  -->
-
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:camunda="http://camunda.org/schema/1.0/bpmn" id="Definitions_commUserMng" targetNamespace="http://bpmn.io/schema/bpmn">
   <bpmn:process id="commUserMng" name="사용자 관리" isExecutable="true">
-
     <bpmn:startEvent id="start">
       <bpmn:outgoing>flow_to_gw</bpmn:outgoing>
     </bpmn:startEvent>
     <bpmn:sequenceFlow id="flow_to_gw" sourceRef="start" targetRef="actionGateway" />
-
     <bpmn:exclusiveGateway id="actionGateway">
       <bpmn:extensionElements>
         <camunda:properties>
@@ -73,9 +24,16 @@
       <bpmn:outgoing>flow_saveUserRoleGrpCopy</bpmn:outgoing>
       <bpmn:outgoing>flow_commonUserDept</bpmn:outgoing>
       <bpmn:outgoing>flow_searchDeptLov</bpmn:outgoing>
+      <bpmn:outgoing>flow_unlock</bpmn:outgoing>
+      <bpmn:outgoing>flow_suspend</bpmn:outgoing>
+      <bpmn:outgoing>flow_resume</bpmn:outgoing>
+      <bpmn:outgoing>flow_retire</bpmn:outgoing>
+      <bpmn:outgoing>flow_handover</bpmn:outgoing>
+      <bpmn:outgoing>flow_searchOwned</bpmn:outgoing>
+      <bpmn:outgoing>flow_searchHrEvt</bpmn:outgoing>
+      <bpmn:outgoing>flow_retryHrEvt</bpmn:outgoing>
+      <bpmn:outgoing>flow_regHrEvtUser</bpmn:outgoing>
     </bpmn:exclusiveGateway>
-
-    <!-- ─────────── action: searchCmUser — 메인 사용자 그리드 조회 + ds_mainAll 후속 chain ─────────── -->
     <bpmn:sequenceFlow id="flow_searchCmUser" name="search" sourceRef="actionGateway" targetRef="searchCmUserTask" />
     <bpmn:serviceTask id="searchCmUserTask" name="사용자 조회 (selectCommUser + selectCommUserAll)" camunda:class="commUserMngService">
       <bpmn:extensionElements>
@@ -92,8 +50,6 @@
     <bpmn:endEvent id="endSearchCmUser">
       <bpmn:incoming>flow_searchCmUser_end</bpmn:incoming>
     </bpmn:endEvent>
-
-    <!-- ─────────── action: saveCmUser — 통합 저장 (inserted/updated/deleted 분기 / 2026-06-04 사용자 결정) ─────────── -->
     <bpmn:sequenceFlow id="flow_saveCmUser" name="save" sourceRef="actionGateway" targetRef="saveCmUserTask" />
     <bpmn:serviceTask id="saveCmUserTask" name="사용자 저장 (통합 — inserted/updated/deleted 분기)" camunda:class="commUserMngService">
       <bpmn:extensionElements>
@@ -109,8 +65,6 @@
     <bpmn:endEvent id="endSaveCmUser">
       <bpmn:incoming>flow_saveCmUser_end</bpmn:incoming>
     </bpmn:endEvent>
-
-    <!-- ─────────── action: regCmUser — 계정 생성 (insertCommUser + mergeCommonPwdInit + USER_HIS) ─────────── -->
     <bpmn:sequenceFlow id="flow_regCmUser" name="regCmUser" sourceRef="actionGateway" targetRef="regCmUserTask" />
     <bpmn:serviceTask id="regCmUserTask" name="계정 생성 (insertCommUser + PWD + HIS)" camunda:class="commUserMngService">
       <bpmn:extensionElements>
@@ -126,8 +80,6 @@
     <bpmn:endEvent id="endRegCmUser">
       <bpmn:incoming>flow_regCmUser_end</bpmn:incoming>
     </bpmn:endEvent>
-
-    <!-- ─────────── action: deleteCmUser — 논리삭제 (END_ACTIVE_DATE 마감 + USER_HIS) ─────────── -->
     <bpmn:sequenceFlow id="flow_deleteCmUser" name="deleteCmUser" sourceRef="actionGateway" targetRef="deleteCmUserTask" />
     <bpmn:serviceTask id="deleteCmUserTask" name="계정 삭제 (논리삭제 + HIS)" camunda:class="commUserMngService">
       <bpmn:extensionElements>
@@ -143,8 +95,6 @@
     <bpmn:endEvent id="endDeleteCmUser">
       <bpmn:incoming>flow_deleteCmUser_end</bpmn:incoming>
     </bpmn:endEvent>
-
-    <!-- ─────────── action: reRegCmUser — 계정 재생성 (단건) ─────────── -->
     <bpmn:sequenceFlow id="flow_reRegCmUser" name="reRegCmUser" sourceRef="actionGateway" targetRef="reRegCmUserTask" />
     <bpmn:serviceTask id="reRegCmUserTask" name="계정 재생성 (updateReRegUser + PWD + HIS)" camunda:class="commUserMngService">
       <bpmn:extensionElements>
@@ -160,8 +110,6 @@
     <bpmn:endEvent id="endReRegCmUser">
       <bpmn:incoming>flow_reRegCmUser_end</bpmn:incoming>
     </bpmn:endEvent>
-
-    <!-- ─────────── action: searchUserRoleGrp — 선택 사용자 보유 역할그룹 조회 ─────────── -->
     <bpmn:sequenceFlow id="flow_searchUserRoleGrp" name="searchUserRoleGrp" sourceRef="actionGateway" targetRef="searchUserRoleGrpTask" />
     <bpmn:serviceTask id="searchUserRoleGrpTask" name="보유 역할그룹 조회 (2-table JOIN)" camunda:class="commUserMngService">
       <bpmn:extensionElements>
@@ -178,8 +126,6 @@
     <bpmn:endEvent id="endSearchUserRoleGrp">
       <bpmn:incoming>flow_searchUserRoleGrp_end</bpmn:incoming>
     </bpmn:endEvent>
-
-    <!-- ─────────── action: saveUserRoleGrp — 역할그룹 추가/삭제 + 이력 ─────────── -->
     <bpmn:sequenceFlow id="flow_saveUserRoleGrp" name="saveUserRoleGrp" sourceRef="actionGateway" targetRef="saveUserRoleGrpTask" />
     <bpmn:serviceTask id="saveUserRoleGrpTask" name="역할그룹 저장 (INSERT/DELETE + ROLL_HIS)" camunda:class="commUserMngService">
       <bpmn:extensionElements>
@@ -195,8 +141,6 @@
     <bpmn:endEvent id="endSaveUserRoleGrp">
       <bpmn:incoming>flow_saveUserRoleGrp_end</bpmn:incoming>
     </bpmn:endEvent>
-
-    <!-- ─────────── action: searchRoleGrp — 추가 가능 역할그룹 조회 (NOT EXISTS) ─────────── -->
     <bpmn:sequenceFlow id="flow_searchRoleGrp" name="searchRoleGrp" sourceRef="actionGateway" targetRef="searchRoleGrpTask" />
     <bpmn:serviceTask id="searchRoleGrpTask" name="추가 가능 역할그룹 조회 (NOT EXISTS)" camunda:class="commUserMngService">
       <bpmn:extensionElements>
@@ -213,8 +157,6 @@
     <bpmn:endEvent id="endSearchRoleGrp">
       <bpmn:incoming>flow_searchRoleGrp_end</bpmn:incoming>
     </bpmn:endEvent>
-
-    <!-- ─────────── action: pwdinit — 비밀번호 / SSO 비밀번호 초기화 ─────────── -->
     <bpmn:sequenceFlow id="flow_pwdinit" name="pwdinit" sourceRef="actionGateway" targetRef="pwdinitTask" />
     <bpmn:serviceTask id="pwdinitTask" name="비밀번호/SSO 초기화 (mergeCommonPwdInit / updateCommonSSOPwdInit)" camunda:class="commUserMngService">
       <bpmn:extensionElements>
@@ -231,8 +173,6 @@
     <bpmn:endEvent id="endPwdinit">
       <bpmn:incoming>flow_pwdinit_end</bpmn:incoming>
     </bpmn:endEvent>
-
-    <!-- ─────────── action: saveUserRoleGrpCopy — 역할그룹 복사 (selectRoleMergeObject + mergeCommonCopyRoleGrp + HIS) ─────────── -->
     <bpmn:sequenceFlow id="flow_saveUserRoleGrpCopy" name="saveUserRoleGrpCopy" sourceRef="actionGateway" targetRef="saveUserRoleGrpCopyTask" />
     <bpmn:serviceTask id="saveUserRoleGrpCopyTask" name="역할그룹 복사 (NOT IN + USER_MAPPING upsert + ROLL_HIS)" camunda:class="commUserMngService">
       <bpmn:extensionElements>
@@ -249,8 +189,6 @@
     <bpmn:endEvent id="endSaveUserRoleGrpCopy">
       <bpmn:incoming>flow_saveUserRoleGrpCopy_end</bpmn:incoming>
     </bpmn:endEvent>
-
-    <!-- ─────────── action: commonUserDept — 부서 팝업 조회 (To-Be TB_MCM_DEPT_INFO) ─────────── -->
     <bpmn:sequenceFlow id="flow_commonUserDept" name="commonUserDept" sourceRef="actionGateway" targetRef="commonUserDeptTask" />
     <bpmn:serviceTask id="commonUserDeptTask" name="부서 조회 (TB_MCM_DEPT_INFO)" camunda:class="commUserMngService">
       <bpmn:extensionElements>
@@ -267,8 +205,6 @@
     <bpmn:endEvent id="endCommonUserDept">
       <bpmn:incoming>flow_commonUserDept_end</bpmn:incoming>
     </bpmn:endEvent>
-
-    <!-- ─────────── action: searchDeptLov — Detail 부서 LoV 모달 (2026-06-04 신설 / 사용자 결정) ─────────── -->
     <bpmn:sequenceFlow id="flow_searchDeptLov" name="searchDeptLov" sourceRef="actionGateway" targetRef="searchDeptLovTask" />
     <bpmn:serviceTask id="searchDeptLovTask" name="부서 LoV 조회 (TB_MCM_DEPT_INFO / Detail 모달)" camunda:class="commUserMngService">
       <bpmn:extensionElements>
@@ -285,9 +221,151 @@
     <bpmn:endEvent id="endSearchDeptLov">
       <bpmn:incoming>flow_searchDeptLov_end</bpmn:incoming>
     </bpmn:endEvent>
-
+    <bpmn:serviceTask id="unlockStateTask" name="잠금 해제 (LOCK_YN=N, 비밀번호 유지)" camunda:class="commUserMngService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="unlockUser" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mcm.csa.commUserMng.dto.CommUserMngStateRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_unlock</bpmn:incoming>
+      <bpmn:outgoing>flow_unlock_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="end_unlock">
+      <bpmn:incoming>flow_unlock_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="flow_unlock" name="unlock" sourceRef="actionGateway" targetRef="unlockStateTask" />
+    <bpmn:sequenceFlow id="flow_unlock_end" sourceRef="unlockStateTask" targetRef="end_unlock" />
+    <bpmn:serviceTask id="suspendStateTask" name="관리자 비활성 (USE_TP=N, 세션 끊기)" camunda:class="commUserMngService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="suspendUser" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mcm.csa.commUserMng.dto.CommUserMngStateRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_suspend</bpmn:incoming>
+      <bpmn:outgoing>flow_suspend_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="end_suspend">
+      <bpmn:incoming>flow_suspend_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="flow_suspend" name="suspend" sourceRef="actionGateway" targetRef="suspendStateTask" />
+    <bpmn:sequenceFlow id="flow_suspend_end" sourceRef="suspendStateTask" targetRef="end_suspend" />
+    <bpmn:serviceTask id="resumeStateTask" name="다시 사용 (관리자 비활성만 해제)" camunda:class="commUserMngService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="resumeUser" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mcm.csa.commUserMng.dto.CommUserMngStateRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_resume</bpmn:incoming>
+      <bpmn:outgoing>flow_resume_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="end_resume">
+      <bpmn:incoming>flow_resume_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="flow_resume" name="resume" sourceRef="actionGateway" targetRef="resumeStateTask" />
+    <bpmn:sequenceFlow id="flow_resume_end" sourceRef="resumeStateTask" targetRef="end_resume" />
+    <bpmn:serviceTask id="retireStateTask" name="퇴직 처리 (역할 회수 · 배정 해제 · 인계)" camunda:class="commUserMngService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="retireUser" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mcm.csa.commUserMng.dto.CommUserMngStateRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_retire</bpmn:incoming>
+      <bpmn:outgoing>flow_retire_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="end_retire">
+      <bpmn:incoming>flow_retire_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="flow_retire" name="retire" sourceRef="actionGateway" targetRef="retireStateTask" />
+    <bpmn:sequenceFlow id="flow_retire_end" sourceRef="retireStateTask" targetRef="end_retire" />
+    <bpmn:serviceTask id="handoverStateTask" name="담당 데이터 인계 (MDM)" camunda:class="commUserMngService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="handoverUser" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mcm.csa.commUserMng.dto.CommUserMngStateRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_handover</bpmn:incoming>
+      <bpmn:outgoing>flow_handover_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="end_handover">
+      <bpmn:incoming>flow_handover_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="flow_handover" name="handover" sourceRef="actionGateway" targetRef="handoverStateTask" />
+    <bpmn:sequenceFlow id="flow_handover_end" sourceRef="handoverStateTask" targetRef="end_handover" />
+    <bpmn:serviceTask id="searchOwnedStateTask" name="담당 데이터 조회 (MDM)" camunda:class="commUserMngService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="searchOwned" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mcm.csa.commUserMng.dto.CommUserMngStateRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_searchOwned</bpmn:incoming>
+      <bpmn:outgoing>flow_searchOwned_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="end_searchOwned">
+      <bpmn:incoming>flow_searchOwned_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="flow_searchOwned" name="searchOwned" sourceRef="actionGateway" targetRef="searchOwnedStateTask" />
+    <bpmn:sequenceFlow id="flow_searchOwned_end" sourceRef="searchOwnedStateTask" targetRef="end_searchOwned" />
+    <bpmn:serviceTask id="searchHrEvtStateTask" name="ERP 인사 정보 조회" camunda:class="commUserMngService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="searchHrEvt" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mcm.csa.commUserMng.dto.CommUserMngStateRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_searchHrEvt</bpmn:incoming>
+      <bpmn:outgoing>flow_searchHrEvt_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="end_searchHrEvt">
+      <bpmn:incoming>flow_searchHrEvt_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="flow_searchHrEvt" name="searchHrEvt" sourceRef="actionGateway" targetRef="searchHrEvtStateTask" />
+    <bpmn:sequenceFlow id="flow_searchHrEvt_end" sourceRef="searchHrEvtStateTask" targetRef="end_searchHrEvt" />
+    <bpmn:serviceTask id="retryHrEvtStateTask" name="ERP 인사 정보 다시 처리" camunda:class="commUserMngService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="retryHrEvt" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mcm.csa.commUserMng.dto.CommUserMngStateRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_retryHrEvt</bpmn:incoming>
+      <bpmn:outgoing>flow_retryHrEvt_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="end_retryHrEvt">
+      <bpmn:incoming>flow_retryHrEvt_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="flow_retryHrEvt" name="retryHrEvt" sourceRef="actionGateway" targetRef="retryHrEvtStateTask" />
+    <bpmn:sequenceFlow id="flow_retryHrEvt_end" sourceRef="retryHrEvtStateTask" targetRef="end_retryHrEvt" />
+    <bpmn:serviceTask id="regHrEvtUserStateTask" name="입사 정보로 계정 생성 (D12)" camunda:class="commUserMngService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="regHrEvtUser" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mcm.csa.commUserMng.dto.CommUserMngStateRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_regHrEvtUser</bpmn:incoming>
+      <bpmn:outgoing>flow_regHrEvtUser_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="end_regHrEvtUser">
+      <bpmn:incoming>flow_regHrEvtUser_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="flow_regHrEvtUser" name="regHrEvtUser" sourceRef="actionGateway" targetRef="regHrEvtUserStateTask" />
+    <bpmn:sequenceFlow id="flow_regHrEvtUser_end" sourceRef="regHrEvtUserStateTask" targetRef="end_regHrEvtUser" />
   </bpmn:process>
-
   <bpmndi:BPMNDiagram id="BPMNDiagram_1">
     <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="commUserMng">
       <bpmndi:BPMNShape id="start_di" bpmnElement="start">
@@ -372,6 +450,169 @@
         <di:waypoint x="188" y="918" />
         <di:waypoint x="245" y="918" />
       </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="unlockStateTask_di" bpmnElement="unlockStateTask">
+        <dc:Bounds x="370" y="1920" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="end_unlock_di" bpmnElement="end_unlock">
+        <dc:Bounds x="660" y="1942" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="flow_unlock_di" bpmnElement="flow_unlock">
+        <di:waypoint x="270" y="943" />
+        <di:waypoint x="270" y="1960" />
+        <di:waypoint x="370" y="1960" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="300" y="926" width="48" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_unlock_end_di" bpmnElement="flow_unlock_end">
+        <di:waypoint x="470" y="1960" />
+        <di:waypoint x="660" y="1960" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="suspendStateTask_di" bpmnElement="suspendStateTask">
+        <dc:Bounds x="370" y="2080" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="end_suspend_di" bpmnElement="end_suspend">
+        <dc:Bounds x="660" y="2102" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="flow_suspend_di" bpmnElement="flow_suspend">
+        <di:waypoint x="270" y="943" />
+        <di:waypoint x="270" y="2120" />
+        <di:waypoint x="370" y="2120" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="300" y="926" width="56" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_suspend_end_di" bpmnElement="flow_suspend_end">
+        <di:waypoint x="470" y="2120" />
+        <di:waypoint x="660" y="2120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="resumeStateTask_di" bpmnElement="resumeStateTask">
+        <dc:Bounds x="370" y="2240" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="end_resume_di" bpmnElement="end_resume">
+        <dc:Bounds x="660" y="2262" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="flow_resume_di" bpmnElement="flow_resume">
+        <di:waypoint x="270" y="943" />
+        <di:waypoint x="270" y="2280" />
+        <di:waypoint x="370" y="2280" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="300" y="926" width="48" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_resume_end_di" bpmnElement="flow_resume_end">
+        <di:waypoint x="470" y="2280" />
+        <di:waypoint x="660" y="2280" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="retireStateTask_di" bpmnElement="retireStateTask">
+        <dc:Bounds x="370" y="2400" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="end_retire_di" bpmnElement="end_retire">
+        <dc:Bounds x="660" y="2422" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="flow_retire_di" bpmnElement="flow_retire">
+        <di:waypoint x="270" y="943" />
+        <di:waypoint x="270" y="2440" />
+        <di:waypoint x="370" y="2440" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="300" y="926" width="48" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_retire_end_di" bpmnElement="flow_retire_end">
+        <di:waypoint x="470" y="2440" />
+        <di:waypoint x="660" y="2440" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="handoverStateTask_di" bpmnElement="handoverStateTask">
+        <dc:Bounds x="370" y="2560" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="end_handover_di" bpmnElement="end_handover">
+        <dc:Bounds x="660" y="2582" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="flow_handover_di" bpmnElement="flow_handover">
+        <di:waypoint x="270" y="943" />
+        <di:waypoint x="270" y="2600" />
+        <di:waypoint x="370" y="2600" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="300" y="926" width="64" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_handover_end_di" bpmnElement="flow_handover_end">
+        <di:waypoint x="470" y="2600" />
+        <di:waypoint x="660" y="2600" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="searchOwnedStateTask_di" bpmnElement="searchOwnedStateTask">
+        <dc:Bounds x="370" y="2720" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="end_searchOwned_di" bpmnElement="end_searchOwned">
+        <dc:Bounds x="660" y="2742" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="flow_searchOwned_di" bpmnElement="flow_searchOwned">
+        <di:waypoint x="270" y="943" />
+        <di:waypoint x="270" y="2760" />
+        <di:waypoint x="370" y="2760" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="300" y="926" width="88" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_searchOwned_end_di" bpmnElement="flow_searchOwned_end">
+        <di:waypoint x="470" y="2760" />
+        <di:waypoint x="660" y="2760" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="searchHrEvtStateTask_di" bpmnElement="searchHrEvtStateTask">
+        <dc:Bounds x="370" y="2880" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="end_searchHrEvt_di" bpmnElement="end_searchHrEvt">
+        <dc:Bounds x="660" y="2902" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="flow_searchHrEvt_di" bpmnElement="flow_searchHrEvt">
+        <di:waypoint x="270" y="943" />
+        <di:waypoint x="270" y="2920" />
+        <di:waypoint x="370" y="2920" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="300" y="926" width="88" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_searchHrEvt_end_di" bpmnElement="flow_searchHrEvt_end">
+        <di:waypoint x="470" y="2920" />
+        <di:waypoint x="660" y="2920" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="retryHrEvtStateTask_di" bpmnElement="retryHrEvtStateTask">
+        <dc:Bounds x="370" y="3040" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="end_retryHrEvt_di" bpmnElement="end_retryHrEvt">
+        <dc:Bounds x="660" y="3062" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="flow_retryHrEvt_di" bpmnElement="flow_retryHrEvt">
+        <di:waypoint x="270" y="943" />
+        <di:waypoint x="270" y="3080" />
+        <di:waypoint x="370" y="3080" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="300" y="926" width="80" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_retryHrEvt_end_di" bpmnElement="flow_retryHrEvt_end">
+        <di:waypoint x="470" y="3080" />
+        <di:waypoint x="660" y="3080" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="regHrEvtUserStateTask_di" bpmnElement="regHrEvtUserStateTask">
+        <dc:Bounds x="370" y="3200" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="end_regHrEvtUser_di" bpmnElement="end_regHrEvtUser">
+        <dc:Bounds x="660" y="3222" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="flow_regHrEvtUser_di" bpmnElement="flow_regHrEvtUser">
+        <di:waypoint x="270" y="943" />
+        <di:waypoint x="270" y="3240" />
+        <di:waypoint x="370" y="3240" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="300" y="926" width="96" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_regHrEvtUser_end_di" bpmnElement="flow_regHrEvtUser_end">
+        <di:waypoint x="470" y="3240" />
+        <di:waypoint x="660" y="3240" />
+      </bpmndi:BPMNEdge>
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>
 </bpmn:definitions>
+

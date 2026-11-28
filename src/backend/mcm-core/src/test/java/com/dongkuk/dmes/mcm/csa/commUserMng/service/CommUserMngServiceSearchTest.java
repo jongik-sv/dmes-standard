@@ -80,7 +80,7 @@ class CommUserMngServiceSearchTest extends CommUserMngJpaTestBase {
         }
 
         @Test
-        @DisplayName("반환 Map 은 ds_main, ds_mainAll 두 키 — 행 Map 은 17 컬럼 고정 순서")
+        @DisplayName("반환 Map 은 ds_main, ds_mainAll 두 키 — 행 Map 은 17 컬럼 + 상태 칸 11개 고정 순서")
         void rowShapeAndKeyOrder() {
             fx.dept("D01", "생산팀", "Y");
             SecUser u = new SecUser();
@@ -107,14 +107,19 @@ class CommUserMngServiceSearchTest extends CommUserMngJpaTestBase {
 
             assertThat(out.keySet()).containsExactly("ds_main", "ds_mainAll");
             Map<String, Object> r = grid(out, "ds_main").get(0);
+            // 2026-11-28 — 뒤에 계정 상태 칸 11개(시안 「사용자 비활성화·퇴직 처리」)
             assertThat(r.keySet()).containsExactly(
                     "USER_ID", "USER_EMP_NO", "SSO_ID", "USER_NM", "START_ACTIVE_DATE", "END_ACTIVE_DATE",
                     "DEPT_CD", "USER_CATEGORY_CD", "USE_TP", "EMAIL", "TEL_NO", "MOBILE_TEL_NO",
-                    "IN_OUT_EMP_TP", "GROUP_ID1", "GROUP_ID2", "GROUP_ID3", "DEPT_NM");
+                    "IN_OUT_EMP_TP", "GROUP_ID1", "GROUP_ID2", "GROUP_ID3", "DEPT_NM",
+                    "USER_ST", "USER_ST_NM", "ST_RSN", "LOCK_YN", "HR_ST", "MANAGE_TP", "PWD_TEMP_YN",
+                    "TEMP_PWD_EXP", "LAST_PWD_CHNG_DATE", "PWD_EXPIRY_EXEMPT_YN", "LAST_LOGIN_AT");
             assertThat(r.values()).containsExactly(
                     "kim", "1001", "kim.sso", "김철수", day(1, 2), LocalDateTime.of(9999, 12, 31, 0, 0),
                     "D01", "CAT", "Y", "kim@x.com", "02-1", "010-1",
-                    "I", "G1", "G2", "G3", "생산팀");
+                    "I", "G1", "G2", "G3", "생산팀",
+                    "ACTIVE", "활성", null, "N", null, "HR", "N",
+                    null, null, "N", null);
         }
 
         @Test

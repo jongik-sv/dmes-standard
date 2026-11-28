@@ -305,12 +305,13 @@ public final class CoreRbacSeeder extends SeedSupport {
             return 0;
         }
         int updated = nq(
-                "UPDATE MCMAPUSER.TB_MCM_SEC_USER SET PWD_FAIL_COUNT = 0, USE_TP = 'Y' " +
+                "UPDATE MCMAPUSER.TB_MCM_SEC_USER SET PWD_FAIL_COUNT = 0, USE_TP = 'Y', LOCK_YN = 'N', LOCK_CNT = 0, HR_ST = NULL " +
                 " WHERE USER_ID = 'admin' " +
-                "   AND (USE_TP IS NULL OR USE_TP <> 'Y' OR COALESCE(PWD_FAIL_COUNT, 0) <> 0)")
+                "   AND (USE_TP IS NULL OR USE_TP <> 'Y' OR COALESCE(PWD_FAIL_COUNT, 0) <> 0 " +
+                "        OR COALESCE(LOCK_YN, 'N') <> 'N' OR HR_ST IS NOT NULL)")
                 .executeUpdate();
         if (updated > 0) {
-            log.info("[DataInitializer] local — admin 로그인 잠금 해제 (PWD_FAIL_COUNT=0, USE_TP='Y')");
+            log.info("[DataInitializer] local — admin 로그인 잠금 해제 (PWD_FAIL_COUNT=0, USE_TP='Y', LOCK_YN='N', HR_ST 비움)");
         }
         return updated;
     }

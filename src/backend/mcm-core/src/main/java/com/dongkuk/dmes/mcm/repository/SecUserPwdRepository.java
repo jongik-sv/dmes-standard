@@ -43,10 +43,12 @@ public interface SecUserPwdRepository extends JpaRepository<SecUserPwd, String> 
      * <p>{@link #updateSsoPwd} 와 짝을 이룬다(SSO 쪽). 인증에 실제로 쓰이는 값은
      * USER_ENC_PWD 이고 마지막 변경일이 만료 판정(PasswordPolicyEvaluator#isExpired)의 기준이다.
      * 행이 없으면 0 이 돌아오므로 호출측이 신규 INSERT 로 이어야 한다.
+     *
+     * <p>V24 — 임시 만료일(TEMP_PWD_EXPIRATION_DATE)을 같이 비운다. 마지막 변경일이 채워지면 임시 상태가 끝난다.
      */
     @Modifying
-    @Query("UPDATE SecUserPwd p SET p.userEncPwd = :userEncPwd, p.lastPwdChngDate = :changedDate "
-            + "WHERE p.userId = :userId")
+    @Query("UPDATE SecUserPwd p SET p.userEncPwd = :userEncPwd, p.lastPwdChngDate = :changedDate, "
+            + "p.tempPwdExpirationDate = NULL WHERE p.userId = :userId")
     int updateEncPwd(@Param("userId") String userId,
                      @Param("userEncPwd") String userEncPwd,
                      @Param("changedDate") LocalDateTime changedDate);

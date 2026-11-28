@@ -33,7 +33,7 @@ public final class ObjPermCatalog {
         BTN.put("commPermMng", "lov,save,search,searchPermOne");
         BTN.put("commRoleGrpMng", "save,saveCmRoleGrpMap,search,searchCmRole,searchCmRoleGrpMap,searchCmRoleGrpMenu");
         BTN.put("commRoleMng", "lov,save,saveCmRoleMap,search,searchCmPerm,searchCmRoleMap,searchFolderObj,searchObjectLov,searchRoleGroups");
-        BTN.put("commUserMng", "commonUserDept,deleteCmUser,pwdinit,reRegCmUser,regCmUser,save,saveUserRoleGrp,saveUserRoleGrpCopy,search,searchDeptLov,searchRoleGrp,searchUserRoleGrp");
+        BTN.put("commUserMng", "commonUserDept,deleteCmUser,handover,pwdinit,reRegCmUser,regCmUser,regHrEvtUser,resume,retire,retryHrEvt,save,saveUserRoleGrp,saveUserRoleGrpCopy,search,searchDeptLov,searchHrEvt,searchOwned,searchRoleGrp,searchUserRoleGrp,suspend,unlock");
         BTN.put("commUserRoleCopy", "save,search,searchUserList");
         BTN.put("commWidgetMng", "delete,deleteDefaultTab,deleteLayout,loadDefaultTabs,loadLayout,previewQuery,reorderDefaultTabs,save,saveDefaultTab,saveLayout,search,searchDepts,searchLayouts,upload");
         BTN.put("dataCateEdit", "compare,delete,reg,restore,save,search,view");

@@ -21,4 +21,9 @@ public interface UserQueryAssignRepository extends JpaRepository<UserQueryAssign
 
     /** getDef·run 의 할당 재확인(IDOR). */
     boolean existsByQueryIdAndUserId(String queryId, String userId);
+
+    /** 한 사람의 배정 전부 해제 — 퇴직 처리(2026-11-28 시안 「사용자 쿼리 배정 · 퇴직 해제」). */
+    @Modifying
+    @Query("DELETE FROM UserQueryAssign a WHERE a.userId = :userId")
+    int deleteByUserId(@org.springframework.data.repository.query.Param("userId") String userId);
 }

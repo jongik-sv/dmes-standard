@@ -14,6 +14,9 @@ import com.dongkuk.dmes.mcm.audit.entity.RevokedToken;
 import com.dongkuk.dmes.mcm.audit.repository.LoginLogRepository;
 import com.dongkuk.dmes.mcm.audit.repository.RevokedTokenRepository;
 import com.dongkuk.dmes.mcm.domain.security.service.McmSecUserRepository;
+import com.dongkuk.dmes.mcm.entity.SecUserPwdHis;
+import com.dongkuk.dmes.mcm.repository.SecUserPwdHisRepository;
+import com.dongkuk.dmes.mcm.security.account.McmAccount;
 import com.dongkuk.dmes.mcm.security.endpoint.UserPermCache;
 import com.dongkuk.dmes.mcm.security.password.PasswordPolicyEvaluator;
 import io.jsonwebtoken.Claims;
@@ -52,6 +55,7 @@ public class McmAuthController {
     private final SecretKey jwtSigningKey;
     private final PasswordEncoder passwordEncoder;
     private final McmSecUserRepository mcmSecUserRepository;
+    private final SecUserPwdHisRepository pwdHisRepository;
 
     public McmAuthController(AuthService authService,
                              LoginLogRepository loginLogRepository,
@@ -61,6 +65,7 @@ public class McmAuthController {
                              UserPermCache userPermCache,
                              PasswordEncoder passwordEncoder,
                              McmSecUserRepository mcmSecUserRepository,
+                             SecUserPwdHisRepository pwdHisRepository,
                              @Value("${cactus.jwt.secret}") String jwtSecret) {
         this.authService = authService;
         this.loginLogRepository = loginLogRepository;
@@ -70,6 +75,7 @@ public class McmAuthController {
         this.userPermCache = userPermCache;
         this.passwordEncoder = passwordEncoder;
         this.mcmSecUserRepository = mcmSecUserRepository;
+        this.pwdHisRepository = pwdHisRepository;
         this.jwtSigningKey = Keys.hmacShaKeyFor(Decoders.BASE64.decode(jwtSecret));
     }
 
@@ -97,11 +103,8 @@ public class McmAuthController {
                 // permKeys 빌드 실패는 BE EndpointPermissionFilter 백스톱이 커버.
             }
 
-            // 갭 #9 — 비번 만료 검증. 응답 메타에 passwordExpired 추가
-            SecUser user = secUserRepository.findById(request.userId()).orElse(null);
-            if (user != null && passwordPolicyEvaluator.isExpired(user.getPassSetDd())) {
-                result.put("passwordExpired", true);
-            }
+            // 갭 #9 — 비밀번호 사용 기간은 2026-11-28 부터 McmAuthService.login 이 토큰 전에 판정한다
+            // (만료 = PASSWORD_EXPIRED, 7일 안 = 응답 passwordExpiresInDays). 여기서 더 붙이지 않는다.
             return ApiResponse.ok(result);
         } catch (BusinessException ex) {
             recordLoginEvent(request.userId(), "LOGIN_FAIL", httpRequest);
@@ -156,18 +159,24 @@ public class McmAuthController {
             throw new BusinessException(ErrorCode.INVALID_VALUE, "새 비밀번호는 기존 비밀번호와 달라야 합니다.");
         }
 
-        SecUser user = secUserRepository.findById(userId).orElse(null);
-        // 잠금/비활성은 잠금 해제 전용 경로에서 안내한다. 여기서 ACCOUNT_LOCKED 를 던지면
-        // 계정 존재 여부와 잠금 여부가 갈라져 열거에 쓰인다.
-        boolean accountUsable = user != null
-                && !"Y".equals(user.getLockYn())
-                && passwordEncoder.matches(currentPassword, user.getUserPass());
+        McmAccount acc = mcmSecUserRepository.findAccount(userId).orElse(null);
+        // 잠금·비활성·퇴직·기한 밖은 계정 존재 여부가 새지 않게 「기존 비밀번호 불일치」와 같은 401 로 돌려준다.
+        // 임시 비밀번호 만료만 따로 알린다 — 기존(임시) 비밀번호가 맞은 사람에게만 보인다.
+        boolean passwordOk = acc != null && acc.userEncPwd() != null
+                && passwordEncoder.matches(currentPassword, acc.userEncPwd());
+        boolean accountUsable = passwordOk
+                && !acc.locked()
+                && !acc.state(LocalDate.now()).cutsSession();
         if (!accountUsable) {
-            if (user != null) recordLoginEvent(userId, "LOGIN_FAIL", httpRequest);
+            if (acc != null) recordLoginEvent(userId, "LOGIN_FAIL", httpRequest);
             throw new BusinessException(ErrorCode.AUTH_FAILED, "기존 비밀번호가 올바르지 않습니다.");
         }
+        if (acc.tempPassword() && acc.tempPwdExpirationDate() != null
+                && java.time.LocalDateTime.now().isAfter(acc.tempPwdExpirationDate())) {
+            throw new BusinessException(ErrorCode.TEMP_PASSWORD_EXPIRED);
+        }
 
-        // 갭 #9 — 정책 검증(최소 길이 · 영문/숫자). PasswordPolicyEvaluator 는 mcm-core
+        // 갭 #9 — 정책 검증(최소 길이 · 영문/숫자 · 임시 비밀번호 금지 · 최근 N개 재사용 금지). PasswordPolicyEvaluator 는 mcm-core
         // BusinessException 을 던지는데 전역 핸들러는 cactus 쪽만 잡으므로(그러면 500 으로 새고
         // 사유가 S999 로 뭉개진다) 메시지를 물려받아 cactus 예외로 다시 던진다.
         try {
@@ -177,10 +186,19 @@ public class McmAuthController {
         }
 
         // McmSecUserRepository 는 JpaRepository#save 가 미구현 stub 이라 네이티브 UPDATE 로 쓴다.
-        // 반영 0 이면 PWD 행이 없던 계정이므로 INSERT 로 이어 붙인다.
+        // 반영 0 이면 PWD 행이 없던 계정이므로 INSERT 로 이어 붙인다. 마지막 변경일 = 지금, 임시 만료일 = 빈칸.
         String hashed = passwordEncoder.encode(newPassword);
         if (mcmSecUserRepository.updatePassword(userId, hashed) == 0) {
             mcmSecUserRepository.insertPassword(userId, hashed);
+        }
+        // 비밀번호 이력 — 재사용 금지 비교와 변경 시각·접속 IP 기록(시안 「남는 위험」)
+        try {
+            pwdHisRepository.save(new SecUserPwdHis(userId, java.time.LocalDateTime.now(), hashed,
+                    SecUserPwdHis.TP_SELF, httpRequest != null ? httpRequest.getRemoteAddr() : null));
+        } catch (RuntimeException ex) {
+            // 이력 실패가 변경을 되돌리지 않게 한다 — 다음 변경의 재사용 비교에서 이번 값만 빠진다
+            org.slf4j.LoggerFactory.getLogger(McmAuthController.class)
+                    .warn("[change-password] 비밀번호 이력을 남기지 못했다 — user={} : {}", userId, ex.getMessage());
         }
 
         try { userPermCache.invalidate(userId); } catch (Exception ignore) {}

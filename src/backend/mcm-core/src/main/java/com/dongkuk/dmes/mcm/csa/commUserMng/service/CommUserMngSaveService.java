@@ -18,6 +18,7 @@ import com.dongkuk.dmes.mcm.repository.SecUserHisRepository;
 import com.dongkuk.dmes.mcm.repository.SecUserMappingRepository;
 import com.dongkuk.dmes.mcm.repository.SecUserRepository;
 import com.dongkuk.dmes.mcm.repository.SecUserRollHisRepository;
+import com.dongkuk.dmes.mcm.security.account.AccountState;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import org.slf4j.Logger;
@@ -73,6 +74,8 @@ public class CommUserMngSaveService {
     private final ApplicationEventPublisher eventPublisher;
     private final CommUserMngPwdWriter pwdWriter;
     private final SysadminGuard sysadminGuard;
+    private final CommUserMngHisWriter hisWriter;
+    private final UserLifecycleCore lifecycle;
 
     /** 본인 계정 삭제·끄기·기한 지난 날짜 막기(perm-crudfix c5 a). */
     static final String SELF_ACCOUNT_MSG = "본인 계정은 삭제하거나 끌 수 없습니다";
@@ -87,7 +90,9 @@ public class CommUserMngSaveService {
                            SecRoleGroupMappingRepository secRoleGroupMappingRepository,
                            ApplicationEventPublisher eventPublisher,
                            CommUserMngPwdWriter pwdWriter,
-                           SysadminGuard sysadminGuard) {
+                           SysadminGuard sysadminGuard,
+                           CommUserMngHisWriter hisWriter,
+                           UserLifecycleCore lifecycle) {
         this.secUserRepository = secUserRepository;
         this.secUserMappingRepository = secUserMappingRepository;
         this.secUserHisRepository = secUserHisRepository;
@@ -96,6 +101,8 @@ public class CommUserMngSaveService {
         this.eventPublisher = eventPublisher;
         this.pwdWriter = pwdWriter;
         this.sysadminGuard = sysadminGuard;
+        this.hisWriter = hisWriter;
+        this.lifecycle = lifecycle;
     }
 
     /** 마지막 시스템관리자·본인 SYSADMIN 해제 거절(c5 b) — {@link SysadminGuard.Check#verify}. */
@@ -185,6 +192,7 @@ public class CommUserMngSaveService {
         SysadminGuard.Check sysadminCheck = anyStatus(master, "updated", "U", "deleted", "D")
                 ? sysadminGuard.begin(SysadminGuard.PERM_BUSY) : null;
         int cnt = 0;
+        List<LocalDate> sysadminEnds = new ArrayList<>(); // SYSADMIN 보유자에게 넣은 미래 기한일(D15)
         if (master != null) {
             for (Map<String, Object> row : master) {
                 if (row == null) continue;
@@ -193,6 +201,11 @@ public class CommUserMngSaveService {
                 if (userId == null || userId.isBlank()) {
                     log.warn("[commUserMng.saveCmUser] USER_ID null — skip row (status={})", status);
                     continue;
+                }
+                if (sysadminCheck != null && ("updated".equals(status) || "U".equals(status))
+                        && containsIgnoreCase(sysadminCheck.before(), userId)) {
+                    LocalDateTime end = parseLocalDateTime(row.get("END_ACTIVE_DATE"), null);
+                    if (end != null) sysadminEnds.add(end.toLocalDate());
                 }
                 if ("inserted".equals(status) || "C".equals(status)) {
                     if (applyInsert(row)) cnt++;
@@ -206,9 +219,17 @@ public class CommUserMngSaveService {
             }
         }
         verifySysadmin(sysadminCheck);
+        if (sysadminCheck != null) sysadminGuard.verifyFutureEnd(sysadminEnds, SysadminGuard.LAST_SYSADMIN);
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("cnt_save", cnt);
         return out;
+    }
+
+    private static boolean containsIgnoreCase(Set<String> ids, String id) {
+        for (String s : ids) {
+            if (s.equalsIgnoreCase(id.trim())) return true;
+        }
+        return false;
     }
 
     /**
@@ -239,9 +260,15 @@ public class CommUserMngSaveService {
         u.setGroupId1(strOf(row.get("GROUP_ID1")));
         u.setGroupId2(strOf(row.get("GROUP_ID2")));
         u.setGroupId3(strOf(row.get("GROUP_ID3")));
+        // V24 — 잠금 없음, 인사 상태 비움(인사 연동이 사번으로 이으면 ACTIVE), 사용 기간 제외는 행 값(기본 N)
+        u.setLockYn("N");
+        u.setLockCnt(0L);
+        u.setPwdFailCount(0L);
+        u.setPwdExpiryExemptYn(yn(row.get("PWD_EXPIRY_EXEMPT_YN")));
         secUserRepository.save(u);
 
-        pwdWriter.resetToInitial(userId, userEmpNo);
+        // 임시 비밀번호(D9) — 마지막 변경일 빈칸, 신규 계정은 7일 뒤 23:59:59 까지(D10)
+        pwdWriter.resetToInitial(userId, userEmpNo, true);
 
         // TB_MCM_SEC_USER_HIS — INF_REQ_NO / DESCRIPTION null
         saveUserHis(userId, currentYyyymmdd(), "C", "M",
@@ -271,8 +298,16 @@ public class CommUserMngSaveService {
         entity.setGroupId1(strOf(row.get("GROUP_ID1")));
         entity.setGroupId2(strOf(row.get("GROUP_ID2")));
         entity.setGroupId3(strOf(row.get("GROUP_ID3")));
+        if (row.containsKey("PWD_EXPIRY_EXEMPT_YN")) {
+            entity.setPwdExpiryExemptYn(yn(row.get("PWD_EXPIRY_EXEMPT_YN")));
+        }
         secUserRepository.save(entity);
         return true;
+    }
+
+    /** Y/N 칸 — 'Y' 만 Y, 나머지(빈칸 포함)는 N. */
+    private static String yn(Object v) {
+        return "Y".equalsIgnoreCase(strOf(v)) ? "Y" : "N";
     }
 
     /**
@@ -288,23 +323,21 @@ public class CommUserMngSaveService {
      * 되돌리는 경로는 {@link #reRegCmUser}(→ {@code updateReRegUser(…, "Y")}) 가 이미 담당한다.
      */
     private boolean applyDelete(Map<String, Object> row) {
+        // 2026-11-28 (시안 「사용자 비활성화·퇴직 처리」) — 계정 삭제 = 퇴직 처리. 유효 기한일 오늘 + USE_TP='N',
+        // 역할그룹 회수, 사용자 쿼리 배정 해제, 이력 R(사유 「계정 삭제」). 담당 데이터는 「인계 대기」로 남는다(D4).
+        // 행의 END_ACTIVE_DATE 는 더 쓰지 않는다(퇴직일 = 처리한 날).
         String userId = strOf(row.get("USER_ID"));
-        LocalDateTime endDt = parseLocalDateTime(row.get("END_ACTIVE_DATE"), LocalDateTime.now());
-        // 9999-12-31 sentinel → today 정정 (계정삭제 동작 fix)
-        if (endDt != null && endDt.getYear() >= 9999) {
-            log.info("[commUserMng.saveCmUser/delete] END_ACTIVE_DATE sentinel ({}) → today 로 정정 (userId={})",
-                    endDt, userId);
-            endDt = LocalDate.now().atStartOfDay();
+        SecUser u = secUserRepository.findById(userId).orElse(null);
+        if (u == null) {
+            log.warn("[commUserMng.saveCmUser/delete] skip — USER_ID={} not found", userId);
+            return false;
         }
-        int affected = secUserRepository.updateEndActiveDate(userId, endDt, "N");
-        if (affected > 0) {
-            String activeDt = endDt.format(YYYYMMDD);
-            saveUserHis(userId, activeDt, "D", "M",
-                    strOf(row.get("USER_NM")), null, null);
-            return true;
+        if (lifecycle.stateOf(u) == AccountState.RETIRED) {
+            log.info("[commUserMng.saveCmUser/delete] skip — USER_ID={} 이미 퇴직", userId);
+            return false;
         }
-        log.warn("[commUserMng.saveCmUser/delete] UPDATE 0 rows — USER_ID={} not found", userId);
-        return false;
+        lifecycle.retire(u, "계정 삭제", false, null);
+        return true;
     }
 
     // ────────────────────────────────────────────────────────────────
@@ -318,7 +351,8 @@ public class CommUserMngSaveService {
      * <ol>
      *   <li>updateReRegUser — START_ACTIVE_DATE=today / END_ACTIVE_DATE=9999-12-31 / USE_TP=Y</li>
      *   <li>updateReRegUserCnt < 1 → UserException ("사용자 정보 업데이트에 실패했습니다.")</li>
-     *   <li>mergeCommonPwdInit (bcrypt DEFAULT_PASSWORD + bcrypt(USER_ID+USER_EMP_NO))</li>
+     *   <li>역할그룹 회수·잠금 해제(D7 — 역할 없이 새로 시작, 2026-11-28)</li>
+     *   <li>mergeCommonPwdInit (bcrypt 임시 비밀번호 + bcrypt(USER_ID+USER_EMP_NO)) — 마지막 변경일 빈칸, 7일 기한</li>
      *   <li>TB_MCM_SEC_USER_HIS insert — PROC_TYPE='C', PROC_CASE='M'</li>
      * </ol>
      */
@@ -331,14 +365,23 @@ public class CommUserMngSaveService {
             if (userId == null || userId.isBlank()) {
                 log.warn("[commUserMng.reRegCmUser] USER_ID null — skip");
             } else {
+                SecUser existing = secUserRepository.findById(userId).orElse(null);
+                if (existing != null && AccountState.HR_RETIRED.equals(existing.getHrSt())) {
+                    // 퇴직은 인사가 이긴다 — 재입사는 ERP 입사 정보로 처리한다(연동 규칙)
+                    throw new BusinessException(ErrorCode.BUSINESS_ERROR,
+                            "HR_RETIRED: ERP 인사에서 퇴직한 사람입니다. 재입사는 인사 입사 정보로 처리합니다");
+                }
                 LocalDateTime startDt = LocalDate.now().atStartOfDay();
                 int affected = secUserRepository.updateReRegUser(userId, startDt, END_OF_TIME, "Y");
                 if (affected < 1) {
                     // As-Is UserException — 본 미적용 시 silent log + cnt 0 (오아시스 layer 가 응답 envelope 처리)
                     log.error("[commUserMng.reRegCmUser] 사용자 정보 업데이트에 실패했습니다. USER_ID={}", userId);
                 } else {
-                    // userId 는 이 분기에서 null 이 아니다 — 분할 전 (userId == null ? "" : userId) 와 같은 값.
-                    pwdWriter.resetToInitial(userId, userEmpNo);
+                    // D7 — 역할그룹 없이 새로 시작한다(퇴직 때 회수했지만 그 전에 삭제한 계정은 남아 있을 수 있다).
+                    // 잠금도 푼다. 비밀번호는 임시(신규와 같이 7일).
+                    lifecycle.revokeRoleGroups(userId, "계정 재생성 — 역할 없이 시작");
+                    secUserRepository.clearLock(userId);
+                    pwdWriter.resetToInitial(userId, userEmpNo, true);
                     // 2026-06-04 — INF_REQ_NO / DESCRIPTION 정책 제거. null 적재.
                     saveUserHis(userId, currentYyyymmdd(), "C", "M",
                             strOf(row.get("USER_NM")), null, null);
@@ -468,46 +511,16 @@ public class CommUserMngSaveService {
     // helpers
     // ────────────────────────────────────────────────────────────────
 
-    /** TB_MCM_SEC_USER_HIS save — 정책 #3 (C) JPA Entity 흡수. */
+    /** TB_MCM_SEC_USER_HIS — {@link CommUserMngHisWriter#userHisOn}(V24 순번). */
     private void saveUserHis(String userId, String activeDt, String procType, String procCase,
                              String userNm, String infReqNo, String description) {
-        if (userId == null || activeDt == null) return;
-        SecUserHis h = new SecUserHis();
-        h.setUserId(userId);
-        h.setActiveDt(activeDt);
-        h.setProcType(procType);
-        h.setProcCase(procCase);
-        h.setUserNm(userNm);
-        h.setInfReqNo(infReqNo);
-        h.setDescription(description);
-        secUserHisRepository.save(h);
+        hisWriter.userHisOn(userId, activeDt, procType, procCase, userNm, infReqNo, description);
     }
 
-    /**
-     * TB_MCM_SEC_USER_ROLL_HIS save — 정책 #3 (C) JPA Entity 흡수 (5 복합 PK upsert / mergePK 등가).
-     *
-     * <p>PK 가 날짜까지라 같은 날 같은 그룹을 다시 주면(또는 다시 빼면) 앞 행을 고친다. perm-crudfix c3 — 전에는 새 엔티티를
-     * {@code save}(merge) 해서 C_USR_ID·C_AT 가 null 로 덮였다. 있는 행을 읽어 내용 칸만 바꾼다 → 감사 리스너가 U_* 만 채운다.
-     */
+    /** TB_MCM_SEC_USER_ROLL_HIS — {@link CommUserMngHisWriter#rollHis}. */
     private void saveUserRollHis(String opSumupDt, String worksCode, String userId, String roleGroupId,
                                  String respGbn, String roleGroupNm, String infReqNo, String description) {
-        if (userId == null || roleGroupId == null) return;
-        SecUserRollHis h = secUserRollHisRepository
-                .findById(new SecUserRollHis.PK(opSumupDt, worksCode, userId, roleGroupId, respGbn))
-                .orElseGet(SecUserRollHis::new);
-        h.setOpSumupDt(opSumupDt);
-        h.setWorksCode(worksCode);
-        h.setUserId(userId);
-        h.setRoleGroupId(roleGroupId);
-        h.setRespGbn(respGbn);
-        h.setRoleGroupNm(roleGroupNm);
-        h.setInfReqNo(infReqNo);
-        h.setDescription(description);
-        if (h.getCreatedAt() != null) {
-            // 같은 값으로 다시 줘도 다시 준 시각이 남게 한다(값이 같으면 dirty 가 아니라 PreUpdate 가 돌지 않는다)
-            h.setUpdatedAt(java.time.Instant.now());
-        }
-        secUserRollHisRepository.save(h);
+        hisWriter.rollHis(opSumupDt, worksCode, userId, roleGroupId, respGbn, roleGroupNm, infReqNo, description);
     }
 
     /** ROLE_GROUP_NM 단건 lookup — saveUserRoleGrpCopy 의 ROLL_HIS 적재 보조. */

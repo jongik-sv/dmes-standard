@@ -145,6 +145,7 @@ public class UserQueryStore {
                         from McmSecUser u left join DeptInfo d on d.deptCd = u.deptCd
                         where u.useTp = 'Y'
                           and (u.endActiveDate is null or u.endActiveDate > :now)
+                          and (u.hrSt is null or u.hrSt <> 'RETIRED')
                         order by u.userNm, u.userId
                         """, Object[].class)
                 .setParameter("now", now)

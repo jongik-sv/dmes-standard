@@ -2,7 +2,7 @@
 // 오브젝트 허용 action 카탈로그 생성기 (perm-bench c2, decompose D7·D8·D12).
 //
 //   node scripts/perm/gen-obj-perm.mjs            # 검사만. 디스크와 다르면 종료 코드 1
-//   node scripts/perm/gen-obj-perm.mjs --write    # 산출물 4개를 쓴다
+//   node scripts/perm/gen-obj-perm.mjs --write    # 산출물 3개를 쓴다(V21 은 고정 — 아래 outputs 주석)
 //
 // 입력
 //   - src/backend/**/src/main/resources/services/**/*.bpmn 의 actionGateway 가 내보내는 sequenceFlow `name`
@@ -417,7 +417,11 @@ FROM   TB_MCM_SEC_OBJ
 WHERE  BTN_PERM IS NULL;
 `;
 
-const outputs = [[OUT_JSON, jsonText], [OUT_JAVA, javaText], [OUT_V21, v21Text], [OUT_CHECK, checkText]];
+// 2026-11-28 — V21 은 시험·레인 DB 에 이미 적용된 Flyway 파일이라 다시 쓰지 않는다(한 글자만 바뀌어도 체크섬이 깨진다).
+//   그 뒤 BPMN 에 더한 action 은 새 V 파일이 TB_MCM_SEC_OBJ.BTN_PERM 에 더한다(예: V24__user_lifecycle.sql 의 commUserMng).
+//   v21Text 는 V21 을 처음 만들 때의 모양을 남기려고 계산만 한다.
+void v21Text;
+const outputs = [[OUT_JSON, jsonText], [OUT_JAVA, javaText], [OUT_CHECK, checkText]];
 let drift = 0;
 for (const [file, text] of outputs) {
   const rel = path.relative(ROOT, file).replaceAll('\\', '/');

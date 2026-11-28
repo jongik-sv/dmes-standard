@@ -13,6 +13,7 @@ import com.dongkuk.dmes.mcm.csa.commUserMng.dto.CommUserMngPwdInitRequest;
 import com.dongkuk.dmes.mcm.csa.commUserMng.dto.CommUserMngRoleCopyRequest;
 import com.dongkuk.dmes.mcm.csa.commUserMng.dto.CommUserMngSearchDeptLovRequest;
 import com.dongkuk.dmes.mcm.csa.commUserMng.dto.CommUserMngSearchRequest;
+import com.dongkuk.dmes.mcm.csa.commUserMng.dto.CommUserMngStateRequest;
 import com.dongkuk.dmes.mcm.csa.commUserMng.dto.CommUserMngUserIdRequest;
 import org.springframework.stereotype.Service;
 
@@ -78,15 +79,21 @@ public class CommUserMngService {
     private final CommUserMngSaveService saveService;
     private final CommUserMngPasswordService passwordService;
     private final CommUserMngSsoService ssoService;
+    private final CommUserMngLifecycleService lifecycleService;
+    private final CommUserMngHrService hrService;
 
     public CommUserMngService(CommUserMngQueryService queryService,
                               CommUserMngSaveService saveService,
                               CommUserMngPasswordService passwordService,
-                              CommUserMngSsoService ssoService) {
+                              CommUserMngSsoService ssoService,
+                              CommUserMngLifecycleService lifecycleService,
+                              CommUserMngHrService hrService) {
         this.queryService = queryService;
         this.saveService = saveService;
         this.passwordService = passwordService;
         this.ssoService = ssoService;
+        this.lifecycleService = lifecycleService;
+        this.hrService = hrService;
     }
 
     // ────────────────────────────────────────────────────────────────
@@ -220,5 +227,55 @@ public class CommUserMngService {
     /** action {@code searchDeptLov} — Detail 부서 LoV 모달. 본문: {@link CommUserMngQueryService#searchDeptLov}. */
     public Map<String, Object> searchDeptLov(CommUserMngSearchDeptLovRequest request) {
         return queryService.searchDeptLov(request);
+    }
+
+    // ────────────────────────────────────────────────────────────────
+    // 2026-11-28 — 계정 상태(시안 「사용자 비활성화·퇴직 처리」). BPMN 분기 이름 = 권한 action 이름.
+    // ────────────────────────────────────────────────────────────────
+
+    /** action {@code unlock} — 잠금 해제(비밀번호 유지). 본문: {@link CommUserMngLifecycleService#unlock}. */
+    public Map<String, Object> unlockUser(CommUserMngStateRequest request) {
+        return lifecycleService.unlock(request);
+    }
+
+    /** action {@code suspend} — 관리자 비활성. 본문: {@link CommUserMngLifecycleService#suspend}. */
+    public Map<String, Object> suspendUser(CommUserMngStateRequest request) {
+        return lifecycleService.suspend(request);
+    }
+
+    /** action {@code resume} — 다시 사용. 본문: {@link CommUserMngLifecycleService#resume}. */
+    public Map<String, Object> resumeUser(CommUserMngStateRequest request) {
+        return lifecycleService.resume(request);
+    }
+
+    /** action {@code retire} — 퇴직 처리(역할 회수·배정 해제·인계). 본문: {@link CommUserMngLifecycleService#retire}. */
+    public Map<String, Object> retireUser(CommUserMngStateRequest request) {
+        return lifecycleService.retire(request);
+    }
+
+    /** action {@code handover} — 담당 데이터 인계. 본문: {@link CommUserMngLifecycleService#handover}. */
+    public Map<String, Object> handoverUser(CommUserMngStateRequest request) {
+        return lifecycleService.handover(request);
+    }
+
+    /** action {@code searchOwned} — 한 사람의 담당 데이터. 본문: {@link CommUserMngLifecycleService#searchOwned}. */
+    public Map<String, Object> searchOwned(CommUserMngStateRequest request) {
+        return lifecycleService.searchOwned(request);
+    }
+
+    /** action {@code searchHrEvt} — ERP 인사 정보 목록(실패·계정 생성 대기·대기). 본문: {@link CommUserMngHrService#search}. */
+    public Map<String, Object> searchHrEvt(CommUserMngStateRequest request) {
+        return hrService.search(request == null ? null : request.getPROC_ST());
+    }
+
+    /** action {@code retryHrEvt} — 고른 인사 정보 다시 처리. 본문: {@link CommUserMngHrService#retry}. */
+    public Map<String, Object> retryHrEvt(CommUserMngStateRequest request) {
+        return hrService.retry(request == null ? null : request.getEVT_ID());
+    }
+
+    /** action {@code regHrEvtUser} — 입사 「계정 생성 대기」로 계정 만들기(D12). 본문: {@link CommUserMngHrService#createAccount}. */
+    public Map<String, Object> regHrEvtUser(CommUserMngStateRequest request) {
+        return hrService.createAccount(request == null ? null : request.getEVT_ID(),
+                request == null ? null : request.getNEW_USER_ID());
     }
 }

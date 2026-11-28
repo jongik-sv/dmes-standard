@@ -4,40 +4,47 @@
 package com.dongkuk.dmes.mcm.csa.commUserMng.service;
 
 import com.dongkuk.dmes.mcm.entity.SecUserPwd;
+import com.dongkuk.dmes.mcm.entity.SecUserPwdHis;
+import com.dongkuk.dmes.mcm.repository.SecUserPwdHisRepository;
 import com.dongkuk.dmes.mcm.repository.SecUserPwdRepository;
+import com.dongkuk.dmes.mcm.security.password.PasswordPolicyEvaluator;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Component;
 
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+
 /**
- * commUserMng 비밀번호 행 쓰기 지원 — 초기 비밀번호 상수, bcrypt 인코더, mergeCommonPwdInit 등가 upsert.
+ * commUserMng 비밀번호 행 쓰기 지원 — 임시 비밀번호, bcrypt 인코더, mergeCommonPwdInit 등가 upsert.
  *
  * <p>계정 생성·재생성({@link CommUserMngSaveService}), 단건 초기화({@link CommUserMngPasswordService}),
- * SSO 일괄 초기화({@link CommUserMngSsoService}) 가 같이 쓴다. 분할 전 {@code CommUserMngService} 의
- * {@code bcrypt} 필드·{@code DEFAULT_PASSWORD}·{@code upsertUserPwd} 를 그대로 옮긴 것이다.
+ * SSO 일괄 초기화({@link CommUserMngSsoService}), 인사 입사 계정 생성({@link CommUserMngHrService}) 이 같이 쓴다.
  * 인코더는 이 빈 하나에 {@code new BCryptPasswordEncoder()}(기본 strength 10) 로 하나만 둔다 — 비용 불변.
+ *
+ * <p>2026-11-28 (시안 D9·D10) — 소스 상수 {@code dmesInit!1} 을 지웠다. 임시 비밀번호는 설정
+ * {@code mcm.password.initial}(기본 {@code dmes0000}) 하나를 모두 쓴다(전화로 불러 주기 쉽게). 임시 상태 판정은 값이 아니라
+ * {@code LAST_PWD_CHNG_DATE} 빈칸이다. 그래서 초기화는 그 칸을 비우고 임시 만료일을 쓴다 — 초기화는 그날 23:59:59,
+ * 신규·재생성 계정은 7일 뒤 23:59:59.
  */
 @Component("commUserMngPwdWriter")
 class CommUserMngPwdWriter {
 
-    /**
-     * 신규 계정 생성·비밀번호 초기화 시 부여하는 초기 비밀번호.
-     *
-     * <p><b>실 프로젝트 착수 시 반드시 바꾼다.</b> 지금은 소스 상수라 값이 저장소에 노출되므로,
-     * 운영 적용 전에 설정({@code mcm.password.initial}) 또는 시크릿 저장소로 외부화하고
-     * 최초 로그인 시 변경 강제(비밀번호 만료 정책)와 함께 쓴다.
-     *
-     * <p>2026-09-28 — {@code pwdinit} 가 이 값을 {@code INIT_PWD} 응답으로 되돌려 관리자 화면의
-     * "초기 비밀번호" 팝업에 표시한다(사용자 요청 / 기능설계서 M-032 — As-Is {@code pwdtmp} 콜백 대체).
-     * 값이 화면에 노출되는 경로가 생겼으므로 외부화 과제의 우선순위는 오히려 올라간다.
-     */
-    static final String DEFAULT_PASSWORD = "dmesInit!1";
+    private static final ZoneId KST = ZoneId.of("Asia/Seoul");
 
     private final BCryptPasswordEncoder bcrypt = new BCryptPasswordEncoder();
 
     private final SecUserPwdRepository secUserPwdRepository;
+    private final PasswordPolicyEvaluator passwordPolicy;
+    private final ObjectProvider<SecUserPwdHisRepository> pwdHisRepository;
 
-    CommUserMngPwdWriter(SecUserPwdRepository secUserPwdRepository) {
+    CommUserMngPwdWriter(SecUserPwdRepository secUserPwdRepository,
+                         PasswordPolicyEvaluator passwordPolicy,
+                         ObjectProvider<SecUserPwdHisRepository> pwdHisRepository) {
         this.secUserPwdRepository = secUserPwdRepository;
+        this.passwordPolicy = passwordPolicy;
+        this.pwdHisRepository = pwdHisRepository;
     }
 
     /** bcrypt 해시 — 호출마다 salt 가 새로 붙는다. */
@@ -45,14 +52,42 @@ class CommUserMngPwdWriter {
         return bcrypt.encode(raw);
     }
 
-    /**
-     * 초기 비밀번호와 SSO 비밀번호를 함께 다시 쓴다 — mergeCommonPwdInit 등가.
-     * USER_ENC_PWD = bcrypt(DEFAULT_PASSWORD), USER_SSO_PWD = bcrypt(USER_ID + USER_EMP_NO(null 이면 "")).
-     */
+    /** 임시 비밀번호 평문 — 관리자 팝업 안내용(값은 설정에 있다). */
+    String initialPassword() {
+        return passwordPolicy.initialPassword();
+    }
+
+    /** 관리자 초기화 — 임시 만료 = 그날 23:59:59. */
     void resetToInitial(String userId, String userEmpNo) {
-        upsertUserPwd(userId,
-                bcrypt.encode(DEFAULT_PASSWORD),
-                bcrypt.encode(userId + (userEmpNo == null ? "" : userEmpNo)));
+        resetToInitial(userId, userEmpNo, false);
+    }
+
+    /**
+     * 임시 비밀번호로 다시 쓴다 — mergeCommonPwdInit 등가 + 임시 상태.
+     * USER_ENC_PWD = bcrypt(임시), USER_SSO_PWD = bcrypt(USER_ID + USER_EMP_NO(null 이면 "")),
+     * LAST_PWD_CHNG_DATE = 빈칸, TEMP_PWD_EXPIRATION_DATE = 초기화 그날 / 신규 7일 뒤 23:59:59. 이력에 INIT 한 줄.
+     *
+     * @param newUser 신규·재생성·인사 입사 계정이면 true
+     */
+    void resetToInitial(String userId, String userEmpNo, boolean newUser) {
+        String hash = bcrypt.encode(passwordPolicy.initialPassword());
+        LocalDate today = LocalDate.now(KST);
+        SecUserPwd p = secUserPwdRepository.findById(userId).orElse(null);
+        if (p == null) {
+            p = new SecUserPwd();
+            p.setUserId(userId);
+        }
+        p.setUserEncPwd(hash);
+        p.setUserSsoPwd(bcrypt.encode(userId + (userEmpNo == null ? "" : userEmpNo)));
+        p.setLastPwdChngDate(null);
+        p.setTempPwdExpirationDate(newUser
+                ? passwordPolicy.tempExpiryForNewUser(today)
+                : passwordPolicy.tempExpiryForReset(today));
+        secUserPwdRepository.save(p);
+        SecUserPwdHisRepository his = pwdHisRepository.getIfAvailable();
+        if (his != null) {
+            his.save(new SecUserPwdHis(userId, LocalDateTime.now(KST), hash, SecUserPwdHis.TP_INIT, null));
+        }
     }
 
     /**

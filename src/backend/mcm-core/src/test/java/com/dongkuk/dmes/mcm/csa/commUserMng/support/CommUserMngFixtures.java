@@ -39,6 +39,13 @@ public class CommUserMngFixtures {
     private final SecRoleGroupMappingRepository secRoleGroupMappingRepository;
     private final AuditLogRepository auditLogRepository;
 
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.dongkuk.dmes.mcm.repository.SecUserPwdHisRepository secUserPwdHisRepository;
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.dongkuk.dmes.mcm.repository.SecHrEvtRepository secHrEvtRepository;
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.dongkuk.dmes.mcm.userq.repository.UserQueryAssignRepository userQueryAssignRepository;
+
     public CommUserMngFixtures(SecUserRepository secUserRepository,
                                SecUserMappingRepository secUserMappingRepository,
                                SecUserPwdRepository secUserPwdRepository,
@@ -61,6 +68,10 @@ public class CommUserMngFixtures {
 
     /** 테스트가 건드리는 모든 테이블을 비운다. 컨텍스트가 테스트 클래스 사이에 공유되므로 매 테스트 앞에서 부른다. */
     public void clearAll() {
+        // 2026-11-28 — 비밀번호 이력·인사 정보·사용자 쿼리 배정(퇴직 처리가 지운다)
+        secUserPwdHisRepository.deleteAllInBatch();
+        secHrEvtRepository.deleteAllInBatch();
+        userQueryAssignRepository.deleteAllInBatch();
         secUserMappingRepository.deleteAllInBatch();
         secUserRollHisRepository.deleteAllInBatch();
         secUserHisRepository.deleteAllInBatch();

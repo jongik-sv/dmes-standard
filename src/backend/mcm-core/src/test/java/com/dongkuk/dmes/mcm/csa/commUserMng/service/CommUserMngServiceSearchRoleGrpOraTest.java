@@ -215,5 +215,19 @@ class CommUserMngServiceSearchRoleGrpOraTest {
         @Bean SecUserRollHisRepository secUserRollHisRepository() { return mock(SecUserRollHisRepository.class); }
         @Bean DeptInfoRepository deptInfoRepository() { return mock(DeptInfoRepository.class); }
         @Bean SecRoleGroupMappingRepository secRoleGroupMappingRepository() { return mock(SecRoleGroupMappingRepository.class); }
+        // 2026-11-28 — 계정 상태 처리 빈의 생성자 주입용 대역
+        @Bean com.dongkuk.dmes.mcm.repository.SecHrEvtRepository secHrEvtRepository() {
+            return mock(com.dongkuk.dmes.mcm.repository.SecHrEvtRepository.class);
+        }
+        @Bean com.dongkuk.dmes.mcm.userq.repository.UserQueryAssignRepository userQueryAssignRepository() {
+            return mock(com.dongkuk.dmes.mcm.userq.repository.UserQueryAssignRepository.class);
+        }
+        @Bean com.dongkuk.dmes.mcm.security.password.PasswordPolicyEvaluator passwordPolicyEvaluator() {
+            return new com.dongkuk.dmes.mcm.security.password.PasswordPolicyEvaluator(
+                    new com.dongkuk.dmes.mcm.security.password.McmPasswordProperties());
+        }
+        @Bean com.dongkuk.dmes.mcm.security.account.AccountStatusCache accountStatusCache() {
+            return mock(com.dongkuk.dmes.mcm.security.account.AccountStatusCache.class);
+        }
     }
 }

@@ -143,7 +143,10 @@ public class CommUserRoleCopyService {
                 .append("  LEFT JOIN MCMAPUSER.TB_MCM_DEPT_INFO D ")
                 .append("    ON D.DEPT_CD = S.DEPT_CD AND D.USE_TP = 'Y' ")
                 // Oracle 단일화(oracle-1007) — 방언 분기 없이 ANSI CURRENT_TIMESTAMP 를 쓴다.
-                .append(" WHERE S.END_ACTIVE_DATE > CURRENT_TIMESTAMP AND S.USE_TP = 'Y' ");
+                .append(" WHERE S.END_ACTIVE_DATE > CURRENT_TIMESTAMP AND S.USE_TP = 'Y' ")
+                // 2026-11-28 — 사람 고르는 팝업에서 퇴직자를 뺀다. ERP 퇴직(HR_ST='RETIRED')은 USE_TP 가 'Y' 로 남을 수 있다
+                // (마지막 시스템관리자의 인사 퇴직 — 로그인만 막는다, D15)
+                .append("   AND (S.HR_ST IS NULL OR S.HR_ST <> 'RETIRED') ");
         if (excludeSelf) {
             // 2026-06-04 fix (a) — Copy 대상(본인) 제외
             // 2026-09-04 fix — USER_EMP_NO 가 NULL 인 사용자까지 함께 사라지던 3값 논리 결함 수정.

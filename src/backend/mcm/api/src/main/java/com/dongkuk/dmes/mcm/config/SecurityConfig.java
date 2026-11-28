@@ -62,12 +62,13 @@ public class SecurityConfig {
                                            ObjectProvider<ClientKeyFilter> clientKeyFilterProvider,
                                            RequestIdFilter requestIdFilter,
                                            RevokedTokenFilter revokedTokenFilter,
+                                           AccountStatusFilter accountStatusFilter,
                                            EndpointPermissionFilter endpointPermissionFilter,
                                            McmSecurityDefaults mcmSecurityDefaults) throws Exception {
 
         JwtAuthenticationFilter jwtFilter = new JwtAuthenticationFilter(tokenProvider);
 
-        // 필터 실행 순서를 명시 target 의 사슬로 보장 — requestId → (clientKey) → jwt → revokedToken → endpointPerm
+        // 필터 실행 순서를 명시 target 의 사슬로 보장 — requestId → (clientKey) → jwt → revokedToken → accountStatus → endpointPerm
         http
             .csrf(AbstractHttpConfigurer::disable)
             .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
@@ -87,8 +88,10 @@ public class SecurityConfig {
             .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class)
             // 갭 #12 — JwtAuthenticationFilter 통과 후 jti 블랙리스트 체크
             .addFilterAfter(revokedTokenFilter, JwtAuthenticationFilter.class)
-            // PERM_BUTTON.endpoint 기반 동적 권한체크 (revokedToken 이후, 비즈니스 진입 전)
-            .addFilterAfter(endpointPermissionFilter, RevokedTokenFilter.class);
+            // 2026-11-28 — 계정이 비활성·퇴직·기한 밖이면 살아 있는 토큰도 끊는다(D2)
+            .addFilterAfter(accountStatusFilter, RevokedTokenFilter.class)
+            // PERM_BUTTON.endpoint 기반 동적 권한체크 (계정 상태 이후, 비즈니스 진입 전)
+            .addFilterAfter(endpointPermissionFilter, AccountStatusFilter.class);
 
         ClientKeyFilter clientKeyFilter = clientKeyFilterProvider.getIfAvailable();
         if (clientKeyFilter != null) {
@@ -111,6 +114,17 @@ public class SecurityConfig {
     public FilterRegistrationBean<EndpointPermissionFilter> endpointPermissionFilterRegistration(
             EndpointPermissionFilter filter) {
         FilterRegistrationBean<EndpointPermissionFilter> r = new FilterRegistrationBean<>(filter);
+        r.setEnabled(false);
+        return r;
+    }
+
+    /**
+     * AccountStatusFilter 도 servlet container 자동 등록을 막는다. 보안 체인보다 먼저 한 번 돌면 인증 전이라 통과시키고
+     * OncePerRequestFilter 표지가 남아, 체인 안(JWT 뒤)에서는 건너뛰어 아무것도 끊지 못한다.
+     */
+    @Bean
+    public FilterRegistrationBean<AccountStatusFilter> accountStatusFilterRegistration(AccountStatusFilter filter) {
+        FilterRegistrationBean<AccountStatusFilter> r = new FilterRegistrationBean<>(filter);
         r.setEnabled(false);
         return r;
     }

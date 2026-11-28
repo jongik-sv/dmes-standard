@@ -12,6 +12,16 @@ import com.dongkuk.dmes.mcm.entity.DeptInfo;
 import com.dongkuk.dmes.mcm.entity.SecUser;
 import com.dongkuk.dmes.mcm.repository.DeptInfoRepository;
 import com.dongkuk.dmes.mcm.repository.SecUserRepository;
+import com.dongkuk.dmes.mcm.entity.SecUserHis;
+import com.dongkuk.dmes.mcm.entity.SecUserPwd;
+import com.dongkuk.dmes.mcm.repository.SecUserPwdRepository;
+import com.dongkuk.dmes.mcm.security.account.AccountState;
+import com.dongkuk.dmes.mcm.security.account.UserOwnershipClient;
+import org.springframework.beans.factory.ObjectProvider;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import org.springframework.stereotype.Service;
@@ -33,16 +43,25 @@ import java.util.Set;
 @Service("commUserMngQueryService")
 public class CommUserMngQueryService {
 
+    private static final ZoneId KST = ZoneId.of("Asia/Seoul");
+    private static final DateTimeFormatter LOCK_AT_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
+
     private final SecUserRepository secUserRepository;
     private final DeptInfoRepository deptInfoRepository;
+    private final SecUserPwdRepository secUserPwdRepository;
+    private final ObjectProvider<UserOwnershipClient> ownershipClient;
 
     @PersistenceContext(unitName = "default")
     private EntityManager entityManager;
 
     public CommUserMngQueryService(SecUserRepository secUserRepository,
-                                   DeptInfoRepository deptInfoRepository) {
+                                   DeptInfoRepository deptInfoRepository,
+                                   SecUserPwdRepository secUserPwdRepository,
+                                   ObjectProvider<UserOwnershipClient> ownershipClient) {
         this.secUserRepository = secUserRepository;
         this.deptInfoRepository = deptInfoRepository;
+        this.secUserPwdRepository = secUserPwdRepository;
+        this.ownershipClient = ownershipClient;
     }
 
     // ────────────────────────────────────────────────────────────────
@@ -68,11 +87,39 @@ public class CommUserMngQueryService {
 
         List<SecUser> rows = secUserRepository.searchByFilter(pUserKey, pUseTp, pInOut);
 
+        // 2026-11-28 — 상태·관리 구분·비밀번호 미변경 거르기(상태 계산은 AccountState.of 한 곳)
+        LocalDate today = LocalDate.now(KST);
+        AccountState wantSt = AccountState.parse(request != null ? request.getCboUSERST() : null);
+        String wantManage = request != null ? request.getCboMANAGETP() : null;
+        boolean onlyTemp = request != null && "Y".equals(request.getChkPWDTEMP());
+        boolean onlyOrphan = request != null && "Y".equals(request.getChkORPHAN());
+        Map<String, SecUserPwd> pwdOf = pwdRowsOf(rows);
+        List<SecUser> kept = new ArrayList<>(rows.size());
+        for (SecUser u : rows) {
+            AccountState st = stateOf(u, today);
+            if (wantSt != null && st != wantSt) continue;
+            if ("HR".equals(wantManage) && "O".equals(u.getInOutEmpTp())) continue;
+            if ("MANUAL".equals(wantManage) && !"O".equals(u.getInOutEmpTp())) continue;
+            SecUserPwd p = pwdOf.get(u.getUserId());
+            if (onlyTemp && !(p != null && p.getLastPwdChngDate() == null)) continue;
+            if (onlyOrphan && st != AccountState.RETIRED) continue;
+            kept.add(u);
+        }
+        rows = kept;
+
         Map<String, String> deptNmCache = deptNamesOf(rows);
+        Map<String, LocalDateTime> lastLogin = lastLoginOf(rows);
+        Map<String, String> reasonOf = latestReasonOf(rows, today);
+        Map<String, Long> ownedOf = new HashMap<>();
+        String ownedError = onlyOrphan ? ownedCountsOf(rows, ownedOf) : null;
 
         List<Map<String, Object>> outRows = new ArrayList<>(rows.size());
         for (SecUser u : rows) {
-            outRows.add(toMainRow(u, deptNmCache.get(u.getDeptCd())));
+            if (onlyOrphan && ownedError == null && ownedOf.getOrDefault(u.getUserId(), 0L) <= 0) continue;
+            Map<String, Object> r = toMainRow(u, deptNmCache.get(u.getDeptCd()));
+            addStateColumns(r, u, today, pwdOf.get(u.getUserId()), lastLogin.get(u.getUserId()), reasonOf.get(u.getUserId()));
+            if (onlyOrphan) r.put("OWNED_CNT", ownedError == null ? ownedOf.getOrDefault(u.getUserId(), 0L) : null);
+            outRows.add(r);
         }
 
         // ds_mainAll (V-004 / V-006 전체 사용자 중복 검증용 USER_ID / USER_EMP_NO 만)
@@ -87,7 +134,123 @@ public class CommUserMngQueryService {
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("ds_main", outRows);
         out.put("ds_mainAll", outAllRows);
+        if (ownedError != null) out.put("OWNED_ERROR", ownedError);
         return out;
+    }
+
+    // ────────────────────────────────────────────────────────────────
+    // 2026-11-28 — 계정 상태 칸(시안 「사용자 비활성화·퇴직 처리」)
+    // ────────────────────────────────────────────────────────────────
+
+    static AccountState stateOf(SecUser u, LocalDate today) {
+        return AccountState.of(u.getUseTp(), u.getStartActiveDate(), u.getEndActiveDate(), u.getHrSt(), u.getLockYn(), today);
+    }
+
+    /**
+     * 상태 칸 — USER_ST(코드)·USER_ST_NM(이름)·ST_RSN(사유)·LOCK_YN·HR_ST·MANAGE_TP(HR·MANUAL)·PWD_TEMP_YN(비밀번호 미변경)·
+     * TEMP_PWD_EXP·LAST_PWD_CHNG_DATE·PWD_EXPIRY_EXEMPT_YN·LAST_LOGIN_AT.
+     */
+    private static void addStateColumns(Map<String, Object> r, SecUser u, LocalDate today, SecUserPwd p,
+                                        LocalDateTime lastLogin, String hisReason) {
+        AccountState st = stateOf(u, today);
+        r.put("USER_ST", st.name());
+        r.put("USER_ST_NM", st.label());
+        r.put("ST_RSN", reasonText(st, u, hisReason));
+        r.put("LOCK_YN", "Y".equals(u.getLockYn()) ? "Y" : "N");
+        r.put("HR_ST", u.getHrSt());
+        r.put("MANAGE_TP", "O".equals(u.getInOutEmpTp()) ? "MANUAL" : "HR");
+        r.put("PWD_TEMP_YN", p != null && p.getLastPwdChngDate() == null ? "Y" : "N");
+        r.put("TEMP_PWD_EXP", p == null ? null : p.getTempPwdExpirationDate());
+        r.put("LAST_PWD_CHNG_DATE", p == null ? null : p.getLastPwdChngDate());
+        r.put("PWD_EXPIRY_EXEMPT_YN", "Y".equals(u.getPwdExpiryExemptYn()) ? "Y" : "N");
+        r.put("LAST_LOGIN_AT", lastLogin);
+    }
+
+    private static String reasonText(AccountState st, SecUser u, String hisReason) {
+        return switch (st) {
+            case LOCKED -> "비밀번호 실패 잠금" + (u.getLockAt() == null ? "" : " · " + u.getLockAt().format(LOCK_AT_FMT));
+            case EXPIRED -> u.getEndActiveDate() != null && u.getEndActiveDate().toLocalDate().isBefore(LocalDate.now(KST))
+                    ? "사용 기간 끝 · " + u.getEndActiveDate().toLocalDate()
+                    : "사용 시작 전";
+            case SUSPENDED, RETIRED -> hisReason != null ? hisReason
+                    : (AccountState.HR_LEAVE.equals(u.getHrSt()) ? "휴직(ERP 인사)" : null);
+            default -> null;
+        };
+    }
+
+    /** 비밀번호 행 — 한 번에 읽는다. */
+    private Map<String, SecUserPwd> pwdRowsOf(List<SecUser> rows) {
+        Map<String, SecUserPwd> out = new HashMap<>();
+        if (rows.isEmpty()) return out;
+        List<String> ids = rows.stream().map(SecUser::getUserId).toList();
+        for (SecUserPwd p : secUserPwdRepository.findAllById(ids)) out.put(p.getUserId(), p);
+        return out;
+    }
+
+    /** 마지막 로그인 일시(로그인 이력 TB_SEC_LOGIN_LOG 의 LOGIN_SUCCESS) — D13 「오래 안 쓴 외부 계정」 찾기. */
+    @SuppressWarnings("unchecked")
+    private Map<String, LocalDateTime> lastLoginOf(List<SecUser> rows) {
+        Map<String, LocalDateTime> out = new HashMap<>();
+        if (rows.isEmpty()) return out;
+        List<String> ids = rows.stream().map(SecUser::getUserId).toList();
+        try {
+            for (int i = 0; i < ids.size(); i += 900) {
+                List<Object[]> res = entityManager.createQuery(
+                        "SELECT l.userId, MAX(l.occurredAt) FROM LoginLog l "
+                                + "WHERE l.eventType = 'LOGIN_SUCCESS' AND l.userId IN :ids GROUP BY l.userId")
+                        .setParameter("ids", ids.subList(i, Math.min(ids.size(), i + 900)))
+                        .getResultList();
+                for (Object[] r : res) {
+                    if (r[0] != null && r[1] instanceof java.time.Instant at) {
+                        out.put(String.valueOf(r[0]), LocalDateTime.ofInstant(at, KST));
+                    }
+                }
+            }
+        } catch (RuntimeException ex) {
+            // 로그인 이력을 못 읽어도 목록은 보여 준다(칸만 빈다)
+            org.slf4j.LoggerFactory.getLogger(CommUserMngQueryService.class)
+                    .warn("[commUserMng.searchCmUser] 마지막 로그인 일시를 읽지 못했다: {}", ex.getMessage());
+        }
+        return out;
+    }
+
+    /** 비활성·퇴직 사유 — 그 사람의 가장 최근 비활성(S)·퇴직(R) 이력의 DESCRIPTION. */
+    @SuppressWarnings("unchecked")
+    private Map<String, String> latestReasonOf(List<SecUser> rows, LocalDate today) {
+        Map<String, String> out = new HashMap<>();
+        List<String> ids = rows.stream()
+                .filter(u -> { AccountState st = stateOf(u, today); return st == AccountState.SUSPENDED || st == AccountState.RETIRED; })
+                .map(SecUser::getUserId).toList();
+        for (int i = 0; i < ids.size(); i += 900) {
+            List<SecUserHis> his = entityManager.createQuery(
+                    "SELECT h FROM SecUserHis h WHERE h.userId IN :ids AND h.procType IN ('S','R') "
+                            + "ORDER BY h.activeDt DESC, h.hisSeq DESC", SecUserHis.class)
+                    .setParameter("ids", ids.subList(i, Math.min(ids.size(), i + 900)))
+                    .getResultList();
+            for (SecUserHis h : his) {
+                out.putIfAbsent(h.getUserId(), h.getDescription() == null ? null
+                        : h.getDescription() + " · " + h.getActiveDt().substring(0, 4) + "-" + h.getActiveDt().substring(4, 6)
+                        + "-" + h.getActiveDt().substring(6, 8));
+            }
+        }
+        return out;
+    }
+
+    /** 퇴직자의 MDM 담당 데이터 건수(사람별 합). 실패하면 오류 문구를 돌려준다. */
+    private String ownedCountsOf(List<SecUser> rows, Map<String, Long> into) {
+        if (rows.isEmpty()) return null;
+        UserOwnershipClient client = ownershipClient.getIfAvailable();
+        if (client == null) return "MDM 연결 설정이 없어 담당 데이터를 셀 수 없습니다";
+        try {
+            List<UserOwnershipClient.Person> people = rows.stream()
+                    .map(u -> new UserOwnershipClient.Person(u.getUserId(), u.getUserEmpNo())).toList();
+            for (UserOwnershipClient.Owned o : client.summary(people)) {
+                into.merge(o.userId(), o.cnt(), Long::sum);
+            }
+            return null;
+        } catch (UserOwnershipClient.UnavailableException ex) {
+            return "MDM 담당 데이터를 읽지 못했습니다";
+        }
     }
 
     /**

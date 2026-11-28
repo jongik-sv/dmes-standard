@@ -139,6 +139,26 @@ public class SecUser extends McmAuditEntity {
     @Column(name = "PWD_FAIL_COUNT")
     private Long pwdFailCount;
 
+    /** 잠금 여부 — 비밀번호 실패 잠금(V24). 'Y'/'N'. 관리자 비활성(USE_TP='N')과 따로 담는다. */
+    @Column(name = "LOCK_YN", length = 1)
+    private String lockYn;
+
+    /** 잠근 일시(V24) — SYSADMIN 시간 잠금의 기준. */
+    @Column(name = "LOCK_AT")
+    private LocalDateTime lockAt;
+
+    /** 연속 잠금 횟수(V24) — SYSADMIN 시간 잠금을 15·30·60분으로 늘린다. */
+    @Column(name = "LOCK_CNT")
+    private Long lockCnt;
+
+    /** ERP 인사 상태(V24) — ACTIVE 재직 · LEAVE 휴직 · RETIRED 퇴직. 비어 있으면 인사가 모르는 계정. */
+    @Column(name = "HR_ST", length = 10)
+    private String hrSt;
+
+    /** 비밀번호 사용 기간 제외(V24) — 인터페이스·배치 계정. 'Y'/'N'. */
+    @Column(name = "PWD_EXPIRY_EXEMPT_YN", length = 1)
+    private String pwdExpiryExemptYn;
+
     public SecUser() {}
 
     // ── getter / setter ──
@@ -205,4 +225,19 @@ public class SecUser extends McmAuditEntity {
 
     public Long getPwdFailCount() { return pwdFailCount; }
     public void setPwdFailCount(Long pwdFailCount) { this.pwdFailCount = pwdFailCount; }
+
+    public String getLockYn() { return lockYn; }
+    public void setLockYn(String lockYn) { this.lockYn = lockYn; }
+
+    public LocalDateTime getLockAt() { return lockAt; }
+    public void setLockAt(LocalDateTime lockAt) { this.lockAt = lockAt; }
+
+    public Long getLockCnt() { return lockCnt; }
+    public void setLockCnt(Long lockCnt) { this.lockCnt = lockCnt; }
+
+    public String getHrSt() { return hrSt; }
+    public void setHrSt(String hrSt) { this.hrSt = hrSt; }
+
+    public String getPwdExpiryExemptYn() { return pwdExpiryExemptYn; }
+    public void setPwdExpiryExemptYn(String pwdExpiryExemptYn) { this.pwdExpiryExemptYn = pwdExpiryExemptYn; }
 }

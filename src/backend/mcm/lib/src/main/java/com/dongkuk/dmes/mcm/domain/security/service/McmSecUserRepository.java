@@ -9,8 +9,10 @@ package com.dongkuk.dmes.mcm.domain.security.service;
 
 import com.dongkuk.dmes.cactus.security.auth.SecUser;
 import com.dongkuk.dmes.cactus.security.auth.SecUserRepository;
-import com.dongkuk.dmes.mcm.entity.SecUserPwd;
 import com.dongkuk.dmes.mcm.repository.SecUserPwdRepository;
+import com.dongkuk.dmes.mcm.security.account.AccountState;
+import com.dongkuk.dmes.mcm.security.account.McmAccount;
+import com.dongkuk.dmes.mcm.security.account.McmAccountReader;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import org.slf4j.Logger;
@@ -25,7 +27,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.ZoneId;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
@@ -39,10 +40,13 @@ import java.util.function.Function;
  * {@code MCMAPUSER.TB_MCM_SEC_USER_PWD} 로 swap. cactus AuthService 가 본 구현체를 자동 주입
  * 받도록 {@code @Primary}.
  *
- * <p>cactus AuthService (login / refresh) 가 사용하는 4 메서드만 실제 구현:
+ * <p>2026-11-28 (V24) — 잠금은 LOCK_YN·LOCK_AT·LOCK_CNT 로 따로 담는다. 아래 매핑 설명 중 「USE_TP='N' → 잠금」은
+ * 옛 동작이다. 계정 값은 {@link McmAccountReader} 하나가 읽는다.
+ *
+ * <p>cactus AuthService (login / refresh) 가 사용하는 메서드만 실제 구현:
  * <ul>
  *   <li>{@link #findById(String)} — TB_MCM_SEC_USER + TB_MCM_SEC_USER_PWD JOIN → cactus.SecUser 로 매핑</li>
- *   <li>{@link #lockUser(String)} — USE_TP='N' 으로 SET (TB_MCM_SEC_USER 에는 LOCK_YN 컬럼 ✗ — USE_TP 통일)</li>
+ *   <li>{@link #lockUser(String)} — LOCK_YN='Y'·LOCK_AT·LOCK_CNT+1</li>
  *   <li>{@link #incrementTryCnt(String)} — PWD_FAIL_COUNT++</li>
  *   <li>{@link #resetTryCnt(String)} — PWD_FAIL_COUNT=0</li>
  * </ul>
@@ -74,9 +78,11 @@ public class McmSecUserRepository implements SecUserRepository {
     private EntityManager entityManager;
 
     private final SecUserPwdRepository secUserPwdRepository;
+    private final McmAccountReader accountReader;
 
-    public McmSecUserRepository(SecUserPwdRepository secUserPwdRepository) {
+    public McmSecUserRepository(SecUserPwdRepository secUserPwdRepository, McmAccountReader accountReader) {
         this.secUserPwdRepository = secUserPwdRepository;
+        this.accountReader = accountReader;
     }
 
     // ─────────────────────────────────────────────────────────────────────
@@ -91,55 +97,52 @@ public class McmSecUserRepository implements SecUserRepository {
      */
     @Override
     @Transactional(readOnly = true)
-    @SuppressWarnings("unchecked")
     public Optional<SecUser> findById(String userId) {
-        if (userId == null || userId.isBlank()) return Optional.empty();
-
-        List<Object[]> rows = entityManager.createNativeQuery(
-                "SELECT USER_ID, USER_NM, USER_EMP_NO, USE_TP, START_ACTIVE_DATE, END_ACTIVE_DATE, " +
-                "       DEPT_CD, PWD_FAIL_COUNT " +
-                "  FROM MCMAPUSER.TB_MCM_SEC_USER WHERE USER_ID = :userId")
-                .setParameter("userId", userId)
-                .getResultList();
-        if (rows == null || rows.isEmpty()) return Optional.empty();
-        Object[] r = rows.get(0);
-
-        SecUser user = new SecUser();
-        user.setUserId(asString(r[0]));
-        user.setUserNm(asString(r[1]));
-        user.setUserNo(asString(r[2]));
-        String useTp = asString(r[3]);
-        user.setUseYn(useTp); // TB_MCM_SEC_USER.USE_TP 그대로 (Y/N 동일 의미)
-        // TB_MCM_SEC_USER 에 LOCK_YN 별도 컬럼 ✗ — USE_TP='N' 이면 잠금 동등 취급.
-        // login fail count 누적 분리가 필요하면 향후 LOCK_YN 컬럼 별도 추가 시 확장.
-        user.setLockYn("N");
-        user.setValidStrDd(toLocalDate(r[4]));
-        user.setValidEndDd(toLocalDate(r[5]));
-        user.setDeptCd(asString(r[6]));
-        Number pwdFail = (Number) r[7];
-        user.setTryCnt(pwdFail == null ? 0 : pwdFail.intValue());
-
-        // 비밀번호 SoT — TB_MCM_SEC_USER_PWD (USER_ENC_PWD).
-        Optional<SecUserPwd> pwdOpt = secUserPwdRepository.findById(userId);
-        if (pwdOpt.isPresent()) {
-            SecUserPwd pwd = pwdOpt.get();
-            user.setUserPass(pwd.getUserEncPwd());
-            user.setPassSetDd(toLocalDate(pwd.getLastPwdChngDate()));
-        }
-        user.setPassInitYn("N");
-
-        return Optional.of(user);
+        return accountReader.find(userId).map(McmSecUserRepository::toSecUser);
     }
 
     /**
-     * 로그인 실패 횟수를 0 으로 리셋. TB_MCM_SEC_USER.PWD_FAIL_COUNT = 0.
+     * 로그인·토큰 갱신·세션 판정용 계정 한 줄 — 상태 칸(LOCK_YN·HR_ST·임시 비밀번호)까지 담는다.
+     */
+    @Transactional(readOnly = true)
+    public Optional<McmAccount> findAccount(String userId) {
+        return accountReader.find(userId);
+    }
+
+    /**
+     * cactus.SecUser 로 옮긴다(2026-11-28 V24 뒤).
+     * <ul>
+     *   <li>useYn = 'Y' 는 USE_TP='Y' 이고 인사 휴직·퇴직이 아닐 때만</li>
+     *   <li>lockYn = LOCK_YN(비밀번호 실패 잠금). 전에는 칸이 없어 늘 'N' 이었다</li>
+     *   <li>passInitYn = 마지막 변경일이 비면 'Y'(임시 비밀번호). 전에는 늘 'N' 이었다</li>
+     * </ul>
+     */
+    static SecUser toSecUser(McmAccount a) {
+        SecUser user = new SecUser();
+        user.setUserId(a.userId());
+        user.setUserNm(a.userNm());
+        user.setUserNo(a.userEmpNo());
+        boolean hrBlocked = AccountState.HR_LEAVE.equals(a.hrSt()) || AccountState.HR_RETIRED.equals(a.hrSt());
+        user.setUseYn("Y".equals(a.useTp()) && !hrBlocked ? "Y" : "N");
+        user.setLockYn(a.locked() ? "Y" : "N");
+        user.setValidStrDd(a.startActiveDate() == null ? null : a.startActiveDate().toLocalDate());
+        user.setValidEndDd(a.endActiveDate() == null ? null : a.endActiveDate().toLocalDate());
+        user.setTryCnt((int) a.pwdFailCount());
+        user.setUserPass(a.userEncPwd());
+        user.setPassSetDd(a.lastPwdChngDate() == null ? null : a.lastPwdChngDate().toLocalDate());
+        user.setPassInitYn(a.tempPassword() ? "Y" : "N");
+        return user;
+    }
+
+    /**
+     * 로그인 성공 — 실패 횟수와 연속 잠금 횟수를 0 으로. TB_MCM_SEC_USER.PWD_FAIL_COUNT = 0, LOCK_CNT = 0.
      */
     @Override
     @Transactional
     public void resetTryCnt(String userId) {
         if (userId == null || userId.isBlank()) return;
         int updated = entityManager.createNativeQuery(
-                "UPDATE MCMAPUSER.TB_MCM_SEC_USER SET PWD_FAIL_COUNT = 0 WHERE USER_ID = :userId")
+                "UPDATE MCMAPUSER.TB_MCM_SEC_USER SET PWD_FAIL_COUNT = 0, LOCK_CNT = 0 WHERE USER_ID = :userId")
                 .setParameter("userId", userId)
                 .executeUpdate();
         if (updated == 0) log.debug("[McmSecUserRepository] resetTryCnt — userId {} 미존재", userId);
@@ -161,31 +164,48 @@ public class McmSecUserRepository implements SecUserRepository {
     }
 
     /**
-     * 사용자 잠금. TB_MCM_SEC_USER 에 LOCK_YN 컬럼 ✗ — USE_TP='N' 으로 SET (잠금 동등).
+     * 비밀번호 실패 잠금 — LOCK_YN='Y', LOCK_AT=지금, LOCK_CNT+1 (V24). USE_TP 는 건드리지 않는다
+     * (전에는 USE_TP='N' 으로 잠가 관리자 비활성·삭제와 구분이 안 됐다).
      */
     @Override
     @Transactional
     public void lockUser(String userId) {
         if (userId == null || userId.isBlank()) return;
         int updated = entityManager.createNativeQuery(
-                "UPDATE MCMAPUSER.TB_MCM_SEC_USER SET USE_TP = 'N' WHERE USER_ID = :userId")
+                "UPDATE MCMAPUSER.TB_MCM_SEC_USER "
+                        + "   SET LOCK_YN = 'Y', LOCK_AT = LOCALTIMESTAMP, LOCK_CNT = COALESCE(LOCK_CNT, 0) + 1 "
+                        + " WHERE USER_ID = :userId")
                 .setParameter("userId", userId)
                 .executeUpdate();
         if (updated == 0) log.debug("[McmSecUserRepository] lockUser — userId {} 미존재", userId);
     }
 
     /**
-     * 사용자 잠금 해제 — USE_TP='Y' / PWD_FAIL_COUNT=0.
+     * 관리자 잠금 해제 — LOCK_YN='N', 실패 횟수·연속 잠금 횟수 0. 비밀번호는 그대로 둔다(시안 「잠금 해제 (비밀번호 유지)」).
      */
     @Override
     @Transactional
     public void unlockUser(String userId) {
         if (userId == null || userId.isBlank()) return;
         int updated = entityManager.createNativeQuery(
-                "UPDATE MCMAPUSER.TB_MCM_SEC_USER SET USE_TP = 'Y', PWD_FAIL_COUNT = 0 WHERE USER_ID = :userId")
+                "UPDATE MCMAPUSER.TB_MCM_SEC_USER SET LOCK_YN = 'N', LOCK_AT = NULL, PWD_FAIL_COUNT = 0, LOCK_CNT = 0 "
+                        + " WHERE USER_ID = :userId")
                 .setParameter("userId", userId)
                 .executeUpdate();
         if (updated == 0) log.debug("[McmSecUserRepository] unlockUser — userId {} 미존재", userId);
+    }
+
+    /**
+     * SYSADMIN 시간 잠금이 지나 저절로 푼다 — LOCK_YN='N', 실패 횟수 0. 연속 잠금 횟수(LOCK_CNT)는 남겨
+     * 다시 잠기면 더 길게 잠근다(D15). 로그인 성공 때 {@link #resetTryCnt} 가 0 으로 되돌린다.
+     */
+    @Transactional
+    public void releaseTimedLock(String userId) {
+        if (userId == null || userId.isBlank()) return;
+        entityManager.createNativeQuery(
+                "UPDATE MCMAPUSER.TB_MCM_SEC_USER SET LOCK_YN = 'N', PWD_FAIL_COUNT = 0 WHERE USER_ID = :userId")
+                .setParameter("userId", userId)
+                .executeUpdate();
     }
 
     /**
@@ -265,25 +285,5 @@ public class McmSecUserRepository implements SecUserRepository {
     @Override public <S extends SecUser> boolean exists(Example<S> example) { throw unsupported("exists(Example)"); }
     @Override public <S extends SecUser, R> R findBy(Example<S> example, Function<org.springframework.data.repository.query.FluentQuery.FetchableFluentQuery<S>, R> queryFunction) {
         throw unsupported("findBy");
-    }
-
-    // ─────────────────────────────────────────────────────────────────────
-    // 변환 helpers
-    // ─────────────────────────────────────────────────────────────────────
-
-    private static String asString(Object v) {
-        return v == null ? null : v.toString();
-    }
-
-    private static LocalDate toLocalDate(Object v) {
-        if (v == null) return null;
-        if (v instanceof LocalDate ld) return ld;
-        if (v instanceof LocalDateTime ldt) return ldt.toLocalDate();
-        if (v instanceof java.sql.Date d) return d.toLocalDate();
-        if (v instanceof java.sql.Timestamp ts) return ts.toLocalDateTime().toLocalDate();
-        if (v instanceof java.util.Date jd) {
-            return jd.toInstant().atZone(ZoneId.systemDefault()).toLocalDate();
-        }
-        return null;
     }
 }

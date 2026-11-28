@@ -140,4 +140,21 @@ public interface SecUserRepository extends JpaRepository<SecUser, String> {
               AND (u.endActiveDate IS NULL OR u.endActiveDate > :now)
             """)
     List<String> findActiveUserIds(@Param("now") LocalDateTime now);
+
+    /** 잠금 칸 비우기 — 계정 재생성(2026-11-28). 벌크 UPDATE 라 영속성 컨텍스트의 같은 엔티티를 다시 저장하지 않는다. */
+    @Modifying
+    @Query("UPDATE McmSecUser u SET u.lockYn = 'N', u.lockAt = NULL, u.lockCnt = 0 WHERE u.userId = :userId")
+    int clearLock(@Param("userId") String userId);
+
+    /** 사번으로 계정 찾기 — ERP 인사 연동의 맞추는 키(2026-11-28). 둘 이상이면 연동이 처리하지 않는다. */
+    List<SecUser> findByUserEmpNo(String userEmpNo);
+
+    /** 사람 고르는 팝업용 — 퇴직자를 뺀 사용자(USE_TP='N' 이면서 기한 지남, 또는 ERP 퇴직). */
+    @Query("""
+            SELECT u FROM McmSecUser u
+            WHERE (u.hrSt IS NULL OR u.hrSt <> 'RETIRED')
+              AND NOT (u.useTp = 'N' AND u.endActiveDate IS NOT NULL AND u.endActiveDate < :tomorrow)
+            ORDER BY u.userId
+            """)
+    List<SecUser> findNotRetired(@Param("tomorrow") LocalDateTime tomorrow);
 }

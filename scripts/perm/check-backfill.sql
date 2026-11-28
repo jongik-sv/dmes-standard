@@ -41,7 +41,7 @@ WITH CAT AS (
     UNION ALL
     SELECT 'commRoleMng', 'lov,save,saveCmRoleMap,search,searchCmPerm,searchCmRoleMap,searchFolderObj,searchObjectLov,searchRoleGroups', NULL FROM DUAL
     UNION ALL
-    SELECT 'commUserMng', 'commonUserDept,deleteCmUser,pwdinit,reRegCmUser,regCmUser,save,saveUserRoleGrp,saveUserRoleGrpCopy,search,searchDeptLov,searchRoleGrp,searchUserRoleGrp', NULL FROM DUAL
+    SELECT 'commUserMng', 'commonUserDept,deleteCmUser,handover,pwdinit,reRegCmUser,regCmUser,regHrEvtUser,resume,retire,retryHrEvt,save,saveUserRoleGrp,saveUserRoleGrpCopy,search,searchDeptLov,searchHrEvt,searchOwned,searchRoleGrp,searchUserRoleGrp,suspend,unlock', NULL FROM DUAL
     UNION ALL
     SELECT 'commUserRoleCopy', 'save,search,searchUserList', NULL FROM DUAL
     UNION ALL

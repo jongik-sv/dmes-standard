@@ -46,7 +46,8 @@ import java.util.Map;
 @Configuration
 @EnableTransactionManagement
 @EnableJpaRepositories(
-        basePackageClasses = {SecUserRepository.class, AuditLogRepository.class},
+        basePackageClasses = {SecUserRepository.class, AuditLogRepository.class,
+                com.dongkuk.dmes.mcm.userq.repository.UserQueryAssignRepository.class},
         includeFilters = @ComponentScan.Filter(type = FilterType.ASSIGNABLE_TYPE, classes = {
                 SecUserRepository.class,
                 SecUserMappingRepository.class,
@@ -56,7 +57,11 @@ import java.util.Map;
                 DeptInfoRepository.class,
                 SecRoleGroupMappingRepository.class,
                 SecRoleGroupRepository.class,
-                AuditLogRepository.class
+                AuditLogRepository.class,
+                // 2026-11-28 — 계정 상태(시안 「사용자 비활성화·퇴직 처리」)
+                com.dongkuk.dmes.mcm.repository.SecUserPwdHisRepository.class,
+                com.dongkuk.dmes.mcm.repository.SecHrEvtRepository.class,
+                com.dongkuk.dmes.mcm.userq.repository.UserQueryAssignRepository.class
         }))
 @ComponentScan(
         basePackages = {"com.dongkuk.dmes.mcm.csa.commUserMng", "com.dongkuk.dmes.mcm.csa.commPerm"},
@@ -71,7 +76,7 @@ public class CommUserMngJpaTestConfig {
     @Bean
     public LocalContainerEntityManagerFactoryBean entityManagerFactory(DataSource dataSource) {
         LocalContainerEntityManagerFactoryBean em = McmCoreOraTestDb.entityManagerFactory(dataSource,
-                "com.dongkuk.dmes.mcm.entity", "com.dongkuk.dmes.mcm.audit.entity");
+                "com.dongkuk.dmes.mcm.entity", "com.dongkuk.dmes.mcm.audit.entity", "com.dongkuk.dmes.mcm.userq.entity");
         // SQL 을 바꾸지 않고 기록만 한다 — 성능 근거 테스트(*SqlCountTest)가 SQL 수를 센다(DELETE 를 세던 SecUserServiceDeleteSqlCountTest 는
         // 2026-10-16 archive/test/security 로 옮겼다 — BE 리팩토링 2회차 F7). 전제(SqlStatementCounter javadoc): hibernate.jdbc.batch_size 를
         // 넣지 않는다 — 켜면 실행 횟수가 아니라 준비 횟수를 센다. 이 구성을 쓰는 시험은 순차 실행이어야 한다(전역 계수기 공유).
@@ -100,6 +105,36 @@ public class CommUserMngJpaTestConfig {
             @Override public String currentUserId() { return CURRENT_USER.get(); }
             @Override public boolean hasAuthority(String authority) { return false; }
         };
+    }
+
+    /** 비밀번호 정책 — 코드 기본값(임시 dmes0000·신규 7일·사용 기간 90일·최근 5개). */
+    @Bean
+    public com.dongkuk.dmes.mcm.security.password.McmPasswordProperties mcmPasswordProperties() {
+        return new com.dongkuk.dmes.mcm.security.password.McmPasswordProperties();
+    }
+
+    @Bean
+    public com.dongkuk.dmes.mcm.security.password.PasswordPolicyEvaluator passwordPolicyEvaluator(
+            com.dongkuk.dmes.mcm.security.password.McmPasswordProperties props,
+            com.dongkuk.dmes.mcm.repository.SecUserPwdHisRepository his) {
+        return new com.dongkuk.dmes.mcm.security.password.PasswordPolicyEvaluator(props, his);
+    }
+
+    @Bean
+    public com.dongkuk.dmes.mcm.security.account.McmAccountReader mcmAccountReader() {
+        return new com.dongkuk.dmes.mcm.security.account.McmAccountReader();
+    }
+
+    @Bean
+    public com.dongkuk.dmes.mcm.security.account.AccountStatusCache accountStatusCache(
+            com.dongkuk.dmes.mcm.security.account.McmAccountReader reader) {
+        return new com.dongkuk.dmes.mcm.security.account.AccountStatusCache(reader);
+    }
+
+    /** 담당 데이터 — MDM 주소 없이(호출 없음). */
+    @Bean
+    public com.dongkuk.dmes.mcm.security.account.DefaultUserOwnershipClient userOwnershipClient() {
+        return new com.dongkuk.dmes.mcm.security.account.DefaultUserOwnershipClient("", "");
     }
 
     /** 서비스가 발행한 {@code RoleChangedEvent} 를 모은다. 테스트마다 {@link RoleChangedEventCollector#clear()} 한다. */

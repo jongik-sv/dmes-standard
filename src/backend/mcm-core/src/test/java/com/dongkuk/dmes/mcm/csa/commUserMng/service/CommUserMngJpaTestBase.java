@@ -37,8 +37,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 @SpringJUnitConfig(CommUserMngJpaTestConfig.class)
 abstract class CommUserMngJpaTestBase {
 
-    /** 서비스 소스 상수와 같은 값(초기 비밀번호). 반환 INIT_PWD 와 저장 해시로 고정한다. */
-    static final String DEFAULT_PASSWORD = "dmesInit!1";
+    /** 임시 비밀번호 — 설정 mcm.password.initial 의 기본값(2026-11-28 D9). 반환 INIT_PWD 와 저장 해시로 고정한다. */
+    static final String DEFAULT_PASSWORD = "dmes0000";
 
     static final DateTimeFormatter YYYYMMDD = DateTimeFormatter.ofPattern("yyyyMMdd");
 
@@ -92,6 +92,22 @@ abstract class CommUserMngJpaTestBase {
     /** SALT·LAST_PWD_CHNG_DATE·USER_ENC_TEMP_PWD·TEMP_PWD_EXPIRATION_DATE 까지 채운 비밀번호 행. */
     SecUserPwd pwdWithOtherColumns(String userId, String encPwd, String ssoPwd) {
         return fx.pwd(userId, encPwd, ssoPwd, "salt-" + userId, KEPT_LAST_PWD_CHNG, "tmp-" + userId, KEPT_TEMP_PWD_EXP);
+    }
+
+    /**
+     * 임시 비밀번호 상태(2026-11-28 D9·D10) — 마지막 변경일 빈칸, 임시 만료일 = 초기화 그날 23:59:59 / 신규·재생성 7일 뒤 23:59:59.
+     * SALT·USER_ENC_TEMP_PWD 는 그대로.
+     */
+    void assertTempPwdState(String userId, boolean newUser, boolean hadOtherColumns) {
+        SecUserPwd p = secUserPwdRepository.findById(userId).orElseThrow();
+        assertThat(p.getLastPwdChngDate()).isNull();
+        java.time.LocalDate today = LocalDate.now(java.time.ZoneId.of("Asia/Seoul"));
+        assertThat(p.getTempPwdExpirationDate())
+                .isEqualTo((newUser ? today.plusDays(7) : today).atTime(23, 59, 59));
+        if (hadOtherColumns) {
+            assertThat(p.getSalt()).isEqualTo("salt-" + userId);
+            assertThat(p.getUserEncTempPwd()).isEqualTo("tmp-" + userId);
+        }
     }
 
     /** {@link #pwdWithOtherColumns} 로 넣은 네 컬럼이 그대로인지 — DB 에서 다시 읽어 확인한다. */

@@ -146,16 +146,25 @@
     "btn": [
       "commonUserDept",
       "deleteCmUser",
+      "handover",
       "pwdinit",
       "reRegCmUser",
       "regCmUser",
+      "regHrEvtUser",
+      "resume",
+      "retire",
+      "retryHrEvt",
       "save",
       "saveUserRoleGrp",
       "saveUserRoleGrpCopy",
       "search",
       "searchDeptLov",
+      "searchHrEvt",
+      "searchOwned",
       "searchRoleGrp",
-      "searchUserRoleGrp"
+      "searchUserRoleGrp",
+      "suspend",
+      "unlock"
     ],
     "popup": []
   },
