@@ -13,6 +13,9 @@ import org.springframework.core.env.Profiles;
  */
 public final class CoreRbacSeeder extends SeedSupport {
 
+    /** 시드 admin 의 EMAIL — 예시 도메인(RFC 2606). 사용자 관리 화면의 EMAIL 필수 검증을 통과시키는 용도다. */
+    public static final String ADMIN_SEED_EMAIL = "admin@example.com";
+
     private final PasswordEncoder passwordEncoder;
     private final Environment environment;
 
@@ -28,11 +31,13 @@ public final class CoreRbacSeeder extends SeedSupport {
      */
     public void seedCoreRbac() {
         // TB_MCM_SEC_USER — admin
+        // 2026-11-28 — EMAIL 을 함께 넣는다. 사용자 관리(commUserMng)는 EMAIL 이 필수라 비어 있으면 admin 행을 저장할 수 없다.
+        //   값은 예시 도메인(RFC 2606)이다 — 실제 주소를 시드에 두지 않는다.
         insertIfAbsent(
                 "TB_MCM_SEC_USER", "USER_ID", "admin",
                 "INSERT INTO MCMAPUSER.TB_MCM_SEC_USER " +
-                "(USER_ID, USER_NM, USER_EMP_NO, DEPT_CD, USE_TP, IN_OUT_EMP_TP, START_ACTIVE_DATE, END_ACTIVE_DATE" + AUDIT_COLS + ") " +
-                "VALUES ('admin', N'관리자', 'E0001', 'IT', 'Y', 'I', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59'" + AUDIT_VALS + ")");
+                "(USER_ID, USER_NM, USER_EMP_NO, DEPT_CD, USE_TP, IN_OUT_EMP_TP, EMAIL, START_ACTIVE_DATE, END_ACTIVE_DATE" + AUDIT_COLS + ") " +
+                "VALUES ('admin', N'관리자', 'E0001', 'IT', 'Y', 'I', '" + ADMIN_SEED_EMAIL + "', SYSTIMESTAMP, TIMESTAMP '9999-12-31 23:59:59'" + AUDIT_VALS + ")");
 
         // TB_MCM_SEC_USER_PWD — admin 비밀번호 (BCrypt). passwordEncoder 가 null 인 빈 환경에서는 skip.
         if (passwordEncoder != null) {
@@ -54,6 +59,7 @@ public final class CoreRbacSeeder extends SeedSupport {
             log.info("[DataInitializer] admin password force-reset to 'admin123' (UPDATE rows={})", updated);
         }
         unlockLocalAdmin();
+        fillLocalAdminEmail();
 
         // TB_MCM_SEC_ROLEGROUP — ROLE_GROUP_SYSADMIN
         insertIfAbsent(
@@ -314,6 +320,29 @@ public final class CoreRbacSeeder extends SeedSupport {
                 .executeUpdate();
         if (updated > 0) {
             log.info("[DataInitializer] local — admin 로그인 잠금 해제 (PWD_FAIL_COUNT=0, USE_TP='Y', LOCK_YN='N', HR_ST 비움)");
+        }
+        return updated;
+    }
+
+    /**
+     * local 프로필(프로필 미지정 폴백 포함) 부팅 때 EMAIL 이 빈 admin 행에 예시 EMAIL({@link #ADMIN_SEED_EMAIL})을 채운다.
+     *
+     * <p>EMAIL 없이 시드된 옛 DB 의 admin 은 사용자 관리(commUserMng)의 EMAIL 필수 검증에 막혀 저장할 수 없다. 새 DB 는 위 INSERT 가
+     * EMAIL 을 넣는다. admin 외 계정, local 이 아닌 프로필(dev·prod 등)은 건드리지 않는다. EMAIL 이 이미 있으면 쓰지 않는다.
+     *
+     * @return 채운 행 수(0 또는 1)
+     */
+    public int fillLocalAdminEmail() {
+        if (!environment.acceptsProfiles(Profiles.of("local"))) {
+            return 0;
+        }
+        int updated = nq(
+                "UPDATE MCMAPUSER.TB_MCM_SEC_USER SET EMAIL = :email " +
+                " WHERE USER_ID = 'admin' AND TRIM(EMAIL) IS NULL")
+                .setParameter("email", ADMIN_SEED_EMAIL)
+                .executeUpdate();
+        if (updated > 0) {
+            log.info("[DataInitializer] local — admin EMAIL 이 비어 예시 주소로 채움 ({})", ADMIN_SEED_EMAIL);
         }
         return updated;
     }
