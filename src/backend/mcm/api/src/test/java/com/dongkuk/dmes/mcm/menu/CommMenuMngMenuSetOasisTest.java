@@ -17,6 +17,7 @@ import com.dongkuk.dmes.mcm.csa.commObjMng.service.CommObjMngService;
 import com.dongkuk.dmes.mcm.entity.SecMenu;
 import com.dongkuk.dmes.mcm.entity.SecObj;
 import com.dongkuk.dmes.mcm.entity.SecRoleMapping;
+import com.dongkuk.dmes.mcm.entity.SecRolePerm;
 import com.dongkuk.dmes.mcm.repository.CommPermQueryRepository;
 import com.dongkuk.dmes.mcm.repository.SecMenuFldLovRepository;
 import com.dongkuk.dmes.mcm.repository.SecMenuNativeRepository;
@@ -261,7 +262,8 @@ class CommMenuMngMenuSetOasisTest {
         @Bean
         LocalContainerEntityManagerFactoryBean entityManagerFactory(DataSource dataSource) {
             return McmOraTestDb.entityManagerFactory(dataSource, "default",
-                    SecMenu.class.getName(), SecObj.class.getName(), SecRoleMapping.class.getName());
+                    SecMenu.class.getName(), SecObj.class.getName(), SecRoleMapping.class.getName(),
+                    SecRolePerm.class.getName());
         }
 
         @Bean(name = {"transactionManager", "txBiz"})
