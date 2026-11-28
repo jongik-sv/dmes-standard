@@ -129,8 +129,9 @@ export const MenuCol = memo(function MenuCol({
           );
         },
       },
+      // width 는 fit 비율이다. minWidth 를 주지 않으면 shared 가 width 를 최소 폭으로 써서 칸이 좁아지지 않는다(NAME·STATE)
       {
-        key: "NAME", header: "메뉴 · 화면", width: 300, sortable: false, filter: false, meta: false,
+        key: "NAME", header: "메뉴 · 화면", width: 300, minWidth: 120, sortable: false, filter: false, meta: false,
         render: (_v, r) => {
           const row = r as MenuGridRow;
           const dim = row.HIDDEN || row.OBJ_UNUSED;
@@ -153,7 +154,7 @@ export const MenuCol = memo(function MenuCol({
         },
       },
       {
-        key: "STATE", header: "상태", width: 110, sortable: false, filter: false, meta: false,
+        key: "STATE", header: "상태", width: 110, minWidth: 72, sortable: false, filter: false, meta: false,
         render: (_v, r) => {
           const row = r as MenuGridRow;
           return (
