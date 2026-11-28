@@ -307,6 +307,7 @@ export interface ApplyResult {
  * - PERM_BAD_VALUE = 입력 값 형식 오류(이력 기간 형식·양 끝 포함 366일 넘음 등)
  * - PERM_BUSY = 잠금 대기 5초 넘음·교착·APPLY_ID 충돌 → 잠시 뒤 다시 시도
  * - VALIDATION_ERROR(적용할 초안 없음·메모 1,000자 넘음)·PERM_REQUIRED·PERM_BAD_SOURCE·PERM_NOT_READY·PERM_DRAFT_NOT_READY = 서버 상세 글을 그대로 보인다(f10 실응답 대조)
+ * - PERM_LAST_SYSADMIN = 적용 결과 활성 SYSADMIN 보유자 0명 · PERM_SELF_LOCKOUT = 본인 SYSADMIN 해제(perm-crudfix c5 c, 적용 전체 거절·초안 남음)
  * - PERM_CONFLICT 상세 = 범위 목록 「group:G,role:R,user:U」(쓰기 단계 제약 위반도 같은 모양). api.ts 가 접두를 떼어 scopes 로 읽는다
  */
 export type PermApplyErrorCode =
@@ -325,7 +326,9 @@ export type PermApplyErrorCode =
   | "PERM_REQUIRED"
   | "PERM_BAD_SOURCE"
   | "PERM_NOT_READY"
-  | "PERM_DRAFT_NOT_READY";
+  | "PERM_DRAFT_NOT_READY"
+  | "PERM_LAST_SYSADMIN"
+  | "PERM_SELF_LOCKOUT";
 
 /** 아는 실패 코드 전부(api.ts 가 문구 앞 코드를 이 목록으로 읽는다). */
 export const PERM_ERROR_CODES: readonly PermApplyErrorCode[] = [
@@ -345,6 +348,8 @@ export const PERM_ERROR_CODES: readonly PermApplyErrorCode[] = [
   "PERM_BAD_SOURCE",
   "PERM_NOT_READY",
   "PERM_DRAFT_NOT_READY",
+  "PERM_LAST_SYSADMIN",
+  "PERM_SELF_LOCKOUT",
 ];
 
 /** apply 실패. PERM_CONFLICT 면 scopes 에 충돌 범위(사람·그룹·역할 ID)가 온다. */

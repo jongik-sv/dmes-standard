@@ -615,3 +615,21 @@ export function keepSavedRole<T extends RoleLikeRow>(list: T[], roleId: string |
   const row = saved?.find((r) => String(r.ROLE_ID ?? "") === roleId);
   return row ? [row, ...list] : list;
 }
+
+/** SYSADMIN 역할 ID(런타임 별칭 ROLE_SYSADMIN 포함 — BE CommPermQueryRepository.SYSADMIN_ROLE_IDS 와 같다). */
+const SYSADMIN_ROLE_IDS = new Set(["SYSADMIN", "ROLE_SYSADMIN"]);
+
+/**
+ * 역할 행을 지울 수 없는 이유(perm-crudfix c4 — 서버 ROLE_IN_USE 와 같은 기준·문구). 지울 수 있으면 null.
+ * SYSADMIN = 쓰는 곳과 상관없이 막는다. 그 밖 = 그룹 수(GROUP_CNT)·퍼미션 수(PERM_CNT)가 하나라도 있으면 막는다.
+ * 새 행(inserted)은 서버에 없으니 보지 않는다.
+ */
+export function roleDeleteBlock(r: RoleLikeRow & { GROUP_CNT?: unknown; PERM_CNT?: unknown }): string | null {
+  if (r.nativeeditor_status === "inserted") return null;
+  const id = String(r.ROLE_ID ?? "").trim();
+  if (SYSADMIN_ROLE_IDS.has(id)) return `「${id}」 시스템관리자 역할은 지울 수 없습니다.`;
+  const groups = Math.max(0, Number(r.GROUP_CNT ?? 0) || 0);
+  const perms = Math.max(0, Number(r.PERM_CNT ?? 0) || 0);
+  if (groups > 0 || perms > 0) return `「${id}」 역할은 퍼미션 ${perms}건·그룹 ${groups}개에서 쓰는 역할이라 지울 수 없습니다. 퍼미션과 그룹 연결을 먼저 빼세요.`;
+  return null;
+}

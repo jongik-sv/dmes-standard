@@ -5,6 +5,9 @@
 package com.dongkuk.dmes.mcm.csa.commUserMng.service;
 
 import com.dongkuk.dmes.mcm.common.event.RoleChangedEvent;
+import com.dongkuk.dmes.mcm.common.exception.BusinessException;
+import com.dongkuk.dmes.mcm.common.exception.ErrorCode;
+import com.dongkuk.dmes.mcm.csa.commPerm.SysadminGuard;
 import com.dongkuk.dmes.mcm.csa.commUserMng.dto.CommUserMngRoleCopyRequest;
 import com.dongkuk.dmes.mcm.entity.SecUser;
 import com.dongkuk.dmes.mcm.entity.SecUserHis;
@@ -69,6 +72,10 @@ public class CommUserMngSaveService {
     private final SecRoleGroupMappingRepository secRoleGroupMappingRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final CommUserMngPwdWriter pwdWriter;
+    private final SysadminGuard sysadminGuard;
+
+    /** 본인 계정 삭제·끄기·기한 지난 날짜 막기(perm-crudfix c5 a). */
+    static final String SELF_ACCOUNT_MSG = "본인 계정은 삭제하거나 끌 수 없습니다";
 
     @PersistenceContext(unitName = "default")
     private EntityManager entityManager;
@@ -79,7 +86,8 @@ public class CommUserMngSaveService {
                            SecUserRollHisRepository secUserRollHisRepository,
                            SecRoleGroupMappingRepository secRoleGroupMappingRepository,
                            ApplicationEventPublisher eventPublisher,
-                           CommUserMngPwdWriter pwdWriter) {
+                           CommUserMngPwdWriter pwdWriter,
+                           SysadminGuard sysadminGuard) {
         this.secUserRepository = secUserRepository;
         this.secUserMappingRepository = secUserMappingRepository;
         this.secUserHisRepository = secUserHisRepository;
@@ -87,6 +95,54 @@ public class CommUserMngSaveService {
         this.secRoleGroupMappingRepository = secRoleGroupMappingRepository;
         this.eventPublisher = eventPublisher;
         this.pwdWriter = pwdWriter;
+        this.sysadminGuard = sysadminGuard;
+    }
+
+    /** 마지막 시스템관리자·본인 SYSADMIN 해제 거절(c5 b) — {@link SysadminGuard.Check#verify}. */
+    private static void verifySysadmin(SysadminGuard.Check check) {
+        if (check != null) {
+            check.verify(SysadminGuard.LAST_SYSADMIN, SysadminGuard.LAST_MSG,
+                    SysadminGuard.SELF_LOCKOUT, SysadminGuard.SELF_ROLE_MSG);
+        }
+    }
+
+    /** 이 줄들 중 status 가 하나라도 있나. */
+    private static boolean anyStatus(List<Map<String, Object>> master, String... statuses) {
+        if (master == null) return false;
+        for (Map<String, Object> row : master) {
+            if (row == null) continue;
+            String s = resolveStatus(row);
+            for (String want : statuses) {
+                if (want.equals(s)) return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * 본인 계정 잠금 막기(c5 a) — 로그인한 사용자의 줄이 삭제이거나, 수정으로 유효 기간이 오늘을 벗어나면
+     * {@code SELF_LOCKOUT} 으로 거절한다(아무것도 쓰기 전). 수정 줄은 USE_TP 를 쓰지 않으므로(applyUpdate) 기간만 본다.
+     */
+    private void requireNotSelfLockout(List<Map<String, Object>> master) {
+        String me = sysadminGuard.currentUserId();
+        if (me == null || master == null) return;
+        LocalDate today = sysadminGuard.today();
+        for (Map<String, Object> row : master) {
+            if (row == null) continue;
+            String userId = strOf(row.get("USER_ID"));
+            if (userId == null || !me.equalsIgnoreCase(userId.trim())) continue;
+            String status = resolveStatus(row);
+            boolean lock = "deleted".equals(status) || "D".equals(status);
+            if ("updated".equals(status) || "U".equals(status)) {
+                LocalDateTime end = parseLocalDateTime(row.get("END_ACTIVE_DATE"), null);
+                LocalDateTime start = parseLocalDateTime(row.get("START_ACTIVE_DATE"), null);
+                lock = (end != null && end.toLocalDate().isBefore(today))
+                       || (start != null && start.toLocalDate().isAfter(today));
+            }
+            if (lock) {
+                throw new BusinessException(ErrorCode.BUSINESS_ERROR, SysadminGuard.SELF_LOCKOUT + ": " + SELF_ACCOUNT_MSG);
+            }
+        }
     }
 
     /**
@@ -124,6 +180,10 @@ public class CommUserMngSaveService {
      * <p>응답: {@code cnt_save} = inserted + updated + deleted 처리 row 수 합산.
      */
     public Map<String, Object> saveCmUser(List<Map<String, Object>> master) {
+        requireNotSelfLockout(master);
+        // c5 b — 삭제·기간 수정은 SYSADMIN 보유자를 줄일 수 있다. 쓰기 전에 잠그고 저장 뒤 다시 본다.
+        SysadminGuard.Check sysadminCheck = anyStatus(master, "updated", "U", "deleted", "D")
+                ? sysadminGuard.begin(SysadminGuard.PERM_BUSY) : null;
         int cnt = 0;
         if (master != null) {
             for (Map<String, Object> row : master) {
@@ -145,6 +205,7 @@ public class CommUserMngSaveService {
                 }
             }
         }
+        verifySysadmin(sysadminCheck);
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("cnt_save", cnt);
         return out;
@@ -308,6 +369,9 @@ public class CommUserMngSaveService {
     public Map<String, Object> saveUserRoleGrp(List<Map<String, Object>> master) {
         int cnt = 0;
         Set<String> touchedRoleGroupIds = new LinkedHashSet<>(); // 캐시 무효화 대상
+        // c5 b — 그룹 빼기(SYSADMIN 그룹 포함)가 마지막 시스템관리자·본인 SYSADMIN 을 없애면 거절
+        SysadminGuard.Check sysadminCheck = anyStatus(master, "deleted", "D")
+                ? sysadminGuard.begin(SysadminGuard.PERM_BUSY) : null;
         if (master != null) {
             String today = currentYyyymmdd();
             for (Map<String, Object> row : master) {
@@ -347,6 +411,7 @@ public class CommUserMngSaveService {
                 }
             }
         }
+        verifySysadmin(sysadminCheck);
         publishRoleChanged(touchedRoleGroupIds);
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("cnt_save", cnt);
@@ -418,11 +483,18 @@ public class CommUserMngSaveService {
         secUserHisRepository.save(h);
     }
 
-    /** TB_MCM_SEC_USER_ROLL_HIS save — 정책 #3 (C) JPA Entity 흡수 (5 복합 PK upsert / mergePK 등가). */
+    /**
+     * TB_MCM_SEC_USER_ROLL_HIS save — 정책 #3 (C) JPA Entity 흡수 (5 복합 PK upsert / mergePK 등가).
+     *
+     * <p>PK 가 날짜까지라 같은 날 같은 그룹을 다시 주면(또는 다시 빼면) 앞 행을 고친다. perm-crudfix c3 — 전에는 새 엔티티를
+     * {@code save}(merge) 해서 C_USR_ID·C_AT 가 null 로 덮였다. 있는 행을 읽어 내용 칸만 바꾼다 → 감사 리스너가 U_* 만 채운다.
+     */
     private void saveUserRollHis(String opSumupDt, String worksCode, String userId, String roleGroupId,
                                  String respGbn, String roleGroupNm, String infReqNo, String description) {
         if (userId == null || roleGroupId == null) return;
-        SecUserRollHis h = new SecUserRollHis();
+        SecUserRollHis h = secUserRollHisRepository
+                .findById(new SecUserRollHis.PK(opSumupDt, worksCode, userId, roleGroupId, respGbn))
+                .orElseGet(SecUserRollHis::new);
         h.setOpSumupDt(opSumupDt);
         h.setWorksCode(worksCode);
         h.setUserId(userId);
@@ -431,6 +503,10 @@ public class CommUserMngSaveService {
         h.setRoleGroupNm(roleGroupNm);
         h.setInfReqNo(infReqNo);
         h.setDescription(description);
+        if (h.getCreatedAt() != null) {
+            // 같은 값으로 다시 줘도 다시 준 시각이 남게 한다(값이 같으면 dirty 가 아니라 PreUpdate 가 돌지 않는다)
+            h.setUpdatedAt(java.time.Instant.now());
+        }
         secUserRollHisRepository.save(h);
     }
 

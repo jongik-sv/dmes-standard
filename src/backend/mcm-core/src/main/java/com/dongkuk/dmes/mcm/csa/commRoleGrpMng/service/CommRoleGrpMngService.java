@@ -9,6 +9,8 @@ package com.dongkuk.dmes.mcm.csa.commRoleGrpMng.service;
 import com.dongkuk.dmes.mcm.common.event.RoleChangedEvent;
 import com.dongkuk.dmes.mcm.csa.commRoleGrpMng.dto.CommRoleGrpMngSearchMapRequest;
 import com.dongkuk.dmes.mcm.csa.commRoleGrpMng.dto.CommRoleGrpMngSearchRequest;
+import com.dongkuk.dmes.mcm.csa.commPerm.GroupUsageQuery;
+import com.dongkuk.dmes.mcm.csa.commPerm.SysadminGuard;
 import com.dongkuk.dmes.mcm.entity.SecRoleGroup;
 import com.dongkuk.dmes.mcm.entity.SecRoleGroupMapping;
 import com.dongkuk.dmes.mcm.repository.CommPermQueryRepository;
@@ -26,6 +28,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import static com.dongkuk.dmes.mcm.common.util.McmValues.strOf;
 import static com.dongkuk.dmes.mcm.common.util.McmValues.parseLocalDateTime;
@@ -82,6 +85,8 @@ public class CommRoleGrpMngService {
     private final SecRoleGroupMappingRepository secRoleGroupMappingRepository;
     private final SecRoleGroupMappingNativeRepository secRoleGroupMappingNativeRepository;
     private final CommPermQueryRepository commPermQueryRepository;
+    private final GroupUsageQuery groupUsageQuery;
+    private final SysadminGuard sysadminGuard;
 
     private final ApplicationEventPublisher eventPublisher;
 
@@ -89,12 +94,45 @@ public class CommRoleGrpMngService {
                                  SecRoleGroupMappingRepository secRoleGroupMappingRepository,
                                  SecRoleGroupMappingNativeRepository secRoleGroupMappingNativeRepository,
                                  CommPermQueryRepository commPermQueryRepository,
+                                 GroupUsageQuery groupUsageQuery,
+                                 SysadminGuard sysadminGuard,
                                  ApplicationEventPublisher eventPublisher) {
         this.secRoleGroupRepository = secRoleGroupRepository;
         this.secRoleGroupMappingRepository = secRoleGroupMappingRepository;
         this.secRoleGroupMappingNativeRepository = secRoleGroupMappingNativeRepository;
         this.commPermQueryRepository = commPermQueryRepository;
+        this.groupUsageQuery = groupUsageQuery;
+        this.sysadminGuard = sysadminGuard;
         this.eventPublisher = eventPublisher;
+    }
+
+    /** 그룹 끄기·매핑 빼기가 마지막 시스템관리자를 없애면 거절(c5 d). 쓰기 전에 잠근다. */
+    private SysadminGuard.Check beginSysadminCheck(boolean mayReduce) {
+        return mayReduce ? sysadminGuard.begin(SysadminGuard.PERM_BUSY) : null;
+    }
+
+    private static void verifySysadmin(SysadminGuard.Check check) {
+        if (check != null) {
+            check.verify(SysadminGuard.LAST_SYSADMIN, SysadminGuard.LAST_MSG,
+                    SysadminGuard.SELF_LOCKOUT, SysadminGuard.SELF_ROLE_MSG);
+        }
+    }
+
+    private static String statusOf(Map<String, Object> row) {
+        String status = strOf(row.get("rowStatus"));
+        return status == null || status.isBlank() ? strOf(row.get("!nativeeditor_status")) : status;
+    }
+
+    private static boolean anyStatus(List<Map<String, Object>> master, String... statuses) {
+        if (master == null) return false;
+        for (Map<String, Object> row : master) {
+            if (row == null) continue;
+            String s = statusOf(row);
+            for (String want : statuses) {
+                if (want.equals(s)) return true;
+            }
+        }
+        return false;
     }
 
     // ────────────────────────────────────────────────────────────────
@@ -120,8 +158,9 @@ public class CommRoleGrpMngService {
 
         List<SecRoleGroup> rows = secRoleGroupRepository.searchByFilter(pRoleGroupId, pRoleGroupNm, pUseTp);
         List<Map<String, Object>> outRows = new ArrayList<>(rows.size());
+        Map<String, GroupUsageQuery.Usage> usage = groupUsageQuery.byGroup();
         for (SecRoleGroup r : rows) {
-            outRows.add(toSearchRow(r));
+            outRows.add(toSearchRow(r, usage));
         }
 
         Map<String, Object> out = new LinkedHashMap<>();
@@ -158,6 +197,10 @@ public class CommRoleGrpMngService {
      */
     public Map<String, Object> saveCmRoleGrp(List<Map<String, Object>> master) {
         int cnt = 0;
+        // c5 d — 그룹 수정(USE_TP·기간)·삭제는 SYSADMIN 보유자를 줄일 수 있다. 쓰기 전에 잠그고 저장 뒤 다시 본다.
+        // 「inserted」 도 본다 — 매핑만 남은(그룹 행 없는) 그룹 ID 로 꺼진 그룹을 새로 넣으면 보유자가 줄 수 있다
+        SysadminGuard.Check sysadminCheck = beginSysadminCheck(anyStatus(master, "updated", "U", "deleted", "D", "inserted", "C"));
+        Set<String> changedGroupIds = new LinkedHashSet<>(); // USE_TP·유효 기간이 바뀐 그룹(캐시 무효화 대상)
         if (master != null) {
             for (Map<String, Object> row : master) {
                 if (row == null) continue;
@@ -207,6 +250,10 @@ public class CommRoleGrpMngService {
                         log.warn("[commRoleGrpMng.saveCmRoleGrp] update skip — ROLE_GROUP_ID={} not found", roleGroupId);
                         continue;
                     }
+                    // 역할이 연결된 그룹도 이름·설명·사용 여부·기간을 고칠 수 있다(perm-crudfix c1 — As-Is V-003 화면 막기 없앰, 삭제는 위에서 그대로 막음).
+                    String oldUseTp = entity.getUseTp();
+                    LocalDateTime oldStart = entity.getStartActiveDate();
+                    LocalDateTime oldEnd = entity.getEndActiveDate();
                     entity.setRoleGroupNm(strOf(row.get("ROLE_GROUP_NM")));
                     entity.setRoleGroupDesc(strOf(row.get("ROLE_GROUP_DESC")));
                     entity.setUseTp(strOf(row.get("USE_TP")));
@@ -214,16 +261,30 @@ public class CommRoleGrpMngService {
                     entity.setEndActiveDate(parseLocalDateTime(row.get("END_ACTIVE_DATE"), entity.getEndActiveDate()));
                     secRoleGroupRepository.save(entity);
                     cnt++;
+                    if (!Objects.equals(oldUseTp, entity.getUseTp())
+                        || !Objects.equals(oldStart, entity.getStartActiveDate())
+                        || !Objects.equals(oldEnd, entity.getEndActiveDate())) {
+                        changedGroupIds.add(roleGroupId);
+                    }
                 } else {
                     log.warn("[commRoleGrpMng.saveCmRoleGrp] unknown status={} — skip", status);
                 }
             }
         }
+        verifySysadmin(sysadminCheck);
+        // 그룹의 사용 여부·기간이 바뀌면 그 그룹이 가진 역할로 캐시를 비운다(역할이 연결된 그룹도 고칠 수 있게 된 뒤 필요 — c1)
+        if (!changedGroupIds.isEmpty()) {
+            List<String> roleIds = secRoleGroupMappingRepository.findRoleIdsByRoleGroupIdIn(new ArrayList<>(changedGroupIds));
+            if (roleIds != null && !roleIds.isEmpty()) {
+                eventPublisher.publishEvent(new RoleChangedEvent(new LinkedHashSet<>(roleIds)));
+            }
+        }
         // 저장 후 후속 search 재조회 (As-Is xfdl:552 fn_msgSuccessSave → fn_search() 재호출 정합)
         List<SecRoleGroup> rows = secRoleGroupRepository.findAll();
         List<Map<String, Object>> outRows = new ArrayList<>(rows.size());
+        Map<String, GroupUsageQuery.Usage> usage = groupUsageQuery.byGroup();
         for (SecRoleGroup r : rows) {
-            outRows.add(toSearchRow(r));
+            outRows.add(toSearchRow(r, usage));
         }
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("cnt_merge", cnt);
@@ -282,6 +343,8 @@ public class CommRoleGrpMngService {
         int skipped = 0;                                  // 서버가 조용히 건너뛴 행 수 (FE 가 사유를 알 수 있게 응답에 실어 보낸다)
         Set<String> touchedRoleIds = new LinkedHashSet<>(); // 캐시 무효화 대상
         String lastRoleGroupId = null; // 후속 재조회용 ROLE_GROUP_ID 추출
+        // c5 d — 그룹에서 역할(SYSADMIN 포함)을 빼면 보유자가 줄 수 있다
+        SysadminGuard.Check sysadminCheck = beginSysadminCheck(anyStatus(master, "deleted", "D"));
         if (master != null) {
             for (Map<String, Object> row : master) {
                 if (row == null) continue;
@@ -332,6 +395,7 @@ public class CommRoleGrpMngService {
                 }
             }
         }
+        verifySysadmin(sysadminCheck);
         // 2026-09-04 fix — 역할그룹↔역할 매핑이 바뀌면 UserPermCache(TTL 10분)를 즉시 비운다.
         // 이 이벤트가 없어 "그룹에 역할을 붙였는데 최대 10분간 403" 이 발생했다.
         if (!touchedRoleIds.isEmpty()) {
@@ -402,7 +466,7 @@ public class CommRoleGrpMngService {
      *
      * <p>응답 컬럼명 (SNAKE_CASE) 은 As-Is dataset 컬럼명 (분석 §3.8 DS-002) 보존.
      */
-    private Map<String, Object> toSearchRow(SecRoleGroup r) {
+    private Map<String, Object> toSearchRow(SecRoleGroup r, Map<String, GroupUsageQuery.Usage> usage) {
         Map<String, Object> row = new LinkedHashMap<>();
         row.put("ROLE_GROUP_ID", r.getRoleGroupId());
         row.put("ROLE_GROUP_NM", r.getRoleGroupNm());
@@ -412,6 +476,10 @@ public class CommRoleGrpMngService {
         row.put("END_ACTIVE_DATE", r.getEndActiveDate());
         // USER_ID scalar subquery — As-Is xml:14~18 (V-101 / FE 행삭제 차단 검증용)
         row.put("USER_ID", secRoleGroupRepository.findOneUserIdByRoleGroupId(r.getRoleGroupId()));
+        // perm-crudfix c1 — 받은 사람 수·연결된 역할 수(그룹을 끌 때 확인 창 「사용자 n명이 연결된 역할을 잃습니다」)
+        GroupUsageQuery.Usage u = usage.getOrDefault(r.getRoleGroupId(), GroupUsageQuery.Usage.NONE);
+        row.put("USER_CNT", u.userCnt());
+        row.put("ROLE_CNT", u.roleCnt());
         return row;
     }
 

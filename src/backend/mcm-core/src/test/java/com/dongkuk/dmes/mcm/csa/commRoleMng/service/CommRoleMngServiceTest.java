@@ -7,6 +7,7 @@ package com.dongkuk.dmes.mcm.csa.commRoleMng.service;
 
 import com.dongkuk.dmes.mcm.common.event.RoleChangedEvent;
 import com.dongkuk.dmes.mcm.csa.commObjMng.support.CommSecMngJpaTestBase;
+import com.dongkuk.dmes.mcm.csa.commRoleGrpMng.service.GuardUsers;
 import com.dongkuk.dmes.mcm.csa.commRoleMng.dto.CommRoleMngRoleRequest;
 import com.dongkuk.dmes.mcm.csa.commRoleMng.dto.CommRoleMngSearchRequest;
 import com.dongkuk.dmes.mcm.csa.commRoleMng.dto.CommRoleMngSearchRoleMapRequest;
@@ -30,6 +31,18 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /** {@link CommRoleMngService} 시험 — 역할 집계·저장 이벤트·삭제 검사·퍼미션 조회/저장·폴더 오브젝트·lov. */
 class CommRoleMngServiceTest extends CommSecMngJpaTestBase {
+
+    @Autowired GuardUsers guardUsers;
+
+    @org.junit.jupiter.api.BeforeEach
+    void clearGuardUsers() {
+        guardUsers.clear();
+    }
+
+    @org.junit.jupiter.api.AfterEach
+    void dropGuardUsers() {
+        guardUsers.clear();
+    }
 
     @Autowired CommRoleMngService service;
     @Autowired SecRolePermRepository rolePermRepo;
@@ -122,16 +135,54 @@ class CommRoleMngServiceTest extends CommSecMngJpaTestBase {
     }
 
     @Test
-    void saveCmRole_delete_blockedByNewPerm_silentSkip() {
+    void saveCmRole_delete_inUse_rejectedWithCounts_nothingWritten() {
+        // perm-crudfix c4 — 옛 동작(조용히 건너뜀 「역할 0건 저장」) 대신 ROLE_IN_USE 로 거절. 앞의 맞는 줄도 쓰지 않는다
+        fx.role("R0", "Y");
         fx.role("R1", "Y");
         fx.obj("csa::a", "Y", "search", null);
+        fx.obj("csa::b", "Y", "search", null);
         fx.rolePerm("R1", "csa::a", "search", null);
+        fx.rolePerm("R1", "csa::b", "search", null);
+        fx.group("G1", "Y");
+        fx.groupRole("G1", "R1");
 
-        Map<String, Object> out = inTx(() -> service.saveCmRole(List.of(row("rowStatus", "deleted", "ROLE_ID", "R1"))));
-
-        assertThat(out).containsEntry("cnt_merge", 0);
+        assertThatThrownBy(() -> inTx(() -> service.saveCmRole(List.of(
+                row("rowStatus", "updated", "ROLE_ID", "R0", "ROLE_NM", "고친 이름", "USE_TP", "Y"),
+                row("rowStatus", "deleted", "ROLE_ID", "R1")))))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("ROLE_IN_USE: R1 퍼미션 2건·그룹 1개에서 쓰는 역할이라 지울 수 없습니다");
         assertThat(roleRepo.existsById("R1")).isTrue();
+        assertThat(roleRepo.findById("R0")).get().extracting(r -> r.getRoleNm()).isNotEqualTo("고친 이름");
         assertThat(events.roleEvents()).isEmpty();
+    }
+
+    @Test
+    void saveCmRole_deleteSysadmin_rejectedEvenUnused() {
+        fx.role("SYSADMIN", "Y");
+
+        assertThatThrownBy(() -> inTx(() -> service.saveCmRole(List.of(row("rowStatus", "deleted", "ROLE_ID", "SYSADMIN")))))
+                .hasMessageStartingWith("ROLE_IN_USE: SYSADMIN ");
+        assertThat(roleRepo.existsById("SYSADMIN")).isTrue();
+    }
+
+    @Test
+    void saveCmRole_sysadminUseTpN_lastHolder_rejected_otherwiseAllowedWithoutHolders() {
+        fx.role("SYSADMIN", "Y");
+        fx.group("G_SYS", "Y");
+        fx.groupRole("G_SYS", "SYSADMIN");
+        guardUsers.user("GUARD_U1");
+        fx.userGroup("GUARD_U1", "G_SYS");
+
+        assertThatThrownBy(() -> inTx(() -> service.saveCmRole(List.of(
+                row("rowStatus", "updated", "ROLE_ID", "SYSADMIN", "ROLE_NM", "시스템관리자", "USE_TP", "N")))))
+                .hasMessageStartingWith("LAST_SYSADMIN: ");
+        assertThat(roleRepo.findById("SYSADMIN")).get().extracting(r -> r.getUseTp()).isEqualTo("Y");
+
+        // 「inserted」 줄로 있는 SYSADMIN 을 덮어 끄는 길도 같은 검사(리뷰 HIGH)
+        assertThatThrownBy(() -> inTx(() -> service.saveCmRole(List.of(
+                row("rowStatus", "inserted", "ROLE_ID", "SYSADMIN", "ROLE_NM", "시스템관리자", "USE_TP", "N")))))
+                .hasMessageStartingWith("LAST_SYSADMIN: ");
+        assertThat(roleRepo.findById("SYSADMIN")).get().extracting(r -> r.getUseTp()).isEqualTo("Y");
     }
 
     @Test

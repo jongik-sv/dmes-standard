@@ -6,9 +6,9 @@ import { PERM_ERROR_CODES, PermApplyError } from "./types";
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
 
 describe("api — 실패 문구 → 오류", () => {
-  it("아는 코드 목록 = 계약 전부(bench-be f3 추가 PERM_BAD_VALUE·PERM_BUSY, f10 실응답 대조 추가 5개 포함)", () => {
+  it("아는 코드 목록 = 계약 전부(bench-be f3 추가 PERM_BAD_VALUE·PERM_BUSY, f10 실응답 대조 추가 5개, perm-crudfix c5 추가 2개 포함)", () => {
     expect([...PERM_ERROR_CODES].sort()).toEqual(
-      ["NOT_FOUND", "PERM_BAD_VALUE", "PERM_BUSY", "PERM_CONFLICT", "PERM_DRAFT_BUSY", "PERM_DRAFT_CORRUPT", "PERM_EMPTY_BTN", "PERM_FORBIDDEN", "PERM_NEED_CONFIRM", "PERM_NOT_IN_OBJ", "PERM_NO_USER", "VALIDATION_ERROR", "PERM_REQUIRED", "PERM_BAD_SOURCE", "PERM_NOT_READY", "PERM_DRAFT_NOT_READY"].sort(),
+      ["NOT_FOUND", "PERM_BAD_VALUE", "PERM_BUSY", "PERM_CONFLICT", "PERM_DRAFT_BUSY", "PERM_DRAFT_CORRUPT", "PERM_EMPTY_BTN", "PERM_FORBIDDEN", "PERM_NEED_CONFIRM", "PERM_NOT_IN_OBJ", "PERM_NO_USER", "VALIDATION_ERROR", "PERM_REQUIRED", "PERM_BAD_SOURCE", "PERM_NOT_READY", "PERM_DRAFT_NOT_READY", "PERM_LAST_SYSADMIN", "PERM_SELF_LOCKOUT"].sort(),
     );
   });
 

@@ -40,6 +40,10 @@ export interface CommRoleGrpMngRow extends Record<string, unknown> {
   END_ACTIVE_DATE?: string | null;
   /** 부속 — scalar subquery (xml:14~18), V-101 화면 행삭제 차단 검증용 (xfdl:739). */
   USER_ID?: string | null;
+  /** 받은 사람 수(USER_MAPPING 행 수, perm-crudfix c1 — 그룹 끄기 확인 문구). */
+  USER_CNT?: number;
+  /** 연결된 역할 수(ROLEGROUP_MAPPING 행 수). */
+  ROLE_CNT?: number;
 }
 
 /**

@@ -8,6 +8,7 @@ package com.dongkuk.dmes.mcm.csa.commPermBench.service;
 import com.dongkuk.dmes.mcm.common.event.RoleChangedEvent;
 import com.dongkuk.dmes.mcm.common.exception.BusinessException;
 import com.dongkuk.dmes.mcm.common.security.SecurityIdentity;
+import com.dongkuk.dmes.mcm.csa.commPerm.SysadminGuard;
 import com.dongkuk.dmes.mcm.csa.commPermBench.dto.CommPermBenchApplyRequest;
 import com.dongkuk.dmes.mcm.entity.SecPermDraft;
 import com.dongkuk.dmes.mcm.entity.SecPermHis;
@@ -232,6 +233,25 @@ class PermApplyServiceTest {
     private PermDraftFingerprint fp;
     private PermApplyService svc;
 
+    /** 활성이 아닌 사람(SYSADMIN 사슬이 있어도 보유자에서 뺀다 — 기간 지난 계정 흉내). */
+    private final Set<String> inactiveUsers = new TreeSet<>();
+
+    /** 메모리 DB 의 SYSADMIN 보유자 판정(잠금·flush 없음) — 운영 SysadminGuard 의 SQL 판정을 흉내 낸다. */
+    private final SysadminGuard guard = new SysadminGuard(provider(SecurityIdentity.class, identity), CLOCK) {
+        @Override protected int lockSysadminRows() { return 1; }
+        @Override protected void flush() { }
+        @Override public Set<String> activeHolders() {
+            Set<String> out = new TreeSet<>();
+            userGroups.forEach((u, gs) -> {
+                if (inactiveUsers.contains(u)) return;
+                for (String g : gs) {
+                    if (groupRoles.getOrDefault(g, Set.of()).contains("SYSADMIN")) out.add(u);
+                }
+            });
+            return out;
+        }
+    };
+
     private static <T> ObjectProvider<T> provider(Class<T> type, T bean) {
         DefaultListableBeanFactory bf = new DefaultListableBeanFactory();
         if (bean != null) bf.registerSingleton("b", bean);
@@ -245,7 +265,7 @@ class PermApplyServiceTest {
     private PermApplyService service(PermGraphLoader l, org.springframework.context.ApplicationEventPublisher publisher) {
         return new PermApplyService(drafts, store, new PermChangeValidator(lookup), fp,
                 provider(PermGraphLoader.class, l), provider(PermResolver.class, new DefaultPermResolver(CLOCK)),
-                provider(ImpactCalculator.class, new DefaultImpactCalculator(CLOCK)), identity, publisher, CLOCK);
+                provider(ImpactCalculator.class, new DefaultImpactCalculator(CLOCK)), identity, publisher, CLOCK, guard);
     }
 
     @BeforeEach
@@ -627,6 +647,52 @@ class PermApplyServiceTest {
         groupRoles.get("G1").add("SYSADMIN");
         assertThatThrownBy(() -> svc.apply(req("Y", null))).hasMessageStartingWith("PERM_FORBIDDEN: G1 ");
         assertNothingWritten();
+    }
+
+    @Test
+    @DisplayName("c5 c: 본인(admin1)의 마지막 SYSADMIN 그룹 해제 = PERM_SELF_LOCKOUT, 아무것도 안 쓰고 초안 남음")
+    void selfSysadminRemoval_rejected() throws Exception {
+        groupRoles.put("G9", new TreeSet<>(Set.of("SYSADMIN")));
+        userGroups.put("admin1", new TreeSet<>(Set.of("G9")));
+        userGroups.get("u3").add("G9"); // 다른 보유자가 있어도 본인 해제는 막는다
+        sysadminUser = true;
+        draft(link(PermChange.USER_GRP, "admin1", "G9", PermChange.DEL));
+
+        assertThatThrownBy(() -> svc.apply(req("Y", null))).hasMessageStartingWith("PERM_SELF_LOCKOUT: ");
+        assertThat(hisRows).isEmpty();
+        assertThat(events).isEmpty();
+        assertThat(draftRows).containsKey(user);
+    }
+
+    @Test
+    @DisplayName("c5 c: 적용 뒤 활성 SYSADMIN 보유자 0명 = PERM_LAST_SYSADMIN, 이력·이벤트 없음, 초안 남음")
+    void lastSysadminRemoval_rejected() throws Exception {
+        groupRoles.put("G9", new TreeSet<>(Set.of("SYSADMIN")));
+        userGroups.put("admin1", new TreeSet<>(Set.of("G9")));
+        inactiveUsers.add("admin1"); // 본인은 사슬만 있고 활성 보유자는 아니다
+        userGroups.get("u3").add("G9");
+        sysadminUser = true;
+        draft(link(PermChange.USER_GRP, "u3", "G9", PermChange.DEL));
+
+        assertThatThrownBy(() -> svc.apply(req("Y", null)))
+                .hasMessageStartingWith("PERM_LAST_SYSADMIN: ").satisfies(e -> assertThat(e.getMessage()).doesNotContain("u3"));
+        assertThat(hisRows).isEmpty();
+        assertThat(events).isEmpty();
+        assertThat(draftRows).containsKey(user);
+    }
+
+    @Test
+    @DisplayName("c5 c: 다른 보유자가 남으면 SYSADMIN 그룹 해제 적용됨")
+    void sysadminRemoval_othersRemain_applied() throws Exception {
+        groupRoles.put("G9", new TreeSet<>(Set.of("SYSADMIN")));
+        userGroups.put("admin1", new TreeSet<>(Set.of("G9")));
+        userGroups.get("u3").add("G9");
+        sysadminUser = true;
+        draft(link(PermChange.USER_GRP, "u3", "G9", PermChange.DEL));
+
+        svc.apply(req("Y", null));
+        assertThat(userGroups.get("u3")).doesNotContain("G9");
+        assertThat(draftRows).doesNotContainKey(user);
     }
 
     @Test

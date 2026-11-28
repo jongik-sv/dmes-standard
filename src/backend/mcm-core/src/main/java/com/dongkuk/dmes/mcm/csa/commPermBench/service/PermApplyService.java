@@ -7,6 +7,8 @@ package com.dongkuk.dmes.mcm.csa.commPermBench.service;
 
 import com.dongkuk.dmes.mcm.common.event.RoleChangedEvent;
 import com.dongkuk.dmes.mcm.common.exception.BusinessException;
+import com.dongkuk.dmes.mcm.csa.commPerm.SysadminGuard;
+import com.dongkuk.dmes.mcm.repository.CommPermQueryRepository;
 import com.dongkuk.dmes.mcm.common.exception.ErrorCode;
 import com.dongkuk.dmes.mcm.common.security.SecurityIdentity;
 import com.dongkuk.dmes.mcm.csa.commPermBench.dto.CommPermBenchApplyRequest;
@@ -147,14 +149,21 @@ public class PermApplyService {
     private final SecurityIdentity identity;
     private final ApplicationEventPublisher events;
     private final Clock clock;
+    private final SysadminGuard sysadminGuard;
+
+    /** 적용 결과로 활성 SYSADMIN 보유자가 0명(perm-crudfix c5 c). */
+    static final String LAST_SYSADMIN_MSG = "적용하면 사용 중인 시스템관리자가 0명이 됩니다. 초안은 그대로 남습니다";
+    /** 본인 SYSADMIN 해제(perm-crudfix c5 c). */
+    static final String SELF_LOCKOUT_MSG = "본인 계정의 시스템관리자 권한은 뺄 수 없습니다. 초안은 그대로 남습니다";
 
     @Autowired
     public PermApplyService(SecPermDraftRepository drafts, PermApplyStore store,
                             PermChangeValidator validator, PermDraftFingerprint fingerprint,
                             ObjectProvider<PermGraphLoader> loaders, ObjectProvider<PermResolver> resolvers,
                             ObjectProvider<ImpactCalculator> calculators, SecurityIdentity identity,
-                            ApplicationEventPublisher events) {
-        this(drafts, store, validator, fingerprint, loaders, resolvers, calculators, identity, events, Clock.system(KST));
+                            ApplicationEventPublisher events, SysadminGuard sysadminGuard) {
+        this(drafts, store, validator, fingerprint, loaders, resolvers, calculators, identity, events, Clock.system(KST),
+                sysadminGuard);
     }
 
     /** 시각을 고정하는 구성(시험용). */
@@ -162,7 +171,8 @@ public class PermApplyService {
                      PermChangeValidator validator, PermDraftFingerprint fingerprint,
                      ObjectProvider<PermGraphLoader> loaders, ObjectProvider<PermResolver> resolvers,
                      ObjectProvider<ImpactCalculator> calculators, SecurityIdentity identity,
-                     ApplicationEventPublisher events, Clock clock) {
+                     ApplicationEventPublisher events, Clock clock, SysadminGuard sysadminGuard) {
+        this.sysadminGuard = sysadminGuard;
         this.drafts = drafts;
         this.store = store;
         this.validator = validator;
@@ -209,6 +219,14 @@ public class PermApplyService {
                     + ": 기준 지문에 없는 범위가 있습니다 (" + String.join(",", unbased) + "). 초안을 다시 저장하세요");
         }
 
+        // 2-1. SYSADMIN 잠금 + 적용 전 보유자(c5 c). 범위 잠금보다 먼저 — 옛 화면 저장도 SYSADMIN 잠금을 쓰기 전에 먼저 잡으므로
+        //      「SYSADMIN → 범위 행」 한 순서가 되어 교착하지 않는다.
+        //      보유자를 줄일 수 있는 변경(USER_GRP·GRP_ROLE DEL)이 있거나, 범위 잠금이 SYSADMIN 역할 행을 잡을 때(GRP_ROLE … SYSADMIN)
+        //      먼저 잠근다 — 뒤 경우를 빼면 「그룹 행 → SYSADMIN 행」 순서가 생겨 화면 저장과 교착한다(리뷰).
+        //      넣기·퍼미션 값만 바꾸는 적용끼리는 줄 세우지 않는다.
+        SysadminGuard.Check sysadminCheck = mayReduceSysadmin(changes) || locksSysadminRole(changes)
+                ? sysadminGuard.begin(BUSY) : null;
+
         // 3. 잠금 — 지문 범위 ∪ 잠금 전용 키, 한 TreeSet(종류·키 순)
         TreeSet<String> lockKeys = new TreeSet<>(base.keySet());
         lockKeys.addAll(scopes);
@@ -242,6 +260,11 @@ public class PermApplyService {
             store.flush();
         } catch (DataIntegrityViolationException e) {
             throw conflictOnWrite(scopes, e);
+        }
+        // 7-1. 적용 뒤 활성 SYSADMIN 보유자 0명·본인 해제 = 적용 전체 거절(롤백, 초안 남음)
+        if (sysadminCheck != null) {
+            sysadminCheck.verify(SysadminGuard.PERM_LAST_SYSADMIN, LAST_SYSADMIN_MSG,
+                    SysadminGuard.PERM_SELF_LOCKOUT, SELF_LOCKOUT_MSG);
         }
 
         // 8. 이력
@@ -290,6 +313,26 @@ public class PermApplyService {
             publishAfterCommit(new RoleChangedEvent(roleIdsOf(done, before, before.applyChanges(done))));
         }
         return List.of(new PermBenchResultRow(applyId, applied.size()).toRow());
+    }
+
+    /** SYSADMIN 보유자가 줄 수 있는 변경 — 사람↔그룹·그룹↔역할 연결 빼기(작업대는 USE_TP·기간을 바꾸지 않는다). */
+    static boolean mayReduceSysadmin(List<PermChange> changes) {
+        for (PermChange c : changes) {
+            if (PermChange.DEL.equals(c.op())
+                && (PermChange.USER_GRP.equals(c.tp()) || PermChange.GRP_ROLE.equals(c.tp()))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** 범위 잠금이 SYSADMIN 역할 행(role:SYSADMIN·role:ROLE_SYSADMIN)을 잡는가 — GRP_ROLE KEY2 · ROLE_OBJ KEY1. */
+    static boolean locksSysadminRole(List<PermChange> changes) {
+        for (PermChange c : changes) {
+            if (PermChange.GRP_ROLE.equals(c.tp()) && CommPermQueryRepository.isSysadmin(c.key2())) return true;
+            if (PermChange.ROLE_OBJ.equals(c.tp()) && CommPermQueryRepository.isSysadmin(c.key1())) return true;
+        }
+        return false;
     }
 
     /** 잠금 전용 키 — USER_GRP group:KEY2, GRP_ROLE role:KEY2, ROLE_OBJ ADD·UPD object:KEY2. */

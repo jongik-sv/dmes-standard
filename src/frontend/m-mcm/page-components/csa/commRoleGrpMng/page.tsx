@@ -77,6 +77,7 @@ import {
   saveCmRoleGrpMap as apiSaveCmRoleGrpMap,
   searchCmRole as apiSearchCmRole,
 } from "./api";
+import { keepDirtyRows, lossMessage, lossTargets, todayYmd, withRoleCnt } from "./rolegrp-edit";
 import { useOpenWith } from "@/page-components/csa/commPermBench/nav";
 import type {
   CommRoleGrpMngFilters,
@@ -105,11 +106,26 @@ function withSyntheticId<T extends Partial<CommRoleGrpMngRow>>(r: T, idx: number
   return { ...r, __rowId: `rg-${idx}-${String(r.ROLE_GROUP_ID ?? "")}` };
 }
 
+/** 그룹 행 키(저장 전 변경 다시 얹기용) — 신규 행은 tempId, 조회 행은 ROLE_GROUP_ID. */
+function groupKey(row: GridRow): string {
+  return (row.__gridTempId as string) || String((row as { ROLE_GROUP_ID?: unknown }).ROLE_GROUP_ID ?? "");
+}
+
+/** 저장 전 변경 행을 다시 얹을 때 지금 행의 그리드 키·사용 현황은 지킨다(선택 키가 어긋나지 않게). */
+function keepGridKeys<T extends GridRow>(cur: T, saved: T): T {
+  return { ...saved, __rowId: cur.__rowId, __gridTempId: cur.__gridTempId, USER_CNT: cur.USER_CNT, ROLE_CNT: cur.ROLE_CNT };
+}
+
 function stripInternal<T extends GridRow>(row: T): Record<string, unknown> {
   const {
     __gridTempId: _t,
     __rowId: _r,
     nativeeditor_status: _s,
+    __origUseTp: _ou,
+    __origStart: _os,
+    __origEnd: _oe,
+    USER_CNT: _uc,
+    ROLE_CNT: _rc,
     ...rest
   } = row as Record<string, unknown>;
   return rest;
@@ -351,6 +367,10 @@ export default function CommRoleGrpMngPage() {
         const payload = await apiSearchCmRoleGrp(f);
         const list = (payload.ds_main ?? []).map((r, i) => ({
           ...withSyntheticId(r, i),
+          // c1 — 조회 시점 사용 여부·종료일(저장 전 「역할을 잃습니다」 확인의 기준)
+          __origUseTp: r.USE_TP,
+          __origStart: r.START_ACTIVE_DATE,
+          __origEnd: r.END_ACTIVE_DATE,
           nativeeditor_status: "" as RowStatus,
         }));
         setRows(list);
@@ -384,8 +404,11 @@ export default function CommRoleGrpMngPage() {
   const handleFilterChange = (k: keyof CommRoleGrpMngFilters, v: string) =>
     setFilters((p) => ({ ...p, [k]: v }));
 
-  const handleSearch = () =>
+  const handleSearch = (trigger?: "auto") => {
+    // c2 — 자동 조회(조회 기본값 적용 등)가 저장 안 한 그룹 변경을 덮지 않게 한다. 버튼·F8 조회는 그대로 다시 읽는다.
+    if (trigger === "auto" && hasAnyChanges) return;
     void loadList(filters, { preferGroupId: String(selected?.ROLE_GROUP_ID ?? "") || undefined });
+  };
 
   /** EX-002 초기화 (fn_reset, xfdl:669). */
   const handleReset = () => {
@@ -399,6 +422,8 @@ export default function CommRoleGrpMngPage() {
         apiSearchCmRoleGrpMap(roleGroupId),
         apiSearchCmRole(roleGroupId),
       ]);
+      // c1 — 연결된 역할 수를 지금 매핑으로 맞춘다(끄기 확인·행삭제 막기 기준, 행 변경 표시는 그대로)
+      setRows((prev) => withRoleCnt(prev, roleGroupId, (rm.ds_roleGrpMap ?? []).length));
       setRoleMapRows(
         (rm.ds_roleGrpMap ?? []).map((r, i) => ({
           ...r,
@@ -418,7 +443,7 @@ export default function CommRoleGrpMngPage() {
       setRoleMapRows([]);
       setRoleRows([]);
     }
-  }, []);
+  }, [setRows]);
 
   // W5 F — csa 그룹 화면 진입 시 자동조회 (AsIs gfn_formOnLoad(obj,true) 정합).
   useEffect(() => {
@@ -520,6 +545,11 @@ export default function CommRoleGrpMngPage() {
               setError("연결된 사용자가 존재합니다. 제외 후 삭제 하세요.");
               return;
             }
+            // V-003 — 역할이 연결된 그룹은 지우지 않는다(수정 막기는 c1 에서 없앴고 삭제 막기만 남긴다. 서버도 건너뛴다)
+            if (oldRow.nativeeditor_status !== "inserted" && Number(oldRow.ROLE_CNT ?? 0) > 0) {
+              setError("현재 연결된 역할이 존재 합니다. 역할을 뺀 뒤 삭제하세요.");
+              return;
+            }
           }
         }
         setRows((prev) => {
@@ -571,35 +601,8 @@ export default function CommRoleGrpMngPage() {
     [setRows],
   );
 
-  /**
-   * EX-003 저장 (fn_save / xfdl:674~685).
-   * V-002 — gfn_isDatasetChanged false 차단.
-   * V-003 — ds_roleGrpMap.rowCount > 0 시 차단.
-   * V-004 — gfn_cpRequired("ROLE_GROUP_ID") 필수.
-   */
-  const handleSave = useCallback(async () => {
-    if (!hasAnyChanges) {
-      setError("저장할 데이터가 없습니다.");
-      return;
-    }
-    const editedSelected = selected && selected.nativeeditor_status;
-    if (editedSelected && roleMapRows.length > 0) {
-      setError("현재 연결된 역할이 존재 합니다. 삭제 후 처리하세요.");
-      return;
-    }
-    for (const r of rows) {
-      if (!r.nativeeditor_status) continue;
-      if (r.nativeeditor_status === "deleted") continue;
-      if (!r.ROLE_GROUP_ID || String(r.ROLE_GROUP_ID).trim().length === 0) {
-        setError("ROLE_GROUP_ID 는 필수 입력 항목 입니다.");
-        return;
-      }
-    }
-
-    if (typeof window !== "undefined" && !window.confirm("저장하시겠습니까?")) {
-      return;
-    }
-
+  /** 저장 본문 — 확인을 마친 뒤 부른다. */
+  const doSave = useCallback(async () => {
     setIsSaving(true);
     setError(null);
     try {
@@ -621,7 +624,43 @@ export default function CommRoleGrpMngPage() {
     } finally {
       setIsSaving(false);
     }
-  }, [rows, hasAnyChanges, selected, roleMapRows, filters, loadList, showMessage]);
+  }, [rows, selected, filters, loadList, showMessage]);
+
+  /**
+   * EX-003 저장 (fn_save / xfdl:674~685).
+   * V-002 — gfn_isDatasetChanged false 차단.
+   * V-003(As-Is 「현재 연결된 역할이 존재 합니다」 수정 막기)는 없앤다(perm-crudfix c1) — 역할이 연결된 그룹도 고칠 수 있다.
+   *   대신 그룹을 끄거나 종료일을 오늘 이전으로 바꿔 받은 사람이 역할을 잃으면 저장 전에 묻는다. 삭제 막기는 그대로(행삭제·서버).
+   * V-004 — gfn_cpRequired("ROLE_GROUP_ID") 필수.
+   */
+  const handleSave = useCallback(() => {
+    if (!hasAnyChanges) {
+      setError("저장할 데이터가 없습니다.");
+      return;
+    }
+    for (const r of rows) {
+      if (!r.nativeeditor_status) continue;
+      if (r.nativeeditor_status === "deleted") continue;
+      if (!r.ROLE_GROUP_ID || String(r.ROLE_GROUP_ID).trim().length === 0) {
+        setError("ROLE_GROUP_ID 는 필수 입력 항목 입니다.");
+        return;
+      }
+    }
+    const losing = lossTargets(rows, todayYmd());
+    if (losing.length > 0) {
+      showMessage({
+        alertType: "confirm",
+        title: "그룹 끄기 확인",
+        message: lossMessage(losing),
+        onConfirm: () => void doSave(),
+      });
+      return;
+    }
+    if (typeof window !== "undefined" && !window.confirm("저장하시겠습니까?")) {
+      return;
+    }
+    void doSave();
+  }, [rows, hasAnyChanges, doSave, showMessage]);
 
   // ── shuttle (div_buttonGrp xfdl:116~123) ──
 
@@ -639,6 +678,7 @@ export default function CommRoleGrpMngPage() {
     }
     setIsSaving(true);
     setError(null);
+    const dirty = rows.filter((r) => r.nativeeditor_status); // c2 — 매핑 저장이 그룹 행 변경을 지우지 않게
     try {
       const payload = checked.map((r) => ({
         ROLE_GROUP_ID: r.ROLE_GROUP_ID,
@@ -654,9 +694,10 @@ export default function CommRoleGrpMngPage() {
     } catch (e) {
       setError(e instanceof Error ? e.message : "저장 실패");
     } finally {
+      setRows((prev) => keepDirtyRows(prev, dirty, groupKey, keepGridKeys));
       setIsSaving(false);
     }
-  }, [roleMapRows, roleMapSelectedKeys, selected, loadSubGrids, showMessage]);
+  }, [rows, roleMapRows, roleMapSelectedKeys, selected, loadSubGrids, showMessage, setRows]);
 
   /** B-003 — 현재 역할 추가 (xfdl:625~645 / fn_appendRoleMapRow). V-401 + V-402 검증. btn_left ◀. */
   const handleShuttleAdd = useCallback(async () => {
@@ -678,6 +719,7 @@ export default function CommRoleGrpMngPage() {
     }
     setIsSaving(true);
     setError(null);
+    const dirty = rows.filter((r) => r.nativeeditor_status); // c2 — 매핑 저장이 그룹 행 변경을 지우지 않게
     try {
       const payload = checked.map((r) => ({
         ROLE_GROUP_ID: String(selected.ROLE_GROUP_ID),
@@ -692,9 +734,10 @@ export default function CommRoleGrpMngPage() {
     } catch (e) {
       setError(e instanceof Error ? e.message : "저장 실패");
     } finally {
+      setRows((prev) => keepDirtyRows(prev, dirty, groupKey, keepGridKeys));
       setIsSaving(false);
     }
-  }, [selected, roleRows, roleSelectedKeys, loadSubGrids, showMessage]);
+  }, [rows, selected, roleRows, roleSelectedKeys, loadSubGrids, showMessage, setRows]);
 
   // ── Detail (D-NNN) ──
   const updateDetailField = (field: keyof CommRoleGrpMngRow, value: string) => {

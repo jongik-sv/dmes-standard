@@ -8,6 +8,7 @@ package com.dongkuk.dmes.mcm.csa.commPermBench.service;
 import com.dongkuk.dmes.mcm.common.event.RoleChangedEvent;
 import com.dongkuk.dmes.mcm.common.exception.BusinessException;
 import com.dongkuk.dmes.mcm.common.security.SecurityIdentity;
+import com.dongkuk.dmes.mcm.csa.commPerm.SysadminGuard;
 import com.dongkuk.dmes.mcm.csa.commPermBench.dto.CommPermBenchApplyRequest;
 import com.dongkuk.dmes.mcm.csa.commPermBench.repository.PermApplyRepository;
 import com.dongkuk.dmes.mcm.csa.commPermBench.repository.PermScopeRowRepository;
@@ -523,12 +524,19 @@ class PermApplyConcurrencyOraTest {
         @Bean ImpactCalculator impactCalculator() { return new DefaultImpactCalculator(); }
 
         @Bean
+        SysadminGuard sysadminGuard(ObjectProvider<SecurityIdentity> identity) {
+            return new SysadminGuard(identity);
+        }
+
+        @Bean
         PermApplyService permApplyService(SecPermDraftRepository drafts, PermApplyRepository store,
                                           PermChangeValidator validator, PermDraftFingerprint fp,
                                           ObjectProvider<PermGraphLoader> loaders, ObjectProvider<PermResolver> resolvers,
-                                          ObjectProvider<ImpactCalculator> calculators, SecurityIdentity identity) {
+                                          ObjectProvider<ImpactCalculator> calculators, SecurityIdentity identity,
+                                          SysadminGuard sysadminGuard) {
             ApplicationEventPublisher events = EVENTS::add;
-            return new PermApplyService(drafts, store, validator, fp, loaders, resolvers, calculators, identity, events);
+            return new PermApplyService(drafts, store, validator, fp, loaders, resolvers, calculators, identity, events,
+                    sysadminGuard);
         }
     }
 }

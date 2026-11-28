@@ -78,7 +78,9 @@ import java.util.Map;
                 // 화면별 네이티브 쿼리 클래스(@Repository) — 없는 패키지는 스캔 결과가 비어 무해하다
                 "com.dongkuk.dmes.mcm.csa.commObjMng.query",
                 "com.dongkuk.dmes.mcm.csa.commRoleMng.query",
-                "com.dongkuk.dmes.mcm.csa.commPermMng.query"
+                "com.dongkuk.dmes.mcm.csa.commPermMng.query",
+                // 마지막 시스템관리자 판정·그룹 사용 현황(perm-crudfix c5·c1)
+                "com.dongkuk.dmes.mcm.csa.commPerm"
         },
         excludeFilters = @ComponentScan.Filter(type = FilterType.ANNOTATION, classes = Configuration.class))
 public class CommSecMngJpaTestConfig {

@@ -15,6 +15,7 @@ import com.dongkuk.dmes.mcm.csa.commRoleMng.dto.CommRoleMngSearchPermRequest;
 import com.dongkuk.dmes.mcm.csa.commRoleMng.dto.CommRoleMngSearchRequest;
 import com.dongkuk.dmes.mcm.csa.commRoleMng.dto.CommRoleMngSearchRoleMapRequest;
 import com.dongkuk.dmes.mcm.csa.commRoleMng.query.CommRoleMngQuery;
+import com.dongkuk.dmes.mcm.csa.commPerm.SysadminGuard;
 import com.dongkuk.dmes.mcm.entity.SecObj;
 import com.dongkuk.dmes.mcm.entity.SecRole;
 import com.dongkuk.dmes.mcm.entity.SecRolePerm;
@@ -116,6 +117,7 @@ public class CommRoleMngService {
     private final CommPermQueryRepository commPermQueryRepository;
     private final CommRoleMngQuery commRoleMngQuery;
     private final ApplicationEventPublisher eventPublisher;
+    private final SysadminGuard sysadminGuard;
 
     public CommRoleMngService(SecRoleRepository secRoleRepository,
                               SecRoleMappingNativeRepository secRoleMappingNativeRepository,
@@ -123,7 +125,9 @@ public class CommRoleMngService {
                               SecObjRepository secObjRepository,
                               CommPermQueryRepository commPermQueryRepository,
                               CommRoleMngQuery commRoleMngQuery,
-                              ApplicationEventPublisher eventPublisher) {
+                              ApplicationEventPublisher eventPublisher,
+                              SysadminGuard sysadminGuard) {
+        this.sysadminGuard = sysadminGuard;
         this.secRoleRepository = secRoleRepository;
         this.secRoleMappingNativeRepository = secRoleMappingNativeRepository;
         this.secRolePermRepository = secRolePermRepository;
@@ -194,6 +198,9 @@ public class CommRoleMngService {
      */
     public Map<String, Object> saveCmRole(List<Map<String, Object>> master) {
         requireRoleNames(master);
+        requireDeletableRoles(master);
+        // c5 d — SYSADMIN 역할 끄기·기간 줄이기가 마지막 시스템관리자를 없애면 거절. 쓰기 전에 잠근다.
+        SysadminGuard.Check sysadminCheck = touchesSysadminRole(master) ? sysadminGuard.begin(SysadminGuard.PERM_BUSY) : null;
         int cnt = 0;
         Set<String> changedRoleIds = new LinkedHashSet<>(); // 캐시 무효화 대상(USE_TP·유효 기간 변경·삭제)
         if (master != null) {
@@ -255,6 +262,10 @@ public class CommRoleMngService {
                     log.warn("[commRoleMng.saveCmRole] unknown status={} — skip", status);
                 }
             }
+        }
+        if (sysadminCheck != null) {
+            sysadminCheck.verify(SysadminGuard.LAST_SYSADMIN, SysadminGuard.LAST_MSG,
+                    SysadminGuard.SELF_LOCKOUT, SysadminGuard.SELF_ROLE_MSG);
         }
         if (!changedRoleIds.isEmpty()) {
             eventPublisher.publishEvent(new RoleChangedEvent(changedRoleIds));
@@ -667,6 +678,55 @@ public class CommRoleMngService {
      * 저장 전 검사(z2fix2 d): 추가·수정 줄은 ROLE_NM 이 있어야 한다. 하나라도 비면 아무것도 쓰지 않고
      * {@code ROLE_NM_REQUIRED: 상세} 로 거절한다(메시지 앞 코드로 FE 가 구분). 삭제 줄·ROLE_ID 없는 줄(건너뜀)은 보지 않는다.
      */
+    private static String statusOf(Map<String, Object> row) {
+        String status = strOf(row.get("rowStatus"));
+        return status == null || status.isBlank() ? strOf(row.get("!nativeeditor_status")) : status;
+    }
+
+    /**
+     * 저장 전 검사(perm-crudfix c4): 삭제 줄의 역할이 쓰이는 중이면(그룹·퍼미션·옛 매핑) 아무것도 쓰지 않고
+     * {@code ROLE_IN_USE: <역할ID> …} 로 거절한다. SYSADMIN 역할(별칭 포함)은 쓰이지 않아도 지울 수 없다
+     * (퍼미션 행 없이 모든 권한 — 쓰는 곳 수로 판정할 수 없다). 옛 동작 = 조용히 건너뜀(「역할 0건 저장」).
+     */
+    private void requireDeletableRoles(List<Map<String, Object>> master) {
+        if (master == null) return;
+        for (Map<String, Object> row : master) {
+            if (row == null) continue;
+            String status = statusOf(row);
+            if (!"deleted".equals(status) && !"D".equals(status)) continue;
+            String roleId = strOf(row.get("ROLE_ID"));
+            if (roleId == null || roleId.isBlank()) continue;
+            if (CommPermQueryRepository.isSysadmin(roleId)) {
+                throw new BusinessException(ErrorCode.BUSINESS_ERROR,
+                        "ROLE_IN_USE: " + roleId + " 시스템관리자 역할은 지울 수 없습니다");
+            }
+            // countRoleMappingByRoleId 도 지금은 TB_MCM_SEC_ROLE_PERM 을 센다(퍼미션 모델 v2) — 같은 수라 퍼미션 수 하나만 쓴다
+            long grpCnt = secRoleRepository.countRoleGroupMappingByRoleId(roleId);
+            long permCnt = secRolePermRepository.countByRoleId(roleId);
+            if (grpCnt > 0 || permCnt > 0) {
+                throw new BusinessException(ErrorCode.BUSINESS_ERROR, "ROLE_IN_USE: " + roleId + " 퍼미션 " + permCnt
+                        + "건·그룹 " + grpCnt + "개에서 쓰는 역할이라 지울 수 없습니다");
+            }
+        }
+    }
+
+    /**
+     * SYSADMIN 역할(별칭 포함)을 쓰는 줄이 있나 — 끄거나 기간을 줄이면 보유자가 줄 수 있다(c5 d).
+     * 「inserted」 줄도 본다: 저장은 있는 행이면 덮어쓰고(findById.orElseGet), 매핑만 있는 별칭 행을 새로 넣어 끌 수도 있다.
+     */
+    private static boolean touchesSysadminRole(List<Map<String, Object>> master) {
+        if (master == null) return false;
+        for (Map<String, Object> row : master) {
+            if (row == null) continue;
+            String status = statusOf(row);
+            boolean write = "updated".equals(status) || "U".equals(status) || "inserted".equals(status) || "C".equals(status);
+            if (write && CommPermQueryRepository.isSysadmin(strOf(row.get("ROLE_ID")))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private static void requireRoleNames(List<Map<String, Object>> master) {
         if (master == null) return;
         for (Map<String, Object> row : master) {

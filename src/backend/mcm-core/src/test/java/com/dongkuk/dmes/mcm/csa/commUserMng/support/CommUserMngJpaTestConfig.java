@@ -59,7 +59,7 @@ import java.util.Map;
                 AuditLogRepository.class
         }))
 @ComponentScan(
-        basePackages = "com.dongkuk.dmes.mcm.csa.commUserMng",
+        basePackages = {"com.dongkuk.dmes.mcm.csa.commUserMng", "com.dongkuk.dmes.mcm.csa.commPerm"},
         excludeFilters = @ComponentScan.Filter(type = FilterType.ANNOTATION, classes = Configuration.class))
 public class CommUserMngJpaTestConfig {
 
@@ -88,6 +88,18 @@ public class CommUserMngJpaTestConfig {
     @Bean
     public TransactionTemplate transactionTemplate(PlatformTransactionManager transactionManager) {
         return new TransactionTemplate(transactionManager);
+    }
+
+    /** 로그인 사용자 — {@link #CURRENT_USER} 로 시험이 바꾼다(기본 null = 미인증). 본인 잠금 막기(perm-crudfix c5 a)가 읽는다. */
+    public static final java.util.concurrent.atomic.AtomicReference<String> CURRENT_USER =
+            new java.util.concurrent.atomic.AtomicReference<>();
+
+    @Bean
+    public com.dongkuk.dmes.mcm.common.security.SecurityIdentity securityIdentity() {
+        return new com.dongkuk.dmes.mcm.common.security.SecurityIdentity() {
+            @Override public String currentUserId() { return CURRENT_USER.get(); }
+            @Override public boolean hasAuthority(String authority) { return false; }
+        };
     }
 
     /** 서비스가 발행한 {@code RoleChangedEvent} 를 모은다. 테스트마다 {@link RoleChangedEventCollector#clear()} 한다. */

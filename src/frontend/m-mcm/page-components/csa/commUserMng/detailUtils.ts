@@ -33,3 +33,33 @@ export function toDateInputValue(v: unknown): string {
   if (/^\d{8}$/.test(s)) return `${s.substring(0, 4)}-${s.substring(4, 6)}-${s.substring(6, 8)}`;
   return "";
 }
+
+/** 본인 계정 잠금 막기 문구(perm-crudfix c5 a — 서버 SELF_LOCKOUT 과 같은 문구). */
+export const SELF_LOCKOUT_MSG = "본인 계정은 삭제하거나 끌 수 없습니다.";
+
+/** 날짜 값 → yyyyMMdd(못 읽으면 ""). */
+function ymd(v: unknown): string {
+  const d = toDateInputValue(v);
+  return d ? d.replace(/-/g, "") : "";
+}
+
+/**
+ * 이 줄이 로그인한 본인(me) 계정을 잠그는가 — 삭제이거나, 수정으로 유효 기간이 오늘(today = yyyyMMdd)을 벗어나면 true.
+ * 서버(CommUserMngSaveService)와 같은 기준: 끝 날은 그날까지 쓸 수 있다. me 가 비면(로그인 정보 없음) 보지 않는다.
+ */
+export function locksSelf(row: { USER_ID?: unknown; START_ACTIVE_DATE?: unknown; END_ACTIVE_DATE?: unknown; nativeeditor_status?: string },
+                          me: string, today: string): boolean {
+  if (!me || String(row.USER_ID ?? "").trim().toLowerCase() !== me.trim().toLowerCase()) return false;
+  if (row.nativeeditor_status === "deleted") return true;
+  if (row.nativeeditor_status !== "updated") return false;
+  const end = ymd(row.END_ACTIVE_DATE);
+  const start = ymd(row.START_ACTIVE_DATE);
+  return (!!end && end < today) || (!!start && start > today);
+}
+
+/** 오늘(KST — 서버 판정과 같은 날짜) yyyyMMdd. */
+export function todayYmd(now: Date = new Date()): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Seoul", year: "numeric", month: "2-digit", day: "2-digit" })
+    .format(now)
+    .replace(/-/g, "");
+}

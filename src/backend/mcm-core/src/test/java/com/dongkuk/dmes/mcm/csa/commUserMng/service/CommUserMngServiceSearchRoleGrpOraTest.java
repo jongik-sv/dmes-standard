@@ -172,7 +172,7 @@ class CommUserMngServiceSearchRoleGrpOraTest {
     @Configuration
     @EnableTransactionManagement
     @ComponentScan(
-            basePackages = "com.dongkuk.dmes.mcm.csa.commUserMng",
+            basePackages = {"com.dongkuk.dmes.mcm.csa.commUserMng", "com.dongkuk.dmes.mcm.csa.commPerm"},
             excludeFilters = {
                     @ComponentScan.Filter(type = FilterType.ANNOTATION, classes = Configuration.class),
                     @ComponentScan.Filter(type = FilterType.REGEX, pattern = "com\\.dongkuk\\.dmes\\.mcm\\.csa\\.commUserMng\\.support\\..*")

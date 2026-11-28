@@ -437,6 +437,11 @@ export function benchErrorText(e: unknown): { message: string; reload: boolean }
       return { message: `버튼이 하나도 없는 퍼미션은 둘 수 없습니다. 버튼을 하나 이상 켜거나 「없음」으로 등록을 해제합니다. (${d})`, reload: false };
     case "PERM_FORBIDDEN":
       return { message: `시스템 관리자(SYSADMIN) 역할이 걸린 변경은 할 수 없습니다. 그 변경을 되돌립니다. (${d})`, reload: false };
+    case "PERM_LAST_SYSADMIN":
+      // perm-crudfix c5 c — 적용 결과 활성 시스템관리자 0명 = 서버가 적용 전체를 거절(초안 남음)
+      return { message: `적용하면 사용 중인 시스템관리자가 한 명도 남지 않아 적용하지 않았습니다. 초안은 그대로 있습니다. 시스템관리자를 빼는 변경을 되돌립니다. (${d})`, reload: false };
+    case "PERM_SELF_LOCKOUT":
+      return { message: "본인 계정의 시스템관리자 권한은 뺄 수 없어 적용하지 않았습니다. 초안은 그대로 있습니다. 본인 시스템관리자 그룹을 빼는 변경을 되돌립니다.", reload: false };
     case "PERM_DRAFT_BUSY":
       return { message: "다른 창에서 같은 초안을 저장하는 중입니다. 잠시 뒤 「다시 저장」을 누릅니다.", reload: false };
     case "PERM_NO_USER":

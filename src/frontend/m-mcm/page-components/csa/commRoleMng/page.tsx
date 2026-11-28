@@ -83,6 +83,7 @@ import {
   type BusinessError,
   type FolderOption,
   type PermDraft,
+  roleDeleteBlock,
 } from "./role-perm";
 import type {
   CommRoleMngFilters,
@@ -1032,8 +1033,17 @@ export default function CommRoleMngPage() {
         }
         apply();
       } else {
+        // 행삭제 — 쓰는 역할·SYSADMIN 은 막는다(perm-crudfix c4, 서버 ROLE_IN_USE 와 같은 기준). 옛 동작 = 「역할 0건 저장」으로 조용히 끝남
+        const newKeys = new Set(newData.map((r) => getRowKey(r as GridRow)));
+        for (const r of rows) {
+          if (newKeys.has(getRowKey(r))) continue;
+          const why = roleDeleteBlock(r);
+          if (why) {
+            setError(why);
+            return;
+          }
+        }
         setRows((prev) => {
-          const newKeys = new Set(newData.map((r) => getRowKey(r as GridRow)));
           const removed = prev.filter((r) => !newKeys.has(getRowKey(r)));
           const kept = newData as RoleGridRow[];
           const deleted = removed
@@ -1043,7 +1053,7 @@ export default function CommRoleMngPage() {
         });
       }
     },
-    [setRows, setSelectedKey, showMessage],
+    [rows, setRows, setSelectedKey, showMessage],
   );
 
   // ── 권한 작업대에서 열기(dmes:open-with, f7) — 첫 조회가 끝난 뒤 받은 역할을 고르거나 새 역할 행을 연다 ──

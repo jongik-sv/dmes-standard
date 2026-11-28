@@ -41,7 +41,7 @@ import {
 import { GridPanel, AgDataGrid, type GridColumn } from "@dk-oasis/shared/grid";
 import { Modal } from "@dk-oasis/shared/modal";
 import { useMessage } from "@dk-oasis/shared/message-provider";
-import { useCarryRestored, useCarryState } from "@dk-oasis/shared/portal-shell";
+import { useCarryRestored, useCarryState, useCurrentUserId } from "@dk-oasis/shared/portal-shell";
 import { Button, useBusy } from "@dk-oasis/shared/form";
 import { MdmFieldLabel } from "@dk-oasis/shared/mdm-meta";
 import {
@@ -55,7 +55,7 @@ import {
   saveUserRoleGrpCopy as apiSaveUserRoleGrpCopy,
 } from "./api";
 import { CommUserDetailForm, type CommUserDetailHandle } from "./CommUserDetailForm";
-import { IN_OUT_OPTIONS, getRowKey, toDateInputValue } from "./detailUtils";
+import { IN_OUT_OPTIONS, SELF_LOCKOUT_MSG, getRowKey, locksSelf, toDateInputValue, todayYmd } from "./detailUtils";
 import { useOpenWith } from "@/page-components/csa/commPermBench/nav";
 import type {
   CommUserMngFilters,
@@ -249,6 +249,7 @@ function emptyUserRow(): CommUserMngRow {
 
 export default function CommUserMngPage() {
   const { showMessage } = useMessage();
+  const me = useCurrentUserId(); // c5 a — 본인 계정 잠금 막기
 
   // 새 창으로 분리할 때 이어받는 상태(useCarryState) — 조회 조건·선택 키는 가볍게, 조회 결과 행은 bulky.
   // 역할그룹 그리드·후보 풀·체크 선택(Set 포함)·초기화 라디오는 선택한 사용자가 정해지면 다시 조회·초기화되므로 이어받지 않는다(useState).
@@ -432,8 +433,14 @@ export default function CommUserMngPage() {
         });
         setSelectedKey(addedRowKey);
       } else {
+        const newKeys = new Set(newData.map((r) => getRowKey(r as GridRow)));
+        // c5 a — 로그인한 본인 행은 삭제 표시도 하지 않는다(서버 SELF_LOCKOUT 과 같은 문구)
+        if (rows.some((r) => !newKeys.has(getRowKey(r)) && r.nativeeditor_status !== "inserted"
+                             && locksSelf({ ...r, nativeeditor_status: "deleted" }, me, todayYmd()))) {
+          setError(SELF_LOCKOUT_MSG);
+          return;
+        }
         setRows((prev) => {
-          const newKeys = new Set(newData.map((r) => getRowKey(r as GridRow)));
           const removed = prev.filter((r) => !newKeys.has(getRowKey(r)));
           const kept = newData as (CommUserMngRow & GridRow)[];
           const deleted = removed
@@ -443,7 +450,7 @@ export default function CommUserMngPage() {
         });
       }
     },
-    [setRows, setSelectedKey],
+    [rows, me, setRows, setSelectedKey],
   );
 
   // 권한 작업대에서 열기(dmes:open-with) — 첫 조회가 끝난 뒤 받은 사용자를 고르거나 신규 행을 연다.
@@ -568,6 +575,12 @@ export default function CommUserMngPage() {
     const requiredForUpsert: ReadonlyArray<keyof CommUserMngRow> = [
       "USER_ID", "USER_EMP_NO", "USER_NM", "IN_OUT_EMP_TP", "EMAIL",
     ];
+    // c5 a — 본인 계정 삭제·기간 밖으로 고치기 막기(서버도 SELF_LOCKOUT 으로 거절)
+    const today = todayYmd();
+    if (changed.some((r) => locksSelf(r, me, today))) {
+      setError(SELF_LOCKOUT_MSG);
+      return;
+    }
     for (const r of changed) {
       if (r.nativeeditor_status === "deleted") {
         if (!r.USER_ID || String(r.USER_ID).trim().length === 0) {
@@ -598,7 +611,7 @@ export default function CommUserMngPage() {
         setError(e instanceof Error ? e.message : "저장 실패 하였습니다.");
       }
     });
-  }, [rows, filters, loadList, showMessage, runBusy, flushPending, withPending]);
+  }, [rows, me, filters, loadList, showMessage, runBusy, flushPending, withPending]);
 
   // 2026-06-04 — As-Is regCmUser / deleteCmUser 핸들러 제거.
   //   master grid 의 +/-(추가/삭제) 버튼이 row 의 nativeeditor_status 를 inserted/deleted 로 마킹 후
