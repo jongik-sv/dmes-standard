@@ -63,6 +63,13 @@
 - 응답 모양: 그리드가 하나인 action = 응답 맨 위 `grids.<칸>.rows`(List 반환 + BPMN output=`<칸>`). 여러 칸 action(`searchBench`·`explain`·`impact`) = `result.<칸>`(Map + output=`result`).
 - 실패: HTTP 200 + `meta.success=false`, 메시지 = `"CODE: 상세"`. FE 는 메시지 앞 코드로 가른다. `PERM_CONFLICT` 상세 = `group:G,role:R,user:U` 범위 목록(쓰기 단계 충돌에도 온다).
 - 오류 코드: PERM_CONFLICT·PERM_NEED_CONFIRM(숫자 = 잃는 사람 수)·PERM_NOT_IN_OBJ·PERM_EMPTY_BTN·PERM_BAD_VALUE·PERM_FORBIDDEN·PERM_BUSY·PERM_DRAFT_BUSY·PERM_DRAFT_CORRUPT·PERM_DRAFT_NOT_READY·PERM_NOT_READY·PERM_NO_USER·PERM_REQUIRED·PERM_BAD_SOURCE·NOT_FOUND·VALIDATION_ERROR.
+- 오류 코드 추가(2026-11-28, 156d31751 CRUD 수정분 — `SysadminGuard`·`CommRoleMngService`. 문구는 같은 `"CODE: 상세"`):
+  - `PERM_BUSY` 는 옛 권한 화면 3곳(사용자·역할 그룹·역할)도 쓴다 — SYSADMIN 역할 행 잠금 대기 초과·교착.
+  - `LAST_SYSADMIN` — 사용자·역할 그룹·역할 화면 저장이 활성 SYSADMIN 보유자를 0명으로 만든다(삭제·끄기·기간 변경·SYSADMIN 빼기). 2026-11-28 사용자 비활성·퇴직·유효 기한일을 미래로 줄이기도 같은 코드다.
+  - `SELF_LOCKOUT` — 로그인한 본인 계정을 지우거나 끄거나(기간 밖으로), 본인의 SYSADMIN 을 빼는 저장. 2026-11-28 본인 비활성·퇴직도 같은 코드다.
+  - `PERM_LAST_SYSADMIN` — 작업대 적용이 활성 SYSADMIN 보유자를 0명으로 만든다. 화면·API 로는 `PERM_FORBIDDEN`·`PERM_SELF_LOCKOUT` 이 먼저 나서 닿지 않는다(win144 재확인 2026-11-28 — 단위 시험만).
+  - `PERM_SELF_LOCKOUT` — 작업대 적용이 로그인한 본인의 SYSADMIN 을 뺀다.
+  - `ROLE_IN_USE` — 역할 화면에서 SYSADMIN 역할이거나 퍼미션·그룹 매핑이 남은 역할을 지우려 한다.
 - `searchBench`: `roles.PERM_CNT` = 퍼미션 행 수, SYSADMIN = -1(「모두」, D13). `me`(ME_SYSADMIN Y/N) 추가.
 - `searchMenuTree`·`explain`: 런타임 `PermExplainService` 결과 그대로. 권한이 닿는 숨김 화면 = VISIBLE=Y·REASON=MENU_HIDDEN·SHOW_TP=N. USE_TP=N 폴더·화면 = VISIBLE=N. 역할 기준 REASON = 실제 이유(ROLE_UNUSED·OBJ_UNUSED 등). 비활성 사용자 = 모두 NO_ROLE. 화면 보임의 정본 = 서버 VISIBLE(메뉴는 버튼 토큰 내용을 보지 않는다).
 - `searchRolePerm`: 퍼미션 없는 오브젝트 줄은 `menuFolderId` 를 줄 때만 온다(FE 는 폴더로 한 번 더 부른다). 「퍼미션 있음」 = BTN_PERM null 아님.

@@ -428,3 +428,23 @@ EndEvent_1
 | T-13 | **(정책 #3 (G) / Q-015 해소)** nexacro `gv_AppWorkFrameSet` / `gds_btn_list` 권한 분기 → PortalShell + RBAC React Context 통합 | (xfdl 초기화) | T-15 |
 | T-14 | Spring Security BCrypt 라이브러리 → Spring Boot 4 / Spring Security 7 호환 (T-010) | RegCommUserMng / PasswordInit / ReRegCommUserMng | - |
 | T-15 | **(정책 #3 (F) / Q-012 해소)** `CactusConstants.DEFAULT_PASSWORD` → **`CommUserMngPasswordProperties.getDefault()`** (yml prefix `commUserMng.password.*`, FQN `mcm.csa.commUserMng.config.CommUserMngPasswordProperties`). 기존 `mcm-core/security/password/McmPasswordProperties` 보존 | RegCommUserMng / PasswordInit / ReRegCommUserMng | T-011 |
+
+## 8. 2026-11-28 개정 — 계정 상태 action 9개
+
+근거: 시안 「사용자 비활성화·퇴직 처리」. `actionGateway` 분기 이름 = 권한 action 이름(퍼미션 모델 v2). 모든 서비스 태스크는 `camunda:class=commUserMngService`, `output=result`, `dto=com.dongkuk.dmes.mcm.csa.commUserMng.dto.CommUserMngStateRequest`(USER_ID·REASON·TO_USER_ID·EVT_ID·NEW_USER_ID·PROC_ST).
+
+| 분기(action) | method | 서비스 태스크 id | 본문 |
+|---|---|---|---|
+| unlock | unlockUser | unlockStateTask | CommUserMngLifecycleService#unlock |
+| suspend | suspendUser | suspendStateTask | CommUserMngLifecycleService#suspend |
+| resume | resumeUser | resumeStateTask | CommUserMngLifecycleService#resume |
+| retire | retireUser | retireStateTask | CommUserMngLifecycleService#retire |
+| handover | handoverUser | handoverStateTask | CommUserMngLifecycleService#handover |
+| searchOwned | searchOwned | searchOwnedStateTask | CommUserMngLifecycleService#searchOwned |
+| searchHrEvt | searchHrEvt | searchHrEvtStateTask | CommUserMngHrService#search |
+| retryHrEvt | retryHrEvt | retryHrEvtStateTask | CommUserMngHrService#retry |
+| regHrEvtUser | regHrEvtUser | regHrEvtUserStateTask | CommUserMngHrService#createAccount |
+
+- 오브젝트 허용 값(`TB_MCM_SEC_OBJ.BTN_PERM`)과 기존 저장·조회 권한 직무의 퍼미션에는 V24 가 새 action 을 더한다. 카탈로그 `ObjPermCatalog` 는 `scripts/perm/gen-obj-perm.mjs --write` 로 다시 만들었다(V21 은 적용된 파일이라 생성기가 더 쓰지 않는다).
+- BPMN 파일은 `bpmn-tool modify` 로 고쳤다. 이때 파일 안의 XML 주석(구역 머리말)이 빠졌다.
+- ERP 인사 정보 처리는 BPMN 이 아니라 예약 작업 `mcm.hrEventProcess`(10분)도 부른다.
