@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildMenuTree, flattenMenuRows, flattenNav, indexBench, menuPathOf, peopleList, unusedObjectsOf } from "./model";
+import { BENCH_USER_LIMIT, buildMenuTree, flattenMenuRows, flattenNav, foundHint, indexBench, menuPathOf, peopleHint, peopleList, pickList, unusedObjectsOf } from "./model";
 import { createMockPermBenchApi } from "./bench.fixture";
 import type { BenchMenuRow } from "./types";
 
@@ -8,11 +8,53 @@ const m = (id: string, parent: string | null, name: string, obj: string | null, 
 });
 
 describe("commPermBench model", () => {
-  it("peopleList: 그룹마다 첫 사람이 같아도 한 번만 올린다", async () => {
+  it("peopleList: 찾는 말이 없으면 받은 사람 전부를 USER_ID 순으로, 고른 사람은 맨 위에 둔다", async () => {
     const api = createMockPermBenchApi();
     const idx = indexBench(await api.searchBench({}));
-    const { list } = peopleList(idx, null, "");
-    expect(new Set(list.map((u) => u.USER_ID)).size).toBe(list.length);
+    const shuffled = { ...idx, users: [...idx.users].reverse() };
+    const all = peopleList(shuffled, null, "");
+    expect(all.found).toBeNull();
+    expect(all.list).toHaveLength(idx.users.length);
+    expect(all.list.map((u) => u.USER_ID)).toEqual([...idx.users.map((u) => u.USER_ID)].sort());
+    const pick = idx.users[10].USER_ID;
+    const withSel = peopleList(shuffled, pick, "");
+    expect(withSel.list[0].USER_ID).toBe(pick);
+    expect(withSel.list).toHaveLength(idx.users.length);
+    expect(new Set(withSel.list.map((u) => u.USER_ID)).size).toBe(withSel.list.length);
+  });
+
+  it("peopleList: 찾는 말은 이름·부서·사번에 맞추고, 고른 사람은 걸러져도 맨 위에 남는다", async () => {
+    const api = createMockPermBenchApi();
+    const idx = indexBench(await api.searchBench({}));
+    const target = idx.users[3];
+    const r = peopleList(idx, idx.users[0].USER_ID, target.USER_ID.toUpperCase());
+    expect(r.found).toBe(1);
+    expect(r.list.map((u) => u.USER_ID)).toEqual([idx.users[0].USER_ID, target.USER_ID]);
+  });
+
+  it("peopleHint: 찾는 중이면 N명 찾음, 서버 상한(200명)이면 좁히라는 안내, 그 밖에는 없음", () => {
+    expect(BENCH_USER_LIMIT).toBe(200);
+    expect(peopleHint(200, null)).toBe("앞 200명만 보입니다. 찾기로 좁히세요");
+    expect(peopleHint(199, null)).toBeNull();
+    expect(peopleHint(200, 3)).toBe("3명 찾음");
+    expect(peopleHint(12, 0)).toBe("0명 찾음");
+  });
+
+  it("pickList: 대소문자 무시 부분 일치, 고른 항목은 걸러져도 맨 위, 찾는 말이 없으면 순서 그대로", () => {
+    const rows = [
+      { id: "RG_QC_TEAM", nm: "품질팀" },
+      { id: "RG_PROD", nm: "생산팀" },
+      { id: "RG_ADMIN", nm: "관리자" },
+    ];
+    const idOf = (r: { id: string }) => r.id;
+    const textOf = (r: { id: string; nm: string }) => `${r.id} ${r.nm}`;
+    expect(pickList(rows, "RG_ADMIN", "", idOf, textOf)).toEqual({ list: rows, found: null });
+    expect(pickList(rows, null, "rg_q", idOf, textOf)).toEqual({ list: [rows[0]], found: 1 });
+    expect(pickList(rows, "RG_ADMIN", "팀", idOf, textOf)).toEqual({ list: [rows[2], rows[0], rows[1]], found: 2 });
+    expect(pickList(rows, "RG_PROD", "팀", idOf, textOf)).toEqual({ list: [rows[1], rows[0]], found: 2 });
+    expect(pickList(rows, null, "없는말", idOf, textOf)).toEqual({ list: [], found: 0 });
+    expect(foundHint(null)).toBeNull();
+    expect(foundHint(2)).toBe("2개 찾음");
   });
 
   it("같은 화면이 두 폴더에 걸려도 폴더마다 자기 줄로 거르고, 누른 줄의 경로를 쓴다", () => {

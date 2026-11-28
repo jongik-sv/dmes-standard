@@ -3,11 +3,12 @@
 /**
  * 역할 그룹 칸(시안 colGroups). 체크 = 고른 사람이 속한 그룹(초안 포함). 2단계부터 체크로 넣고 뺀다(USER_GRP).
  * SYSADMIN 을 주는 그룹의 소속은 SYSADMIN 사용자만 바꾼다 — 그렇지 않으면 체크를 잠그고 이유를 보인다.
+ * 찾는 말(ROLE_GROUP_ID·ROLE_GROUP_NM)은 이 칸 안에만 둔다 — 한 글자마다 다른 칸을 다시 그리지 않는다.
  */
-import { memo } from "react";
+import { memo, useMemo, useState } from "react";
 import { IconPencil, IconPlus } from "@tabler/icons-react";
-import { Checkbox } from "@dk-oasis/shared/form";
-import { fmtNum, groupsOfUser, rolesOfGroup } from "./model";
+import { Checkbox, Input } from "@dk-oasis/shared/form";
+import { fmtNum, foundHint, groupsOfUser, pickList, rolesOfGroup } from "./model";
 import { groupGivesSysadmin, linkDiffKind } from "./draft";
 import { LegacyIconButton, Panel, StatusTag, useBench } from "./parts";
 
@@ -26,6 +27,12 @@ export const GroupCol = memo(function GroupCol({ userId, groupId, canEdit, onSel
   const mine = userId ? groupsOfUser(bench, userId) : [];
   const was = userId ? groupsOfUser(base, userId) : [];
   const uname = user?.USER_NM ?? "";
+  const [q, setQ] = useState("");
+  const { list, found } = useMemo(
+    () => pickList(bench.groups, groupId, q, (g) => g.ROLE_GROUP_ID, (g) => `${g.ROLE_GROUP_ID} ${g.ROLE_GROUP_NM}`),
+    [bench.groups, groupId, q],
+  );
+  const note = foundHint(found);
 
   return (
     <Panel
@@ -38,12 +45,16 @@ export const GroupCol = memo(function GroupCol({ userId, groupId, canEdit, onSel
         </>
       }
       hint={
-        <span>
-          체크 = <b>「{uname}」</b>이(가) 속한 그룹. 체크된 그룹만 눌러 고릅니다.{canEdit && " 체크를 바꾸면 초안에 담깁니다."}
-        </span>
+        <>
+          <Input value={q} onChange={setQ} placeholder="그룹 이름·ROLE_GROUP_ID 찾기" aria-label="그룹 이름·ROLE_GROUP_ID 찾기" autoComplete="off" />
+          {note && <span>{note}</span>}
+          <span>
+            체크 = <b>「{uname}」</b>이(가) 속한 그룹. 체크된 그룹만 눌러 고릅니다.{canEdit && " 체크를 바꾸면 초안에 담깁니다."}
+          </span>
+        </>
       }
     >
-      {bench.groups.map((g) => {
+      {list.map((g) => {
         const gid = g.ROLE_GROUP_ID;
         const mem = mine.includes(gid);
         const on = gid === groupId;
@@ -84,6 +95,7 @@ export const GroupCol = memo(function GroupCol({ userId, groupId, canEdit, onSel
           </div>
         );
       })}
+      {!list.length && <span className="pb-empty-note">찾는 그룹이 없습니다.</span>}
     </Panel>
   );
 });

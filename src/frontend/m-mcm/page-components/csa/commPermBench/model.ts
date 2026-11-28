@@ -157,23 +157,45 @@ export function defaultUserId(idx: BenchIndex): string | null {
   return (big && firstUserOf(idx, big.ROLE_GROUP_ID)) ?? idx.users[0]?.USER_ID ?? null;
 }
 
-export const PEOPLE_LIMIT = 40;
+/** 서버가 돌려주는 사람 상한(CommPermBenchService.USER_LIMIT). 이만큼 오면 뒤 사람이 잘렸을 수 있다. */
+export const BENCH_USER_LIMIT = 200;
 
-/** 사람 칸 목록. 찾는 말이 없으면 고른 사람 + 그룹마다 한 명(시안 colPeople). */
+/**
+ * 칸 목록 찾기. 찾는 말(대소문자 무시, 부분 일치)로 거르고, 고른 항목은 걸러져도 맨 위에 둔다.
+ * 찾는 말이 없으면 받은 순서 그대로 둔다. found = 찾는 말에 맞은 개수(찾는 말이 없으면 null).
+ */
+export function pickList<T>(
+  rows: readonly T[],
+  selectedId: string | null,
+  query: string,
+  idOf: (r: T) => string,
+  textOf: (r: T) => string,
+): { list: T[]; found: number | null } {
+  const q = query.trim().toLowerCase();
+  if (!q) return { list: [...rows], found: null };
+  const hit = rows.filter((r) => textOf(r).toLowerCase().includes(q));
+  const sel = selectedId ? rows.find((r) => idOf(r) === selectedId) : undefined;
+  return { list: sel ? [sel, ...hit.filter((r) => idOf(r) !== selectedId)] : hit, found: hit.length };
+}
+
+/** 사람 칸 목록. 받은 사람 전부(USER_ID 순), 고른 사람을 맨 위에 둔다. 찾는 말은 이름·부서·사번. */
 export function peopleList(idx: BenchIndex, selectedUserId: string | null, query: string): { list: BenchUserRow[]; found: number | null } {
   const q = query.trim().toLowerCase();
-  let list: BenchUserRow[];
-  if (q) {
-    list = idx.users.filter((u) => `${u.USER_NM} ${u.DEPT_NM ?? ""} ${u.USER_ID}`.toLowerCase().includes(q));
-  } else {
-    // 두 그룹의 첫 사람이 같을 수 있다 — 한 번만 올린다
-    const ids = [...new Set(idx.groups.map((g) => firstUserOf(idx, g.ROLE_GROUP_ID)).filter((x): x is string => !!x))];
-    list = ids.map((id) => idx.userById.get(id)).filter((u): u is BenchUserRow => !!u);
-  }
+  const all = [...idx.users].sort((a, b) => (a.USER_ID < b.USER_ID ? -1 : a.USER_ID > b.USER_ID ? 1 : 0));
+  const list = q ? all.filter((u) => `${u.USER_NM} ${u.DEPT_NM ?? ""} ${u.USER_ID}`.toLowerCase().includes(q)) : all;
   const sel = selectedUserId ? idx.userById.get(selectedUserId) : undefined;
   const merged = sel ? [sel, ...list.filter((u) => u.USER_ID !== sel.USER_ID)] : list;
-  return { list: merged.slice(0, PEOPLE_LIMIT), found: q ? list.length : null };
+  return { list: merged, found: q ? list.length : null };
 }
+
+/** 사람 칸 안내 한 줄. 찾는 중이면 「N명 찾음」, 서버 상한에 닿았으면 좁히라는 안내, 그 밖에는 없음. */
+export function peopleHint(total: number, found: number | null): string | null {
+  if (found !== null) return `${fmtNum(found)}명 찾음`;
+  return total >= BENCH_USER_LIMIT ? `앞 ${fmtNum(BENCH_USER_LIMIT)}명만 보입니다. 찾기로 좁히세요` : null;
+}
+
+/** 그룹·역할 칸 안내 한 줄. 찾는 중일 때만 「N개 찾음」. */
+export const foundHint = (found: number | null): string | null => (found !== null ? `${fmtNum(found)}개 찾음` : null);
 
 // ── 퍼미션 계산 ──────────────────────────────────────────────
 

@@ -4,13 +4,14 @@
 import { memo, useMemo, useState } from "react";
 import { IconPencil, IconPlus } from "@tabler/icons-react";
 import { Input } from "@dk-oasis/shared/form";
-import { fmtNum, groupsOfUser, peopleList } from "./model";
+import { fmtNum, groupsOfUser, peopleHint, peopleList } from "./model";
 import { LegacyIconButton, Panel, StatusTag, useBench } from "./parts";
 
 export const PeopleCol = memo(function PeopleCol({ userId, onSelect }: { userId: string | null; onSelect: (userId: string) => void }) {
   const { bench } = useBench();
   const [q, setQ] = useState("");
   const { list, found } = useMemo(() => peopleList(bench, userId, q), [bench, userId, q]);
+  const note = peopleHint(bench.users.length, found);
 
   return (
     <Panel
@@ -25,7 +26,7 @@ export const PeopleCol = memo(function PeopleCol({ userId, onSelect }: { userId:
       hint={
         <>
           <Input value={q} onChange={setQ} placeholder="이름·부서·사번 찾기" aria-label="이름·부서·사번 찾기" autoComplete="off" />
-          <span>{found !== null ? `${fmtNum(found)}명 찾음${found > list.length ? ` · 앞 ${list.length}명만 보입니다` : ""}` : "그룹마다 한 명씩 예시를 보입니다. 찾기로 다른 사람을 고릅니다."}</span>
+          {note && <span>{note}</span>}
         </>
       }
     >
