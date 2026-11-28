@@ -413,6 +413,21 @@ export function impactPeople(rows: readonly ImpactRow[]): ImpactPerson[] {
     .sort((a, b) => b.GAIN_CNT + b.LOSE_CNT - (a.GAIN_CNT + a.LOSE_CNT));
 }
 
+// ── 적용 창 ──────────────────────────────────────────────────
+
+/**
+ * 적용 결과: done = 끝 · confirm = 잃는 사람 확인이 필요 · error = 실패(화면이 이미 메시지를 보였다, 초안은 남는다).
+ */
+export type ApplyOutcome = { kind: "done" } | { kind: "confirm"; message: string } | { kind: "error" };
+
+/**
+ * 적용 결과에 따른 적용 창의 다음 모습. confirm 만 창을 남겨 확인 글을 보이고, done·error 는 창을 닫는다.
+ * 실패(PERM_SELF_LOCKOUT 등)는 창 밖 알림으로 보이므로 창을 남기면 「잃는 사람이 있어도 적용」 확인이 그대로 떠 있게 된다.
+ */
+export function applyModalNext(r: ApplyOutcome): { close: true } | { close: false; confirm: string } {
+  return r.kind === "confirm" ? { close: false, confirm: r.message } : { close: true };
+}
+
 // ── 실패 안내 ────────────────────────────────────────────────
 
 /** PERM_NEED_CONFIRM 상세 → 사람이 읽는 글. 서버 상세 = 잃는 사람 수(숫자)뿐이면 「잃는 사람 N명」. */

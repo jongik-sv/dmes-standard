@@ -14,6 +14,7 @@
  * - D21 DATA_PERM 은 보이기·통과만 한다(편집 없음).
  * - D36 저장 줄은 grids.perms.rows 로 보낸다(MERGE = 추가·변경, DEL = 빼기).
  */
+import { stripBizCode } from "@/lib/utils/biz-error";
 import type { FolderObjRow, RoleMenuLov, RolePermRow, RolePermSaveRow, RoleRow } from "./types";
 
 // ── 값 다루기 ─────────────────────────────────────────────────────────────────
@@ -447,13 +448,15 @@ export function pendingCount(draft: PermDraft): number {
  */
 export function permSaveErrorText(message: string, code?: string): string {
   const has = (c: string) => code === c || message.includes(c);
+  // 판정은 원문으로, 보이는 글은 코드 접두(「E010: PERM_…: 」)를 뗀 문구로 한다.
+  const text = stripBizCode(message);
   if (has("PERM_NOT_IN_OBJ")) {
-    return `오브젝트가 허용하지 않은 버튼·팝업 값이 있어 퍼미션을 저장하지 못했습니다. 오브젝트 관리에서 허용 값을 확인하세요.\n(${message})`;
+    return `오브젝트가 허용하지 않은 버튼·팝업 값이 있어 퍼미션을 저장하지 못했습니다. 오브젝트 관리에서 허용 값을 확인하세요.\n(${text})`;
   }
   if (has("PERM_EMPTY_BTN")) {
-    return `버튼 권한이 빈 퍼미션은 저장할 수 없습니다. 버튼을 하나 이상 켜거나 「빼기」를 누르세요.\n(${message})`;
+    return `버튼 권한이 빈 퍼미션은 저장할 수 없습니다. 버튼을 하나 이상 켜거나 「빼기」를 누르세요.\n(${text})`;
   }
-  return message;
+  return text;
 }
 
 /** 업무 거절 오류 — 코드를 함께 싣는다. */
