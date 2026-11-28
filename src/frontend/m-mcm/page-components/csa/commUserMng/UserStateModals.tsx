@@ -99,6 +99,7 @@ function useOwned(userId: string, enabled: boolean): OwnedState {
 }
 
 /** 담당 데이터 줄 — 종류별 건수. */
+/** verb 는 건수 뒤에 붙는 말(조사 포함) — 「을 넘깁니다」, 「은 인계 대기로 남습니다」. */
 function ownedLine(owned: OwnedState, verb: string): ImpactLine {
   if (owned.loading) return { kind: "ask", text: "담당 데이터를 확인하는 중입니다." };
   if (owned.error) {
@@ -110,7 +111,7 @@ function ownedLine(owned: OwnedState, verb: string): ImpactLine {
     kind: "ask",
     text: (
       <>
-        담당 데이터 <b>{total}건</b>을 {verb}.
+        담당 데이터 <b>{total}건</b>{verb}
       </>
     ),
     sub: owned.rows
@@ -237,7 +238,7 @@ export function RetireModal({
     });
   }
   lines.push({ kind: "do", text: "ERD 편집 점유와 사용자 쿼리 배정을 풉니다." });
-  lines.push(ownedLine(owned, "넘깁니다"));
+  lines.push(ownedLine(owned, later ? "은 인계 대기로 남습니다." : "을 넘깁니다."));
   lines.push({ kind: "keep", text: "그대로 둡니다: 감사 기록, 처리 이력, 개인 설정. 계정 행은 지우지 않습니다." });
 
   return (
@@ -418,7 +419,7 @@ export function HandoverModal({
 }) {
   const [receiver, setReceiver] = useState<LookupRow | null>(null);
   const owned = useOwned(userId, canSeeOwned);
-  const lines = useMemo(() => [ownedLine(owned, "받을 사람에게 넘깁니다")], [owned]);
+  const lines = useMemo(() => [ownedLine(owned, "을 받을 사람에게 넘깁니다.")], [owned]);
   return (
     <Modal
       open

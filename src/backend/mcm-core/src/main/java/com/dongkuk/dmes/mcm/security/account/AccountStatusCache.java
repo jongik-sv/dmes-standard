@@ -7,6 +7,7 @@ package com.dongkuk.dmes.mcm.security.account;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.time.Clock;
@@ -34,6 +35,8 @@ public class AccountStatusCache {
     private final Clock clock;
     private final Map<String, Entry> cache = new ConcurrentHashMap<>();
 
+    /** 스프링이 쓰는 생성자. 시계를 받는 생성자는 테스트용이다. */
+    @Autowired
     public AccountStatusCache(McmAccountReader reader) {
         this(reader, Clock.system(KST));
     }

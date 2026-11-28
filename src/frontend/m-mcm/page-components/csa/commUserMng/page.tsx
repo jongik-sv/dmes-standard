@@ -453,7 +453,7 @@ export default function CommUserMngPage() {
       setSelectedArgKeys(new Set());
       setSelectedUrgKey(null);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "역할 조회 실패");
+      setError(bizErrorText(e, "역할 조회 실패"));
     }
   }, []);
 
@@ -523,7 +523,7 @@ export default function CommUserMngPage() {
             showMessage({ message: `${list.length}건 조회 되었습니다.`, toast: true });
           }
         } catch (e) {
-          setError(e instanceof Error ? e.message : "조회 실패");
+          setError(bizErrorText(e, "조회 실패"));
           setRows([]);
           setUserRoleGrpRows([]);
           setAvailRoleGrpRows([]);
@@ -767,7 +767,7 @@ export default function CommUserMngPage() {
         const keep = selected ? withPending(selected, pending) : null;
         await loadList(filters, { keepUserId: keep?.USER_ID ? String(keep.USER_ID) : undefined, quiet: true });
       } catch (e) {
-        setError(e instanceof Error ? e.message : "저장 실패 하였습니다.");
+        setError(bizErrorText(e, "저장 실패 하였습니다."));
       }
     });
   }, [rows, me, filters, selected, loadList, showMessage, runBusy, flushPending, withPending]);
@@ -979,7 +979,7 @@ export default function CommUserMngPage() {
           }
         }
       } catch (e) {
-        setError(e instanceof Error ? e.message : "비밀번호 초기화 실패");
+        setError(bizErrorText(e, "비밀번호 초기화 실패"));
       }
     });
     // As-Is xfdl:1395 / 1418 — 처리 후 Radio 강제 N 복귀
@@ -1033,7 +1033,7 @@ export default function CommUserMngPage() {
         showMessage({ message: `역할그룹이 ${res.cnt_save ?? 0}건 저장 되었습니다.` });
         if (live.USER_ID) await loadRoleGrids(String(live.USER_ID));
       } catch (e) {
-        setError(e instanceof Error ? e.message : "역할 복사 실패");
+        setError(bizErrorText(e, "역할 복사 실패"));
       }
     });
   }, [selected, loadRoleGrids, showMessage, runBusy, flushPending, withPending]);
@@ -1109,7 +1109,7 @@ export default function CommUserMngPage() {
         showMessage({ message: `역할 ${res.cnt_save ?? 0}건 저장 되었습니다.` });
         if (live.USER_ID) await loadRoleGrids(String(live.USER_ID));
       } catch (e) {
-        setError(e instanceof Error ? e.message : "저장 실패 하였습니다.");
+        setError(bizErrorText(e, "저장 실패 하였습니다."));
       }
     });
   }, [selected, userRoleGrpRows, loadRoleGrids, showMessage, runBusy, flushPending, withPending]);
