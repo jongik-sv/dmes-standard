@@ -339,3 +339,46 @@ test('search_form_audit(P-S1): SearchArea 없이 입력 칸과 [조회] 단추�
   assert.equal(run('m-x/lib/a.tsx', own).length, 0);
   assert.equal(run('m-x/pages/a/page.test.tsx', own).length, 0);
 });
+
+test('grid_title_audit(P-S2): GridPanel 밖 AgDataGrid 에 title 이 없으면 경고, title·header={false}·펼침·GridPanel 안·대화 상자는 통과', () => {
+  const run = (f, src) => {
+    const hits = [];
+    mod.grid_title_audit(f, src, false, (pos, msg) => hits.push(msg));
+    return hits;
+  };
+  const bare = 'export default function P() { return <AgDataGrid columns={c} data={d} rowKey="ID" />; }';
+  assert.equal(run('m-x/pages/a/page.tsx', bare).length, 1);
+  assert.match(run('m-x/pages/a/page.tsx', bare)[0], /\[P-S2 경고\]/);
+  // 그리드 둘 중 title 없는 것만
+  assert.equal(run('m-x/pages/a/page.tsx', `${bare}\nconst y = <AgDataGrid title="목록" columns={c} />;`).length, 1);
+  // title·header={false}·{...props} 펼침, 속성 값 안의 `>` 는 태그 끝이 아니다
+  assert.equal(run('m-x/pages/a/page.tsx', 'const g = <AgDataGrid onX={(a) => a > 1} title="목록" />;').length, 0);
+  assert.equal(run('m-x/pages/a/page.tsx', 'const g = <AgDataGrid header={ false } columns={c} />;').length, 0);
+  assert.equal(run('m-x/pages/a/page.tsx', 'const g = <AgDataGrid {...props} />;').length, 0);
+  // GridPanel 안(머리줄을 GridPanel 이 그린다) — 닫힌 뒤의 그리드는 다시 대상
+  assert.equal(run('m-x/pages/a/page.tsx', '<GridPanel title="목록"><AgDataGrid columns={c} /></GridPanel>').length, 0);
+  assert.equal(run('m-x/pages/a/page.tsx', '<GridPanel title="목록"><AgDataGrid columns={c} /></GridPanel><AgDataGrid columns={c} />').length, 1);
+  // <AgDataGridXxx 는 다른 부품, 주석 안은 무시
+  assert.equal(run('m-x/pages/a/page.tsx', 'const g = <AgDataGridPanel columns={c} />; // <AgDataGrid columns={c} />').length, 0);
+  // 대화 상자 파일·내용, shared·m-* 밖·시험 파일·.ts
+  assert.equal(run('m-x/pages/a/FooPop.tsx', bare).length, 0);
+  assert.equal(run('m-x/pages/a/page.tsx', `const m = <Modal opened />;\n${bare}`).length, 0);
+  assert.equal(run('lib/a/page.tsx', bare).length, 0);
+  assert.equal(run('m-x/pages/a/page.test.tsx', bare).length, 0);
+  assert.equal(run('m-x/pages/a/page.ts', bare).length, 0);
+  const hits = [];
+  mod.grid_title_audit('m-x/pages/a/page.tsx', bare, true, (pos, msg) => hits.push(msg));
+  assert.equal(hits.length, 0);
+});
+
+test('이식 뒤 규칙(POST_PORT_RULES): 평소 audit 에는 나오고, AGGRID_AUDIT_PORTED_ONLY=1 이면 빠진다(golden 이 쓰는 스위치)', () => {
+  assert.deepEqual(mod.POST_PORT_RULES.map((f) => f.name), ['search_form_audit', 'grid_title_audit']);
+  const dir = path.join(trees.front, 'm-fx', 'pages', 'emptygrid');
+  const on = runNode(SCRIPT, ['audit', dir], { cwd: trees.front, env: { AGGRID_DOCS_CACHE: path.join(sb.tmp, 'c-pp1') } });
+  const off = runNode(SCRIPT, ['audit', dir], { cwd: trees.front, env: { AGGRID_DOCS_CACHE: path.join(sb.tmp, 'c-pp2'), AGGRID_AUDIT_PORTED_ONLY: '1' } });
+  assert.match(on.stdout, /\[P-S2 경고\]/);
+  assert.doesNotMatch(off.stdout, /\[P-S2 경고\]/);
+  assert.equal(on.status, off.status); // 경고라 종료 코드는 같다
+  const lines = (t) => t.split('\n').filter((l) => l && !/P-S[12] 경고/.test(l) && !/개 파일 점검/.test(l));
+  assert.deepEqual(lines(on.stdout), lines(off.stdout)); // 다른 줄은 그대로
+});

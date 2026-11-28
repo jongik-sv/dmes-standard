@@ -338,7 +338,8 @@ export function runSide(side, c, ctx) {
     r.stdout = normalizePyOutput(r.stdout);
     r.stderr = normalizePyOutput(r.stderr);
   } else {
-    r = runNode(variant ? variant.script : SCRIPT, args, { cwd, env, input: c.input });
+    // 이식 뒤 규칙(POST_PORT_RULES)은 끄고 python 판과 같은 규칙만 비교한다 — 새 규칙은 aggrid_docs.test.mjs 단위 시험이 본다
+    r = runNode(variant ? variant.script : SCRIPT, args, { cwd, env: { ...env, AGGRID_AUDIT_PORTED_ONLY: '1' }, input: c.input });
   }
   const mask = (t) => maskRun(t, ctx.tmp);
   let stdout = mask(r.stdout);

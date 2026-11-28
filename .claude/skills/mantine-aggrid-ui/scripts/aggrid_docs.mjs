@@ -1383,6 +1383,13 @@ export function grid_title_audit(f, raw, in_shared, warn) {
   }
 }
 
+/**
+ * python 비교판(tests/golden/legacy/aggrid_docs.legacy.py) 이식 뒤에 더한 audit 규칙. node 판이 정본이다.
+ * golden·expected 시험은 AGGRID_AUDIT_PORTED_ONLY=1 로 이 규칙만 끄고 이식한 로직을 python 판과 비교한다.
+ * 새 audit 규칙은 여기 넣고 tests/aggrid_docs.test.mjs 에 단위 시험을 단다(python 판·기대값은 고치지 않는다).
+ */
+export const POST_PORT_RULES = [search_form_audit, grid_title_audit];
+
 const SKIP_DIRS = ['node_modules', '.next', 'dist', 'build'];
 
 /** audit 대상 파일 열거. 폴더는 재귀(.tsx/.ts/.jsx, 제외 폴더 이름이 경로 성분에 있으면 제외), 파일은 그대로. 표시 경로는 python Path 문자열. */
@@ -1459,8 +1466,9 @@ function cmd_audit(args) {
       (pos, msg) => report(f, text, pos, msg),
       (pos, msg) => report_warn(f, text, pos, msg),
       (pos, msg) => report_info(f, text, pos, msg));
-    search_form_audit(f, text, in_shared, (pos, msg) => report_warn(f, text, pos, msg));
-    grid_title_audit(f, text, in_shared, (pos, msg) => report_warn(f, text, pos, msg));
+    if (process.env.AGGRID_AUDIT_PORTED_ONLY !== '1') {
+      for (const rule of POST_PORT_RULES) rule(f, text, in_shared, (pos, msg) => report_warn(f, text, pos, msg));
+    }
   }
   out(`\n${files.length}개 파일 점검, 의심 ${issues}건 (deprecated 기준: 설치본 ${deprecated.size}개 속성)`
     + (warnings ? `, 성능 경고 ${warnings}건(종료 코드 무관)` : '')

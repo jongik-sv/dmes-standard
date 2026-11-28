@@ -104,7 +104,7 @@ test('golden 실제 화면: src/frontend 의 shared·m-* 전체 audit 출력이 
     const t0 = Date.now();
     const r = side === 'py'
       ? runCommand(py, [DRIVER, ctx.legacyDir, 'cli', 'audit', ...dirs], { cwd: ctx.trees.front, env: { ...PY_ENV, AGGRID_DOCS_CACHE: `${ctx.tmp}/rc` } })
-      : runNode(SCRIPT, ['audit', ...dirs], { cwd: ctx.trees.front, env: { AGGRID_DOCS_CACHE: `${ctx.tmp}/rc` } });
+      : runNode(SCRIPT, ['audit', ...dirs], { cwd: ctx.trees.front, env: { AGGRID_DOCS_CACHE: `${ctx.tmp}/rc`, AGGRID_AUDIT_PORTED_ONLY: '1' } });
     return { ...r, ms: Date.now() - t0, canon: canonAudit(side === 'py' ? normalizePyOutput(r.stdout) : r.stdout) };
   };
   const p = run('py');
