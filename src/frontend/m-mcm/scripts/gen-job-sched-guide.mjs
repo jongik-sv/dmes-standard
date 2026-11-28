@@ -12,6 +12,9 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
+/** 원문 줄끝을 \n 으로 맞춘다 — Windows(autocrlf) 체크아웃에서 만들어도 사본이 LF 로 같게 나온다. */
+const readLf = (file) => readFileSync(file, "utf8").replace(/\r\n?/g, "\n");
+
 const here = dirname(fileURLToPath(import.meta.url));
 const docs = resolve(here, "../../../../docs/guide/FrontEnd");
 
@@ -33,8 +36,8 @@ export function renderModule(userMarkdown, devMarkdown) {
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  const user = readFileSync(USER_GUIDE_SOURCE, "utf8");
-  const dev = readFileSync(DEV_GUIDE_SOURCE, "utf8");
+  const user = readLf(USER_GUIDE_SOURCE);
+  const dev = readLf(DEV_GUIDE_SOURCE);
   writeFileSync(GUIDE_TARGET, renderModule(user, dev));
   console.log(`생성: ${GUIDE_TARGET} (사용 방법 ${user.length}자, 처리기·BPMN ${dev.length}자)`);
 }

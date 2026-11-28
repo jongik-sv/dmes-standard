@@ -56,6 +56,33 @@
   "col|USE_TP|false",
   "col|__go|false"
  ],
+ "m-mcm/page-components/csa/commPermBench/DraftModals.tsx": [
+  "col|AFTER_VAL|false",
+  "col|APPLY_AT|false",
+  "col|APPLY_ID|false",
+  "col|APPLY_MEMO|false",
+  "col|APPLY_USER_ID|false",
+  "col|BEFORE_VAL|false",
+  "col|CHANGE_CNT|false",
+  "col|GAIN_USER_CNT|false",
+  "col|KEY1|false",
+  "col|KEY2|false",
+  "col|LOSE_USER_CNT|false",
+  "col|OP_TP|false",
+  "col|SEQ_NO|false",
+  "col|TARGET_TP|false"
+ ],
+ "m-mcm/page-components/csa/commPermBench/DraftParts.tsx": [
+  "col|GAIN_TXT|false",
+  "col|LOSE_TXT|false",
+  "col|USER_NM|false"
+ ],
+ "m-mcm/page-components/csa/commPermBench/MenuCol.tsx": [
+  "col|BTN_TXT|false",
+  "col|NAME|false",
+  "col|REG|false",
+  "col|STATE|false"
+ ],
  "m-mcm/page-components/csa/commPermMng/page.tsx": [
   "col|BTN_PERM|-",
   "col|DATA_PERM|-",
@@ -133,7 +160,11 @@
   "label|EMAIL|이메일|-",
   "label|END_ACTIVE_DATE|유효기한일|-",
   "label|IN_OUT_EMP_TP|내부 외부 구분|-",
+  "label|LAST_LOGIN_AT|마지막 로그인|false",
+  "label|MANAGE_TP|관리|false",
   "label|MOBILE_TEL_NO|모바일번호|-",
+  "label|PWD_EXPIRY_EXEMPT_YN|비밀번호 사용 기간 제외|false",
+  "label|PWD_TEMP_YN|비밀번호|false",
   "label|SSO_ID|SSO ID|-",
   "label|START_ACTIVE_DATE|유효개시일|-",
   "label|TEL_NO|전화 번호|-",
@@ -141,30 +172,49 @@
   "label|USER_EMP_NO|사번|-",
   "label|USER_ID|사용자ID|-",
   "label|USER_NM|사용자명|-",
-  "label|reRegister|계정 재생성|false",
+  "label|USER_ST|상태|false",
   "label|roleCopyUserId|사용자 역할그룹 복사|false"
  ],
- "m-mcm/page-components/csa/commUserMng/page.tsx": [
+ "m-mcm/page-components/csa/commUserMng/HrEvtModal.tsx": [
   "col|DEPT_CD|-",
+  "col|EMP_NO|-",
+  "col|EVT_DT|-",
+  "col|EVT_TP|-",
+  "col|PROC_AT|-",
+  "col|PROC_MSG|-",
+  "col|PROC_ST|-",
+  "col|TRY_CNT|-",
+  "col|USER_ID|-",
+  "col|USER_NM|-"
+ ],
+ "m-mcm/page-components/csa/commUserMng/UserStateModals.tsx": [
+  "label|retireMemo|(식:reason === \"기타\" ? \"사유 입력\" : \"메모\")|false",
+  "label|retireReason|사유|false",
+  "label|suspendReasonEtc|사유 입력|false",
+  "label|suspendReason|사유|false",
+  "label|toUserId|받을 사람|false",
+  "label|toUserId|받을 사람|false"
+ ],
+ "m-mcm/page-components/csa/commUserMng/page.tsx": [
   "col|DEPT_NM|-",
   "col|EMAIL|-",
   "col|END_ACTIVE_DATE|-",
-  "col|IN_OUT_EMP_TP|-",
-  "col|MOBILE_TEL_NO|-",
+  "col|LAST_LOGIN_AT|-",
+  "col|MANAGE_TP|-",
+  "col|OWNED_CNT|-",
+  "col|PWD_TEMP_YN|-",
   "col|ROLE_GROUP_ID|-",
   "col|ROLE_GROUP_ID|-",
   "col|ROLE_GROUP_NM|-",
   "col|ROLE_GROUP_NM|-",
-  "col|SSO_ID|-",
-  "col|START_ACTIVE_DATE|-",
-  "col|TEL_NO|-",
-  "col|USER_CATEGORY_CD|-",
+  "col|ST_RSN|-",
   "col|USER_EMP_NO|-",
   "col|USER_ID|-",
   "col|USER_NM|-",
-  "col|USE_TP|-",
+  "col|USER_ST|-",
   "label|USER_ID|사용자 ID|-",
-  "label|initPassword|초기 비밀번호|false"
+  "label|initPassword|임시 비밀번호|false",
+  "label|tempPwdUntil|쓸 수 있는 기간|false"
  ],
  "m-mcm/page-components/csa/commUserRoleCopy/page.tsx": [
   "col|DEPT_NM|-",
@@ -401,6 +451,7 @@
   "col|EXPECT|false",
   "col|FIELD|false",
   "col|LEVEL|false",
+  "col|MESSAGE|false",
   "col|MESSAGE|false",
   "col|RESULT|false",
   "col|VALUE|false"
@@ -871,11 +922,22 @@
   "col|status|false"
  ],
  "m-mdm/pages/dme/ruleEdit/cards/TestCaseCard.tsx": [
-  "col|caseId|-",
-  "col|expectedJson|-",
-  "col|inputJson|-",
+  "col|caseId|false",
   "col|name|false",
   "col|result|false"
+ ],
+ "m-mdm/pages/dme/ruleEdit/cards/TestCaseDetail.tsx": [
+  "col|contract|false",
+  "col|form|-",
+  "col|json|-",
+  "col|name|false",
+  "col|name|false",
+  "col|on|false",
+  "col|on|false",
+  "col|type|false",
+  "col|type|false",
+  "col|value|false",
+  "col|value|false"
  ],
  "m-mdm/pages/dme/ruleEdit/cards/ValueTestCard.tsx": [
   "col|contractBadge|false",

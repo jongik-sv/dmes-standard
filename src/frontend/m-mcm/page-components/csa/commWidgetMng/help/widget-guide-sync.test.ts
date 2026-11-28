@@ -12,10 +12,13 @@ function stripCode(markdown: string): string {
   return markdown.replace(/```[\s\S]*?```/g, "").replace(/`[^`\n]*`/g, "");
 }
 
+/** 원문 줄끝을 \n 으로 맞춘다 — Windows(autocrlf) 체크아웃은 .md 를 CRLF 로 받는다. 사본은 생성기가 LF 로 만든다. */
+const readLf = (file: string): string => readFileSync(file, "utf8").replace(/\r\n?/g, "\n");
+
 describe("위젯 도움말 문서 번들", () => {
   it("저장소 원문(Widget-Authoring-Guide.md)과 화면 번들 사본이 같다", () => {
     // 어긋나면: pnpm --filter @dk-oasis/mcm gen:widget-guide
-    expect(WIDGET_GUIDE_MARKDOWN).toBe(readFileSync(SOURCE, "utf8"));
+    expect(WIDGET_GUIDE_MARKDOWN).toBe(readLf(SOURCE));
   });
 
   it("목차가 될 장(##)이 충분하다", () => {
