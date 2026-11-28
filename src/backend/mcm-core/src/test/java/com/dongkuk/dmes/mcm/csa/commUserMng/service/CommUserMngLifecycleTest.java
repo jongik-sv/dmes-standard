@@ -6,6 +6,7 @@
 package com.dongkuk.dmes.mcm.csa.commUserMng.service;
 
 import com.dongkuk.dmes.mcm.common.exception.BusinessException;
+import com.dongkuk.dmes.mcm.csa.commPerm.SysadminGuard;
 import com.dongkuk.dmes.mcm.csa.commUserMng.dto.CommUserMngSearchRequest;
 import com.dongkuk.dmes.mcm.csa.commUserMng.dto.CommUserMngStateRequest;
 import com.dongkuk.dmes.mcm.csa.commUserMng.support.CommUserMngJpaTestConfig;
@@ -14,12 +15,19 @@ import com.dongkuk.dmes.mcm.entity.SecUser;
 import com.dongkuk.dmes.mcm.entity.SecUserHis;
 import com.dongkuk.dmes.mcm.entity.SecUserPwd;
 import com.dongkuk.dmes.mcm.repository.SecHrEvtRepository;
+import com.dongkuk.dmes.mcm.repository.SecRoleGroupMappingRepository;
+import com.dongkuk.dmes.mcm.security.account.AccountStatusCache;
+import com.dongkuk.dmes.mcm.security.account.DefaultUserOwnershipClient;
+import com.dongkuk.dmes.mcm.security.account.UserOwnershipClient;
+import com.dongkuk.dmes.mcm.userq.repository.UserQueryAssignRepository;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.support.StaticListableBeanFactory;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import javax.sql.DataSource;
@@ -202,6 +210,37 @@ class CommUserMngLifecycleTest extends CommUserMngJpaTestBase {
 
             assertThat(out).containsEntry("HANDOVER_ST", "DONE");
             assertThat(hisOf("rf").get(0).getDescription()).contains("인계: rto");
+        }
+
+        @Autowired SecRoleGroupMappingRepository secRoleGroupMappingRepository;
+        @Autowired UserQueryAssignRepository userQueryAssignRepository;
+        @Autowired CommUserMngHisWriter hisWriter;
+        @Autowired SysadminGuard sysadminGuard;
+        @Autowired AccountStatusCache accountStatusCache;
+        @Autowired ApplicationEventPublisher eventPublisher;
+
+        @Test
+        @DisplayName("MDM 이 꺼져 인계가 실패하면 퇴직은 남고 HANDOVER_ST=FAILED, 이력은 「인계: 받을 사람」이 아니라 실패·대기로 남는다")
+        void retireWithReceiverMdmDown() {
+            SecUser from = fx.user("rx", null, START);
+            from.setUserEmpNo("E300");
+            fx.user(from);
+            SecUser to = fx.user("rxto", null, START);
+            to.setUserEmpNo("E400");
+            fx.user(to);
+            StaticListableBeanFactory beans = new StaticListableBeanFactory();
+            beans.addBean("downMdm", new DefaultUserOwnershipClient("http://127.0.0.1:1", ""));
+            UserLifecycleCore core = new UserLifecycleCore(secUserRepository, secUserMappingRepository,
+                    secRoleGroupMappingRepository, userQueryAssignRepository, hisWriter, sysadminGuard,
+                    accountStatusCache, eventPublisher, beans.getBeanProvider(UserOwnershipClient.class));
+
+            Map<String, Object> out = inTx(() -> core.retire(userOf("rx"), "퇴사", false, "rxto"));
+
+            assertThat(out).containsEntry("HANDOVER_ST", "FAILED");
+            assertThat(userOf("rx").getUseTp()).isEqualTo("N");
+            assertThat(hisOf("rx").get(0).getDescription())
+                    .isEqualTo("퇴직: 퇴사 · 인계 실패(받을 사람 rxto) · 인계 대기")
+                    .doesNotContain("인계: rxto");
         }
 
         @Test

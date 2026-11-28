@@ -43,6 +43,7 @@ import java.util.Set;
  *
  * <p>MDM 담당 데이터 인계·ERD 점유 해제는 다른 앱 호출이라 MCM 트랜잭션에 묶이지 않는다. MCM 쓰기와 가드 검사가 모두 끝난 뒤
  * 마지막에 부르고, 실패하면 퇴직은 그대로 두고 「인계 대기」로 남긴다(D4 — 권장만).
+ * 예외: 퇴직 이력만 인계 결과를 담으려고 호출 뒤에 쓴다 — 이력 저장 실패 시 퇴직은 되돌려지고 MDM 소유는 받을 사람에게 남는다.
  */
 @Component("userLifecycleCore")
 public class UserLifecycleCore {
@@ -236,17 +237,26 @@ public class UserLifecycleCore {
         int assigns = userQueryAssignRepository.deleteByUserId(u.getUserId());
         verifySysadmin(check);
 
-        String procCase = hr ? CommUserMngHisWriter.CASE_HR : CommUserMngHisWriter.CASE_MANUAL;
-        hisWriter.userHis(u.getUserId(), CommUserMngHisWriter.TP_RETIRE, procCase, u.getUserNm(),
-                (hr ? HR_PREFIX + " 퇴직" : "퇴직") + suffix(reason)
-                        + (receiver != null ? " · 인계: " + receiver.getUserId() : " · 인계 대기"));
         accountStatusCache.invalidate(u.getUserId());
 
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("ROLE_GROUP_CNT", roleGroups);
         out.put("ASSIGN_CNT", assigns);
         out.putAll(receiver != null ? handoverToMdm(u, receiver) : releaseOnly(u.getUserId()));
+
+        // 이력 문구는 인계 결과를 보고 쓴다 — 인계가 실패했는데 「인계: 받을 사람」으로 남으면 상태 사유가 넘긴 것처럼 보인다
+        String procCase = hr ? CommUserMngHisWriter.CASE_HR : CommUserMngHisWriter.CASE_MANUAL;
+        hisWriter.userHis(u.getUserId(), CommUserMngHisWriter.TP_RETIRE, procCase, u.getUserNm(),
+                (hr ? HR_PREFIX + " 퇴직" : "퇴직") + suffix(reason) + handoverNote(receiver, out.get("HANDOVER_ST")));
         return out;
+    }
+
+    /** 퇴직 이력 끝말 — 넘겼으면 「인계: 받을 사람」, 넘기지 못했으면 실패·대기를 남긴다. */
+    static String handoverNote(SecUser receiver, Object handoverSt) {
+        if (receiver == null) return " · 인계 대기";
+        if ("DONE".equals(handoverSt)) return " · 인계: " + receiver.getUserId();
+        if ("FAILED".equals(handoverSt)) return " · 인계 실패(받을 사람 " + receiver.getUserId() + ") · 인계 대기";
+        return " · 인계 대기";
     }
 
     /**
