@@ -69,6 +69,7 @@ import {
 } from "@dk-oasis/shared/form";
 import { MdmFieldLabel } from "@dk-oasis/shared/mdm-meta";
 import { useMessage } from "@dk-oasis/shared/message-provider";
+import { bizErrorText } from "@/lib/utils/biz-error";
 import { useCarryRestored, useCarryState } from "@dk-oasis/shared/portal-shell";
 import {
   searchCmRoleGrp as apiSearchCmRoleGrp,
@@ -390,7 +391,7 @@ export default function CommRoleGrpMngPage() {
           showMessage({ message: `${list.length}건 조회 되었습니다.`, toast: true });
         }
       } catch (e) {
-        setError(e instanceof Error ? e.message : "조회 실패");
+        setError(bizErrorText(e, "조회 실패"));
         setRows([]);
         setRoleMapRows([]);
         setRoleRows([]);
@@ -439,7 +440,7 @@ export default function CommRoleGrpMngPage() {
       setRoleMapSelectedKeys([]);
       setRoleSelectedKeys([]);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "매핑 조회 실패");
+      setError(bizErrorText(e, "매핑 조회 실패"));
       setRoleMapRows([]);
       setRoleRows([]);
     }
@@ -620,7 +621,7 @@ export default function CommRoleGrpMngPage() {
       // 방금 저장한 그룹의 선택을 유지한다 (이어서 역할을 붙이는 것이 실제 동선).
       await loadList(filters, { preferGroupId: keepGroupId || undefined, silent: true });
     } catch (e) {
-      setError(e instanceof Error ? e.message : "저장 실패 하였습니다.");
+      setError(bizErrorText(e, "저장 실패 하였습니다."));
     } finally {
       setIsSaving(false);
     }
@@ -692,7 +693,7 @@ export default function CommRoleGrpMngPage() {
         await loadSubGrids(String(selected.ROLE_GROUP_ID));
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : "저장 실패");
+      setError(bizErrorText(e, "저장 실패"));
     } finally {
       setRows((prev) => keepDirtyRows(prev, dirty, groupKey, keepGridKeys));
       setIsSaving(false);
@@ -732,7 +733,7 @@ export default function CommRoleGrpMngPage() {
         await loadSubGrids(String(selected.ROLE_GROUP_ID));
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : "저장 실패");
+      setError(bizErrorText(e, "저장 실패"));
     } finally {
       setRows((prev) => keepDirtyRows(prev, dirty, groupKey, keepGridKeys));
       setIsSaving(false);

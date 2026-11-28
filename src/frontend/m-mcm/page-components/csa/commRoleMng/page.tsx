@@ -40,6 +40,7 @@ import { Badge, Button, Input, ComboBox, DatePicker, Radio, useDetailDraft, type
 import { CardFrame, MutedText } from "@dk-oasis/shared/card";
 import { MdmFieldLabel } from "@dk-oasis/shared/mdm-meta";
 import { useMessage } from "@dk-oasis/shared/message-provider";
+import { bizErrorText } from "@/lib/utils/biz-error";
 import { useCarryRestored, useCarryState } from "@dk-oasis/shared/portal-shell";
 import { openBench, useOpenWith } from "@/page-components/csa/commPermBench/nav";
 import {
@@ -716,7 +717,7 @@ export default function CommRoleMngPage() {
         setMenuLov(lov.ds_lovMenuId ?? []);
         setMenus(lov.menus ?? []);
       } catch (e) {
-        setError(e instanceof Error ? e.message : "LoV 조회 실패");
+        setError(bizErrorText(e, "LoV 조회 실패"));
       }
     })();
   }, []);
@@ -751,7 +752,7 @@ export default function CommRoleMngPage() {
     if (pm.status === "fulfilled") {
       setPerm({ roleId, draft: draftFromRows(pm.value.perms ?? []), loading: false, error: null });
     } else {
-      const msg = pm.reason instanceof Error ? pm.reason.message : "퍼미션 조회 실패";
+      const msg = bizErrorText(pm.reason, "퍼미션 조회 실패");
       setPerm({ roleId, draft: EMPTY_DRAFT, loading: false, error: msg });
       setError(msg);
     }
@@ -759,7 +760,7 @@ export default function CommRoleMngPage() {
       setGroupInfo({ roleId, groups: gr.value.groups ?? [], userCnt: gr.value.USER_CNT ?? null, loading: false, error: false });
     } else {
       setGroupInfo({ roleId, groups: [], userCnt: null, loading: false, error: true });
-      if (pm.status === "fulfilled") setError(gr.reason instanceof Error ? gr.reason.message : "그룹 조회 실패");
+      if (pm.status === "fulfilled") setError(bizErrorText(gr.reason, "그룹 조회 실패"));
     }
   }, []);
 
@@ -800,7 +801,7 @@ export default function CommRoleMngPage() {
         }
         return picked;
       } catch (e) {
-        setError(e instanceof Error ? e.message : "조회 실패");
+        setError(bizErrorText(e, "조회 실패"));
         setRows([]);
         setSelectedKey(null);
         return null;
@@ -917,7 +918,7 @@ export default function CommRoleMngPage() {
         setFolderObjs({ scope: key, objs: res.objs ?? [], loading: false, failed: false });
       } catch (e) {
         if (seq !== objSeq.current) return;
-        setError(e instanceof Error ? e.message : "메뉴 폴더 오브젝트 조회 실패");
+        setError(bizErrorText(e, "메뉴 폴더 오브젝트 조회 실패"));
         setFolderObjs({ scope: key, objs: [], loading: false, failed: true });
       }
     })();
@@ -1151,7 +1152,7 @@ export default function CommRoleMngPage() {
           permRes = await apiSaveCmRoleMap(selectedRoleId, permSave);
         } catch (e) {
           const msg = permSaveErrorText(
-            e instanceof Error ? e.message : "퍼미션 저장 실패",
+            e instanceof Error && e.message.trim() ? e.message : "퍼미션 저장 실패",
             (e as BusinessError | undefined)?.code,
           );
           permErr = roleCnt !== null ? `역할은 저장했지만 퍼미션은 저장하지 못했습니다.\n${msg}` : msg;
@@ -1174,7 +1175,7 @@ export default function CommRoleMngPage() {
         setObjReload((n) => n + 1);
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : "저장 실패 하였습니다.");
+      setError(bizErrorText(e, "저장 실패 하였습니다."));
     } finally {
       setIsSaving(false);
     }

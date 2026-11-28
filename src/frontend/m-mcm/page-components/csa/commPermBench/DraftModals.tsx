@@ -14,11 +14,11 @@ import { AgDataGrid, type GridColumn } from "@dk-oasis/shared/grid";
 import { Button, DateRangePicker, Textarea } from "@dk-oasis/shared/form";
 import type { HistoryDtlRow, HistoryRow, ImpactResult, PermBenchApi, YN } from "./types";
 import { fmtNum, type BenchIndex } from "./model";
-import { HISTORY_MAX_DAYS, HISTORY_MAX_ROWS, benchErrorText, defaultHistoryRange, historyRangeError, impactPeople } from "./draft";
+import { HISTORY_MAX_DAYS, HISTORY_MAX_ROWS, applyModalNext, benchErrorText, defaultHistoryRange, historyRangeError, impactPeople, type ApplyOutcome } from "./draft";
 import { fmtTime } from "./DraftParts";
 
-/** onApply 결과: done = 끝(창 닫음) · confirm = 잃는 사람 확인이 필요 · error = 실패(창 유지, 화면이 메시지를 보였다). */
-export type ApplyOutcome = { kind: "done" } | { kind: "confirm"; message: string } | { kind: "error" };
+/** onApply 결과 — draft.ts 정의. done·error 는 창을 닫고(error 는 화면이 메시지를 보였다, 초안은 남는다) confirm 만 창을 남긴다. */
+export type { ApplyOutcome };
 
 const LOSS_PREVIEW = 8;
 
@@ -40,8 +40,9 @@ export const ApplyModal = memo(function ApplyModal({ count, impact, impactLoadin
     setBusy(true);
     const r = await onApply(memo.trim(), confirmLoss);
     setBusy(false);
-    if (r.kind === "confirm") setConfirm(r.message);
-    else if (r.kind === "done") onClose();
+    const next = applyModalNext(r);
+    if (next.close) onClose();
+    else setConfirm(next.confirm);
   };
 
   const footer = confirm ? (

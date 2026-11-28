@@ -4,6 +4,7 @@ import { indexBench, toRolePermMap, groupsOfUser } from "./model";
 import { PermApplyError, type RolePermRow } from "./types";
 import {
   EMPTY_DRAFT,
+  applyModalNext,
   benchErrorText,
   changeKey,
   changeText,
@@ -127,5 +128,18 @@ describe("api — 실패 문구 읽기", () => {
     const busy = failureOf({ meta: { success: false, message: "PERM_DRAFT_BUSY: 잠금" } });
     expect((busy as PermApplyError).code).toBe("PERM_DRAFT_BUSY");
     expect(failureOf({ meta: { success: false, message: "그냥 실패" } })).not.toBeInstanceOf(PermApplyError);
+  });
+});
+
+describe("적용 창 — 결과에 따른 다음 모습", () => {
+  it("잃는 사람 확인(confirm)만 창을 남기고, 끝·실패는 창을 닫는다", () => {
+    expect(applyModalNext({ kind: "confirm", message: "잃는 사람 2명" })).toEqual({ close: false, confirm: "잃는 사람 2명" });
+    expect(applyModalNext({ kind: "done" })).toEqual({ close: true });
+    // 「잃는 사람이 있어도 적용」 뒤 PERM_SELF_LOCKOUT 등 실패 — 화면이 오류를 알렸으니 확인 창이 남지 않는다
+    expect(applyModalNext({ kind: "error" })).toEqual({ close: true });
+  });
+  it("PERM_SELF_LOCKOUT 안내는 초안이 남는다고 알린다", () => {
+    const t = benchErrorText(new PermApplyError("PERM_SELF_LOCKOUT", "본인"));
+    expect(t.message).toContain("초안은 그대로 있습니다");
   });
 });

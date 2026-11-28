@@ -34,6 +34,7 @@ import {
   roleOffMessage,
   viewRows,
 } from "./role-perm";
+import { bizErrorText } from "@/lib/utils/biz-error";
 import type { FolderObjRow, RoleMenuLov, RolePermRow } from "./types";
 
 const ROLE = "role_MN_MPP_WORK_VIEW";
@@ -295,6 +296,17 @@ describe("저장 줄", () => {
     const c = businessError(undefined);
     expect(c.message).toBe("요청이 거부되었습니다.");
     expect(c.code).toBeUndefined();
+  });
+  it("보이는 오류 글에는 코드 접두(「E010: LAST_SYSADMIN: 」)가 없다 — 오류 객체에는 코드가 남는다", () => {
+    const e = businessError({ message: "LAST_SYSADMIN: 사용 중인 시스템관리자가 한 명도 남지 않습니다", code: "E010" });
+    expect(e.message).toBe("E010: LAST_SYSADMIN: 사용 중인 시스템관리자가 한 명도 남지 않습니다");
+    expect(e.code).toBe("E010");
+    expect(bizErrorText(e, "저장 실패")).toBe("사용 중인 시스템관리자가 한 명도 남지 않습니다");
+    expect(permSaveErrorText("E010: LAST_SYSADMIN: 남지 않습니다")).toBe("남지 않습니다");
+    const p = permSaveErrorText("E010: PERM_EMPTY_BTN: r × o");
+    expect(p).toContain("버튼 권한이 빈");
+    expect(p).toContain("(r × o)");
+    expect(p).not.toContain("E010");
   });
 });
 
