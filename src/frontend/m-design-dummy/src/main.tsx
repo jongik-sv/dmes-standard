@@ -12,6 +12,7 @@ import "@dk-oasis/shared/grid.css";
 import "@dk-oasis/shared/modal.css";
 import "@dk-oasis/shared/tree.css";
 import "./styles/app.css";
+import "./styles/role-mgmt.css";
 import { App } from "./App";
 
 createRoot(document.getElementById("root")!).render(
