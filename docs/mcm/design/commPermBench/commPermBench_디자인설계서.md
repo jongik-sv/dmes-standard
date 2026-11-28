@@ -81,8 +81,8 @@ SIDEBAR / HEADER / TabsBar 는 `portal` 의 `PortalShell` 이 자동 주입한�
 │ 사람    │ │ 역할 그룹 │ │ 역할     │ │ 메뉴(오브젝트)      │ │ 미리보기                          │
 │ 210 px │▌│ 230 px  │▌│ 240 px  │▌│ 540 px            │▌│ 860 px                           │
 │ [찾기 ]│ │ ☑ 냉연 조업│ │ ☑ 냉연   │ │ [찾기][등록된 것|모두]│ │ [사람 기준|역할 기준] 「김도윤」으로 │
-│ [그룹▾]│ │ ☐ 도금 조업│ │   조업자 │ │ ☑ 공통관리  ▾ 3   │ │ 보기 [현재|초안] 메뉴 N개          │
-│ [역할▾]│ │   ...    │ │ ☐ 현장   │ │  ☑ 시스템관리 ▾   │ │ ┌ DMES · 김도윤 · 냉연생산팀 ──┐   │
+│        │ │ ☐ 도금 조업│ │   조업자 │ │ ☑ 공통관리  ▾ 3   │ │ 보기 [현재|초안] 메뉴 N개          │
+│        │ │   ...    │ │ ☐ 현장   │ │  ☑ 시스템관리 ▾   │ │ ┌ DMES · 김도윤 · 냉연생산팀 ──┐   │
 │ 김도윤 ›│ │          │ │   조회   │ │   ☑ 권한 작업대 4/11│ │ │ 메뉴 트리 │ 화면 제목 · ID   │   │
 │  ...   │ │ (↗ 편집) │ │ (↗ 편집) │ │ (↗ 메뉴, 오브젝트) │ │ │ ▸ 모듈   │ [버튼 칩][버튼 칩]│   │
 │ (↗ ＋ ✎)│ │ (↗ ＋ ✎)│ │ (↗ ＋ ✎)│ │ (↗ ✎ ✎ ＋)        │ │ │          │ 켠 역할 색 칩      │   │
@@ -127,7 +127,7 @@ SIDEBAR / HEADER / TabsBar 는 `portal` 의 `PortalShell` 이 자동 주입한�
 ### 3.2 A-FILTER 내부 배치
 
 ```
-사람 칸 머리      [사람 찾기 (S-001)                        ] [그룹으로 좁히기 ▾ S-002] [역할로 좁히기 ▾ S-003]
+사람 칸 머리      [사람 찾기 (S-001)                        ]   (S-002·S-003 좁히기 콤보는 화면에 없다 — 서버 계약만, 각 칸 찾기로 대신)
                   찾는 중이면 「N명 찾음」, 받은 사람이 200명(서버 상한)이면 「앞 200명만 보입니다. 찾기로 좁히세요」, 그 밖에는 안내 없음
                   찾는 말이 없으면 받은 사람 전부를 정렬 순서(기본 USER_ID 오름)로 보인다. 고른 사람도 자기 자리에 둔다
 그룹 칸 머리      [그룹 찾기 (S-013)]  찾는 중이면 「N개 찾음」
@@ -388,7 +388,7 @@ CommPermBenchPage                              ← m-mcm/page-components/csa/com
 │       ├── 칸 폭 안내줄 + 「모든 칸 폭 처음대로」(B-010) ← @dk-oasis/shared/form: Button
 │       └── ResizableColumns (신규 f1)          ← @dk-oasis/shared: ResizableColumns
 │           ├── ContentPanel 사람 (A-GRID)      ← @dk-oasis/shared/layout: ContentPanel
-│           │   ├── Input (S-001), ComboBox (S-002, S-003)  ← @dk-oasis/shared/form
+│           │   ├── Input (S-001)                ← @dk-oasis/shared/form (S-002·S-003 콤보는 두지 않는다)
 │           │   └── AgDataGrid (G1)            ← @dk-oasis/shared/grid: AgDataGrid
 │           ├── ContentPanel 역할 그룹 (A-GRID)
 │           │   └── AgDataGrid (G2 + G4 체크)

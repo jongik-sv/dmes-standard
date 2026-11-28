@@ -44,8 +44,12 @@ export const REPO = path.dirname(path.dirname(path.dirname(SKILL)));
 export const FRONT = path.join(REPO, 'src', 'frontend');
 export const SHARED = path.join(FRONT, 'shared', 'src');
 
-// 색인 묶음: [제목, 문서 파일명 목록]. 새 문서를 추가하면 여기에 넣는다.
-export const GROUPS = [
+// 시험용 데이터 표 바꾸기: UI_DOCS_DATA(JSON 파일 경로, {groups, excluded, exportFiles})를 주면 아래 세 표 대신 그 값을 쓴다.
+// golden 시험이 python 판(legacy)과 같은 표를 넘겨 로직만 비교하게 한다. 평소에는 쓰지 않는다.
+const DATA_OVERRIDE = process.env.UI_DOCS_DATA ? JSON.parse(fs.readFileSync(process.env.UI_DOCS_DATA, 'utf8')) : null;
+
+// 색인 묶음: [제목, 문서 파일명 목록]. 새 문서를 추가하면 여기에 넣는다(정본은 여기 하나다).
+export const GROUPS = DATA_OVERRIDE?.groups ?? [
   ['화면 골격 (`@dk-oasis/shared/layout`)', ['page-layout', 'search-area', 'search-settings-menu', 'content-body', 'detail-form']],
   ['입력 (`@dk-oasis/shared/form`)', [
     'button', 'input', 'select', 'combo-box', 'multi-select-combo-box', 'date-picker', 'date-range-picker', 'date-time-picker',
@@ -74,7 +78,7 @@ export const GROUPS = [
 ];
 
 // 화면 문서에 싣지 않는 shared export 와 이유. coverage 가 이 목록을 "의도적 제외"로 본다. (삽입 순서 유지를 위해 Map)
-export const EXCLUDED = new Map([
+export const EXCLUDED = DATA_OVERRIDE ? new Map(DATA_OVERRIDE.excluded) : new Map([
   ['WIDGET_CSS', 'WidgetStyle 내부용 CSS 문자열'],
   ['getDraggingWidget', 'WidgetPicker·WidgetBoard 끌기 공유용 내부 함수'],
   ['setDraggingWidget', 'WidgetPicker·WidgetBoard 끌기 공유용 내부 함수'],
@@ -136,7 +140,7 @@ export const EXCLUDED = new Map([
 ]);
 
 // coverage 대상 shared index 파일
-export const EXPORT_FILES = [
+export const EXPORT_FILES = DATA_OVERRIDE?.exportFiles ?? [
   'layout/index.ts',
   'components/form/index.ts',
   'components/grid/index.ts',

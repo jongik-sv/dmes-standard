@@ -2,7 +2,8 @@
 //  1) 골든: python 판(legacy)과 node 판을 같은 합성·실제 문서 트리에서 돌려 stdout·종료 코드·생성 파일을 비교한다(python3 가 있을 때. 없으면 skip).
 //     coverage 는 각 판이 자기 생성물(llms.txt·llms-full.txt)로 비교한다(트리마다 해당 판의 `--write` 를 먼저 돈다).
 //  2) 기대값: python 으로 미리 계산해 둔 tests/golden/expected/ui_docs.json 과 node 판을 비교한다(python 없이도 돈다).
-//  3) node 판 단독 시험: 데이터 표(GROUPS·EXCLUDED·EXPORT_FILES) 일치, 가짜 tsc 흐름, 보조 함수.
+//  3) node 판 단독 시험: 가짜 tsc 흐름, 보조 함수.
+// 데이터 표(GROUPS·EXCLUDED·EXPORT_FILES)는 비교하지 않는다. 정본은 node 판 하나이고, 두 판은 하네스가 넘기는 같은 표로 돈다(_ui_golden.mjs).
 // 임시 폴더는 makeTempDir 로 만들고 끝나면 스스로 지운다.
 
 import test, { after } from 'node:test';
@@ -16,7 +17,7 @@ import { normSep } from './_norm.mjs';
 import { runNode } from './_run.mjs';
 import * as U from '../scripts/ui_docs.mjs';
 import {
-  CASES, REAL_CASES, EXPECTED_FILE, runCase, pythonData, nodeData,
+  CASES, REAL_CASES, EXPECTED_FILE, runCase,
 } from './_ui_golden.mjs';
 
 const base = fs.realpathSync(makeTempDir('ui-test-'));
@@ -40,10 +41,6 @@ for (const c of [...CASES, ...REAL_CASES]) {
   });
 }
 
-test('golden ui_docs: GROUPS·EXCLUDED·EXPORT_FILES 데이터가 python 판과 같다(순서 포함)', { skip: havePython ? false : 'python3 없음' }, () => {
-  assert.deepEqual(nodeData(), pythonData(base));
-});
-
 // ---- 2) 기대값 파일 대 node 판 ----------------------------------------------
 const expected = readJson(EXPECTED_FILE);
 for (const c of CASES) {
@@ -54,10 +51,6 @@ for (const c of CASES) {
     assert.deepEqual(nd, normSep(exp), diffMsg(exp, nd));
   });
 }
-
-test('expected ui_docs: 데이터 표', () => {
-  assert.deepEqual(nodeData(), expected.data);
-});
 
 // ---- 3) node 판 단독 시험 ---------------------------------------------------
 const LLMS_REL = '.claude/skills/mantine-aggrid-ui/references/components/llms.txt';

@@ -8,6 +8,8 @@
 // python 판과 node 판은 **각자 자기 트리**에서 자기 생성물(llms.txt·llms-full.txt)로 비교한다(pre 단계에서 각 판이 자기 `--write` 를 먼저 돈다).
 // 출력 정규화(의도된 차이): python 출력의 `python3 …X.py` → `node …X.mjs`, `X_docs.py` → `X_docs.mjs`, `node_modules/.bin/tsc` → `node_modules/typescript/bin/tsc`,
 // 트리 경로 → <TREE>, 줄끝 CRLF → LF. audit 가 섞이는 출력은 파일 단위 안정 정렬을 적용한다.
+// 데이터 표(GROUPS·EXCLUDED·EXPORT_FILES): 두 판 모두 트리마다 UI_DOCS_DATA(JSON)로 같은 표를 받는다 — 로직만 비교한다.
+//   실제 트리(real-*) = node 판 ui_docs.mjs 의 표, 합성 트리 = 고정 합성 표 golden/ui_docs.syn-data.json(새 shared 를 등록해도 바꾸지 않는다).
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -25,6 +27,15 @@ export const REPO_ROOT = path.resolve(SKILLS_DIR, '..', '..');
 export const SCRIPTS = path.join(SKILL_DIR, 'scripts');
 export const LEGACY = path.join(HERE, 'golden', 'legacy');
 export const EXPECTED_FILE = path.join(HERE, 'golden', 'expected', 'ui_docs.json');
+/** 합성 트리용 고정 데이터 표(시험 입력). 실제 표와 따로 두어 shared 등록 때 golden 을 다시 만들 일이 없게 한다. */
+export const SYN_DATA_FILE = path.join(HERE, 'golden', 'ui_docs.syn-data.json');
+const SYN_DATA = JSON.parse(fs.readFileSync(SYN_DATA_FILE, 'utf8'));
+/** node 판 ui_docs.mjs 의 실제 데이터 표. */
+export function nodeData() {
+  return { groups: GROUPS.map(([t, n]) => [t, [...n]]), excluded: [...EXCLUDED.entries()], exportFiles: [...EXPORT_FILES] };
+}
+/** 트리 옆에 두는 데이터 표 파일(트리 안에 두지 않는다 — coverage·check-examples 가 보는 자리를 건드리지 않게). */
+const dataFileOf = (root) => `${root}.ui-data.json`;
 const SKILL_REL = ['.claude', 'skills', 'mantine-aggrid-ui'];
 
 const PY_ENV = { PYTHONDONTWRITEBYTECODE: '1', PYTHONUTF8: '1', PYTHONIOENCODING: 'utf-8', PYTHONUNBUFFERED: '1' };
@@ -147,6 +158,8 @@ let seq = 0;
 export function buildTree(base, tool, kind, { examples = 'syn', stubAggrid = true } = {}) {
   seq += 1;
   const root = fs.realpathSync(fs.mkdtempSync(path.join(base, `${tool}${seq}-`)));
+  const data = kind === 'real' ? nodeData() : SYN_DATA;
+  fs.writeFileSync(dataFileOf(root), JSON.stringify(data));
   const scripts = skillPath(root, 'scripts');
   fs.mkdirSync(scripts, { recursive: true });
   if (tool === 'py') {
@@ -169,12 +182,12 @@ export function buildTree(base, tool, kind, { examples = 'syn', stubAggrid = tru
   if (kind === 'real') {
     copyTreeNow(path.join(SKILL_DIR, 'references', 'components'), comp);
     const shared = path.join(REPO_ROOT, 'src', 'frontend', 'shared', 'src');
-    for (const rel of EXPORT_FILES) {
+    for (const rel of data.exportFiles) {
       const src = path.join(shared, ...rel.split('/'));
       if (fs.existsSync(src)) put(path.join(root, 'src', 'frontend', 'shared', 'src'), rel, fs.readFileSync(src));
     }
   } else {
-    for (const [, names] of GROUPS) for (const n of names) put(comp, `${n}.md`, n === COVER_DOC_NAME ? COVER_DOC : docText(n));
+    for (const [, names] of data.groups) for (const n of names) put(comp, `${n}.md`, n === COVER_DOC_NAME ? COVER_DOC : docText(n));
     for (const [rel, text] of Object.entries(SHARED_SRC)) put(path.join(root, 'src', 'frontend', 'shared', 'src'), rel, text);
   }
   if (examples === 'syn') {
@@ -194,10 +207,11 @@ export function buildTree(base, tool, kind, { examples = 'syn', stubAggrid = tru
 // ---------------------------------------------------------------------------
 function runTool(root, tool, args, env = {}) {
   const py = findPython();
+  const dataEnv = { UI_DOCS_DATA: dataFileOf(root) };
   if (tool === 'py') {
-    return runCommand(py, [skillPath(root, 'scripts', 'ui_docs.py'), ...args], { cwd: root, env: { ...PY_ENV, ...env }, normalizeEol: true });
+    return runCommand(py, [skillPath(root, 'scripts', 'ui_docs.py'), ...args], { cwd: root, env: { ...PY_ENV, ...dataEnv, ...env }, normalizeEol: true });
   }
-  return runNode(skillPath(root, 'scripts', 'ui_docs.mjs'), args, { cwd: root, env, normalizeEol: true });
+  return runNode(skillPath(root, 'scripts', 'ui_docs.mjs'), args, { cwd: root, env: { ...dataEnv, ...env }, normalizeEol: true });
 }
 
 function norm(text, root, tool) {
@@ -337,20 +351,3 @@ export const REAL_CASES = [
   { id: 'real-get-not-found', tree: 'real', args: ['get', 'definitely-not-a-component'], examples: 'none' },
   { id: 'real-check-examples', tree: 'real', args: ['check-examples'], examples: 'real', snap: ['src/frontend/m-mqc/.skillcheck'] },
 ];
-
-/** python 모듈의 데이터(GROUPS·EXCLUDED·EXPORT_FILES)를 JSON 으로 꺼낸다(python 이 있을 때). */
-export function pythonData(base) {
-  const py = findPython();
-  if (!py) return null;
-  const d = fs.mkdtempSync(path.join(base, 'pydata-'));
-  fs.copyFileSync(path.join(LEGACY, 'ui_docs.legacy.py'), path.join(d, 'ui_docs.py'));
-  const code = 'import json,sys; sys.path.insert(0, sys.argv[1]); import ui_docs as m; '
-    + 'print(json.dumps({"groups": m.GROUPS, "excluded": list(m.EXCLUDED.items()), "exportFiles": m.EXPORT_FILES}, ensure_ascii=False))';
-  const r = runCommand(py, ['-B', '-c', code, d], { env: PY_ENV });
-  if (r.status !== 0) throw new Error(r.stderr);
-  return JSON.parse(r.stdout);
-}
-
-export function nodeData() {
-  return { groups: GROUPS.map(([t, n]) => [t, [...n]]), excluded: [...EXCLUDED.entries()], exportFiles: [...EXPORT_FILES] };
-}

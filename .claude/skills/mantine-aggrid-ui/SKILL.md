@@ -97,7 +97,7 @@ node $D/aggrid_docs.mjs recommendations           # 공식 ag-dev 의 LLM 흔한
 
 ## 4. 검증과 보고
 
-0. shared 에 새 컴포넌트를 등록했다면 `references/components/<이름>.md` 를 [tabs.md](references/components/tabs.md) 형식(import·소스·언제 쓰나·표준 사용·Props·흔한 실수)으로 쓰고, `scripts/ui_docs.mjs` 의 분류에도 넣는다. 「언제 쓰나」 에는 비슷한 기존 래퍼와 나눠 쓰는 기준을 적는다. 이 스킬의 문서·예제를 고쳤다면 `U check-examples`(예제 타입 검사 + audit)와 `U coverage`(shared export 누락, `llms.txt`·`llms-full.txt` 최신 여부)를 돌린다. 생성물은 `U index --write`·`U full --write` 로 갱신한다.
+0. shared 에 새 컴포넌트를 등록했다면 `references/components/<이름>.md` 를 [tabs.md](references/components/tabs.md) 형식(import·소스·언제 쓰나·표준 사용·Props·흔한 실수)으로 쓰고, `scripts/ui_docs.mjs` 의 분류(GROUPS·EXPORT_FILES)에도 넣는다. 이 분류가 정본 하나다 — 시험의 python 비교판(`tests/golden/legacy`)이나 합성 표(`tests/golden/ui_docs.syn-data.json`)는 같이 고치지 않는다. 「언제 쓰나」 에는 비슷한 기존 래퍼와 나눠 쓰는 기준을 적는다. 이 스킬의 문서·예제를 고쳤다면 `U check-examples`(예제 타입 검사 + audit)와 `U coverage`(shared export 누락, `llms.txt`·`llms-full.txt` 최신 여부)를 돌린다. 생성물은 `U index --write`·`U full --write` 로 갱신한다.
 1. `M audit <바꾼 파일·폴더>` 와 `A audit <…>` — 옛 API, deprecated 옵션(설치본 `.d.ts` 에서 자동 추출), 금지 import, 화면(`m-*`) CSS 의 색 값 직접 사용을 잡는다. **바꾼 파일만** 넘긴다(기존 CSS 에는 이미 색 값이 남아 있다). 의심 건은 문서로 확인하고, 오탐이면 이유를 보고에 적는다.
 2. 대상 패키지 lint·build (`pnpm -C src/frontend/<앱> lint`, `build`). shared 를 고쳤다면 shared 를 먼저 build 한다.
 2a. 화면을 새로 만들거나 상세 폼·목록 조회를 바꿨다면 [화면 성능 가이드](../../../docs/guide/FrontEnd/Screen-Performance-Guide.md) §7 점검표를 훑고 결과를 보고에 적는다(해당 없는 항목은 생략 가능). 점검표 항목 중 audit 가 잡는 것은 1번의 `A audit` 결과로 확인한다.
