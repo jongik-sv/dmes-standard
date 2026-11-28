@@ -60,8 +60,6 @@ export interface BenchGroupRow {
 export interface BenchRoleRow {
   ROLE_ID: string;
   ROLE_NM: string;
-  /** 역할의 대표 메뉴(폴더) ID. 없으면 null. */
-  MENU_ID: string | null;
   USE_TP: YN;
   GROUP_CNT: number;
   USER_CNT: number;

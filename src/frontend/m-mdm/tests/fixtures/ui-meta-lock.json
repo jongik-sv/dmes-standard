@@ -135,7 +135,6 @@
  "m-mcm/page-components/csa/commRoleMng/page.tsx": [
   "col|END_ACTIVE_DATE|-",
   "col|GROUP_CNT|false",
-  "col|MENU_ID|-",
   "col|PERM_CNT|false",
   "col|ROLE_DESC|-",
   "col|ROLE_ID|-",
@@ -145,7 +144,6 @@
   "col|USE_TP|-",
   "label|END_ACTIVE_DATE|유효 기한일|-",
   "label|ID|ID|false",
-  "label|MENU_ID|메뉴 ID|-",
   "label|ROLE_DESC|역할 설명|-",
   "label|ROLE_GROUPS|들어 있는 그룹|false",
   "label|ROLE_ID|역할 ID|-",

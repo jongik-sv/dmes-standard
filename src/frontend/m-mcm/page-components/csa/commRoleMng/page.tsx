@@ -10,8 +10,12 @@
  *      버튼·팝업 칩을 그 자리에서 켜고 끈다. PERMISSION_ID 고르기 없음
  *   ④ 「메뉴에서 오브젝트 추가」 — 메뉴 폴더 안 오브젝트를 골라 한 번에 퍼미션을 만든다(처음 버튼 = 조회만 / 허용 버튼 모두)
  *   ⑤ 사용 여부를 N 으로 둘 때 받은 사람 수·멈추는 퍼미션 수를 먼저 보이고 확인을 받는다
- *   그대로 둔 것: 조회 조건(역할 ID · 역할명 · 사용 여부), ROLE_ID 합성 규칙 role_ + MENU_ID + _ + ID, 상세 입력 칸,
- *   상단 조회 · 초기화 · 저장, 행추가 · 행복사 · 행삭제 · 행취소.
+ *   그대로 둔 것: 조회 조건(역할 ID · 역할명 · 사용 여부), 상세 입력 칸, 상단 조회 · 초기화 · 저장, 행추가 · 행복사 · 행삭제 · 행취소.
+ *
+ * 2026-11-28 역할 MENU_ID 칼럼(TB_MCM_SEC_ROLE.MENU_ID)을 없앴다 — 권한 범위는 정하지 않았고 ROLE_ID 자동 접두(role_ + MENU_ID + _ + ID)·
+ *   역할 목록 MENU 칸·새 역할의 「메뉴 ID」 필수 고르기에만 쓰였다. 이제 새 역할의 ROLE_ID = 입력한 ID(앞뒤 공백 제거) 그대로.
+ *   기존 ROLE_ID 는 바뀌지 않는다. 폴더 기본값도 역할 MENU_ID 를 보지 않는다 — 「이 역할의 퍼미션」 폴더 거르기 = 첫 폴더(없으면 모든 폴더),
+ *   「메뉴에서 오브젝트 추가」 = 폴더 목록의 첫 폴더.
  *
  * 퍼미션 변경은 저장 전까지 화면 초안(role-perm.ts)으로 들고 있다가 [저장] 때 역할 마스터(save) 다음에
  * 퍼미션(saveCmRoleMap, 바뀐 줄만 MERGE·DEL)을 보낸다. 저장하지 않은 퍼미션 변경이 있으면 다른 역할로 옮기거나
@@ -36,7 +40,7 @@ import {
   type PageButton,
 } from "@dk-oasis/shared/layout";
 import { GridPanel, AgDataGrid, type GridColumn } from "@dk-oasis/shared/grid";
-import { Badge, Button, Input, ComboBox, DatePicker, Radio, useDetailDraft, type DetailDraftHandle } from "@dk-oasis/shared/form";
+import { Badge, Button, Input, DatePicker, Radio, useDetailDraft, type DetailDraftHandle } from "@dk-oasis/shared/form";
 import { CardFrame, MutedText } from "@dk-oasis/shared/card";
 import { MdmFieldLabel } from "@dk-oasis/shared/mdm-meta";
 import { useMessage } from "@dk-oasis/shared/message-provider";
@@ -90,7 +94,6 @@ import type {
   CommRoleMngFilters,
   CommRoleMngRow,
   FolderObjRow,
-  MenuIdLov,
   RoleGroupRow,
   RoleMenuLov,
   RoleRow,
@@ -169,14 +172,13 @@ function numLabel(v: unknown): string {
 }
 
 /**
- * 역할 목록 열 — 옛 7칸(AsIs grd_main) + 집계 3칸(계산 값, DB 칼럼 아님 — MDM 연결 끔).
- * 10칸이라 columnSizing="fixed"(9칸 이상 규칙).
+ * 역할 목록 열 — 옛 6칸(AsIs grd_main 에서 MENU 칸을 뺐다, 2026-11-28) + 집계 3칸(계산 값, DB 칼럼 아님 — MDM 연결 끔).
+ * 9칸이라 columnSizing="fixed"(9칸 이상 규칙).
  */
 const ROLE_COLUMNS: GridColumn[] = [
   { key: "ROLE_ID", header: "ROLE ID", width: 190, editable: false, align: "left" },
   { key: "ROLE_NM", header: "ROLE 이름", width: 130, editable: false, align: "left" },
   { key: "ROLE_DESC", header: "ROLE 설명", width: 160, editable: false, align: "left" },
-  { key: "MENU_ID", header: "MENU", width: 110, editable: false, align: "center" },
   {
     key: "USE_TP",
     header: "사용구분",
@@ -207,16 +209,6 @@ const ROLE_COLUMNS: GridColumn[] = [
 ];
 
 /**
- * 저장된 MENU_ID 를 LoV 라벨("csa (시스템관리)") 로 치환. LoV 에 없으면 원본 코드를 그대로 보여준다.
- * (미지정이면 "" — 상세 영역에서 placeholder "(미지정)" 로 표기)
- */
-function menuIdLabel(menuId: string, lov: MenuIdLov[]): string {
-  if (!menuId) return "";
-  const hit = lov.find((m) => String(m.MENU_ID ?? "") === menuId);
-  return String(hit?.MENU_ID_NM ?? menuId);
-}
-
-/**
  * 행추가 default — AsIs xfdl:687~697 fn_rowAdd.
  */
 function emptyRow(): CommRoleMngRow {
@@ -225,7 +217,6 @@ function emptyRow(): CommRoleMngRow {
     ROLE_ID: "",
     ROLE_NM: "",
     ROLE_DESC: "",
-    MENU_ID: "",
     USE_TP: "Y",
     START_ACTIVE_DATE: today,
     END_ACTIVE_DATE: "9999-12-31",
@@ -361,7 +352,6 @@ interface RoleDetailPanelProps {
   /** 루트가 저장·행 전환 때 초안을 읽는 핸들(R12 — 입력 초안은 이 패널 안에만 있다). */
   ref?: Ref<DetailDraftHandle<RoleGridRow>>;
   selected: RoleGridRow | null;
-  menuLov: MenuIdLov[];
   groups: RoleGroupRow[];
   groupsLoading: boolean;
   groupsError: boolean;
@@ -381,7 +371,6 @@ interface RoleDetailPanelProps {
 const RoleDetailPanel = memo(function RoleDetailPanel({
   ref,
   selected,
-  menuLov,
   groups,
   groupsLoading,
   groupsError,
@@ -446,44 +435,20 @@ const RoleDetailPanel = memo(function RoleDetailPanel({
           <tr>
             <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="ROLE_ID" label="역할 ID" required /></th>
             <td style={DETAIL_VALUE_CELL}>
-              {/* AsIs xfdl:243 readonly="true" — ROLE_ID 는 항상 자동 합성값(role_ + MENU_ID + _ + ID). */}
+              {/* 읽기만 — 새 역할은 아래 ID 를 그대로 ROLE_ID 로 쓰고(앞뒤 공백 제거), 기존 역할은 ROLE_ID 가 바뀌지 않는다. */}
               <Input
                 value={roleId}
                 maxLength={100}
                 readOnly
-                placeholder="메뉴 ID + ID 입력 시 자동 생성"
+                placeholder="ID 를 입력하면 같은 값으로 채워진다"
               />
-            </td>
-          </tr>
-
-          <tr>
-            <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="MENU_ID" label="메뉴 ID" required /></th>
-            <td style={DETAIL_VALUE_CELL}>
-              {isNewRow ? (
-                /* 메뉴 ID = 메뉴 폴더. 선택 즉시 ID 와 합쳐져 ROLE_ID = "role_{메뉴ID}_{ID}" 로 자동 생성된다. */
-                <ComboBox
-                  data={menuLov as unknown as Record<string, unknown>[]}
-                  valueField="MENU_ID"
-                  labelField="MENU_ID_NM"
-                  value={String(draft.MENU_ID ?? "")}
-                  onChange={(v) => onField("MENU_ID", v)}
-                  placeholder="(선택)"
-                />
-              ) : (
-                /* 기존 행의 메뉴 ID 는 ROLE_ID(PK) 구성요소라 변경 불가 — 읽기전용 표기. */
-                <Input
-                  value={menuIdLabel(String(draft.MENU_ID ?? ""), menuLov)}
-                  readOnly
-                  placeholder="(미지정 — 기존 역할은 변경 불가)"
-                />
-              )}
             </td>
           </tr>
 
           <tr>
             <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="ID" meta={false} label="ID" required /></th>
             <td style={DETAIL_VALUE_CELL}>
-              {/* 기존 역할 = ROLE_ID 전체(z2fix2 c — 마지막 _ 이후만 보이던 것을 없앴다). 새 역할 = 입력한 ID */}
+              {/* 기존 역할 = ROLE_ID 전체(읽기만). 새 역할 = 입력한 ID — 그대로 ROLE_ID 가 된다. */}
               <Input
                 value={isNewRow ? String(draft.ID ?? "") : roleId}
                 maxLength={100}
@@ -630,7 +595,6 @@ export default function CommRoleMngPage() {
   const [selectedKey, setSelectedKey] = useCarryState<string | null>("selectedKey", null);
   const restored = useCarryRestored();
 
-  const [menuLov, setMenuLov] = useState<MenuIdLov[]>([]);
   const [menus, setMenus] = useState<RoleMenuLov[]>([]);
 
   const [perm, setPerm] = useState<PermState>(EMPTY_PERM);
@@ -657,7 +621,6 @@ export default function CommRoleMngPage() {
    */
   const isNewRow = selected?.nativeeditor_status === "inserted";
   const selectedRoleId = selected && !isNewRow ? String(selected.ROLE_ID ?? "") : "";
-  const selectedMenuId = String(selected?.MENU_ID ?? "");
   const sysAdmin = isSysAdmin(selected);
 
   // 행삭제로 지울 역할 — 역할을 먼저 지우고 퍼미션을 보내면 FK 오류·고아 줄이 되므로 퍼미션을 잠근다.
@@ -714,7 +677,6 @@ export default function CommRoleMngPage() {
     void (async () => {
       try {
         const lov = await apiLoadLov();
-        setMenuLov(lov.ds_lovMenuId ?? []);
         setMenus(lov.menus ?? []);
       } catch (e) {
         setError(bizErrorText(e, "LoV 조회 실패"));
@@ -862,7 +824,7 @@ export default function CommRoleMngPage() {
   }, []);
 
   // ── 이 역할의 퍼미션: 폴더 거르기 · 칩 ──
-  const permFolderOpt = useMemo(() => folderFilterOptions(draft, menus, selectedMenuId), [draft, menus, selectedMenuId]);
+  const permFolderOpt = useMemo(() => folderFilterOptions(draft, menus), [draft, menus]);
   const permFolder = effectiveFolder(
     permFolderPick.roleId === selectedRoleId ? permFolderPick.folder : "",
     permFolderOpt,
@@ -898,7 +860,7 @@ export default function CommRoleMngPage() {
     () => menus.map((m) => ({ value: m.MENU_ID, label: m.MENU_PATH || m.MENU_NM || m.MENU_ID })),
     [menus],
   );
-  const addFolderDefault = menus.some((m) => m.MENU_ID === selectedMenuId) ? selectedMenuId : (menus[0]?.MENU_ID ?? "");
+  const addFolderDefault = menus[0]?.MENU_ID ?? "";
   const addFolder =
     addFolderPick.roleId === selectedRoleId && addFolderPick.folder ? addFolderPick.folder : addFolderDefault;
   const objKey = `${selectedRoleId}|${addFolder}`;
@@ -1007,7 +969,7 @@ export default function CommRoleMngPage() {
         }
         const newRow: RoleGridRow = {
           ...(merged as CommRoleMngRow),
-          // ROLE_ID / ID 는 신규·복사 모두 비운다 — 메뉴 ID + ID 입력 시 ROLE_ID 자동 합성. 집계 칸은 복사하지 않는다.
+          // ROLE_ID / ID 는 신규·복사 모두 비운다 — ID 를 입력하면 그 값이 ROLE_ID 가 된다. 집계 칸은 복사하지 않는다.
           ROLE_ID: "",
           ID: "",
           GROUP_CNT: undefined,
@@ -1098,23 +1060,25 @@ export default function CommRoleMngPage() {
     }
     for (const r of effective) {
       if (!r.nativeeditor_status || r.nativeeditor_status === "deleted") continue;
-      // V-006 Essential — 신규 행은 메뉴 ID + ID 가 모두 있어야 ROLE_ID 가 합성된다.
+      // 신규 행은 ID 가 있어야 한다(ROLE_ID = 입력한 ID).
       if (r.nativeeditor_status === "inserted") {
-        if (!String(r.MENU_ID ?? "").trim()) {
-          setError("메뉴 ID 는 필수 입력입니다.");
-          return;
-        }
         if (!String(r.ID ?? "").trim()) {
           setError("ID 는 필수 입력입니다.");
           return;
         }
+        // 접두 없이 입력값 그대로라 기존 역할과 겹칠 수 있다(서버도 ROLE_DUP 으로 거절 — 덮어쓰기 방지).
+        const id = String(r.ROLE_ID ?? "").trim();
+        if (id && effective.some((o) => o !== r && String(o.ROLE_ID ?? "").trim() === id)) {
+          setError(`이미 있는 역할 ID 입니다. (${id})`);
+          return;
+        }
       }
       if (!r.ROLE_ID || String(r.ROLE_ID).trim().length === 0) {
-        setError("역할 ID 가 생성되지 않았습니다. 메뉴 ID 와 ID 를 입력하세요.");
+        setError("역할 ID 가 비어 있습니다. ID 를 입력하세요.");
         return;
       }
     }
-    // 역할명 필수(메뉴 ID·ID 검사 뒤, z2fix2 d — BE 도 ROLE_NM_REQUIRED 로 거절)
+    // 역할명 필수(ID 검사 뒤, z2fix2 d — BE 도 ROLE_NM_REQUIRED 로 거절)
     const noName = firstMissingRoleNm(effective);
     if (noName) {
       const id = String(noName.ROLE_ID ?? "").trim();
@@ -1260,7 +1224,6 @@ export default function CommRoleMngPage() {
           <ContentPanel width={480} scrollY>
             <RoleDetailPanel
               selected={selected}
-              menuLov={menuLov}
               groups={groupsValid ? groupInfo.groups : EMPTY_GROUPS}
               groupsLoading={groupsValid ? groupInfo.loading : !!selectedRoleId}
               groupsError={groupsValid && groupInfo.error}

@@ -62,7 +62,7 @@ import static com.dongkuk.dmes.mcm.common.util.McmValues.parseLocalDateTime;
  *   <li>{@code searchRoleGroups} → {@link #searchRoleGroups(CommRoleMngRoleRequest)} — 들어 있는 그룹 (2026-11-27)</li>
  *   <li>{@code searchFolderObj}  → {@link #searchFolderObj(CommRoleMngRoleRequest)} — 메뉴 폴더의 오브젝트 (2026-11-27)</li>
  *   <li>{@code searchCmPerm}     → {@link #searchCmPerm(CommRoleMngSearchPermRequest)} — 전체 권한 표시 (2026-06-03 사용자 결정 — NOT EXISTS 제거 / 권한 부여 무관 모든 권한 항상 표시)</li>
- *   <li>{@code lov}              → {@link #lov()} — MENU_ID lov (To-Be 정책 #1: As-Is APP_HOST_ID 폐기 → MENU_ID 1 dataset 만)</li>
+ *   <li>{@code lov}              → {@link #lov()} — 메뉴 폴더 고르기 목록 {@code menus}(역할 MENU_ID lov 는 2026-11-28 m11 폐기)</li>
  *   <li>{@code searchObjectLov}  → {@link #searchObjectLov(CommRoleMngSearchObjectLovRequest)} — sub2 OBJECT-LoV
  *       (round-2 fix / Q-016 closed — As-Is xfdl:321~336 commonDynamic_onload "csa::CommMenuMng/commonList"
  *       의 본 namespace 내재화 — TB_MCM_SEC_OBJ WHERE USE_TP='Y' AND UPPER LIKE — 응답 ds_menuObjLst)</li>
@@ -198,6 +198,7 @@ public class CommRoleMngService {
      */
     public Map<String, Object> saveCmRole(List<Map<String, Object>> master) {
         requireRoleNames(master);
+        requireNewRoleIdsFree(master);
         requireDeletableRoles(master);
         // c5 d — SYSADMIN 역할 끄기·기간 줄이기가 마지막 시스템관리자를 없애면 거절. 쓰기 전에 잠근다.
         SysadminGuard.Check sysadminCheck = touchesSysadminRole(master) ? sysadminGuard.begin(SysadminGuard.PERM_BUSY) : null;
@@ -243,7 +244,6 @@ public class CommRoleMngService {
                     entity.setRoleId(roleId);
                     entity.setRoleNm(strOf(row.get("ROLE_NM")));
                     entity.setRoleDesc(strOf(row.get("ROLE_DESC")));
-                    entity.setMenuId(strOf(row.get("MENU_ID")));
                     entity.setUseTp(strOf(row.get("USE_TP")));
                     entity.setStartActiveDate(parseLocalDateTime(row.get("START_ACTIVE_DATE"),
                             isNew ? LocalDateTime.now() : entity.getStartActiveDate()));
@@ -522,24 +522,18 @@ public class CommRoleMngService {
     }
 
     // ────────────────────────────────────────────────────────────────
-    // action: lov — MENU_ID lov (To-Be 정책 #1 — APP_HOST 폐기 / Task_0r5ztlq 제거 → 1 dataset 만)
+    // action: lov — 메뉴 폴더 고르기 목록(2026-11-28 m11 — 역할 MENU_ID lov ds_lovMenuId 폐기)
     // ────────────────────────────────────────────────────────────────
 
     /**
-     * action {@code lov} 진입점. As-Is BPMN flow:
-     * Task_0r5ztlq (selectAppHostId) → Task_17ggria (selectMenuId).
-     * <b>To-Be 정책 #1</b>: Task_0r5ztlq + selectAppHostId 폐기 → selectMenuId 1 Task 만 (Q-015 closed — 본 namespace 내재화).
+     * action {@code lov} 진입점. 응답 grids {@code menus} — 메뉴 폴더 고르기 목록({@link CommPermQueryRepository#folderLov()},
+     * MENU_ID · MENU_NM · PARENT_MENU_ID · MENU_LV · MENU_PATH). 퍼미션 추가의 폴더 거르기가 쓴다.
      *
-     * <p>처리: {@link SecRoleMappingNativeRepository#findAllMenuIdLov()} 호출 후
-     * {@code ds_lovMenuId} key 의 List&lt;Map&gt; 반환 → cactus 가 {@code grids.ds_lovMenuId.rows} 로 응답.
-     *
-     * <p>2026-11-27 grids {@code menus} 추가 — 메뉴 폴더 고르기 목록({@link CommPermQueryRepository#folderLov()},
-     * MENU_ID · MENU_NM · PARENT_MENU_ID · MENU_LV · MENU_PATH).
+     * <p>2026-11-28 m11 — 옛 {@code ds_lovMenuId}(역할 MENU_ID 고르기)를 지웠다. 역할 MENU_ID 는 권한 범위를 막지 않고
+     * ROLE_ID 자동 접두({@code role_<메뉴ID>_<ID>})·목록 칸·새 역할 필수 입력에만 쓰여 혼란만 주었다(TB_MCM_SEC_ROLE.MENU_ID 칸 삭제, V27).
      */
     public Map<String, Object> lov() {
-        List<Map<String, Object>> menuLov = secRoleMappingNativeRepository.findAllMenuIdLov();
         Map<String, Object> out = new LinkedHashMap<>();
-        out.put("ds_lovMenuId", menuLov);
         out.put("menus", commPermQueryRepository.folderLov());
         return out;
     }
@@ -663,7 +657,6 @@ public class CommRoleMngService {
         row.put("ROLE_ID", r.getRoleId());
         row.put("ROLE_NM", r.getRoleNm());
         row.put("ROLE_DESC", r.getRoleDesc());
-        row.put("MENU_ID", r.getMenuId());
         row.put("USE_TP", r.getUseTp());
         row.put("START_ACTIVE_DATE", r.getStartActiveDate());
         row.put("END_ACTIVE_DATE", r.getEndActiveDate());
@@ -725,6 +718,26 @@ public class CommRoleMngService {
             }
         }
         return false;
+    }
+
+    /**
+     * 저장 전 검사(2026-11-28 m11): 새 줄(inserted)의 ROLE_ID 가 이미 있으면 아무것도 쓰지 않고 {@code ROLE_DUP: <역할ID> …} 로 거절한다.
+     * 역할 MENU_ID 를 없애 ROLE_ID 가 입력값 그대로가 되었다(옛 role_<메뉴ID>_ 접두 없음). 옛 저장은 있는 행이면 조용히 덮어써서
+     * 새 역할 하나가 기존 역할(SYSADMIN 포함)의 이름·사용 여부·기간을 바꿀 수 있었다. 한 번에 같은 ROLE_ID 새 줄이 둘이어도 거절한다.
+     */
+    private void requireNewRoleIdsFree(List<Map<String, Object>> master) {
+        if (master == null) return;
+        Set<String> seen = new LinkedHashSet<>();
+        for (Map<String, Object> row : master) {
+            if (row == null) continue;
+            String status = statusOf(row);
+            if (!"inserted".equals(status) && !"C".equals(status)) continue;
+            String roleId = strOf(row.get("ROLE_ID"));
+            if (roleId == null || roleId.isBlank()) continue;
+            if (!seen.add(roleId) || secRoleRepository.existsById(roleId)) {
+                throw new BusinessException(ErrorCode.BUSINESS_ERROR, "ROLE_DUP: " + roleId + " 이미 있는 역할 ID 입니다");
+            }
+        }
     }
 
     private static void requireRoleNames(List<Map<String, Object>> master) {

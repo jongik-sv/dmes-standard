@@ -53,8 +53,8 @@ const bench: SearchBenchResult = {
     { ROLE_GROUP_ID: "G_ADM", ROLE_GROUP_NM: "관리팀", USE_TP: "Y", USER_CNT: 1 },
   ],
   roles: [
-    { ROLE_ID: "R1", ROLE_NM: "조회 전용", MENU_ID: null, USE_TP: "Y", GROUP_CNT: 1, USER_CNT: 1, PERM_CNT: 1 },
-    { ROLE_ID: "SYSADMIN", ROLE_NM: "시스템 관리자", MENU_ID: null, USE_TP: "Y", GROUP_CNT: 1, USER_CNT: 1, PERM_CNT: 0 },
+    { ROLE_ID: "R1", ROLE_NM: "조회 전용", USE_TP: "Y", GROUP_CNT: 1, USER_CNT: 1, PERM_CNT: 1 },
+    { ROLE_ID: "SYSADMIN", ROLE_NM: "시스템 관리자", USE_TP: "Y", GROUP_CNT: 1, USER_CNT: 1, PERM_CNT: 0 },
   ],
   userGroups: [{ USER_ID: "u1", ROLE_GROUP_ID: "G1" }],
   groupRoles: [{ ROLE_GROUP_ID: "G1", ROLE_ID: "R1" }, { ROLE_GROUP_ID: "G_ADM", ROLE_ID: "SYSADMIN" }],

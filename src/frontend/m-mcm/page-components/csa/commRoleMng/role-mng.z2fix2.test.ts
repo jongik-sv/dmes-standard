@@ -37,11 +37,17 @@ describe("z2fix2 e — 저장 뒤 새 역할 유지", () => {
   });
 });
 
-describe("z2fix2 c — 기존 역할은 ROLE_ID 를 다시 합성하지 않는다", () => {
-  it("ID 가 ROLE_ID 전체인 기존 행: 이름·MENU_ID·ID 를 고쳐도 ROLE_ID 그대로(role_ 접두 겹침 없음)", () => {
-    const r: Row = { ROLE_ID: "role_csa_x", ROLE_NM: "가", MENU_ID: "csa", ID: "role_csa_x", nativeeditor_status: "" };
+describe("z2fix2 c — 기존 역할의 ROLE_ID 는 바뀌지 않는다(역할 MENU_ID 없앰, 2026-11-28)", () => {
+  it("ID 가 ROLE_ID 전체인 기존 행: 이름·ID 를 고쳐도 ROLE_ID 그대로(옛 role_ 접두 ROLE_ID 도 그대로)", () => {
+    const r: Row = { ROLE_ID: "role_csa_x", ROLE_NM: "가", ID: "role_csa_x", nativeeditor_status: "" };
     expect(withRoleField(r, "ROLE_NM", "나")).toMatchObject({ ROLE_ID: "role_csa_x", ROLE_NM: "나", nativeeditor_status: "updated" });
     expect(withRoleField(r, "ID", "role_csa_x2").ROLE_ID).toBe("role_csa_x");
-    expect(withRoleField(r, "MENU_ID", "mpp").ROLE_ID).toBe("role_csa_x");
+  });
+
+  it("새 행: ROLE_ID = 입력한 ID(앞뒤 공백 제거), 접두를 붙이지 않는다", () => {
+    const n: Row = { ROLE_ID: "", ROLE_NM: "", ID: "", nativeeditor_status: "inserted" };
+    const a = withRoleField(n, "ID", " MY_ROLE ");
+    expect(a).toMatchObject({ ROLE_ID: "MY_ROLE", nativeeditor_status: "inserted" });
+    expect(String(a.ROLE_ID).startsWith("role_")).toBe(false);
   });
 });

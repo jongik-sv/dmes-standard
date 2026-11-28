@@ -11,11 +11,11 @@ import java.util.Map;
 /**
  * 응답 grid {@code roles} 의 한 행. {@link #toRow()} 가 내려주는 키 = 칸 이름(SNAKE_CASE) 그대로, 넣은 순서 유지.
  * Y/N 칸은 문자열 "Y"·"N", 코드 목록 칸은 쉼표 구분 문자열(PermTokens.join).
+ * 2026-11-28 m11 — 역할 MENU_ID 칸을 지웠다(TB_MCM_SEC_ROLE.MENU_ID 폐기).
  */
 public record PermBenchRolesRow(
         String roleId,
         String roleNm,
-        String menuId,
         String useTp,
         long groupCnt,
         long userCnt,
@@ -25,7 +25,6 @@ public record PermBenchRolesRow(
         Map<String, Object> row = new LinkedHashMap<>();
         row.put("ROLE_ID", roleId);
         row.put("ROLE_NM", roleNm);
-        row.put("MENU_ID", menuId);
         row.put("USE_TP", useTp);
         row.put("GROUP_CNT", groupCnt);
         row.put("USER_CNT", userCnt);

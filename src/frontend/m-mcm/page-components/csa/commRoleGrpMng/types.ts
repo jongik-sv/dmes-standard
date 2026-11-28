@@ -65,8 +65,6 @@ export interface CommRoleGrpMngRoleMapRow extends Record<string, unknown> {
   START_ACTIVE_DATE?: string | null;
   /** GE1-007. */
   END_ACTIVE_DATE?: string | null;
-  /** 부속 — TB_MCM_SEC_ROLE.MENU_ID (FE 미사용 — BE response 잔존). */
-  MENU_ID?: string | null;
 }
 
 /**
@@ -86,8 +84,6 @@ export interface CommRoleGrpMngRoleRow extends Record<string, unknown> {
   START_ACTIVE_DATE?: string | null;
   /** GE2-007. */
   END_ACTIVE_DATE?: string | null;
-  /** 부속 — TB_MCM_SEC_ROLE.MENU_ID (FE 미사용 — BE response 잔존). */
-  MENU_ID?: string | null;
 }
 
 /**

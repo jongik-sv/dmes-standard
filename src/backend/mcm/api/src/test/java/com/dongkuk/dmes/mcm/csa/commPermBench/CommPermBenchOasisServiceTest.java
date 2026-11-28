@@ -124,8 +124,8 @@ class CommPermBenchOasisServiceTest {
         user("admin", "관리자", "Y");
         user("u1", "홍길동", "Y");
         user("u_off", "퇴사자", "N");
-        jdbc.update("INSERT INTO TB_MCM_SEC_ROLE (ROLE_ID, ROLE_NM, MENU_ID, USE_TP) VALUES ('SYSADMIN', '시스템 관리자', 'csa', 'Y')");
-        jdbc.update("INSERT INTO TB_MCM_SEC_ROLE (ROLE_ID, ROLE_NM, MENU_ID, USE_TP) VALUES ('R_VIEW', '조회 역할', 'csa', 'Y')");
+        jdbc.update("INSERT INTO TB_MCM_SEC_ROLE (ROLE_ID, ROLE_NM, USE_TP) VALUES ('SYSADMIN', '시스템 관리자', 'Y')");
+        jdbc.update("INSERT INTO TB_MCM_SEC_ROLE (ROLE_ID, ROLE_NM, USE_TP) VALUES ('R_VIEW', '조회 역할', 'Y')");
         jdbc.update("INSERT INTO TB_MCM_SEC_ROLEGROUP (ROLE_GROUP_ID, ROLE_GROUP_NM, USE_TP) VALUES ('G_ADMIN', '관리 그룹', 'Y')");
         jdbc.update("INSERT INTO TB_MCM_SEC_ROLEGROUP (ROLE_GROUP_ID, ROLE_GROUP_NM, USE_TP) VALUES ('G_VIEW', '조회 그룹', 'Y')");
         jdbc.update("INSERT INTO TB_MCM_SEC_ROLEGROUP_MAPPING (ROLE_GROUP_ID, ROLE_ID) VALUES ('G_ADMIN', 'SYSADMIN')");

@@ -249,7 +249,7 @@ class CommPermBenchServiceTest {
         void gridsAndFilter() {
             query.users = List.of(new PermBenchUsersRow("u1", "홍길동", "생산", "Y"), new PermBenchUsersRow("u2", "김", null, "N"));
             query.groups = List.of(new PermBenchGroupsRow("G1", "그룹1", "Y", 2));
-            query.roles = List.of(new PermBenchRolesRow("R1", "역할1", "FLD", "Y", 1, 2, 3));
+            query.roles = List.of(new PermBenchRolesRow("R1", "역할1", "Y", 1, 2, 3));
             query.userGroups = List.of(new PermBenchUserGroupsRow("u1", "G1"), new PermBenchUserGroupsRow("u9", "G1"));
             query.groupRoles = List.of(new PermBenchGroupRolesRow("G1", "R1"));
             CommPermBenchSearchBenchRequest req = new CommPermBenchSearchBenchRequest();
@@ -267,7 +267,7 @@ class CommPermBenchServiceTest {
                     Map.entry("USER_ID", "u1"), Map.entry("USER_NM", "홍길동"), Map.entry("DEPT_NM", "생산"), Map.entry("USE_TP", "Y"));
             assertThat(grid(out, "groups").get(0).keySet()).containsExactly("ROLE_GROUP_ID", "ROLE_GROUP_NM", "USE_TP", "USER_CNT");
             assertThat(grid(out, "roles").get(0).keySet())
-                    .containsExactly("ROLE_ID", "ROLE_NM", "MENU_ID", "USE_TP", "GROUP_CNT", "USER_CNT", "PERM_CNT");
+                    .containsExactly("ROLE_ID", "ROLE_NM", "USE_TP", "GROUP_CNT", "USER_CNT", "PERM_CNT");
             assertThat(grid(out, "userGroups")).hasSize(1);
             assertThat(grid(out, "groupRoles").get(0)).containsExactly(Map.entry("ROLE_GROUP_ID", "G1"), Map.entry("ROLE_ID", "R1"));
         }

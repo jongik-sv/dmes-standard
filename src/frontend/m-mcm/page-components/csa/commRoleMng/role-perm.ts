@@ -278,12 +278,11 @@ function folderLabel(id: string, menus: RoleMenuLov[]): string {
 
 /**
  * 폴더 거르기 목록 = 이 역할의 퍼미션(빼기 대기 포함)이 있는 폴더 + 「모든 폴더 (n)」.
- * 기본 = 역할 MENU_ID 폴더(있을 때) → 첫 폴더 → 모든 폴더.
+ * 기본 = 첫 폴더 → 모든 폴더(역할 MENU_ID 칼럼은 2026-11-28 에 없앴다).
  */
 export function folderFilterOptions(
   draft: PermDraft,
   menus: RoleMenuLov[],
-  roleMenuId: string,
 ): { options: FolderOption[]; defaultValue: string } {
   const folders: string[] = [];
   for (const id of draft.order) {
@@ -294,7 +293,7 @@ export function folderFilterOptions(
     ...folders.map((f) => ({ value: f, label: folderLabel(f, menus) })),
     { value: ALL_FOLDERS, label: `모든 폴더 (${draft.order.length})` },
   ];
-  const defaultValue = roleMenuId && folders.includes(roleMenuId) ? roleMenuId : (folders[0] ?? ALL_FOLDERS);
+  const defaultValue = folders[0] ?? ALL_FOLDERS;
   return { options, defaultValue };
 }
 
@@ -572,19 +571,16 @@ type RoleLikeRow = Record<string, unknown> & { nativeeditor_status?: string };
 
 /**
  * 상세 입력 한 칸 → 새 행(초안). 값이 같으면 그 행 그대로.
- * 고친 행 = 「updated」(새 행은 「inserted」 유지). AsIs ds_main_oncolumnchanged (xfdl:906~916):
- * MENU_ID 또는 ID 를 바꾸면 ROLE_ID = "role_" + MENU_ID + "_" + ID(둘 다 있을 때).
+ * 고친 행 = 「updated」(새 행은 「inserted」 유지).
+ * 새 행에서 ID 를 바꾸면 ROLE_ID = ID(앞뒤 공백 제거) 그대로. 기존 행의 ROLE_ID 는 바꾸지 않는다.
+ * (옛 접두 합성 "role_" + MENU_ID + "_" + ID 는 역할 MENU_ID 칼럼과 함께 2026-11-28 에 없앴다.)
  */
 export function withRoleField<T extends RoleLikeRow>(row: T, field: string, value: string): T {
   if (row[field] === value) return row;
   const next: RoleLikeRow = { ...row, [field]: value };
   next.nativeeditor_status = row.nativeeditor_status === "inserted" ? "inserted" : "updated";
-  // 합성은 새 행만(z2fix2 c — 기존 행 ID 는 ROLE_ID 전체라 다시 합치면 role_ 접두가 겹친다)
-  if (row.nativeeditor_status === "inserted" && (field === "MENU_ID" || field === "ID")) {
-    const mid = String(next.MENU_ID ?? "");
-    const id = String(next.ID ?? "");
-    if (mid && id) next.ROLE_ID = `role_${mid}_${id}`;
-  }
+  // 새 행만(기존 행 ID 칸 = ROLE_ID 전체, 읽기만 — ROLE_ID 는 PK 라 바꾸지 않는다)
+  if (row.nativeeditor_status === "inserted" && field === "ID") next.ROLE_ID = value.trim();
   return next as T;
 }
 

@@ -91,6 +91,27 @@ class CommRoleMngServiceTest extends CommSecMngJpaTestBase {
     }
 
     @Test
+    void saveCmRole_newRowWithExistingOrRepeatedRoleId_rejected_nothingWritten() {
+        fx.role("R1", "Y");
+
+        // 2026-11-28 m11 — ROLE_ID = 입력값 그대로(접두 없음). 있는 ROLE_ID 로 새 줄을 넣으면 덮어쓰지 않고 거절한다.
+        assertThatThrownBy(() -> inTx(() -> service.saveCmRole(List.of(
+                row("rowStatus", "inserted", "ROLE_ID", "R_OK", "ROLE_NM", "새 역할", "USE_TP", "Y"),
+                row("rowStatus", "inserted", "ROLE_ID", "R1", "ROLE_NM", "덮어쓰기", "USE_TP", "N")))))
+                .isInstanceOf(BusinessException.class).hasMessageStartingWith("ROLE_DUP: R1");
+        // 한 번에 같은 ROLE_ID 새 줄 두 개도 거절
+        assertThatThrownBy(() -> inTx(() -> service.saveCmRole(List.of(
+                row("rowStatus", "inserted", "ROLE_ID", "R_TWIN", "ROLE_NM", "가", "USE_TP", "Y"),
+                row("rowStatus", "inserted", "ROLE_ID", "R_TWIN", "ROLE_NM", "나", "USE_TP", "Y")))))
+                .isInstanceOf(BusinessException.class).hasMessageStartingWith("ROLE_DUP: R_TWIN");
+
+        assertThat(roleRepo.existsById("R_OK")).isFalse();
+        assertThat(roleRepo.existsById("R_TWIN")).isFalse();
+        assertThat(roleRepo.findById("R1")).get().extracting(r -> r.getUseTp()).isEqualTo("Y");
+        assertThat(roleRepo.findById("R1")).get().extracting(r -> r.getRoleNm()).isNotEqualTo("덮어쓰기");
+    }
+
+    @Test
     void saveCmRole_blankRoleNm_rejected_nothingWritten() {
         fx.role("R1", "Y");
 
@@ -178,10 +199,10 @@ class CommRoleMngServiceTest extends CommSecMngJpaTestBase {
                 .hasMessageStartingWith("LAST_SYSADMIN: ");
         assertThat(roleRepo.findById("SYSADMIN")).get().extracting(r -> r.getUseTp()).isEqualTo("Y");
 
-        // 「inserted」 줄로 있는 SYSADMIN 을 덮어 끄는 길도 같은 검사(리뷰 HIGH)
+        // 「inserted」 줄로 있는 SYSADMIN 을 덮어 끄는 길은 막힌다(리뷰 HIGH). 2026-11-28 m11 부터는 새 줄 ROLE_ID 중복 검사가 먼저 거절한다.
         assertThatThrownBy(() -> inTx(() -> service.saveCmRole(List.of(
                 row("rowStatus", "inserted", "ROLE_ID", "SYSADMIN", "ROLE_NM", "시스템관리자", "USE_TP", "N")))))
-                .hasMessageStartingWith("LAST_SYSADMIN: ");
+                .hasMessageStartingWith("ROLE_DUP: ");
         assertThat(roleRepo.findById("SYSADMIN")).get().extracting(r -> r.getUseTp()).isEqualTo("Y");
     }
 
@@ -417,12 +438,12 @@ class CommRoleMngServiceTest extends CommSecMngJpaTestBase {
     // ── lov ──
 
     @Test
-    void lov_keepsLegacyMenuIdLov_andAddsFolderMenus() {
+    void lov_returnsFolderMenus_withoutRoleMenuIdLov() {
         menuTree();
 
         Map<String, Object> out = inTx(() -> service.lov());
 
-        assertThat(out).containsKey("ds_lovMenuId");
+        assertThat(out).doesNotContainKey("ds_lovMenuId"); // 2026-11-28 m11 — 역할 MENU_ID 폐기
         List<Map<String, Object>> menus = grid(out, "menus");
         assertThat(menus).extracting(m -> m.get("MENU_ID")).containsExactly("M1", "F1", "F2");
         assertThat(menus.get(1)).containsEntry("MENU_PATH", "폴더 M1 › 폴더 F1").containsEntry("MENU_LV", 2);

@@ -12,7 +12,7 @@
  *   - saveCmRoleMap        — params { roleId } + grids `perms`(RolePermSaveRow, D36) → data `cnt_merge`·`cnt_delete`
  *     실패 = PERM_NOT_IN_OBJ · PERM_EMPTY_BTN
  *   - searchFolderObj      — params { roleId, menuFolderId } → grids `objs`(FolderObjRow). 옛 searchCmPerm·searchObjectLov 대체
- *   - lov                  — 옛 그대로(MENU_ID lov `ds_lovMenuId`) + grids `menus`(RoleMenuLov, 폴더 고르기)
+ *   - lov                  — grids `menus`(RoleMenuLov, 폴더 고르기). 옛 MENU_ID lov `ds_lovMenuId` 는 역할 MENU_ID 칼럼과 함께 없앴다(2026-11-28)
  */
 
 /** searchCmRole 응답에 더하는 집계 칸(계산 값, DB 칼럼 아님). */
@@ -90,7 +90,7 @@ export interface RoleMenuLov extends Record<string, unknown> {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 아래 = 옛 화면 타입 중 새 화면도 쓰는 것(CommRoleMngFilters·CommRoleMngRow·MenuIdLov·RowStatus).
+// 아래 = 옛 화면 타입 중 새 화면도 쓰는 것(CommRoleMngFilters·CommRoleMngRow·RowStatus).
 // 옛 RoleMapRow·PermRow·ObjectLovRow 는 f6 에서 지웠다(옛 세 칸·searchCmPerm·searchObjectLov 를 쓰지 않는다).
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -119,17 +119,15 @@ export interface CommRoleMngFilters {
 
 /**
  * 역할 마스터 그리드 row — As-Is ds_main (xfdl:968~981) + To-Be 정책 #1 (BIZ_SYSTEM_CODE 미포함).
- * 분석 §3.3 G-002~G-009 (8 컬럼 — G-006 BIZ_SYSTEM_CODE 제거) + ROLE_GROUP_ID(서브쿼리) + ID(SUBSTR) + FE row state.
+ * 분석 §3.3 G-002~G-009 (G-006 BIZ_SYSTEM_CODE·G-005 MENU_ID 제거 — MENU_ID 는 2026-11-28) + ROLE_GROUP_ID(서브쿼리) + ID(= ROLE_ID) + FE row state.
  */
 export interface CommRoleMngRow extends Record<string, unknown> {
-  /** G-002 / D-002 — PK (자동 합성 "role_"+MENU_ID+"_"+ID). */
+  /** G-002 / D-002 — PK. 새 역할 = 입력한 ID(앞뒤 공백 제거) 그대로, 기존 역할은 바뀌지 않는다. */
   ROLE_ID: string;
   /** G-003 / D-005. */
   ROLE_NM?: string;
   /** G-004 / D-006. */
   ROLE_DESC?: string;
-  /** G-005 / D-003 (Essential V-006). */
-  MENU_ID?: string;
   /** G-007 / S-004 / D-007 (RadioGroup — Q-007 자연 흡수, 신규 행 default 'Y'). */
   USE_TP?: string;
   /** G-008 / D-008 — As-Is 신규 행 default gfn_today() 8자. */
@@ -138,17 +136,8 @@ export interface CommRoleMngRow extends Record<string, unknown> {
   END_ACTIVE_DATE?: string | null;
   /** 부속 — scalar subquery (xml:14~18), V-003 화면 검증용 (참조 무결성). */
   ROLE_GROUP_ID?: string | null;
-  /** 부속 — D-004 ID (ROLE_ID 의 마지막 "_" 이후 토큰 / xml:20). */
+  /** 부속 — D-004 ID. 조회 응답은 ROLE_ID 와 같은 값, 새 역할은 사용자가 입력(→ ROLE_ID). */
   ID?: string;
-}
-
-/** MENU ID lov row — As-Is ds_lovMenuId (분석 §3.8 DS-006 / 3 컬럼). */
-export interface MenuIdLov extends Record<string, unknown> {
-  MENU_ID: string;
-  /** To-Be 정책 #1 — FE 미사용 (BE response 에는 잔존). */
-  BIZ_SYSTEM_CODE?: string | null;
-  /** "MENU_ID (MENU_NM)" 합성. */
-  MENU_ID_NM?: string;
 }
 
 /** Nexacro row status (As-Is !nativeeditor_status) — To-Be rowStatus 표준화 (W1·W2 정본 패턴). */

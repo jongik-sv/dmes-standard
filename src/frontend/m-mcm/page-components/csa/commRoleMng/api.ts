@@ -8,7 +8,7 @@
  *   - searchCmRoleMap   — 이 역할의 퍼미션(역할 × 오브젝트 한 건)
  *   - saveCmRoleMap     — 퍼미션 저장(params roleId + grids.perms, OP_TP MERGE|DEL — D36)
  *   - searchFolderObj   — 메뉴 폴더 오브젝트(「메뉴에서 오브젝트 추가」 후보)
- *   - lov               — MENU_ID lov(ds_lovMenuId) + 폴더 고르기(menus)
+ *   - lov               — 폴더 고르기(menus)
  *
  * 본 모듈 (mcm) 은 SqlSession 빈 미등록 — 무조건 OASIS (`/api/mcm/oasis/...`) 만 사용
  * (docs/guide/FrontEnd/standard-v2/frontend-standard/01-rules-decisions-files.md §2-2-1-A).
@@ -19,7 +19,6 @@ import type {
   CommRoleMngFilters,
   CommRoleMngRow,
   FolderObjRow,
-  MenuIdLov,
   RoleGroupRow,
   RoleMenuLov,
   RolePermRow,
@@ -61,7 +60,6 @@ interface SearchFolderObjPayload {
 }
 
 interface LovPayload {
-  ds_lovMenuId?: MenuIdLov[];
   menus?: RoleMenuLov[];
 }
 
@@ -171,7 +169,7 @@ export async function searchFolderObj(roleId: string, menuFolderId: string): Pro
   return callAction<SearchFolderObjPayload>("searchFolderObj", { roleId, menuFolderId });
 }
 
-/** action=lov — MENU_ID lov(ds_lovMenuId) + 폴더 고르기(menus). */
+/** action=lov — 폴더 고르기(menus). */
 export async function loadLov(): Promise<LovPayload> {
   return callAction<LovPayload>("lov", {});
 }

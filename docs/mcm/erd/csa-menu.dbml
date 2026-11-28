@@ -144,7 +144,6 @@ Table TB_MCM_SEC_PERM {
 Table TB_MCM_SEC_ROLE {
   ROLE_ID           varchar(30)   [pk, note: '역할 ID. "ROLE_" prefix 없이 저장한다 (JWT claim 빌드 시 ROLE_ 를 붙임)']
   ROLE_NM           varchar(100)  [note: '역할명']
-  MENU_ID           varchar(30)   [note: '기본 진입 메뉴 → TB_MCM_SEC_MENU_FLD.MENU_ID']
   PARENT_ROLE_ID    varchar(30)   [note: '상위 역할 — 본 화면 미사용, 컬럼만 보존']
   ROLE_DESC         varchar(300)  [note: '설명']
   USE_TP            varchar(1)    [note: '사용 여부']
@@ -497,7 +496,7 @@ Ref: TB_MCM_SEC_MENU.OBJECT_ID          - TB_MCM_SEC_OBJ.OBJECT_ID      // 화�
 Ref: TB_MCM_SEC_ROLE_MAPPING.OBJECT_ID     > TB_MCM_SEC_OBJ.OBJECT_ID
 Ref: TB_MCM_SEC_ROLE_MAPPING.PERMISSION_ID > TB_MCM_SEC_PERM.PERMISSION_ID
 Ref: TB_MCM_SEC_ROLE_MAPPING.ROLE_ID       > TB_MCM_SEC_ROLE.ROLE_ID
-Ref: TB_MCM_SEC_ROLE.MENU_ID               > TB_MCM_SEC_MENU_FLD.MENU_ID   // 역할 기본 진입 메뉴
+// 2026-11-28: TB_MCM_SEC_ROLE.MENU_ID 폐기(V27) — 역할 → 메뉴 폴더 관계 없음
 
 // 역할 그룹
 Ref: TB_MCM_SEC_ROLEGROUP_MAPPING.ROLE_GROUP_ID > TB_MCM_SEC_ROLEGROUP.ROLE_GROUP_ID

@@ -26,11 +26,11 @@ import java.util.Map;
  *   <li>{@link #searchCmRoleGrpMap(String)} — As-Is {@code selectCommRoleGrpMap} (xml:85~98) —
  *       2 테이블 implicit JOIN (TB_MCM_SEC_ROLEGROUP_MAPPING A + TB_MCM_SEC_ROLE B)
  *       WHERE A.ROLE_ID = B.ROLE_ID AND A.ROLE_GROUP_ID = #{ROLE_GROUP_ID}.
- *       응답 8 컬럼: ROLE_ID / ROLE_NM / MENU_ID / USE_TP / START_ACTIVE_DATE / END_ACTIVE_DATE / ROLE_GROUP_ID /
+ *       응답 7 컬럼: ROLE_ID / ROLE_NM / USE_TP / START_ACTIVE_DATE / END_ACTIVE_DATE / ROLE_GROUP_ID /
  *       <b>PARENT_ROLE_ID</b> (To-Be SELECT 추가 — Q-010 해소 / 분석 §12).</li>
  *   <li>{@link #searchCmRole(String)} — As-Is {@code selectCommRole} (xml:128~143) —
  *       TB_MCM_SEC_ROLE A WHERE USE_TP='Y' AND NOT EXISTS (ROLE_GROUP_MAPPING B 매칭).
- *       응답 7 컬럼: ROLE_ID / ROLE_NM / MENU_ID / USE_TP / START_ACTIVE_DATE / END_ACTIVE_DATE /
+ *       응답 6 컬럼: ROLE_ID / ROLE_NM / USE_TP / START_ACTIVE_DATE / END_ACTIVE_DATE /
  *       <b>PARENT_ROLE_ID</b> (To-Be SELECT 추가 — Q-010 해소 / 분석 §12).</li>
  *   <li>{@link #searchCmRoleGrpMenu(String)} — As-Is {@code selectMenuObjTree} (xml:145~249) —
  *       Oracle CTE + CONNECT BY 계층 쿼리 → ANSI 재귀 WITH 변환 (정합 §F #7/#9).
@@ -62,12 +62,13 @@ public class SecRoleGroupMappingNativeRepository {
      * <ul>
      *   <li>implicit JOIN → ANSI JOIN (정합 §F #12)</li>
      *   <li>PARENT_ROLE_ID 컬럼 SELECT 절 추가 (분석 §12 / GE1-004 binding 정상 표시 보장)</li>
+ *   <li>MENU_ID 폐기(2026-11-28 m11 — TB_MCM_SEC_ROLE.MENU_ID 칸을 지웠다)</li>
      * </ul>
      */
     @SuppressWarnings("unchecked")
     public List<Map<String, Object>> searchCmRoleGrpMap(String roleGroupId) {
         String sql =
-                "SELECT B.ROLE_ID, B.ROLE_NM, B.MENU_ID, CAST(B.USE_TP AS VARCHAR(20)), " +
+                "SELECT B.ROLE_ID, B.ROLE_NM, CAST(B.USE_TP AS VARCHAR(20)), " +
                 "       B.START_ACTIVE_DATE, B.END_ACTIVE_DATE, A.ROLE_GROUP_ID, B.PARENT_ROLE_ID " +
                 "  FROM MCMAPUSER.TB_MCM_SEC_ROLEGROUP_MAPPING A " +
                 "  JOIN MCMAPUSER.TB_MCM_SEC_ROLE B ON A.ROLE_ID = B.ROLE_ID " +
@@ -81,12 +82,11 @@ public class SecRoleGroupMappingNativeRepository {
             Map<String, Object> map = new LinkedHashMap<>();
             map.put("ROLE_ID", row[0]);
             map.put("ROLE_NM", row[1]);
-            map.put("MENU_ID", row[2]);
-            map.put("USE_TP", row[3]);
-            map.put("START_ACTIVE_DATE", row[4]);
-            map.put("END_ACTIVE_DATE", row[5]);
-            map.put("ROLE_GROUP_ID", row[6]);
-            map.put("PARENT_ROLE_ID", row[7]);
+            map.put("USE_TP", row[2]);
+            map.put("START_ACTIVE_DATE", row[3]);
+            map.put("END_ACTIVE_DATE", row[4]);
+            map.put("ROLE_GROUP_ID", row[5]);
+            map.put("PARENT_ROLE_ID", row[6]);
             out.add(map);
         }
         return out;
@@ -106,14 +106,14 @@ public class SecRoleGroupMappingNativeRepository {
      *  ORDER BY A.ROLE_ID
      * </pre>
      *
-     * <p>To-Be 적용: PARENT_ROLE_ID 컬럼 SELECT 추가 (분석 §12 / GE2-004 binding 정상 표시 보장).
+     * <p>To-Be 적용: PARENT_ROLE_ID 컬럼 SELECT 추가 (분석 §12 / GE2-004 binding 정상 표시 보장). MENU_ID 는 폐기(2026-11-28 m11).
      */
     @SuppressWarnings("unchecked")
     public List<Map<String, Object>> searchCmRole(String roleGroupId) {
         // USE_TP 등 길이 1 컬럼은 CAST 로 String 고정 — 빈 문자열 행 하나가 조회 전체를 죽이는 것을 막는다
         // (Hibernate 6 Character 추론 → CoercionException. SecMenuNativeRepository.searchCmMenu javadoc 참조).
         String sql =
-                "SELECT A.ROLE_ID, A.ROLE_NM, A.MENU_ID, CAST(A.USE_TP AS VARCHAR(20)), " +
+                "SELECT A.ROLE_ID, A.ROLE_NM, CAST(A.USE_TP AS VARCHAR(20)), " +
                 "       A.START_ACTIVE_DATE, A.END_ACTIVE_DATE, A.PARENT_ROLE_ID " +
                 "  FROM MCMAPUSER.TB_MCM_SEC_ROLE A " +
                 " WHERE A.USE_TP = 'Y' " +
@@ -129,11 +129,10 @@ public class SecRoleGroupMappingNativeRepository {
             Map<String, Object> map = new LinkedHashMap<>();
             map.put("ROLE_ID", row[0]);
             map.put("ROLE_NM", row[1]);
-            map.put("MENU_ID", row[2]);
-            map.put("USE_TP", row[3]);
-            map.put("START_ACTIVE_DATE", row[4]);
-            map.put("END_ACTIVE_DATE", row[5]);
-            map.put("PARENT_ROLE_ID", row[6]);
+            map.put("USE_TP", row[2]);
+            map.put("START_ACTIVE_DATE", row[3]);
+            map.put("END_ACTIVE_DATE", row[4]);
+            map.put("PARENT_ROLE_ID", row[5]);
             out.add(map);
         }
         return out;

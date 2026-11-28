@@ -17,7 +17,7 @@
         - searchCmRoleMap   — 선택 역할의 현재 권한 조회 (3-table JOIN selectCommRoleMapList)
         - saveCmRoleMap     — 현재 권한 일괄 저장 (insertCommRoleMap / deleteCommRoleMap — UPDATE ✗ / Q-011 closed)
         - searchCmPerm      — 전체 권한 후보 조회 (selectCommPerm NOT EXISTS — 미할당 권한 풀)
-        - lov               — MENU_ID 1 dataset (To-Be 정책 #1: As-Is APP_HOST_ID 폐기 → selectMenuId 1 SQL 만)
+        - lov               — 메뉴 폴더 고르기 목록 menus (역할 MENU_ID lov ds_lovMenuId 는 2026-11-28 m11 폐기)
         - searchObjectLov   — sub2 OBJECT-LoV (round-2 fix / Q-016 closed — As-Is xfdl:321~336
                               commonDynamic_onload "csa::CommMenuMng/commonList" 본 namespace 내재화 —
                               selectMenuObjPop 의 TB_MCM_SEC_OBJ WHERE USE_TP='Y' AND UPPER LIKE)
@@ -158,7 +158,7 @@
       <bpmn:incoming>flow_searchCmPerm_end</bpmn:incoming>
     </bpmn:endEvent>
 
-    <!-- ─────────── action: lov — MENU_ID 1 dataset (To-Be 정책 #1) ─────────── -->
+    <!-- ─────────── action: lov — 메뉴 폴더 고르기 목록(역할 MENU_ID lov 는 2026-11-28 폐기) ─────────── -->
     <bpmn:sequenceFlow id="flow_lov" name="lov" sourceRef="actionGateway" targetRef="lovTask" />
     <bpmn:serviceTask id="lovTask" name="MENU ID LoV 조회" camunda:class="commRoleMngService">
       <bpmn:extensionElements>

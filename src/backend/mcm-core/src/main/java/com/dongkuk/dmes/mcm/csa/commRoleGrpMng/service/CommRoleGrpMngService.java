@@ -300,7 +300,7 @@ public class CommRoleGrpMngService {
      * action {@code searchCmRoleGrpMap} 진입점. As-Is {@code selectCommRoleGrpMap} (xml:85~98) 호출.
      *
      * <p>응답: {@code ds_roleGrpMap} (As-Is dataset 이름 보존 / 분석 §3.8 DS-003).
-     * 8 컬럼: ROLE_ID / ROLE_NM / MENU_ID / USE_TP / START_ACTIVE_DATE / END_ACTIVE_DATE / ROLE_GROUP_ID /
+     * 7 컬럼: ROLE_ID / ROLE_NM / USE_TP / START_ACTIVE_DATE / END_ACTIVE_DATE / ROLE_GROUP_ID /
      * PARENT_ROLE_ID (To-Be 추가 — Q-010 해소).
      */
     public Map<String, Object> searchCmRoleGrpMap(CommRoleGrpMngSearchMapRequest request) {
@@ -420,7 +420,7 @@ public class CommRoleGrpMngService {
      * action {@code searchCmRole} 진입점. As-Is {@code selectCommRole} (xml:128~143) 호출.
      *
      * <p>응답: {@code ds_role} (As-Is dataset 이름 보존 / 분석 §3.8 DS-001).
-     * 7 컬럼: ROLE_ID / ROLE_NM / MENU_ID / USE_TP / START_ACTIVE_DATE / END_ACTIVE_DATE /
+     * 6 컬럼: ROLE_ID / ROLE_NM / USE_TP / START_ACTIVE_DATE / END_ACTIVE_DATE /
      * PARENT_ROLE_ID (To-Be 추가 — Q-010 해소).
      *
      * <p>WHERE USE_TP='Y' 하드코딩 + NOT EXISTS (현 ROLE_GROUP_ID 에 이미 매핑된 ROLE 제외).

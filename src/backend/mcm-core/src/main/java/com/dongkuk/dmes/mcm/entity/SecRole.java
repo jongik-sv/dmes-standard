@@ -22,7 +22,8 @@ import java.time.LocalDateTime;
  * <p>분석리포트 §9.4.1 (As-Is DMES 시트 26 컬럼 — TB_MCM_SEC_ROLE) 중 본 화면 본 9 컬럼 (To-Be 정책 #1 적용):
  * <ul>
  *   <li>PK 단일 = ROLE_ID</li>
- *   <li>본 9 컬럼: ROLE_ID(PK) / ROLE_NM / ROLE_DESC / PARENT_ROLE_ID / MENU_ID /
+ *   <li>본 8 컬럼: ROLE_ID(PK) / ROLE_NM / ROLE_DESC / PARENT_ROLE_ID /
+ *       MENU_ID (2026-11-28 m11 폐기 — 권한 범위를 막지 않고 ROLE_ID 접두·목록 칸에만 쓰여 혼란만 주었다) /
  *       BIZ_SYSTEM_CODE (To-Be 정책 #1 폐기 — Entity 미반영) /
  *       USE_TP / START_ACTIVE_DATE / END_ACTIVE_DATE</li>
  *   <li>audit 17 컬럼 (DMES 카탈로그) 폐기 → McmAuditEntity 9 컬럼 표준화</li>
@@ -66,10 +67,6 @@ public class SecRole extends McmAuditEntity {
     @Column(name = "PARENT_ROLE_ID", length = 30)
     private String parentRoleId;
 
-    /** 메뉴 ID — FK to TB_MCM_SEC_MENU_FLD (xfdl G-005 / D-003 / 분석 §9.4.1 #5). VARCHAR(30). */
-    @Column(name = "MENU_ID", length = 30)
-    private String menuId;
-
     /**
      * 사용 여부 — "Y" / "N" (xfdl G-007 / S-004 / D-007 RadioGroup / 분석 §9.4.1 #7).
      * 신규 행 default 'Y' (xfdl:692/722). VARCHAR(1).
@@ -107,8 +104,6 @@ public class SecRole extends McmAuditEntity {
     public String getParentRoleId() { return parentRoleId; }
     public void setParentRoleId(String parentRoleId) { this.parentRoleId = parentRoleId; }
 
-    public String getMenuId() { return menuId; }
-    public void setMenuId(String menuId) { this.menuId = menuId; }
 
     public String getUseTp() { return useTp; }
     public void setUseTp(String useTp) { this.useTp = useTp; }

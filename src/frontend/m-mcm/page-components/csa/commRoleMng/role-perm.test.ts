@@ -215,19 +215,18 @@ describe("후보가 빌 때의 글", () => {
 });
 
 describe("폴더 거르기", () => {
-  it("퍼미션이 있는 폴더 + 모든 폴더(n), 기본 = 역할 MENU_ID 폴더", () => {
-    const opt = folderFilterOptions(draftFromRows(ROWS), MENUS, "MN_MPP_PLAN");
+  it("퍼미션이 있는 폴더 + 모든 폴더(n), 기본 = 첫 폴더(역할 MENU_ID 는 보지 않는다)", () => {
+    const opt = folderFilterOptions(draftFromRows(ROWS), MENUS);
     expect(opt.options.map((o) => o.value)).toEqual(["MN_MPP_WORK", "MN_MPP_PLAN", ALL_FOLDERS]);
     expect(opt.options[2].label).toBe("모든 폴더 (3)");
-    expect(opt.defaultValue).toBe("MN_MPP_PLAN");
+    expect(opt.defaultValue).toBe("MN_MPP_WORK");
   });
-  it("역할 폴더에 퍼미션이 없으면 첫 폴더, 퍼미션이 없으면 모든 폴더", () => {
-    expect(folderFilterOptions(draftFromRows(ROWS), MENUS, "MN_MCM_SYS").defaultValue).toBe("MN_MPP_WORK");
-    expect(folderFilterOptions(EMPTY(), MENUS, "MN_MPP").defaultValue).toBe(ALL_FOLDERS);
+  it("퍼미션이 없으면 모든 폴더", () => {
+    expect(folderFilterOptions(EMPTY(), MENUS).defaultValue).toBe(ALL_FOLDERS);
   });
   it("고른 폴더가 목록에 없으면 기본값, 거른 줄만 보인다", () => {
     const d = draftFromRows(ROWS);
-    const opt = folderFilterOptions(d, MENUS, "");
+    const opt = folderFilterOptions(d, MENUS);
     expect(effectiveFolder("MN_NONE", opt)).toBe("MN_MPP_WORK");
     expect(viewRows(d, "MN_MPP_PLAN").map((r) => r.OBJECT_ID)).toEqual(["mppPlanView"]);
   });
@@ -349,14 +348,16 @@ describe("openWithStep (작업대에서 열기, f7)", () => {
 });
 
 describe("상세 입력 초안(R12, z4fix)", () => {
-  it("withRoleField: 같은 값이면 그 행, 고치면 updated, 새 행은 inserted 유지, MENU_ID·ID 로 ROLE_ID 합성", () => {
-    const r = { ROLE_ID: "R1", ROLE_NM: "가", MENU_ID: "csa", ID: "a", nativeeditor_status: "" };
+  it("withRoleField: 같은 값이면 그 행, 고치면 updated, 새 행은 inserted 유지, 새 행 ROLE_ID = 입력한 ID(접두 없음)", () => {
+    const r = { ROLE_ID: "R1", ROLE_NM: "가", ID: "R1", nativeeditor_status: "" };
     expect(withRoleField(r, "ROLE_NM", "가")).toBe(r);
     expect(withRoleField(r, "ROLE_NM", "나")).toMatchObject({ ROLE_NM: "나", nativeeditor_status: "updated", ROLE_ID: "R1" });
-    const n = { ROLE_ID: "", MENU_ID: "", ID: "", nativeeditor_status: "inserted" };
-    const a = withRoleField(withRoleField(n, "MENU_ID", "csa"), "ID", "x");
-    expect(a).toMatchObject({ ROLE_ID: "role_csa_x", nativeeditor_status: "inserted" });
-    expect(withRoleField(n, "MENU_ID", "csa").ROLE_ID).toBe("");
+    const n = { ROLE_ID: "", ID: "", nativeeditor_status: "inserted" };
+    const a = withRoleField(n, "ID", "QC_VIEW");
+    expect(a).toMatchObject({ ROLE_ID: "QC_VIEW", ID: "QC_VIEW", nativeeditor_status: "inserted" });
+    expect(withRoleField(n, "ID", "  QC_VIEW  ")).toMatchObject({ ROLE_ID: "QC_VIEW", ID: "  QC_VIEW  " });
+    expect(withRoleField(a, "ID", "").ROLE_ID).toBe("");
+    expect(withRoleField(n, "ROLE_NM", "품질 조회").ROLE_ID).toBe("");
   });
 
   it("applyRoleDraft: 같은 키 행만 바꾸고, 없으면 같은 목록", () => {

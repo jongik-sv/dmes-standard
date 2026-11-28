@@ -118,7 +118,7 @@ export interface MockPerm {
 export interface MockGraph {
   users: BenchUserRow[];
   groups: Array<{ id: string; name: string; use: YN }>;
-  roles: Array<{ id: string; name: string; use: YN; menuId: string | null }>;
+  roles: Array<{ id: string; name: string; use: YN }>;
   /** USER_ID → ROLE_GROUP_ID[] */
   userGroups: Map<string, string[]>;
   /** ROLE_GROUP_ID → ROLE_ID[] */
@@ -271,16 +271,10 @@ export function buildMockGraph(): MockGraph {
   users.filter((u) => userGroups.get(u.USER_ID)?.[0] === "RG_QC_TEAM").slice(0, 6)
     .forEach((u) => userGroups.get(u.USER_ID)!.push("RG_LEGACY"));
 
-  const roleMenu = (roleId: string): string | null => {
-    const k = Object.keys(GRANTS[roleId] ?? {})[0];
-    if (!k) return null;
-    return k.startsWith("s:") ? objects.get(k.slice(2))?.folder ?? null : k.slice(2);
-  };
-
   return {
     users,
     groups: GROUP_DEF.map(([id, name]) => ({ id, name, use: id === UNUSED_GROUP ? "N" : "Y" })),
-    roles: ROLE_DEF.map(([id, name]) => ({ id, name, use: id === UNUSED_ROLE ? "N" : "Y", menuId: roleMenu(id) })),
+    roles: ROLE_DEF.map(([id, name]) => ({ id, name, use: id === UNUSED_ROLE ? "N" : "Y" })),
     userGroups,
     groupRoles: new Map(GROUP_DEF.map(([id, , roles]) => [id, [...roles]])),
     perms,
@@ -591,7 +585,6 @@ export function createMockPermBenchApi(options: MockPermBenchOptions = {}): Mock
         return {
           ROLE_ID: r.id,
           ROLE_NM: r.name,
-          MENU_ID: r.menuId,
           USE_TP: r.use,
           GROUP_CNT: gids.length,
           USER_CNT: people.size,

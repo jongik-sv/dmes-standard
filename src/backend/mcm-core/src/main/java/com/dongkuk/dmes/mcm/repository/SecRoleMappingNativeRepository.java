@@ -29,10 +29,7 @@ import java.util.Map;
  *   <li>{@link #searchCmPerm(String)} — As-Is {@code selectCommPerm} (xml:143~159) —
  *       TB_MCM_SEC_PERM A WHERE USE_TP='Y' AND NOT EXISTS (PERMISSION_ID + ROLE_ID 미할당).
  *       응답 5 컬럼: PERMISSION_ID / PERMISSION_NM / PERMISSION_COMMON / PERMISSION_CUSTOM / POPUP_BTN.</li>
- *   <li>{@link #findAllMenuIdLov()} — As-Is {@code CommObjMngMapper.selectMenuId} 본 namespace 내재화
- *       (Q-015 해소 / 분석 §11 #27 BPMN ScriptTask 표준).
- *       TB_MCM_SEC_MENU_FLD WHERE PARENT_MENU_ID IS NOT NULL GROUP BY MENU_ID.
- *       To-Be 정책 #1: BIZ_SYSTEM_CODE 컬럼 잔존 보존 (다른 화면 사용 가능성).</li>
+ *   <li>(2026-11-28 m11) 역할 MENU_ID 고르기 목록 {@code findAllMenuIdLov} 는 역할 MENU_ID 칸과 함께 지웠다.</li>
  *   <li>{@link #searchObjectLov(String)} — As-Is {@code CommMenuMngMapper.selectMenuObjPop}
  *       (xml:161~173) 본 namespace 내재화 (Q-016 해소 / 2026-06-02 round-2 fix —
  *       sub2 OBJECT-LoV {@code div_object_id} 신규 구현). TB_MCM_SEC_OBJ WHERE USE_TP='Y'
@@ -221,30 +218,6 @@ public class SecRoleMappingNativeRepository {
             map.put("SERVICE", row[2]);
             map.put("FORM_URL", row[3]);
             map.put("PARAM", row[4]);
-            out.add(map);
-        }
-        return out;
-    }
-
-    @SuppressWarnings("unchecked")
-    public List<Map<String, Object>> findAllMenuIdLov() {
-        // Oracle 단일화(oracle-1007) — 3인자 이상 결합은 || (Oracle 은 NULL 을 빈 글자로 잇는다).
-        String menuIdNm = "MAX(MENU_ID) || ' (' || MAX(MENU_NM) || ')'";
-        String sql =
-                "SELECT MENU_ID, " +
-                "       MAX(BIZ_SYSTEM_CODE) AS BIZ_SYSTEM_CODE, " +
-                "       " + menuIdNm + " AS MENU_ID_NM " +
-                "  FROM MCMAPUSER.TB_MCM_SEC_MENU_FLD " +
-                " WHERE PARENT_MENU_ID IS NOT NULL " +
-                " GROUP BY MENU_ID " +
-                " ORDER BY MENU_ID";
-        List<Object[]> rows = entityManager.createNativeQuery(sql).getResultList();
-        List<Map<String, Object>> out = new ArrayList<>(rows.size());
-        for (Object[] row : rows) {
-            Map<String, Object> map = new LinkedHashMap<>();
-            map.put("MENU_ID", row[0]);
-            map.put("BIZ_SYSTEM_CODE", row[1]);
-            map.put("MENU_ID_NM", row[2]);
             out.add(map);
         }
         return out;

@@ -158,7 +158,7 @@ public class CommPermBenchQueryRepository {
     /** 역할 전체 + 그룹 수·사람 수(그룹 경유, 중복 제거)·퍼미션 행 수(TB_MCM_SEC_ROLE_PERM, SYSADMIN = -1). */
     @SuppressWarnings("unchecked")
     public List<PermBenchRolesRow> searchRoles() {
-        String sql = "SELECT R.ROLE_ID, R.ROLE_NM, R.MENU_ID, R.USE_TP, "
+        String sql = "SELECT R.ROLE_ID, R.ROLE_NM, R.USE_TP, "
                 + "       (SELECT COUNT(1) FROM " + S + "TB_MCM_SEC_ROLEGROUP_MAPPING GM WHERE GM.ROLE_ID = R.ROLE_ID), "
                 + "       (SELECT COUNT(DISTINCT UM.USER_ID) FROM " + S + "TB_MCM_SEC_ROLEGROUP_MAPPING GM "
                 + "          JOIN " + S + "TB_MCM_SEC_USER_MAPPING UM ON UM.ROLE_GROUP_ID = GM.ROLE_GROUP_ID "
@@ -169,8 +169,8 @@ public class CommPermBenchQueryRepository {
         List<Object[]> rows = entityManager.createNativeQuery(sql).getResultList();
         List<PermBenchRolesRow> out = new ArrayList<>(rows.size());
         for (Object[] r : rows) {
-            out.add(new PermBenchRolesRow(str(r[0]), str(r[1]), str(r[2]), str(r[3]),
-                    toLong(r[4]), toLong(r[5]), rolePermCnt(str(r[0]), toLong(r[6]))));
+            out.add(new PermBenchRolesRow(str(r[0]), str(r[1]), str(r[2]),
+                    toLong(r[3]), toLong(r[4]), rolePermCnt(str(r[0]), toLong(r[5]))));
         }
         return out;
     }

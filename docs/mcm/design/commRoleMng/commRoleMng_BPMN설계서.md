@@ -11,6 +11,8 @@ moduleGroup: csa
 # mcm — 역할 관리 BPMN설계서
 
 > **퍼미션 모델 v2 (2026-11-27)**: 이 화면의 권한 모델이 바뀌었다. 문서 맨 끝 "퍼미션 (퍼미션 모델 v2)" 절이 아래 본문보다 우선한다. 본문의 옛 `TB_MCM_SEC_ROLE_MAPPING`·PERMISSION_ID 서술은 이력이다.
+>
+> **역할 MENU_ID 폐기 (2026-11-28)**: 역할의 MENU_ID 칸을 지웠다. 문서 맨 끝 "역할 MENU_ID 폐기" 절이 본문과 "퍼미션" 절의 MENU_ID 서술보다 우선한다.
 
 ## §0. 환경 제약 (분석리포트 §0 동일)
 
@@ -579,7 +581,7 @@ action 이름 = BPMN sequenceFlow `name` = 게이트 토큰이다. URL 은 `POST
 | `searchCmRoleMap` | 바뀜 | `searchCmRoleMap` | params `roleId` (dto `CommRoleMngSearchRoleMapRequest`). 비면 옛 키 `ROLE_ID` 를 쓴다 | grids `perms` (ROLE_ID · OBJECT_ID · OBJECT_NM · MENU_FOLDER_ID · MENU_PATH · MENU_NM · OBJ_BTN_PERM · OBJ_POPUP_PERM · OBJ_READ_PERM · BTN_PERM · POPUP_PERM · DATA_PERM). 값 칸은 `PermTokens` 로 정규화해서 내린다 (null 은 빈 문자열) | 없음 |
 | `saveCmRoleMap` | 바뀜 | `saveCmRoleMap` | params `roleId` (dto `CommRoleMngRoleRequest`) + grids `perms.rows` (ROLE_ID · OBJECT_ID · BTN_PERM · POPUP_PERM · DATA_PERM · OP_TP `MERGE`\|`DEL`) | data `cnt_merge` · `cnt_delete` | `PERM_BAD_ROW` · `PERM_SYSADMIN` · `PERM_NO_ROLE` · `PERM_ROLE_MISMATCH` · `PERM_NO_OBJ` · `PERM_EMPTY_BTN` · `PERM_NOT_IN_OBJ` · `PERM_TOO_LONG` |
 | `searchFolderObj` | 새 | `searchFolderObj` | params `roleId` · `menuFolderId` (dto `CommRoleMngRoleRequest`) | grids `objs` (OBJECT_ID · OBJECT_NM · MENU_NM · MENU_FOLDER_ID · MENU_PATH · OBJ_BTN_PERM · OBJ_POPUP_PERM · OBJ_READ_PERM · USE_TP · HAS_PERM) | 없음 |
-| `lov` | 바뀜 | `lov` | 없음 | grids `ds_lovMenuId` (옛 그대로) + grids `menus` (MENU_ID · MENU_NM · PARENT_MENU_ID · MENU_LV · MENU_PATH) | 없음 |
+| `lov` | 바뀜 | `lov` | 없음 | grids `menus` (MENU_ID · MENU_NM · PARENT_MENU_ID · MENU_LV · MENU_PATH). 옛 `ds_lovMenuId` 는 2026-11-28 폐기 | 없음 |
 | `searchCmPerm` | 옛 (남김) | `searchCmPerm` | params `ROLE_ID` | grids `ds_perm` (옛 PERMISSION 후보) | 없음 |
 | `searchObjectLov` | 옛 (남김) | `searchObjectLov` | (옛 그대로) | grids `ds_menuObjLst` | 없음 |
 
@@ -645,3 +647,24 @@ action 이름 = BPMN sequenceFlow `name` = 게이트 토큰이다. URL 은 `POST
 - 줄의 ROLE_ID·OBJECT_ID 와 params `roleId` 는 앞뒤 공백을 자르고 비교한다.
 - `searchFolderObj` 의 `MENU_NM`·`MENU_PATH` 는 고른 폴더 안의 대표 메뉴 값이다.
 - `save` 응답의 `ds_main` 에도 집계 3칸이 있다.
+
+## 역할 MENU_ID 폐기 (2026-11-28)
+
+### 왜 없앴는가
+
+- 역할(`TB_MCM_SEC_ROLE`)의 MENU_ID 는 권한 범위를 막지 않았다. 권한 계산(PermEvaluator)·퍼미션 저장(`saveCmRoleMap`)·권한 작업대 적용 모두 이 값을 읽지 않는다.
+- 쓰임은 셋뿐이었다: 새 역할 ROLE_ID 자동 접두(`role_<메뉴ID>_<ID>`), 역할 목록 칸, 새 역할의 필수 입력(메뉴 폴더 고르기).
+- 그래서 「이 역할은 그 메뉴만 쓴다」로 잘못 읽혀 혼란만 주었다. 2026-11-28 사용자 결정으로 칸을 지운다.
+
+### 바뀐 처리
+
+| action | 바뀐 점 |
+|---|---|
+| `search` · `save` 응답 `ds_main` | MENU_ID 칸이 없다 |
+| `save` | 행의 MENU_ID 를 읽지 않는다. ROLE_ID 는 화면이 보낸 값 그대로 쓴다 |
+| `save` 검사 | 새 행(inserted) ROLE_ID 가 이미 있거나 같은 저장 안에서 겹치면 아무것도 쓰지 않고 `ROLE_DUP: <역할ID> …` 로 거절한다(새로 더함 — 옛 저장은 있는 행을 덮어썼다) |
+| `lov` | grids `menus` 만 준다. `ds_lovMenuId`(역할 MENU_ID 고르기)를 지웠다 |
+| commPermBench `roles` · commRoleGrpMng 역할 목록 | MENU_ID 칸이 없다 |
+
+- Flyway mcmapuser `V27__drop_role_menu_id` 가 칸을 지운다. 칸이 없으면 건너뛴다.
+- 저장소 `SecRoleMappingNativeRepository.findAllMenuIdLov` 를 지웠다. commObjMng 의 메뉴 폴더 목록(`SecMenuFldLovRepository`)은 다른 것이라 그대로다.
