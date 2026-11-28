@@ -5,7 +5,7 @@
  *   - searchCmUser          — 메인 사용자 그리드 조회 (ds_main + ds_mainAll chain)
  *   - saveCmUser            — 메인 그리드 수정 (status="updated" 분기만)
  *   - regCmUser             — 계정 생성
- *   - deleteCmUser          — 계정 삭제 (논리삭제 END_ACTIVE_DATE)
+ *   - (deleteCmUser 는 2026-11-28 에 화면에서 뺐다 — 계정 삭제는 퇴직 처리(retire)로 바뀌었다)
  *   - reRegCmUser           — 계정 재생성 (단건)
  *   - searchUserRoleGrp     — 선택 사용자 보유 역할그룹 (ds_userRolegrp)
  *   - saveUserRoleGrp       — 역할그룹 추가/삭제 (이력 동시 기록)
@@ -13,6 +13,11 @@
  *   - pwdinit               — 비밀번호 / SSO 비밀번호 초기화
  *   - saveUserRoleGrpCopy   — 역할그룹 복사
  *   - commonUserDept        — 부서 팝업 조회 (To-Be TB_MCM_DEPT_INFO)
+ *
+ * 2026-11-28 시안 「사용자 비활성화·퇴직 처리」 — 계정 상태 action (본문 DTO = CommUserMngStateRequest):
+ *   - unlock · suspend · resume · retire · handover · searchOwned
+ *   - searchHrEvt · retryHrEvt · regHrEvtUser (ERP 인사 연동)
+ * 업무 오류는 meta.message 「코드: 문구」 로 온다 — 화면은 userState.bizError 로 문구만 보인다.
  *
  * 분석리포트 §6 (SQL ID 20) / §8 (BPMN 11 action) / BPMN설계서 인용.
  *
@@ -29,6 +34,11 @@ import type {
   CommUserMngRoleGrpRow,
   CommUserMngRow,
   DeptLovRow,
+  HandoverResult,
+  HrEvtRow,
+  HrResultRow,
+  OwnedRow,
+  RetireResult,
 } from "./types";
 
 const api = createJsonApiClient();
@@ -38,6 +48,8 @@ const OASIS_BASE = "/api/mcm/oasis/commUserMng";
 interface SearchCmUserPayload {
   ds_main?: CommUserMngRow[];
   ds_mainAll?: CommUserMngAllRow[];
+  /** 「퇴직자가 담당인 데이터만」 조회에서 MDM 에 닿지 못했을 때의 안내 문구. */
+  OWNED_ERROR?: string;
 }
 
 interface SaveCountPayload {
@@ -131,11 +143,16 @@ async function callAction<T>(
 }
 
 /** action=searchCmUser — 메인 사용자 + 전체 USER_ID/EMP_NO 동시. */
-export async function searchCmUser(filters: CommUserMngFilters): Promise<SearchCmUserPayload> {
+export async function searchCmUser(filters: Partial<CommUserMngFilters>): Promise<SearchCmUserPayload> {
   return callAction<SearchCmUserPayload>("search", {
-    edtUSERID: filters.edt_USER_ID,
-    cboUSETP: filters.cbo_USE_TP,
-    cboINOUTEMPTP: filters.cbo_IN_OUT_EMP_TP,
+    edtUSERID: filters.edt_USER_ID ?? "",
+    // 사용 여부·내부 외부 구분은 상태·관리 구분 칸으로 바뀌었다 — 빈 값(전체)으로 보낸다(types.ts CommUserMngFilters).
+    cboUSETP: "",
+    cboINOUTEMPTP: "",
+    cboUSERST: filters.cbo_USER_ST ?? "",
+    cboMANAGETP: filters.cbo_MANAGE_TP ?? "",
+    chkPWDTEMP: filters.chk_PWD_TEMP ? "Y" : "",
+    chkORPHAN: filters.chk_ORPHAN ? "Y" : "",
   });
 }
 
@@ -157,16 +174,10 @@ export async function regCmUser(rows: CommUserMngRow[]): Promise<SaveCountPayloa
   );
 }
 
-/** action=deleteCmUser — 계정 논리삭제 (END_ACTIVE_DATE 마감 / status="deleted"). */
-export async function deleteCmUser(rows: CommUserMngRow[]): Promise<SaveCountPayload> {
-  return callAction<SaveCountPayload>(
-    "deleteCmUser",
-    {},
-    { master: { rows: rows as unknown as Record<string, unknown>[] } },
-  );
-}
-
-/** action=reRegCmUser — 계정 재생성 (단건 ds_main.get(0)). */
+/**
+ * action=reRegCmUser — 계정 재생성 (단건 ds_main.get(0)).
+ * 2026-11-28 (D7) — 역할그룹 없이 활성, 임시 비밀번호(7일 뒤 23:59까지), 유효 기간은 오늘부터 다시 시작한다.
+ */
 export async function reRegCmUser(rows: CommUserMngRow[]): Promise<SaveCountPayload> {
   return callAction<SaveCountPayload>(
     "reRegCmUser",
@@ -244,6 +255,76 @@ export async function commonUserDept(deptKey: string): Promise<CommonUserDeptPay
  */
 export async function searchDeptLov(keyword: string): Promise<SearchDeptLovPayload> {
   return callAction<SearchDeptLovPayload>("searchDeptLov", { keyword });
+}
+
+// ────────────────────────────────────────────────────────────────
+// 2026-11-28 — 계정 상태 action (시안 「사용자 비활성화·퇴직 처리」)
+// ────────────────────────────────────────────────────────────────
+
+/** action=unlock — 잠금 해제. 비밀번호는 그대로, 실패 횟수 0. */
+export async function unlockUser(userId: string): Promise<SaveCountPayload> {
+  return callAction<SaveCountPayload>("unlock", { USER_ID: userId });
+}
+
+/** action=suspend — 관리자 비활성. 사유 필수. 역할·담당 데이터는 그대로, 쓰던 세션은 끊는다. */
+export async function suspendUser(userId: string, reason: string): Promise<SaveCountPayload> {
+  return callAction<SaveCountPayload>("suspend", { USER_ID: userId, REASON: reason });
+}
+
+/** action=resume 응답 — ERP 인사 휴직이 남아 있으면 HR_LEAVE_REMAINS=Y. */
+export interface ResumePayload extends SaveCountPayload {
+  HR_LEAVE_REMAINS?: "Y" | "N" | string;
+}
+
+/** action=resume — 다시 사용. 관리자 비활성만 푼다. */
+export async function resumeUser(userId: string): Promise<ResumePayload> {
+  return callAction<ResumePayload>("resume", { USER_ID: userId });
+}
+
+/** action=retire — 퇴직 처리. 사유 필수. 받을 사람을 비우면 「나중에 인계」(D4). */
+export async function retireUser(userId: string, reason: string, toUserId?: string | null): Promise<RetireResult> {
+  return callAction<RetireResult>("retire", {
+    USER_ID: userId,
+    REASON: reason,
+    ...(toUserId ? { TO_USER_ID: toUserId } : {}),
+  });
+}
+
+/** action=handover — 퇴직자의 담당 데이터를 받을 사람에게 넘긴다(나중에 인계). */
+export async function handoverUser(userId: string, toUserId: string): Promise<HandoverResult> {
+  return callAction<HandoverResult>("handover", { USER_ID: userId, TO_USER_ID: toUserId });
+}
+
+/** action=searchOwned 응답. MDM 에 닿지 못하면 빈 목록과 OWNED_ERROR. */
+export interface SearchOwnedPayload {
+  ds_owned?: OwnedRow[];
+  OWNED_ERROR?: string;
+}
+
+/** action=searchOwned — 한 사람의 담당 데이터(MDM) 종류별 건수. */
+export async function searchOwned(userId: string): Promise<SearchOwnedPayload> {
+  return callAction<SearchOwnedPayload>("searchOwned", { USER_ID: userId });
+}
+
+/** action=searchHrEvt — ERP 인사 정보. procSt 는 쉼표 목록(빈 값 = FAIL·HOLD·WAIT). */
+export async function searchHrEvt(procSt: string): Promise<{ ds_hrEvt?: HrEvtRow[] }> {
+  return callAction<{ ds_hrEvt?: HrEvtRow[] }>("searchHrEvt", procSt ? { PROC_ST: procSt } : {});
+}
+
+/** action=retryHrEvt — 실패한 인사 정보를 다시 처리한다. */
+export async function retryHrEvt(evtIds: (string | number)[]): Promise<{ ds_hrResult?: HrResultRow[]; cnt_save?: number }> {
+  return callAction<{ ds_hrResult?: HrResultRow[]; cnt_save?: number }>("retryHrEvt", { EVT_ID: evtIds.join(",") });
+}
+
+/** action=regHrEvtUser 응답 — 만든 계정과 임시 비밀번호. */
+export interface RegHrEvtUserPayload extends SaveCountPayload {
+  USER_ID?: string;
+  INIT_PWD?: string;
+}
+
+/** action=regHrEvtUser — 계정 생성 대기(HOLD) 입사 정보로 계정을 만든다(D12). */
+export async function regHrEvtUser(evtId: string | number, newUserId: string): Promise<RegHrEvtUserPayload> {
+  return callAction<RegHrEvtUserPayload>("regHrEvtUser", { EVT_ID: String(evtId), NEW_USER_ID: newUserId });
 }
 
 // PwdInitPayload 는 위에서 `export interface` 로 직접 export 한다 (중복 export 금지).

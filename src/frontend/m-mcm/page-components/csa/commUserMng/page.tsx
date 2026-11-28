@@ -24,6 +24,16 @@
  *     관리자가 사용자에게 전달할 초기 비밀번호를 알 수 없었다.
  *
  * 패턴: W3 (commRoleMng) / W4 (commRoleGrpMng) 의 다중 그리드 + Detail 확장.
+ *
+ * 2026-11-28 — 시안 「사용자 비활성화·퇴직 처리」:
+ *   - 조회 조건: 상태(기본 전체) · 사용자 · 관리 구분 · 비밀번호 미변경만 · 퇴직자가 담당인 데이터만.
+ *     사용 여부·내부 외부 구분 칸은 뺐다(USE_TP='N' 이 비활성·퇴직을 함께 뜻해 상태 칸과 겹친다 — types.ts).
+ *   - 목록: 상태 배지 · 상태 사유 · 관리 · 비밀번호 미변경 · 마지막 로그인 (+ 담당 데이터 건수).
+ *   - 상세: 상태별 단추(잠금 해제·비활성화·다시 사용·퇴직 처리·담당 데이터 인계·계정 재생성) → 확인 팝업(UserStateModals).
+ *     처리 뒤 다시 조회하고 같은 사용자를 다시 고른다.
+ *   - 「계정 삭제」(행삭제 → 저장 deleted)는 퇴직 처리 팝업으로 바꿨다. 행삭제는 저장 전 신규 행만 지운다.
+ *   - 상단 「ERP 인사 연동」 — 받은 인사 정보·다시 처리·계정 생성 대기(HrEvtModal).
+ *   - 비밀번호 초기화 팝업은 임시 비밀번호 안내(오늘 23:59까지, 첫 로그인에서 바꿈)로 바꿨다.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -37,12 +47,15 @@ import {
   DETAIL_TABLE_STYLE,
   DETAIL_LABEL_CELL,
   DETAIL_VALUE_CELL,
+  canDoButton,
+  useUserButtonRbac,
 } from "@dk-oasis/shared/layout";
-import { GridPanel, AgDataGrid, type GridColumn } from "@dk-oasis/shared/grid";
+import { GridPanel, AgDataGrid, GridBadge, GridBadgeCell, GridBadgeGroup, type GridColumn } from "@dk-oasis/shared/grid";
 import { Modal } from "@dk-oasis/shared/modal";
 import { useMessage } from "@dk-oasis/shared/message-provider";
 import { useCarryRestored, useCarryState, useCurrentUserId } from "@dk-oasis/shared/portal-shell";
-import { Button, useBusy } from "@dk-oasis/shared/form";
+import { Badge, Button, Checkbox, useBusy } from "@dk-oasis/shared/form";
+import type { LookupRow } from "@dk-oasis/shared/lookup";
 import { MdmFieldLabel } from "@dk-oasis/shared/mdm-meta";
 import {
   searchCmUser as apiSearchCmUser,
@@ -53,9 +66,43 @@ import {
   searchRoleGrp as apiSearchRoleGrp,
   pwdinit as apiPwdInit,
   saveUserRoleGrpCopy as apiSaveUserRoleGrpCopy,
+  unlockUser as apiUnlockUser,
+  suspendUser as apiSuspendUser,
+  resumeUser as apiResumeUser,
+  retireUser as apiRetireUser,
+  handoverUser as apiHandoverUser,
+  searchOwned as apiSearchOwned,
 } from "./api";
 import { CommUserDetailForm, type CommUserDetailHandle } from "./CommUserDetailForm";
-import { IN_OUT_OPTIONS, SELF_LOCKOUT_MSG, getRowKey, locksSelf, toDateInputValue, todayYmd } from "./detailUtils";
+import { SELF_LOCKOUT_MSG, getRowKey, locksSelf, toDateInputValue, todayYmd } from "./detailUtils";
+import { HrEvtModal } from "./HrEvtModal";
+import {
+  ConfirmImpactModal,
+  HandoverModal,
+  REREG_LINES,
+  RetireModal,
+  SuspendModal,
+  UNLOCK_LINES,
+  resumeLines,
+  type RetireSubmit,
+} from "./UserStateModals";
+import {
+  MANAGE_TP_SEARCH_OPTIONS,
+  USER_ST_LABEL,
+  USER_ST_SEARCH_OPTIONS,
+  bizErrorText,
+  fmtDateTime,
+  handoverText,
+  isSelf,
+  manageLabel,
+  ownedTotal,
+  retireText,
+  stTone,
+  tempPwdUntil,
+  toneColors,
+  type ResultNotice,
+  type StateAction,
+} from "./userState";
 import { useOpenWith } from "@/page-components/csa/commPermBench/nav";
 import type {
   CommUserMngFilters,
@@ -66,6 +113,10 @@ import type {
   GridRow,
   RowStatus,
 } from "./types";
+import { STATE_FIELDS } from "./types";
+
+/** 권한 판정 오브젝트 ID (PageLayout objId 와 같다). */
+const OBJ_ID = "commUserMng";
 
 /** spread base 이후 PK 명시 (정책 #14). */
 function withSyntheticId<T extends Partial<CommUserMngRow>>(r: T, idx: number): T & { __rowId: string } {
@@ -82,10 +133,16 @@ function stripInternal<T extends GridRow>(row: T): Record<string, unknown> {
   return rest;
 }
 
+/**
+ * 조회 조건 기본값. 상태는 전체(시안과 같다) — As-Is 사용 여부 기본 "Y" 는 쓰지 않는다.
+ * 사용 여부 "Y" 로 걸면 관리자 비활성(USE_TP='N')은 숨고 인사 휴직(USE_TP='Y')만 보여, 같은 「비활성」 상태가 반쪽만 보였다.
+ */
 const DEFAULT_FILTERS: CommUserMngFilters = {
   edt_USER_ID: "",
-  cbo_USE_TP: "Y", // S-002 default index=0 (xfdl:273)
-  cbo_IN_OUT_EMP_TP: "", // S-003 default index=-1 (전체)
+  cbo_USER_ST: "",
+  cbo_MANAGE_TP: "",
+  chk_PWD_TEMP: false,
+  chk_ORPHAN: false,
 };
 
 /**
@@ -100,8 +157,10 @@ const DEFAULT_FILTERS: CommUserMngFilters = {
 interface InitPwdInfo {
   /** 초기 비밀번호를 발급받은 사용자 ID (팝업 표시용). */
   userId: string;
-  /** 발급된 평문 초기 비밀번호. */
+  /** 발급된 평문 임시 비밀번호(공통 값, 기본 dmes0000 — 서버 설정 mcm.password.initial). */
   password: string;
+  /** reset = 비밀번호 초기화(오늘 23:59까지), new = 새 계정(7일 뒤 23:59까지). */
+  kind: "reset" | "new";
 }
 
 /**
@@ -137,73 +196,86 @@ async function copyToClipboard(text: string): Promise<boolean> {
 }
 
 /**
- * 사용여부 / 내부외부 코드 ↔ 한글 표시 (xfdl ds_useTp / ds_inOutEmpTp 정적 매핑 보존).
- *   - LV-001 USE_TP: Y=Yes / N=No
- *   - LV-002 IN_OUT_EMP_TP: I=내부 / O=외부
+ * 메인 사용자 그리드 — 2026-11-28 시안 「사용자 비활성화·퇴직 처리」 열(아이디·이름·부서·관리·상태·사유 + 비밀번호·마지막 로그인).
+ * 사번·유효기한일·이메일은 남겼다(사번·이메일은 필수 칸이고, 유효기한일은 기한 밖·수동 관리 계정의 계약 종료일이다).
+ * 나머지 칸(SSO ID·유효개시일·부서코드·분류·전화·내부 외부)은 상세 폼에서 본다.
+ * 그리드 인라인 편집은 쓰지 않는다(editable: false — 행 클릭 → 상세 폼에서 수정, 2026-06-02 iter#3).
  */
-const USE_TP_CODES = ["Y", "N"] as const;
-const IN_OUT_CODES = ["I", "O"] as const;
-const USE_TP_OPTIONS: { value: string; label: string }[] = [
-  { value: "Y", label: "Yes" },
-  { value: "N", label: "No" },
-];
-/** 검색 필드용 — 빈 값(전체) 옵션 포함. */
-const USE_TP_SEARCH_OPTIONS = [{ value: "", label: "전체" }, ...USE_TP_OPTIONS];
-const IN_OUT_SEARCH_OPTIONS = [{ value: "", label: "전체" }, ...IN_OUT_OPTIONS];
-
-const USE_TP_LABEL_MAP: Record<string, string> = { Y: "Yes", N: "No" };
-const IN_OUT_LABEL_MAP: Record<string, string> = { I: "내부", O: "외부" };
-
-/** 메인 사용자 그리드 — 분석 §3.3 G-002~G-017 (16 컬럼 / G-001 STATUS 자연 흡수 정책 #3 (E)).
- *  2026-06-02 iter#3 — 그리드 인라인 편집 비활성화 (editable: false).
- *  사유: 본 화면은 "행 클릭 → Detail 폼에서 수정" 패턴 (AsIs xfdl ds_main_onrowposchanged → Detail BindItem).
- *  As-Is xfdl 도 grd_main 의 셀이 Detail 폼과 양방향 bind 되어 그리드 셀 직접 편집은 의도 ✗ — 사용자 검수 결과 반영. */
 const USER_COLUMNS: GridColumn[] = [
-  { key: "USER_ID", header: "사용자ID *", width: 120, editable: false, align: "left" },
-  { key: "USER_EMP_NO", header: "사번 *", width: 100, editable: false, align: "left" },
-  { key: "SSO_ID", header: "SSO ID", width: 90, editable: false, align: "left" },
-  { key: "USER_NM", header: "사용자명 *", width: 100, editable: false, align: "left" },
+  { key: "USER_ID", header: "사용자ID *", width: 110, editable: false, align: "left" },
+  { key: "USER_NM", header: "사용자명 *", width: 90, editable: false, align: "left" },
+  { key: "USER_EMP_NO", header: "사번 *", width: 90, editable: false, align: "left" },
   {
-    key: "START_ACTIVE_DATE",
-    header: "유효개시일",
-    width: 100,
+    key: "DEPT_NM",
+    header: "부서·소속",
+    width: 120,
+    editable: false,
+    align: "left",
+    render: (v, row) => String(v || row.DEPT_CD || ""),
+  },
+  { key: "MANAGE_TP", header: "관리", width: 80, editable: false, align: "center", render: (v) => manageLabel(v) },
+  {
+    key: "USER_ST",
+    header: "상태",
+    width: 80,
+    editable: false,
+    align: "center",
+    render: (v, row) => (
+      <GridBadge
+        label={String(row.USER_ST_NM || USER_ST_LABEL[String(v ?? "")] || v || "")}
+        {...toneColors(stTone(v))}
+      />
+    ),
+  },
+  { key: "ST_RSN", header: "상태 사유", width: 180, editable: false, align: "left", tooltip: true },
+  {
+    key: "PWD_TEMP_YN",
+    header: "비밀번호",
+    width: 110,
+    editable: false,
+    align: "center",
+    render: (v, row) =>
+      v === "Y" || row.PWD_EXPIRY_EXEMPT_YN === "Y" ? (
+        <GridBadgeCell>
+          <GridBadgeGroup>
+            {v === "Y" ? <GridBadge label="미변경" {...toneColors("warning")} /> : null}
+            {row.PWD_EXPIRY_EXEMPT_YN === "Y" ? <GridBadge label="만료 제외" /> : null}
+          </GridBadgeGroup>
+        </GridBadgeCell>
+      ) : null,
+  },
+  {
+    key: "LAST_LOGIN_AT",
+    header: "마지막 로그인",
+    width: 120,
+    editable: false,
+    align: "center",
+    render: (v) => fmtDateTime(v),
+  },
+  {
+    key: "END_ACTIVE_DATE",
+    header: "유효기한일",
+    width: 96,
     editable: false,
     align: "center",
     // 2026-06-02 iter#5 사용자 검수 J-016: 수정이 yyyy-MM-dd 만 하므로 표시도 yyyy-MM-dd 만 (시분초 제거).
     render: (v) => toDateInputValue(v),
   },
+  { key: "EMAIL", header: "이메일 *", width: 150, editable: false, align: "left" },
+];
+
+/** 「퇴직자가 담당인 데이터만」 조회 때 — 담당 데이터 건수 열을 상태 사유 뒤에 더한다. */
+const USER_COLUMNS_OWNED: GridColumn[] = [
+  ...USER_COLUMNS.slice(0, 7),
   {
-    key: "END_ACTIVE_DATE",
-    header: "유효기한일",
-    width: 100,
-    editable: false,
-    align: "center",
-    render: (v) => toDateInputValue(v),
-  },
-  { key: "DEPT_CD", header: "부서코드 *", width: 100, editable: false, align: "left" },
-  { key: "DEPT_NM", header: "부서명", width: 120, editable: false, align: "left" },
-  { key: "USER_CATEGORY_CD", header: "분류코드", width: 90, editable: false, align: "left" },
-  {
-    key: "USE_TP",
-    header: "사용여부",
-    width: 80,
-    editable: false,
-    align: "center",
-    // As-Is G-010 displaytype="combotext" 정합 — code(Y/N) 저장, label(Yes/No) 표시.
-    render: (v) => USE_TP_LABEL_MAP[String(v ?? "")] ?? String(v ?? ""),
-  },
-  { key: "EMAIL", header: "이메일 *", width: 160, editable: false, align: "left" },
-  { key: "TEL_NO", header: "전화번호", width: 110, editable: false, align: "left" },
-  { key: "MOBILE_TEL_NO", header: "MOBILE", width: 110, editable: false, align: "left" },
-  {
-    key: "IN_OUT_EMP_TP",
-    header: "내부/외부 *",
+    key: "OWNED_CNT",
+    header: "담당 데이터",
     width: 90,
     editable: false,
-    align: "center",
-    // As-Is G-014 displaytype="combotext" 정합 — code(I/O) 저장, label(내부/외부) 표시.
-    render: (v) => IN_OUT_LABEL_MAP[String(v ?? "")] ?? String(v ?? ""),
+    align: "right",
+    render: (v) => (v == null || v === "" ? "-" : `${String(v)}건`),
   },
+  ...USER_COLUMNS.slice(7),
 ];
 
 /** 보유 역할그룹 (GR-NNN / ds_userRolegrp). 분석 §3.4 (2 컬럼 + USER_ID 부속). */
@@ -244,12 +316,52 @@ function emptyUserRow(): CommUserMngRow {
     GROUP_ID1: "",
     GROUP_ID2: "",
     GROUP_ID3: "",
+    PWD_EXPIRY_EXEMPT_YN: "N",
   };
+}
+
+/** 행추가·행복사로 받은 행에서 새 행에 옮길 칸 — 조회 전용 상태 칸과 빈 값은 떼어 기본값을 지킨다. */
+function copyableFields(base: Record<string, unknown>): Record<string, unknown> {
+  const skip = new Set<string>(STATE_FIELDS);
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(base)) {
+    if (skip.has(k) || v === "" || v == null) continue;
+    out[k] = v;
+  }
+  return out;
+}
+
+/** 처리할 계정 상태 팝업. */
+type ActionModal = { kind: StateAction; row: CommUserMngGridRow } | null;
+
+/** 퇴직자의 남은 담당 데이터(상세 영역 단추·안내용). */
+type OwnedInfo = { userId: string; cnt: number | null; error: string | null } | null;
+
+/** 받을 사람 표시 이름 — LookupRow.name 은 「이름 · 부서」. */
+function receiverName(r: LookupRow): string {
+  return r.name.split(" · ")[0] || r.code;
 }
 
 export default function CommUserMngPage() {
   const { showMessage } = useMessage();
   const me = useCurrentUserId(); // c5 a — 본인 계정 잠금 막기
+
+  // 상태 단추 권한 — PageLayout 상단 단추와 같은 판정(canDoButton, objId × action). 화면 루트 한 곳에서만 묻는다(R9).
+  const rbac = useUserButtonRbac();
+  const statePerms = useMemo<Record<StateAction, boolean>>(
+    () => ({
+      unlock: canDoButton(rbac, OBJ_ID, "unlock"),
+      suspend: canDoButton(rbac, OBJ_ID, "suspend"),
+      resume: canDoButton(rbac, OBJ_ID, "resume"),
+      retire: canDoButton(rbac, OBJ_ID, "retire"),
+      handover: canDoButton(rbac, OBJ_ID, "handover"),
+      reRegCmUser: canDoButton(rbac, OBJ_ID, "reRegCmUser"),
+    }),
+    [rbac],
+  );
+  const canSearchOwned = canDoButton(rbac, OBJ_ID, "searchOwned");
+  const canRetryHr = canDoButton(rbac, OBJ_ID, "retryHrEvt");
+  const canRegHr = canDoButton(rbac, OBJ_ID, "regHrEvtUser");
 
   // 새 창으로 분리할 때 이어받는 상태(useCarryState) — 조회 조건·선택 키는 가볍게, 조회 결과 행은 bulky.
   // 역할그룹 그리드·후보 풀·체크 선택(Set 포함)·초기화 라디오는 선택한 사용자가 정해지면 다시 조회·초기화되므로 이어받지 않는다(useState).
@@ -292,6 +404,18 @@ export default function CommUserMngPage() {
   const [initPwd, setInitPwd] = useState<InitPwdInfo | null>(null);
   const [isPwdCopied, setIsPwdCopied] = useState<boolean>(false);
 
+  // 2026-11-28 — 계정 상태 팝업 · ERP 인사 연동 팝업 · 퇴직자 담당 데이터 · 담당 데이터 열 표시 여부
+  const [actionModal, setActionModal] = useState<ActionModal>(null);
+  const [isHrOpen, setIsHrOpen] = useState(false);
+  const [ownedInfo, setOwnedInfo] = useState<OwnedInfo>(null);
+  const ownedSeq = useRef(0);
+  const [ownedMode, setOwnedMode] = useState<boolean>(() => !!filters.chk_ORPHAN && rows.some((r) => "OWNED_CNT" in r));
+  const [listOwnedError, setListOwnedError] = useState<string | null>(null);
+  const selectedKeyRef = useRef(selectedKey);
+  useEffect(() => {
+    selectedKeyRef.current = selectedKey;
+  }, [selectedKey]);
+
   const selected = useMemo<CommUserMngGridRow | null>(() => {
     if (!selectedKey) return null;
     return rows.find((r) => getRowKey(r) === selectedKey) ?? null;
@@ -302,55 +426,9 @@ export default function CommUserMngPage() {
     [rows],
   );
 
-  /**
-   * 삭제 표시된 행을 뺀 실제 표시 대상.
-   *
-   * <p>2026-09-04 fix — 종전에는 건수(count)만 deleted 를 제외하고 그리드 data 는 원본 rows 를
-   * 그대로 넘겨, 삭제 버튼을 눌러도 건수만 줄고 행은 그대로 남았다 ("삭제가 안 먹는다").
-   * 우측 역할 그리드는 이미 같은 필터를 쓰고 있어 같은 파일 안에서 동작이 갈렸다.
-   */
-  const visibleRows = useMemo(
-    () => rows.filter((r) => r.nativeeditor_status !== "deleted"),
-    [rows],
-  );
+  // 2026-11-28 — 행삭제는 저장 전 신규 행만 지운다(저장된 계정은 퇴직 처리). 삭제 표시(deleted) 행이 생기지 않는다.
+  const visibleRows = rows;
   const visibleCount = visibleRows.length;
-
-  // ── search ──
-  const loadList = useCallback(
-    (f: CommUserMngFilters) =>
-      runBusy("list", async () => {
-        setError(null);
-        try {
-          const payload = await apiSearchCmUser(f);
-          const list = (payload.ds_main ?? []).map((r, i) => ({
-            ...withSyntheticId(r, i),
-            nativeeditor_status: "" as RowStatus,
-          }));
-          setRows(list);
-          if (list.length > 0) {
-            setSelectedKey(getRowKey(list[0]));
-          } else {
-            setSelectedKey(null);
-            setUserRoleGrpRows([]);
-            setAvailRoleGrpRows([]);
-          }
-          showMessage({ message: `${list.length}건 조회 되었습니다.`, toast: true });
-        } catch (e) {
-          setError(e instanceof Error ? e.message : "조회 실패");
-          setRows([]);
-          setUserRoleGrpRows([]);
-          setAvailRoleGrpRows([]);
-        }
-      }),
-    [showMessage, setRows, setSelectedKey, runBusy],
-  );
-
-  const handleFilterChange = (k: keyof CommUserMngFilters, v: string) =>
-    setFilters((p) => ({ ...p, [k]: v }));
-
-  const handleSearch = () => void loadList(filters);
-
-  const handleReset = () => setFilters(DEFAULT_FILTERS);
 
   // ── row select — 자동 보유 역할 / 후보 역할 chain 갱신 (As-Is ds_main_onrowposchanged) ──
   const loadRoleGrids = useCallback(async (userId: string) => {
@@ -379,8 +457,90 @@ export default function CommUserMngPage() {
     }
   }, []);
 
+  /**
+   * 퇴직자의 남은 담당 데이터 — 상세 영역의 「담당 데이터 인계」 단추와 안내에 쓴다. 퇴직자만 읽는다(MDM 호출).
+   * 「퇴직자가 담당인 데이터만」 조회 행은 OWNED_CNT 를 그대로 쓴다. 순번으로 늦게 온 응답을 버린다.
+   */
+  const loadOwned = useCallback((row: CommUserMngGridRow | null) => {
+    const my = ++ownedSeq.current;
+    if (!row || row.USER_ST !== "RETIRED" || !row.USER_ID) {
+      setOwnedInfo(null);
+      return;
+    }
+    const userId = String(row.USER_ID);
+    if (row.OWNED_CNT != null && row.OWNED_CNT !== ("" as unknown)) {
+      setOwnedInfo({ userId, cnt: Number(row.OWNED_CNT), error: null });
+      return;
+    }
+    setOwnedInfo({ userId, cnt: null, error: null });
+    apiSearchOwned(userId)
+      .then((res) => {
+        if (my !== ownedSeq.current) return;
+        setOwnedInfo({ userId, cnt: res.OWNED_ERROR ? null : ownedTotal(res.ds_owned), error: res.OWNED_ERROR ?? null });
+      })
+      .catch((e: unknown) => {
+        if (my === ownedSeq.current) setOwnedInfo({ userId, cnt: null, error: bizErrorText(e, "담당 데이터를 읽지 못했습니다") });
+      });
+  }, []);
+
+  // ── search ──
+  /**
+   * 목록 조회. keepUserId 가 있으면 조회 뒤 그 사용자를 다시 고른다(상태 처리·저장 뒤). 없거나 조건에서 빠졌으면 첫 행.
+   * 고른 행의 키가 그대로면 선택 effect 가 돌지 않으므로 하위 그리드·담당 데이터를 여기서 다시 읽는다.
+   */
+  const loadList = useCallback(
+    (f: CommUserMngFilters, opts?: { keepUserId?: string; quiet?: boolean }) =>
+      runBusy("list", async () => {
+        setError(null);
+        try {
+          const payload = await apiSearchCmUser(f);
+          const list = (payload.ds_main ?? []).map((r, i) => ({
+            ...withSyntheticId(r, i),
+            nativeeditor_status: "" as RowStatus,
+          }));
+          setRows(list);
+          setOwnedMode(!!f.chk_ORPHAN);
+          setListOwnedError(payload.OWNED_ERROR ?? null);
+          const keepId = opts?.keepUserId?.toLowerCase();
+          const next = (keepId && list.find((r) => String(r.USER_ID ?? "").toLowerCase() === keepId)) || list[0];
+          if (next) {
+            const key = getRowKey(next);
+            if (key === selectedKeyRef.current) {
+              if (next.USER_ID) void loadRoleGrids(String(next.USER_ID));
+              loadOwned(next);
+            } else {
+              setSelectedKey(key);
+            }
+          } else {
+            setSelectedKey(null);
+            setUserRoleGrpRows([]);
+            setAvailRoleGrpRows([]);
+            loadOwned(null);
+          }
+          if (payload.OWNED_ERROR) {
+            showMessage({ message: `${payload.OWNED_ERROR}. 담당 데이터 건수를 보이지 못했습니다.`, alertType: "warning", toast: true });
+          } else if (!opts?.quiet) {
+            showMessage({ message: `${list.length}건 조회 되었습니다.`, toast: true });
+          }
+        } catch (e) {
+          setError(e instanceof Error ? e.message : "조회 실패");
+          setRows([]);
+          setUserRoleGrpRows([]);
+          setAvailRoleGrpRows([]);
+        }
+      }),
+    [showMessage, setRows, setSelectedKey, runBusy, loadRoleGrids, loadOwned],
+  );
+
+  const handleFilterChange = <K extends keyof CommUserMngFilters>(k: K, v: CommUserMngFilters[K]) =>
+    setFilters((p) => ({ ...p, [k]: v }));
+
+  const handleSearch = () => void loadList(filters);
+
+  const handleReset = () => setFilters(DEFAULT_FILTERS);
+
   // 2026-06-02 iter#5 사용자 검수 J-017 — csa 8 화면 진입 시 자동조회 (AsIs xfdl:439 gfn_formOnLoad(obj, true) 정합).
-  // DEFAULT_FILTERS (사용 여부="Y") 기준 1 회만 호출. selected 변경 의존 ✗.
+  // DEFAULT_FILTERS (상태 = 전체) 기준 1 회만 호출. selected 변경 의존 ✗.
   useEffect(() => {
     // 복원됐는데 행이 없으면 이어받은 조건으로 조회한다. 복원 아닌 첫 조회는 SearchArea autoSearch 가 한다(설계 2026-10-07-search-defaults §6.4).
     // 이어받은 선택 키를 먼저 비운다 — 조회 뒤 같은 키가 다시 잡혀도 하위 그리드 effect(selectedKey 변경)가 돌게 한다.
@@ -398,22 +558,27 @@ export default function CommUserMngPage() {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setUserRoleGrpRows([]);
       setAvailRoleGrpRows([]);
+      loadOwned(null);
       return;
     }
     // 신규 행은 USER_ID 가 비어 있으므로 sub grid 조회 skip
     if (selected.nativeeditor_status === "inserted") {
       setUserRoleGrpRows([]);
       setAvailRoleGrpRows([]);
+      loadOwned(null);
       return;
     }
     const userId = String(selected.USER_ID ?? "");
     if (userId) {
       void loadRoleGrids(userId);
     }
+    // 퇴직자면 담당 데이터를 함께 읽는다(역할 조회와 겹쳐 부른다).
+    loadOwned(selected);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedKey]);
 
   // ── 행추가 / 행삭제 ──
+  // 2026-11-28 — 행삭제는 저장 전 신규 행만 지운다. 저장된 계정은 상세 영역의 「퇴직 처리」 로 정리한다(확인·사유를 늘 거친다).
   const handleDataChange = useCallback(
     (newData: Record<string, unknown>[], addedRowKey?: string) => {
       if (addedRowKey) {
@@ -421,7 +586,7 @@ export default function CommUserMngPage() {
           (r) => (r as GridRow).__gridTempId === addedRowKey,
         ) as Partial<CommUserMngRow> | undefined;
         setRows((prev) => {
-          const base = sourceRow ?? {};
+          const base = copyableFields((sourceRow ?? {}) as Record<string, unknown>);
           const newRow: CommUserMngRow & GridRow = {
             ...emptyUserRow(),
             ...base,
@@ -434,23 +599,19 @@ export default function CommUserMngPage() {
         setSelectedKey(addedRowKey);
       } else {
         const newKeys = new Set(newData.map((r) => getRowKey(r as GridRow)));
-        // c5 a — 로그인한 본인 행은 삭제 표시도 하지 않는다(서버 SELF_LOCKOUT 과 같은 문구)
-        if (rows.some((r) => !newKeys.has(getRowKey(r)) && r.nativeeditor_status !== "inserted"
-                             && locksSelf({ ...r, nativeeditor_status: "deleted" }, me, todayYmd()))) {
-          setError(SELF_LOCKOUT_MSG);
+        const removed = rows.filter((r) => !newKeys.has(getRowKey(r)));
+        if (removed.some((r) => r.nativeeditor_status !== "inserted")) {
+          showMessage({
+            message: "저장된 계정은 지우지 않습니다. 상세 영역의 「퇴직 처리」를 쓰세요.",
+            alertType: "warning",
+          });
           return;
         }
-        setRows((prev) => {
-          const removed = prev.filter((r) => !newKeys.has(getRowKey(r)));
-          const kept = newData as (CommUserMngRow & GridRow)[];
-          const deleted = removed
-            .filter((r) => r.nativeeditor_status !== "inserted")
-            .map((r) => ({ ...r, nativeeditor_status: "deleted" as RowStatus }));
-          return [...kept, ...deleted];
-        });
+        if (removed.length === 0) return;
+        setRows((prev) => prev.filter((r) => newKeys.has(getRowKey(r))));
       }
     },
-    [rows, me, setRows, setSelectedKey],
+    [rows, setRows, setSelectedKey, showMessage],
   );
 
   // 권한 작업대에서 열기(dmes:open-with) — 첫 조회가 끝난 뒤 받은 사용자를 고르거나 신규 행을 연다.
@@ -459,7 +620,7 @@ export default function CommUserMngPage() {
     const hit = rows.find((r) => r.nativeeditor_status !== "deleted" && String(r.USER_ID ?? "") === ow.id);
     if (hit) return void setSelectedKey(getRowKey(hit));
     if (!ow.id || attempt > 0 || hasAnyChanges) return;
-    const f = { ...filters, edt_USER_ID: ow.id, cbo_USE_TP: "" };
+    const f: CommUserMngFilters = { ...DEFAULT_FILTERS, edt_USER_ID: ow.id };
     setFilters(f);
     void loadList(f);
     return "wait";
@@ -557,13 +718,12 @@ export default function CommUserMngPage() {
     return null;
   };
 
-  // ── 통합 저장 (2026-06-04 사용자 결정) ──
+  // ── 통합 저장 (2026-06-04 사용자 결정 / 2026-11-28 — deleted 는 더 만들지 않는다: 계정 삭제 = 퇴직 처리 팝업) ──
   // 기존 3 버튼 (계정생성=regCmUser / 수정=saveCmUser / 계정삭제=deleteCmUser) → 단일 "저장" 버튼.
-  //   - rows 중 nativeeditor_status 가 "inserted" / "updated" / "deleted" 인 모든 row 를
-  //     한 번의 saveCmUser action 호출로 일괄 처리. BE 가 status 별 분기 (계정생성 / 수정 / 논리삭제).
+  //   - rows 중 nativeeditor_status 가 "inserted" / "updated" 인 모든 row 를
+  //     한 번의 saveCmUser action 호출로 일괄 처리. BE 가 status 별 분기 (계정생성 / 수정).
   //   - 정보처리의뢰서 (INF_REQ_NO / DESCRIPTION) 정책 제거 — payload 에서 omit.
-  //   - 계정삭제 정합: deleted row 의 END_ACTIVE_DATE 가 99991231 / 9999-12-31 이면 BE 가 today 로 정정.
-  //     (FE 에서 END_ACTIVE_DATE 미터치 — BE 가 9999-12-31 sentinel 감지 시 자동 today)
+  //   - updated 행의 PWD_EXPIRY_EXEMPT_YN(비밀번호 사용 기간 제외)도 서버가 반영한다(2026-11-28).
   const handleSave = useCallback(async () => {
     const pending = flushPending();
     const changed = rows.map((r) => withPending(r, pending)).filter((r) => r.nativeeditor_status);
@@ -571,24 +731,17 @@ export default function CommUserMngPage() {
       setError("변경된 데이터가 없습니다.");
       return;
     }
-    // V-002 필수 검증 — status 별 차등 (inserted / updated 만 사용자 입력값 검증, deleted 는 USER_ID 만)
+    // V-002 필수 검증 — inserted / updated 사용자 입력값
     const requiredForUpsert: ReadonlyArray<keyof CommUserMngRow> = [
       "USER_ID", "USER_EMP_NO", "USER_NM", "IN_OUT_EMP_TP", "EMAIL",
     ];
-    // c5 a — 본인 계정 삭제·기간 밖으로 고치기 막기(서버도 SELF_LOCKOUT 으로 거절)
+    // c5 a — 본인 계정을 기간 밖으로 고치기 막기(서버도 SELF_LOCKOUT 으로 거절)
     const today = todayYmd();
     if (changed.some((r) => locksSelf(r, me, today))) {
       setError(SELF_LOCKOUT_MSG);
       return;
     }
     for (const r of changed) {
-      if (r.nativeeditor_status === "deleted") {
-        if (!r.USER_ID || String(r.USER_ID).trim().length === 0) {
-          setError("삭제 대상 USER_ID 가 없습니다.");
-          return;
-        }
-        continue;
-      }
       const msg = validateRequired(r, requiredForUpsert);
       if (msg) {
         setError(msg);
@@ -605,49 +758,164 @@ export default function CommUserMngPage() {
           rowStatus: r.nativeeditor_status,
         })) as unknown as CommUserMngRow[];
         const res = await apiSaveCmUser(payload);
-        showMessage({ message: `${res.cnt_save ?? 0}건 저장 되었습니다.` });
-        await loadList(filters);
+        const created = changed.some((r) => r.nativeeditor_status === "inserted");
+        showMessage({
+          message:
+            `${res.cnt_save ?? 0}건 저장 되었습니다.` +
+            (created ? "\n새 계정은 역할그룹 없이 임시 비밀번호로 만들었습니다. 본인에게 로그인해 비밀번호를 바꾸라고 알려 주세요." : ""),
+        });
+        const keep = selected ? withPending(selected, pending) : null;
+        await loadList(filters, { keepUserId: keep?.USER_ID ? String(keep.USER_ID) : undefined, quiet: true });
       } catch (e) {
         setError(e instanceof Error ? e.message : "저장 실패 하였습니다.");
       }
     });
-  }, [rows, me, filters, loadList, showMessage, runBusy, flushPending, withPending]);
+  }, [rows, me, filters, selected, loadList, showMessage, runBusy, flushPending, withPending]);
 
   // 2026-06-04 — As-Is regCmUser / deleteCmUser 핸들러 제거.
-  //   master grid 의 +/-(추가/삭제) 버튼이 row 의 nativeeditor_status 를 inserted/deleted 로 마킹 후
+  //   master grid 의 +(추가) 버튼이 row 의 nativeeditor_status 를 inserted 로 마킹 후
   //   상단 "저장" 버튼이 통합 handleSave 호출 → BE 가 rowStatus 별 분기 처리.
 
-  // ── B-016 reRegCmUser (계정 재생성 — 단건 처리) ──
-  const handleReRegister = useCallback(async () => {
-    const pending = flushPending();
-    const live = selected ? withPending(selected, pending) : null;
-    if (!live) {
-      setError("선택 후 재생성 해주세요.");
-      return;
-    }
-    if (!live.USER_EMP_NO) { setError("사번 저장 후 재생성 해주세요."); return; }
-    if (!live.USER_NM)     { setError("사용자명 저장 후 재생성 해주세요."); return; }
-    if (!live.IN_OUT_EMP_TP) { setError("내부 외부 구분 저장 후 재생성 해주세요."); return; }
-    if (!live.EMAIL) { setError("이메일 저장 후 재생성 해주세요."); return; }
-
-    if (typeof window !== "undefined"
-        && !window.confirm(`[${live.USER_ID}] 계정을 재생성 하시겠습니까?`)) return;
-
-    await runBusy("save", async () => {
-      setError(null);
-      try {
-        // 2026-06-04 — infReqNo / description 정책 제거. row 그대로 전달.
-        const payload: CommUserMngRow[] = [{
-          ...stripInternal(live) as CommUserMngRow,
-        } as unknown as CommUserMngRow];
-        const res = await apiReRegCmUser(payload);
-        showMessage({ message: `${res.cnt_save ?? 0}건 저장 되었습니다.` });
-        await loadList(filtersRef.current);
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "재생성 실패");
+  // ── 2026-11-28 계정 상태 단추 (시안 「사용자 비활성화·퇴직 처리」) ──
+  /** 단추를 누르면 확인 팝업을 연다. 본인 계정·저장 안 한 변경·재생성 필수 칸은 여기서 먼저 막는다. */
+  const handleStateAction = useCallback(
+    (kind: StateAction) => {
+      const pending = flushPending();
+      const live = selected ? withPending(selected, pending) : null;
+      if (!live || !live.USER_ID) {
+        setError("사용자를 먼저 고르세요.");
+        return;
       }
+      if ((kind === "suspend" || kind === "retire") && isSelf(live.USER_ID, me)) {
+        setError(SELF_LOCKOUT_MSG);
+        return;
+      }
+      // 처리 뒤 다시 조회하므로 저장하지 않은 입력이 있으면 먼저 저장하게 한다.
+      if (pending || rows.some((r) => r.nativeeditor_status) || userRoleGrpRows.some((r) => r.nativeeditor_status)) {
+        setError("저장하지 않은 변경이 있습니다. 먼저 저장하거나 다시 조회하세요.");
+        return;
+      }
+      if (kind === "reRegCmUser") {
+        // B-016 필수 칸 (As-Is xfdl fn_reRegister)
+        if (!live.USER_EMP_NO) { setError("사번 저장 후 재생성 해주세요."); return; }
+        if (!live.USER_NM)     { setError("사용자명 저장 후 재생성 해주세요."); return; }
+        if (!live.IN_OUT_EMP_TP) { setError("내부 외부 구분 저장 후 재생성 해주세요."); return; }
+        if (!live.EMAIL) { setError("이메일 저장 후 재생성 해주세요."); return; }
+      }
+      setActionModal({ kind, row: live });
+    },
+    [selected, me, rows, userRoleGrpRows, flushPending, withPending],
+  );
+
+  const closeActionModal = useCallback(() => setActionModal(null), []);
+
+  /** 결과 안내 — 성공은 토스트, 주의는 알림 창. */
+  const notify = useCallback(
+    (n: ResultNotice) => {
+      if (n.level === "success") showMessage({ message: n.text, alertType: "success", toast: true });
+      else showMessage({ title: "알림", message: n.text, alertType: "warning" });
+    },
+    [showMessage],
+  );
+
+  /** 상태 처리 공통 — 서버 호출 → 팝업 닫기 → 안내 → 다시 조회(같은 사용자). 업무 오류는 문구만 보이고 팝업은 남긴다. */
+  const runStateAction = useCallback(
+    (userId: string, work: () => Promise<ResultNotice>) =>
+      runBusy("save", async () => {
+        setError(null);
+        try {
+          const notice = await work();
+          setActionModal(null);
+          notify(notice);
+          await loadList(filtersRef.current, { keepUserId: userId, quiet: true });
+        } catch (e) {
+          setError(bizErrorText(e));
+        }
+      }),
+    [runBusy, notify, loadList],
+  );
+
+  const modalUserId = actionModal ? String(actionModal.row.USER_ID ?? "") : "";
+  const modalUserNm = actionModal ? String(actionModal.row.USER_NM || actionModal.row.USER_ID || "") : "";
+
+  const handleUnlock = useCallback(
+    () =>
+      void runStateAction(modalUserId, async () => {
+        await apiUnlockUser(modalUserId);
+        return { text: `${modalUserNm} 계정의 잠금을 풀었습니다.`, level: "success" };
+      }),
+    [runStateAction, modalUserId, modalUserNm],
+  );
+
+  const handleSuspend = useCallback(
+    (reason: string) =>
+      void runStateAction(modalUserId, async () => {
+        await apiSuspendUser(modalUserId, reason);
+        return { text: `${modalUserNm} 계정을 비활성화했습니다. 쓰던 세션을 끊었습니다.`, level: "success" };
+      }),
+    [runStateAction, modalUserId, modalUserNm],
+  );
+
+  const handleResume = useCallback(
+    () =>
+      void runStateAction(modalUserId, async () => {
+        const res = await apiResumeUser(modalUserId);
+        return res.HR_LEAVE_REMAINS === "Y"
+          ? {
+              text: `${modalUserNm} 계정의 관리자 비활성을 풀었습니다. ERP 인사 휴직이 아직 남아 있습니다. 인사 복직 정보가 올 때까지 로그인할 수 없습니다.`,
+              level: "warning",
+            }
+          : { text: `${modalUserNm} 계정을 다시 사용합니다.`, level: "success" };
+      }),
+    [runStateAction, modalUserId, modalUserNm],
+  );
+
+  const handleRetire = useCallback(
+    (v: RetireSubmit) =>
+      void runStateAction(modalUserId, async () => {
+        const res = await apiRetireUser(modalUserId, v.reason, v.receiver?.code);
+        return retireText(modalUserNm, res, v.receiver ? receiverName(v.receiver) : null, v.hadOwned);
+      }),
+    [runStateAction, modalUserId, modalUserNm],
+  );
+
+  const handleHandover = useCallback(
+    (receiver: LookupRow) =>
+      void runStateAction(modalUserId, async () => {
+        const res = await apiHandoverUser(modalUserId, receiver.code);
+        return handoverText(res, receiverName(receiver));
+      }),
+    [runStateAction, modalUserId],
+  );
+
+  // ── B-016 reRegCmUser (계정 재생성 — 단건 처리, 2026-11-28 D7: 역할 없이 · 임시 비밀번호 7일) ──
+  const handleReRegister = useCallback(() => {
+    const row = actionModal?.row;
+    if (!row) return;
+    void runStateAction(modalUserId, async () => {
+      // 2026-06-04 — infReqNo / description 정책 제거. row 그대로 전달.
+      await apiReRegCmUser([stripInternal(row) as CommUserMngRow]);
+      return {
+        text: `${modalUserNm} 계정을 재생성했습니다. 역할그룹을 붙이고, 본인에게 임시 비밀번호로 로그인해 바꾸라고 알려 주세요.`,
+        level: "success",
+      };
     });
-  }, [selected, loadList, showMessage, runBusy, flushPending, withPending]);
+  }, [actionModal, runStateAction, modalUserId, modalUserNm]);
+
+  // ── ERP 인사 연동 팝업 ──
+  const handleHrError = useCallback((message: string) => setError(message), []);
+  const handleHrUserCreated = useCallback(
+    (userId: string, initPwd: string | undefined) => {
+      if (initPwd) {
+        setIsPwdCopied(false);
+        setInitPwd({ userId, password: initPwd, kind: "new" });
+      } else {
+        showMessage({ message: `${userId} 계정을 만들었습니다.`, alertType: "success", toast: true });
+      }
+      void loadList(filtersRef.current, { keepUserId: userId, quiet: true });
+    },
+    [showMessage, loadList],
+  );
 
   // ── B-013 / B-015 pwdinit (비밀번호 / SSO 초기화) ──
   // As-Is xfdl:1382 (btn_PwdReset_onclick) / xfdl:1405 (btn_SSOPwdReset_onclick) 정합:
@@ -703,6 +971,7 @@ export default function CommUserMngPage() {
             setInitPwd({
               userId: String(res.INIT_PWD_USER_ID ?? live!.USER_ID ?? ""),
               password: res.INIT_PWD,
+              kind: "reset",
             });
           } else {
             // 초기화는 됐지만 평문이 없으면(예: BE 롤백 후 구버전) 팝업을 띄울 값이 없다 — 기존 메시지로 폴백.
@@ -724,7 +993,7 @@ export default function CommUserMngPage() {
     if (ok) {
       // 버튼 라벨로 "복사됨" 을 알린다 — 모달 위에 confirm 모달을 또 띄우지 않기 위함.
       setIsPwdCopied(true);
-      showMessage({ message: "초기 비밀번호가 클립보드에 복사되었습니다.", toast: true });
+      showMessage({ message: "임시 비밀번호를 복사했습니다.", toast: true });
     } else {
       showMessage({
         message: "복사에 실패했습니다. 비밀번호를 직접 선택해 복사해주세요.",
@@ -867,6 +1136,21 @@ export default function CommUserMngPage() {
     [userRoleGrpRows],
   );
 
+  /** 퇴직 처리로 회수할 역할그룹 — 저장된 것(저장 전 추가 행 제외). */
+  const savedRoleGroupNames = useMemo(
+    () =>
+      userRoleGrpRows
+        .filter((r) => r.nativeeditor_status !== "inserted")
+        .map((r) => String(r.ROLE_GROUP_NM || r.ROLE_GROUP_ID || "")),
+    [userRoleGrpRows],
+  );
+
+  const selectedOwnedCnt =
+    selected && ownedInfo && ownedInfo.userId === String(selected.USER_ID ?? "") ? ownedInfo.cnt : null;
+  const selectedOwnedError =
+    selected && ownedInfo && ownedInfo.userId === String(selected.USER_ID ?? "") ? ownedInfo.error : null;
+  const userColumns = ownedMode ? USER_COLUMNS_OWNED : USER_COLUMNS;
+
   return (
     <PageLayout
       title="사용자 관리"
@@ -890,7 +1174,7 @@ export default function CommUserMngPage() {
           // master rows 의 nativeeditor_status 별 BE 분기:
           //   inserted → 계정생성 (regCmUser 로직 흡수)
           //   updated  → 계정수정 (saveCmUser 로직)
-          //   deleted  → 계정삭제 (deleteCmUser 로직 흡수)
+          // 2026-11-28 — deleted(계정 삭제)는 더 만들지 않는다. 상세 영역 「퇴직 처리」 팝업을 쓴다.
           id: "btn_save",
           label: "저장",
           onClick: () => void handleSave(),
@@ -898,9 +1182,28 @@ export default function CommUserMngPage() {
           disabled: isSaving,
           action: "save",
         },
+        {
+          // 2026-11-28 — ERP 인사 연동(받은 인사 정보 · 다시 처리 · 계정 생성 대기). 권한 = searchHrEvt.
+          id: "btn_hrEvt",
+          label: "ERP 인사 연동",
+          onClick: () => setIsHrOpen(true),
+          type: "light" as const,
+          disabled: isSaving,
+          action: "searchHrEvt",
+          emitSearch: false,
+        },
       ]}
     >
       <SearchArea onSearch={handleSearch} autoSearch>
+        {/* 2026-11-28 — 계정 상태(기본 전체). 서버 AccountState 로 거른다. */}
+        <SearchField
+          label="상태"
+          name="USER_ST"
+          type="select"
+          value={filters.cbo_USER_ST ?? ""}
+          onChange={(v) => handleFilterChange("cbo_USER_ST", v)}
+          options={USER_ST_SEARCH_OPTIONS}
+        />
         {/* S-001 사용자 (USER_ID / USER_EMP_NO / USER_NM OR LIKE) — As-Is xfdl:275 TextBox. */}
         <SearchField
           label="사용자"
@@ -909,25 +1212,31 @@ export default function CommUserMngPage() {
           onChange={(v) => handleFilterChange("edt_USER_ID", v)}
           placeholder="ID / 사번 / 이름"
         />
-        {/* S-003 내부/외부 — As-Is xfdl:271 Combo (LV-002 ds_inOutEmpTp). */}
+        {/* 2026-11-28 — 관리 구분: ERP 인사 / 수동 관리(외부 구분 O — 협력업체·부산 운영팀, D13). 내부 외부 구분 칸을 대신한다. */}
         <SearchField
-          label="내부 외부 구분"
-          name="IN_OUT_EMP_TP"
-          meta="INTL_EXT_EMP_TP"
+          label="관리"
+          name="MANAGE_TP"
           type="select"
-          value={filters.cbo_IN_OUT_EMP_TP}
-          onChange={(v) => handleFilterChange("cbo_IN_OUT_EMP_TP", v)}
-          options={IN_OUT_SEARCH_OPTIONS}
+          value={filters.cbo_MANAGE_TP ?? ""}
+          onChange={(v) => handleFilterChange("cbo_MANAGE_TP", v)}
+          options={MANAGE_TP_SEARCH_OPTIONS}
         />
-        {/* S-002 사용 여부 — As-Is xfdl:273 Combo (LV-001 ds_useTp, default "Y"). */}
-        <SearchField
-          label="사용 여부"
-          name="USE_TP"
-          type="select"
-          value={filters.cbo_USE_TP}
-          onChange={(v) => handleFilterChange("cbo_USE_TP", v)}
-          options={USE_TP_SEARCH_OPTIONS}
-        />
+        <SearchField label="비밀번호" defaultable={false}>
+          <Checkbox
+            checked={!!filters.chk_PWD_TEMP}
+            label="미변경만"
+            aria-label="비밀번호 미변경만"
+            onChange={(c) => handleFilterChange("chk_PWD_TEMP", c)}
+          />
+        </SearchField>
+        <SearchField label="담당 데이터" defaultable={false}>
+          <Checkbox
+            checked={!!filters.chk_ORPHAN}
+            label="퇴직자가 담당인 데이터만"
+            aria-label="퇴직자가 담당인 데이터만"
+            onChange={(c) => handleFilterChange("chk_ORPHAN", c)}
+          />
+        </SearchField>
       </SearchArea>
 
       <ContentBody root>
@@ -936,12 +1245,17 @@ export default function CommUserMngPage() {
           <GridPanel
             title="사용자 목록"
             count={visibleCount}
+            titleExtra={
+              ownedMode && listOwnedError ? (
+                <Badge tone="warning" label="담당 데이터 확인 못 함" title={listOwnedError} />
+              ) : undefined
+            }
             showAddButton
             showCopyButton
             showDeleteButton
             data={visibleRows}
             rowKey="__rowId"
-            columns={USER_COLUMNS}
+            columns={userColumns}
             selectedRowKey={selectedKey}
             onDataChange={handleDataChange}
             loading={isSaving}
@@ -949,7 +1263,7 @@ export default function CommUserMngPage() {
             <AgDataGrid
               gridId="userList"
               columnSizing="fit"
-              columns={USER_COLUMNS}
+              columns={userColumns}
               data={visibleRows}
               rowKey="__rowId"
               sortable
@@ -968,7 +1282,7 @@ export default function CommUserMngPage() {
         {/* 중앙 — Detail 폼 (CommUserDetailForm).
             입력 초안은 폼 컴포넌트 안에 두고 blur·저장·행 전환 때만 rows 에 반영한다(R12).
             wrapper 크기는 내용물(form table) 크기에 맞춤 — 2026-06-02 iter#5 사용자 검수(J-015) 정합. */}
-        <ContentPanel width={480}>
+        <ContentPanel width={480} scrollY>
           <CommUserDetailForm
             ref={formRef}
             row={selected}
@@ -976,7 +1290,10 @@ export default function CommUserMngPage() {
             onCommit={handleDetailCommit}
             onRoleCopy={handleRoleCopy}
             onReset={handlePwdReset}
-            onReRegister={handleReRegister}
+            onStateAction={handleStateAction}
+            statePerms={statePerms}
+            ownedCnt={selectedOwnedCnt}
+            ownedError={selectedOwnedError}
           />
         </ContentPanel>
 
@@ -1070,12 +1387,12 @@ export default function CommUserMngPage() {
       )}
 
       {/* 2026-09-28 — 초기 비밀번호 안내 팝업 (기능설계서 M-032 To-Be / As-Is pwdtmp 콜백 대체).
-          BE 가 평문 INIT_PWD 를 응답으로 준 경우에만 열린다. 닫으면 값이 화면에서 사라진다.
-          shared `Modal` 은 미지정 prop 을 DOM 으로 흘려보내지 않으므로 data-testid 는
-          안쪽 Button / 값 요소에만 건다 (e2e 는 팝업 타이틀 "초기 비밀번호 안내" 로 locating). */}
+          2026-11-28 — 시안 「최초 비밀번호와 첫 로그인 변경」: 임시 비밀번호는 모두 같은 공통 값이다(서버 설정, 기본 dmes0000).
+          관리자는 「이 비밀번호로 들어가서 바꾸세요」 라고만 알린다. 초기화는 오늘 23:59, 새 계정은 7일 뒤 23:59까지 쓸 수 있다.
+          shared `Modal` 은 미지정 prop 을 DOM 으로 흘려보내지 않으므로 data-testid 는 안쪽 Button / 값 요소에만 건다. */}
       <Modal
         open={initPwd !== null}
-        title="초기 비밀번호 안내"
+        title={initPwd?.kind === "new" ? "계정을 만들었습니다" : "비밀번호를 초기화했습니다"}
         size="sm"
         onClose={handleCloseInitPwd}
         footer={
@@ -1096,7 +1413,7 @@ export default function CommUserMngPage() {
               <td style={DETAIL_VALUE_CELL}>{initPwd?.userId}</td>
             </tr>
             <tr>
-              <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="initPassword" meta={false} label="초기 비밀번호" /></th>
+              <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="initPassword" meta={false} label="임시 비밀번호" /></th>
               <td style={DETAIL_VALUE_CELL}>
                 <code
                   data-testid="init-pwd-value"
@@ -1118,6 +1435,12 @@ export default function CommUserMngPage() {
                 </code>
               </td>
             </tr>
+            <tr>
+              <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="tempPwdUntil" meta={false} label="쓸 수 있는 기간" /></th>
+              <td style={DETAIL_VALUE_CELL} data-testid="init-pwd-until">
+                {initPwd ? tempPwdUntil(initPwd.kind) : ""}
+              </td>
+            </tr>
           </tbody>
         </table>
         <p style={{
@@ -1126,10 +1449,89 @@ export default function CommUserMngPage() {
           fontSize: 12,
           color: "var(--color-text-muted)",
         }}>
-          초기 비밀번호는 이 팝업을 닫으면 다시 볼 수 없습니다. 사용자 본인에게 전달하고 최초 로그인 시
-          변경하도록 안내해주세요.
+          본인에게 이 비밀번호로 로그인해 비밀번호를 바꾸라고 알려 주세요. 이 비밀번호로는 비밀번호 변경만 할 수 있습니다.
+          기간이 지나면 로그인할 수 없습니다. 그때는 다시 초기화합니다.
         </p>
       </Modal>
+
+      {/* 2026-11-28 — 계정 상태 팝업. 열 때마다 새로 만든다(조건부 마운트). */}
+      {actionModal?.kind === "retire" && (
+        <RetireModal
+          userId={modalUserId}
+          userNm={modalUserNm}
+          roleGroups={savedRoleGroupNames}
+          canSeeOwned={canSearchOwned}
+          busy={isSaving}
+          onSubmit={handleRetire}
+          onClose={closeActionModal}
+        />
+      )}
+      {actionModal?.kind === "suspend" && (
+        <SuspendModal
+          userId={modalUserId}
+          userNm={modalUserNm}
+          roleGroupCnt={savedRoleGroupNames.length}
+          busy={isSaving}
+          onSubmit={handleSuspend}
+          onClose={closeActionModal}
+        />
+      )}
+      {actionModal?.kind === "handover" && (
+        <HandoverModal
+          userId={modalUserId}
+          userNm={modalUserNm}
+          canSeeOwned={canSearchOwned}
+          busy={isSaving}
+          onSubmit={handleHandover}
+          onClose={closeActionModal}
+        />
+      )}
+      {actionModal?.kind === "unlock" && (
+        <ConfirmImpactModal
+          title={`잠금 해제 · ${modalUserNm}`}
+          lead="비밀번호는 바꾸지 않습니다."
+          lines={UNLOCK_LINES}
+          okLabel="잠금 해제"
+          busy={isSaving}
+          onConfirm={handleUnlock}
+          onClose={closeActionModal}
+          testId="unlock-ok"
+        />
+      )}
+      {actionModal?.kind === "resume" && (
+        <ConfirmImpactModal
+          title={`다시 사용 · ${modalUserNm}`}
+          lead="비활성 전 상태로 그대로 돌아갑니다."
+          lines={resumeLines(savedRoleGroupNames.length, actionModal.row.HR_ST === "LEAVE")}
+          okLabel="다시 사용"
+          busy={isSaving}
+          onConfirm={handleResume}
+          onClose={closeActionModal}
+          testId="resume-ok"
+        />
+      )}
+      {actionModal?.kind === "reRegCmUser" && (
+        <ConfirmImpactModal
+          title={`계정 재생성 · ${modalUserNm}`}
+          lead="퇴직 전 권한은 돌아오지 않습니다."
+          lines={REREG_LINES}
+          okLabel="계정 재생성"
+          busy={isSaving}
+          onConfirm={handleReRegister}
+          onClose={closeActionModal}
+          testId="rereg-ok"
+        />
+      )}
+      {isHrOpen && (
+        <HrEvtModal
+          canRetry={canRetryHr}
+          canReg={canRegHr}
+          onClose={() => setIsHrOpen(false)}
+          onNotice={notify}
+          onError={handleHrError}
+          onUserCreated={handleHrUserCreated}
+        />
+      )}
     </PageLayout>
   );
 }

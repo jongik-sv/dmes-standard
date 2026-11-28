@@ -11,15 +11,27 @@
  * To-Be 정책 #3 (D) / Q-005 — D-013~015 (GROUP_ID1~3) UI 콤보 제거, DB 컬럼은 보존.
  */
 
-/** 조회조건 — 기능 §3.1 / 분석 §3.2 (3 행). */
+/**
+ * 조회조건 — 기능 §3.1 / 분석 §3.2 + 2026-11-28 시안 「사용자 비활성화·퇴직 처리」.
+ *
+ * 사용 여부(USE_TP)·내부 외부 구분(IN_OUT_EMP_TP) 칸은 조회 영역에서 뺐다. USE_TP='N' 이 이제 비활성과 퇴직을 함께 뜻해
+ * 상태 칸과 겹치고, 관리 구분(MANUAL = 외부 'O')이 내부 외부 구분과 같은 뜻이다. 서버에는 두 칸을 빈 값(전체)으로 보낸다.
+ */
 export interface CommUserMngFilters {
   /** S-001 — 사용자 키 (USER_ID / USER_EMP_NO / USER_NM 3 컬럼 UPPER LIKE OR 부분 일치). */
   edt_USER_ID: string;
-  /** S-002 — 사용 여부 (Y/N 일치 / 빈 값 = 전체). default "Y". */
-  cbo_USE_TP: string;
-  /** S-003 — 내부 외부 구분 (I/O 일치 / 빈 값 = 전체). */
-  cbo_IN_OUT_EMP_TP: string;
+  /** 계정 상태 — ACTIVE·LOCKED·SUSPENDED·EXPIRED·RETIRED, 빈 값 = 전체(기본, 시안과 같다). */
+  cbo_USER_ST: string;
+  /** 관리 구분 — HR(ERP 인사)·MANUAL(수동 관리 = 외부), 빈 값 = 전체. */
+  cbo_MANAGE_TP: string;
+  /** 「비밀번호 미변경만」. */
+  chk_PWD_TEMP: boolean;
+  /** 「퇴직자가 담당인 데이터만」 — 켜면 목록에 담당 데이터 건수(OWNED_CNT)가 온다. */
+  chk_ORPHAN: boolean;
 }
+
+/** 계정 상태 코드 (서버 AccountState). */
+export type UserSt = "ACTIVE" | "LOCKED" | "SUSPENDED" | "EXPIRED" | "RETIRED";
 
 /**
  * 메인 사용자 그리드 row — As-Is ds_main 19 컬럼 (정책 #2 DEPT_NM 부착).
@@ -64,6 +76,88 @@ export interface CommUserMngRow extends Record<string, unknown> {
   INF_REQ_NO?: string | null;
   /** D-020 — 처리사유 (저장 시 setColumn). */
   DESCRIPTION?: string | null;
+
+  // ── 2026-11-28 상태 칸 (조회 전용 — 서버가 계산한다. 저장 때 서버는 PWD_EXPIRY_EXEMPT_YN 만 읽는다) ──
+  /** 계정 상태 코드. 신규 행에는 없다. */
+  USER_ST?: UserSt | string;
+  /** 상태 이름 — 활성·잠금·비활성·기한 밖·퇴직. */
+  USER_ST_NM?: string;
+  /** 상태 사유(이력의 사유 또는 잠금 시각 등). */
+  ST_RSN?: string | null;
+  /** 비밀번호 실패 잠금 Y/N. */
+  LOCK_YN?: string;
+  /** ERP 인사 상태 — ACTIVE·LEAVE·RETIRED. 비면 인사가 모르는 계정. */
+  HR_ST?: string | null;
+  /** 관리 구분 — HR(ERP 인사)·MANUAL(수동 관리, 외부 구분 O). */
+  MANAGE_TP?: string;
+  /** 비밀번호 미변경(임시 비밀번호 상태) Y/N. */
+  PWD_TEMP_YN?: string;
+  /** 임시 비밀번호 만료 일시. */
+  TEMP_PWD_EXP?: string | null;
+  /** 마지막 비밀번호 변경 일시. 비면 임시 상태. */
+  LAST_PWD_CHNG_DATE?: string | null;
+  /** 비밀번호 사용 기간 제외(인터페이스·배치 계정) Y/N — 상세 폼에서 고쳐 저장한다. */
+  PWD_EXPIRY_EXEMPT_YN?: string;
+  /** 마지막 로그인 일시. */
+  LAST_LOGIN_AT?: string | null;
+  /** 담당 데이터 건수 — 「퇴직자가 담당인 데이터만」 조회 때만 온다. MDM 에 닿지 못하면 null. */
+  OWNED_CNT?: number | null;
+}
+
+/** 조회 전용 상태 칸 — 행 복사로 새 행을 만들 때 떼어 낸다. */
+export const STATE_FIELDS = [
+  "USER_ST", "USER_ST_NM", "ST_RSN", "LOCK_YN", "HR_ST", "MANAGE_TP", "PWD_TEMP_YN",
+  "TEMP_PWD_EXP", "LAST_PWD_CHNG_DATE", "LAST_LOGIN_AT", "OWNED_CNT",
+] as const;
+
+/** 담당 데이터 한 종류 (searchOwned ds_owned · retire/handover HANDOVER_ITEMS). */
+export interface OwnedRow extends Record<string, unknown> {
+  USER_ID?: string;
+  KIND?: string;
+  KIND_NM?: string;
+  CNT?: number;
+  /** Y = 넘기지 않고 건너뜀. */
+  SKIPPED?: string;
+}
+
+/** 담당 데이터 인계 결과 — retire·handover 응답 공통. */
+export interface HandoverResult {
+  cnt_save?: number;
+  HANDOVER_ST?: "DONE" | "PENDING" | "FAILED" | string;
+  HANDOVER_MSG?: string;
+  HANDOVER_ITEMS?: OwnedRow[];
+}
+
+/** 퇴직 처리 응답. */
+export interface RetireResult extends HandoverResult {
+  ROLE_GROUP_CNT?: number;
+  ASSIGN_CNT?: number;
+}
+
+/** ERP 인사 정보 한 건 (searchHrEvt ds_hrEvt). */
+export interface HrEvtRow extends Record<string, unknown> {
+  EVT_ID: string | number;
+  EMP_NO?: string;
+  /** HIRE·LEAVE·RETURN·RETIRE·MOVE·INFO. */
+  EVT_TP?: string;
+  /** 발령일 yyyyMMdd. */
+  EVT_DT?: string;
+  ORDER_NO?: string | null;
+  USER_NM?: string | null;
+  DEPT_CD?: string | null;
+  USER_ID?: string | null;
+  /** WAIT·DONE·SKIP·FAIL·HOLD. */
+  PROC_ST?: string;
+  PROC_MSG?: string | null;
+  TRY_CNT?: number | null;
+  PROC_AT?: string | null;
+}
+
+/** 다시 처리 결과 한 건 (retryHrEvt ds_hrResult). */
+export interface HrResultRow extends Record<string, unknown> {
+  EVT_ID: string | number;
+  PROC_ST?: string;
+  PROC_MSG?: string | null;
 }
 
 /**

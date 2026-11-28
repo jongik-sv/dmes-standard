@@ -9,17 +9,41 @@
  *
  * 이 폼 안에서만 쓰는 입력 state — 역할그룹 복사 대상 ID·비밀번호/SSO 초기화 라디오·부서 LoV 열림 — 도 여기에 둔다.
  * 선택 행이 바뀌면 `key` 로 다시 만들어 As-Is(edt_user_id_onchanged) 처럼 비운다.
+ *
+ * 2026-11-28 시안 「사용자 비활성화·퇴직 처리」 — 맨 위에 계정 상태(상태·사유·관리·마지막 로그인·비밀번호)와
+ * 상태별 단추(UserStateSection)를 둔다. 단추는 화면 루트의 onStateAction 으로 팝업을 연다. 「계정 재생성」 줄은 이 단추로 옮겼다.
+ * 「비밀번호 사용 기간 제외」(PWD_EXPIRY_EXEMPT_YN) 칸을 더했다 — 저장(saveCmUser updated)으로 반영된다.
  */
 import { memo, useCallback, useImperativeHandle, useState, type Ref } from "react";
 
 import { DETAIL_TABLE_STYLE, DETAIL_LABEL_CELL, DETAIL_VALUE_CELL } from "@dk-oasis/shared/layout";
 import { LookupModal, type LookupRow, type LookupFetchFn } from "@dk-oasis/shared/lookup";
-import { Button, Input, Select, DatePicker, Radio, useDetailDraft, type DetailDraftHandle } from "@dk-oasis/shared/form";
+import {
+  Badge,
+  Button,
+  Checkbox,
+  DatePicker,
+  Input,
+  Radio,
+  Select,
+  useDetailDraft,
+  type DetailDraftHandle,
+} from "@dk-oasis/shared/form";
 import { MdmFieldLabel } from "@dk-oasis/shared/mdm-meta";
 
 import { searchDeptLov as apiSearchDeptLov } from "./api";
 import { IN_OUT_OPTIONS, getRowKey, toDateInputValue } from "./detailUtils";
 import type { CommUserMngGridRow } from "./types";
+import {
+  STATE_ACTION_LABEL,
+  USER_ST_LABEL,
+  fmtDateTime,
+  manageLabel,
+  stTone,
+  stateActionsOf,
+  stateNotes,
+  type StateAction,
+} from "./userState";
 
 /** 루트가 상세 폼과 대화하는 핸들 (getDraft·isDirty·commit·reset). */
 export type CommUserDetailHandle = DetailDraftHandle<CommUserMngGridRow>;
@@ -36,8 +60,14 @@ type Props = {
   onRoleCopy: (sourceUserId: string) => Promise<void>;
   /** B-013 / B-015 초기화 — 라디오 값을 넘기고, 돌려받은 true 면 라디오를 "N" 으로 되돌린다(As-Is 처리 후 N 복귀). */
   onReset: (sso: boolean, flag: string) => Promise<boolean>;
-  /** B-016 계정 재생성. */
-  onReRegister: () => Promise<void>;
+  /** 상태 단추(잠금 해제·비활성화·다시 사용·퇴직 처리·담당 데이터 인계·계정 재생성) — 루트가 확인 팝업을 연다. */
+  onStateAction: (action: StateAction) => void;
+  /** 상태 단추 권한(canDoButton). 없으면 단추를 비활성으로 그린다. */
+  statePerms: Readonly<Record<StateAction, boolean>>;
+  /** 퇴직자의 남은 담당 데이터 건수. 모르면 null. */
+  ownedCnt: number | null;
+  /** 담당 데이터를 읽지 못한 이유(MDM 연결 등). */
+  ownedError: string | null;
 };
 
 /** 부서 LoV 조회 — shared LookupFetchFn 계약({keyword,page,size}→LookupPageResult). DEPT LoV 는 client-side 페이징(slice). */
@@ -54,25 +84,136 @@ const PANEL_STYLE = {
   marginTop: 32, // panel-header 자리(행추가/행삭제 라인) 비움 — wrapper 밖이라 라인 ✗ (사용자 검수 J-015)
   display: "flex",
   flexDirection: "column",
-  border: "1px solid #d4dae0",
-  background: "#fff",
+  border: "1px solid var(--color-border)",
+  background: "var(--color-bg)",
 } as const;
 
 /** "상세 정보" 헤더 (28px) — 양 그리드의 column-header (사용자ID*|...) 라인과 정렬. */
 const PANEL_HEADER_STYLE = {
   height: 28,
-  background: "#f4f6f8",
-  borderBottom: "1px solid #d4dae0",
+  background: "var(--color-bg-header)",
+  borderBottom: "1px solid var(--color-border)",
   padding: "0 10px",
   display: "flex",
   alignItems: "center",
   fontWeight: 600,
   fontSize: 13,
-  color: "#333",
+  color: "var(--color-text)",
   flexShrink: 0,
 } as const;
 
 const ROW_LAYOUT_STYLE = { display: "flex", gap: 8, alignItems: "center", justifyContent: "space-between" } as const;
+
+const NOTE_STYLE = { margin: 0, fontSize: 12, color: "var(--color-text-muted)", lineHeight: 1.5 } as const;
+const STATE_BOX_STYLE = {
+  padding: "8px 10px",
+  borderBottom: "1px solid var(--color-border)",
+  display: "grid",
+  gap: 6,
+} as const;
+const INLINE_STYLE = { display: "inline-flex", gap: 6, alignItems: "center", flexWrap: "wrap" } as const;
+const ACTION_BAR_STYLE = { display: "flex", gap: 6, flexWrap: "wrap", marginTop: 2 } as const;
+const HR_ST_LABEL: Record<string, string> = { ACTIVE: "재직", LEAVE: "휴직", RETIRED: "퇴직" };
+
+/**
+ * 계정 상태 + 상태별 단추 (시안 상세 영역). 저장된 행(row)만 보고 그린다 — 입력 초안과 무관해 글자 입력에 다시 그리지 않는다.
+ * 신규 행(저장 전)은 상태가 없으므로 임시 비밀번호 안내만 보인다.
+ */
+const UserStateSection = memo(function UserStateSection({
+  row,
+  saving,
+  statePerms,
+  ownedCnt,
+  ownedError,
+  onStateAction,
+}: {
+  row: CommUserMngGridRow;
+  saving: boolean;
+  statePerms: Readonly<Record<StateAction, boolean>>;
+  ownedCnt: number | null;
+  ownedError: string | null;
+  onStateAction: (action: StateAction) => void;
+}) {
+  if (row.nativeeditor_status === "inserted" || !row.USER_ST) {
+    return (
+      <div style={STATE_BOX_STYLE}>
+        <p style={NOTE_STYLE}>
+          저장하면 역할그룹 없이 임시 비밀번호로 계정을 만듭니다. 본인이 7일 뒤 23:59까지 로그인해 비밀번호를 바꿔야 합니다.
+        </p>
+      </div>
+    );
+  }
+  const st = String(row.USER_ST);
+  const actions = stateActionsOf(row, ownedCnt);
+  const notes = stateNotes(row, ownedCnt);
+  const hrSt = row.HR_ST ? HR_ST_LABEL[String(row.HR_ST)] ?? String(row.HR_ST) : "";
+  const lastLogin = fmtDateTime(row.LAST_LOGIN_AT);
+  const tempUntil = fmtDateTime(row.TEMP_PWD_EXP);
+  const lastChng = fmtDateTime(row.LAST_PWD_CHNG_DATE);
+  return (
+    <div style={STATE_BOX_STYLE} data-testid="user-state">
+      <table style={DETAIL_TABLE_STYLE}>
+        <tbody>
+          <tr>
+            <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="USER_ST" meta={false} label="상태" /></th>
+            <td style={DETAIL_VALUE_CELL}>
+              <span style={INLINE_STYLE}>
+                <Badge tone={stTone(st)} label={row.USER_ST_NM || USER_ST_LABEL[st] || st} testId="user-state-badge" />
+                {row.ST_RSN ? <span style={NOTE_STYLE}>{row.ST_RSN}</span> : null}
+              </span>
+            </td>
+          </tr>
+          <tr>
+            <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="MANAGE_TP" meta={false} label="관리" /></th>
+            <td style={DETAIL_VALUE_CELL}>
+              {row.MANAGE_TP === "MANUAL" ? "수동 관리 · 관리자가 직접 처리" : `${manageLabel(row.MANAGE_TP) || "ERP 인사"} 연동`}
+              {hrSt ? ` · 인사 ${hrSt}` : ""}
+            </td>
+          </tr>
+          <tr>
+            <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="LAST_LOGIN_AT" meta={false} label="마지막 로그인" /></th>
+            <td style={DETAIL_VALUE_CELL}>{lastLogin || "기록 없음"}</td>
+          </tr>
+          <tr>
+            <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="PWD_TEMP_YN" meta={false} label="비밀번호" /></th>
+            <td style={DETAIL_VALUE_CELL}>
+              {row.PWD_TEMP_YN === "Y" ? (
+                <span style={INLINE_STYLE}>
+                  <Badge tone="warning" label="미변경" />
+                  <span style={NOTE_STYLE}>임시 비밀번호{tempUntil ? ` · ${tempUntil}까지` : ""}</span>
+                </span>
+              ) : lastChng ? (
+                `마지막 변경 ${lastChng}`
+              ) : (
+                "-"
+              )}
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      {notes.map((n) => (
+        <p key={n} style={NOTE_STYLE}>{n}</p>
+      ))}
+      {st === "RETIRED" && ownedError ? <p style={NOTE_STYLE}>담당 데이터를 확인하지 못했습니다({ownedError}).</p> : null}
+      {actions.length > 0 && (
+        <div style={ACTION_BAR_STYLE}>
+          {actions.map((a) => (
+            <Button
+              key={a}
+              variant={a === "retire" ? "danger" : a === "unlock" || a === "resume" || a === "handover" ? "primary" : "default"}
+              disabled={saving || !statePerms[a]}
+              title={statePerms[a] ? undefined : "권한이 없습니다"}
+              onClick={() => onStateAction(a)}
+              data-testid={`user-act-${a}`}
+            >
+              {STATE_ACTION_LABEL[a]}
+            </Button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+});
 
 const YN_OPTIONS = [
   { value: "Y", label: "Yes" },
@@ -169,7 +310,10 @@ export const CommUserDetailForm = memo(function CommUserDetailForm({
   onCommit,
   onRoleCopy,
   onReset,
-  onReRegister,
+  onStateAction,
+  statePerms,
+  ownedCnt,
+  ownedError,
 }: Props) {
   const { draft, setField, containerProps, handle } = useDetailDraft<CommUserMngGridRow>(row, {
     onCommit,
@@ -194,7 +338,7 @@ export const CommUserDetailForm = memo(function CommUserDetailForm({
     return (
       <div style={PANEL_STYLE}>
         <div style={PANEL_HEADER_STYLE}>상세 정보</div>
-        <div style={{ padding: 16, color: "#888", background: "#fff" }}>사용자를 선택하세요.</div>
+        <div style={{ padding: 16, color: "var(--color-text-muted)", background: "var(--color-bg)" }}>사용자를 선택하세요.</div>
       </div>
     );
   }
@@ -207,8 +351,19 @@ export const CommUserDetailForm = memo(function CommUserDetailForm({
       {/* 폼 래퍼 — 높이는 내용물 크기에 맞춤(flex:1 ✗). 포커스가 폼 밖으로 나가면 초안을 행에 반영한다. */}
       <div {...containerProps} style={PANEL_STYLE}>
         <div style={PANEL_HEADER_STYLE}>상세 정보</div>
+        {/* 계정 상태 + 상태별 단추 — 저장된 행(row) 기준. 초안과 무관하다. */}
+        {row && (
+          <UserStateSection
+            row={row}
+            saving={saving}
+            statePerms={statePerms}
+            ownedCnt={ownedCnt}
+            ownedError={ownedError}
+            onStateAction={onStateAction}
+          />
+        )}
         {/* 폼 본문 — 내용물 크기에 맞춤 (flex:1 ✗) */}
-        <div style={{ padding: 0, background: "#fff" }}>
+        <div style={{ padding: 0, background: "var(--color-bg)" }}>
           {/* 2026-06-01 — As-Is xfdl Detail 영역 1:1 정합 (D-001~D-020 / B-013/14/15/16).
               shared form 컴포넌트 (Input / Select / DatePicker / Radio / Button) 정합 — 가이드 §11. */}
           <table style={DETAIL_TABLE_STYLE}>
@@ -379,28 +534,28 @@ export const CommUserDetailForm = memo(function CommUserDetailForm({
                   />
                 </td>
               </tr>
+              {/* 비밀번호 사용 기간 제외 — 인터페이스·배치 계정은 만료되면 연동이 멈추므로 관리자가 직접 붙인다(시안 「비밀번호 사용 기간」). */}
+              <tr>
+                <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="PWD_EXPIRY_EXEMPT_YN" meta={false} label="비밀번호 사용 기간 제외" /></th>
+                <td style={DETAIL_VALUE_CELL}>
+                  <Checkbox
+                    checked={draft.PWD_EXPIRY_EXEMPT_YN === "Y"}
+                    label="인터페이스·배치 계정은 만료에서 뺍니다"
+                    aria-label="비밀번호 사용 기간 제외"
+                    onChange={(c) => {
+                      setField("PWD_EXPIRY_EXEMPT_YN", c ? "Y" : "N");
+                      handle.commit();
+                    }}
+                  />
+                </td>
+              </tr>
               {/* 선택 행이 바뀌면 key 로 다시 만들어 입력(역할 복사 대상·라디오)을 비운다 (As-Is xfdl:1398~1402). */}
               <RoleCopyRow key={`rc-${rowKeyValue}`} saving={saving} onRoleCopy={onRoleCopy} />
               <ResetRow key={`pw-${rowKeyValue}`} sso={false} saving={saving} onReset={onReset} />
               <ResetRow key={`sso-${rowKeyValue}`} sso saving={saving} onReset={onReset} />
               {/* 2026-06-04 — D-019 정보처리의뢰서번호 / D-020 처리사유 UI 전부 제거 (사용자 결정).
                   BE 도 row 인입 시 null 처리 — 이력 (TB_MCM_SEC_USER_HIS / ROLL_HIS) 의 두 컬럼은 null 적재. */}
-              {/* B-016 계정 재생성 (As-Is enable=false 기본 / USE_TP=Y 면 비활성화 — xfdl:1218~1222).
-                  2026-06-02 — AsIs row-state 기반 비활성 (USE_TP=Y) 유지. 버튼 너비 110px 정렬 + 텍스트 wrap. */}
-              <tr>
-                <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="reRegister" meta={false} label="계정 재생성" /></th>
-                <td style={DETAIL_VALUE_CELL}>
-                  <div style={{ width: 110 }}>
-                    <Button
-                      style={{ width: "100%" }}
-                      disabled={saving || draft.USE_TP === "Y" || isNewRow}
-                      onClick={() => void onReRegister()}
-                    >
-                      계정 재생성
-                    </Button>
-                  </div>
-                </td>
-              </tr>
+              {/* B-016 계정 재생성은 2026-11-28 에 위 상태 단추(퇴직 상태에서만)로 옮겼다 — 시안 D7 확인 팝업을 거친다. */}
             </tbody>
           </table>
         </div>
