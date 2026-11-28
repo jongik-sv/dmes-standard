@@ -21,6 +21,30 @@ export interface TreeProps {
   onExpandedItemsChange?: (event: null, newExpanded: (string | number)[]) => void;
   onSelectedItemsChange?: (event: null, nodeId: string) => void;
   className?: string;
+  /**
+   * 끌어 놓기 대상으로 강조할 노드 id. 끄는 쪽(그리드 `rowDropZones` 등)이 마우스 아래 노드를 `treeNodeIdAt` 으로 찾아 넘긴다.
+   * null·생략이면 강조하지 않는다. 놓을 수 없는 노드면 `dropBlocked` 를 함께 준다.
+   */
+  dropTargetId?: string | number | null;
+  /** `dropTargetId` 노드에 놓을 수 없음을 보인다(빨간 점선). */
+  dropBlocked?: boolean;
+}
+
+/**
+ * 화면 좌표 아래에 있는 트리 노드 id 를 찾는다(끌어 놓기용). 트리 밖이거나 노드가 없으면 null.
+ * `root` 를 주면 그 요소 안의 노드만 찾는다 — 한 화면에 트리가 여럿일 때 쓴다.
+ */
+export function treeNodeIdAt(point: { clientX: number; clientY: number }, root?: Element | null): string | null {
+  if (typeof document === "undefined") return null;
+  // 끄는 동안에는 마우스 바로 아래에 끌기 그림(ag-grid 의 drag ghost 등)이 떠 있다. 맨 위 요소만 보면 그 그림이 잡히므로
+  // 그 지점의 요소를 위에서부터 모두 보고 처음 만나는 트리 노드를 쓴다. 중첩 노드는 가장 안쪽(먼저 나오는) 것이 잡힌다.
+  for (const el of document.elementsFromPoint(point.clientX, point.clientY)) {
+    const item = el.closest?.('.cm-tree [role="treeitem"][data-value]') as HTMLElement | null;
+    if (!item) continue;
+    if (root && !root.contains(item)) return null;
+    return item.dataset.value ?? null;
+  }
+  return null;
 }
 
 function toNodeData(items: TreeNode[]): TreeNodeData[] {
@@ -56,7 +80,10 @@ function TreeComponent({
   onExpandedItemsChange,
   onSelectedItemsChange,
   className = "",
+  dropTargetId = null,
+  dropBlocked = false,
 }: TreeProps) {
+  const dropId = dropTargetId == null ? null : String(dropTargetId);
   const [internalExpanded, setInternalExpanded] = useState<(string | number)[]>([]);
   const [internalSelected, setInternalSelected] = useState<string[]>([]);
 
@@ -162,7 +189,12 @@ function TreeComponent({
   const renderNode = ({ node, expanded, hasChildren, selected, level, elementProps }: RenderTreeNodePayload) => (
     <div
       {...elementProps}
-      className={clsx("tree-item", selected && "selected", elementProps.className)}
+      className={clsx(
+        "tree-item",
+        selected && "selected",
+        dropId === node.value && (dropBlocked ? "tree-item--drop-blocked" : "tree-item--drop-target"),
+        elementProps.className,
+      )}
       style={{ paddingLeft: level * 16 }}
       // `aria-expanded`·`aria-level` 은 role 이 없는 이 div 가 아니라 실제 `li[role="treeitem"]` 에
       // 있어야 보조기술이 읽는다 — 위 layout effect 가 담당한다.

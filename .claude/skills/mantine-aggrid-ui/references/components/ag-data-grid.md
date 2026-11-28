@@ -96,6 +96,8 @@ export function InspList({ rows, selectedId, isBusy, onSelect }: {
 - 행번호: `rowNumber` 는 맨 앞에 "No" 열(폭 56)을 둔다. 정렬하면 다시 매겨지는 표시 순서다.
 - 열 그룹: `GridColumn.children` 이 있으면 그 항목은 열 그룹이고 잎만 데이터 열이다. 모든 열 그룹에는 `marryChildren: true` 가 늘 붙는다 — 머리글 끌기로 잎이 그룹 밖으로 나가거나 남의 열이 그룹 사이에 끼면 ag-grid 가 거절한다. 그룹 아래 잎에는 `lockPinned: true` 가 붙어 머리글 끌기로 고정 구역에 넣을 수 없다(정의에 적은 `pinned` 는 적용된다). 둘 다 개인화 여부와 무관하고 화면이 줄 것은 없다.
 - 행 드래그: `rowDragField`(손잡이 열 key)와 `onRowOrderChange(orderedKeys)` 를 항상 함께 준다. 켜면 정렬이 꺼진다. 순서는 호출자가 `data` 를 다시 만들어 넘겨 확정한다.
+- 여러 행 끌기(2026-11-26): `multiSelect` 와 `rowDragMultiRow` 를 주면 체크한 행을 함께 끈다. 체크하지 않은 행의 손잡이를 끌면 그 행만 끈다. 끄는 글은 여러 행이면 「N건」 이다.
+- 그리드 밖에 놓기(2026-11-26): `rowDropZones` 에 놓을 자리(`getContainer`·`onDragging`·`onDragLeave`·`onDrop`)를 준다. 손잡이는 `rowDragField`. `onRowOrderChange` 와 함께 쓰면 그리드 안에서는 순서를 바꾸고, 자리 위에 놓으면 `onDrop(rows, event)` 만 부른다 — 이때 끄는 동안 행을 미리 옮기지 않고 놓을 위치만 표시한다(밖에 놓았는데 순서가 바뀌는 일을 막는다). `onRowOrderChange` 없이 주면 밖에 놓기만 한다. 트리에 놓을 때는 `onDragging`·`onDrop` 의 `event` 로 [Tree](tree.md) 의 `treeNodeIdAt(event, 트리 상자)` 를 불러 노드를 찾고 `dropTargetId` 로 강조한다. 자리 개수가 바뀔 때만 다시 등록하므로 콜백은 인라인 함수여도 된다.
 
 ### MDM 캡션·머리글 툴팁(2026-10-03)
 
@@ -320,7 +322,9 @@ GridPanel 밖의 AgDataGrid 도 GridPanel 과 같은 머리줄을 스스로 그�
 | emptyMessage · loadingMessage | `string` | `"데이터가 없습니다."` · `"조회 중..."` | 표준 화면은 주지 않는다. 0건 안내가 떠 있는 동안 `emptyMessage` 가 바뀌거나 `data` 가 `undefined`→`[]` 로 바뀌어도 안내가 새 문구로 다시 뜬다(빈 문구를 상수로 고정하는 우회 불필요) |
 | rowDragField | `string` | - | 행 드래그 손잡이를 둘 열 key. 정렬이 꺼진다 |
 | isRowDraggable | `(row) => boolean` | - | 행별 드래그 허용 |
-| onRowOrderChange | `(orderedKeys) => void` | - | 드래그 후 새 순서의 행 키 목록. 이 prop 이 있어야 드래그가 동작한다 |
+| onRowOrderChange | `(orderedKeys) => void` | - | 드래그 후 새 순서의 행 키 목록. 이 prop 이 있어야 그리드 안 순서 바꾸기가 동작한다 |
+| rowDragMultiRow | `boolean` | `false` | 체크한 여러 행을 함께 끈다. `multiSelect` 와 함께 쓴다 |
+| rowDropZones | `GridRowDropZone[]` | - | 그리드 밖 놓을 자리. `{ getContainer: () => HTMLElement | null; onDragging?(rows, event); onDragLeave?(); onDrop(rows, event) }`. 손잡이는 `rowDragField` |
 | mdmValidate | `boolean` | `false` | 편집 가능 + MDM 연결 열의 바뀐 값을 MDM 정의로 검사해 `cell-mdm-invalid`·셀 툴팁을 단다(포털 탭 안에서만) |
 | fieldErrors | `Array<{ rowKey?; rowIndex?; field; message }>` | - | 서버 오류 칸 표시(`toFieldErrors` 결과). rowKey → rowIndex(data 자리) 순으로 행을 찾는다 |
 | excelExport | `{ title?; fallbackName?; note?; sheetName?; testId?; excludeKeys? } \| false` | 켬(메뉴 항목) | 주지 않아도 「그리드 설정」 메뉴(GridPanel 안·밖 모두 그리드 머리줄)에 「엑셀 출력」 항목이 기본으로 생긴다(아래 줄 없이 항목만). 끄려면 `false`. 객체를 주면 표 아래에 「N행」 줄을 붙이고 컬럼·행을 내려받는다(사용자가 숨긴 열은 엑셀에도 숨긴 열). [엑셀] 단추는 메뉴가 맡아 아래 줄에는 「N행」만 남는다(`settingsMenu={false}` 면 단추가 남는다; §아래 줄과 엑셀 내려받기). 상수나 `useMemo` 로 둔다 |
@@ -397,7 +401,9 @@ GridPanel 밖의 AgDataGrid 도 GridPanel 과 같은 머리줄을 스스로 그�
 | `columns` 를 렌더 안에서 새로 만든다 | 열 정의가 한 칸이라도 다르면(인라인 `render`·`options` 등) 열 상태가 초기화된다. 모듈 상수로 둔다. 내용이 모두 같은 새 배열은 이전 배열을 재사용한다(열 정의를 다시 넣지 않는다) |
 | `data` 의 행을 제자리에서 바꾼다 | 참조 비교라 갱신되지 않는다. 새 객체로 교체한다. 행 객체가 모두 같은 새 배열은 이전 배열을 재사용한다(상세 입력마다 `rows.map` 으로 새 배열을 만들어도 바뀐 행만 갱신) |
 | `isRowSelectable` 을 렌더마다 새 함수로 준다 | 참조가 바뀌면 ag-grid 가 모든 행의 선택 가능 여부를 다시 계산한다. 행 데이터만 보고 정하면 `useCallback`/모듈 함수로 고정한다. 행 밖 상태에 의존하면 그 상태가 바뀔 때만 새 함수가 되게 한다 |
-| `rowDragField` 만 주고 `onRowOrderChange` 를 안 준다 | 손잡이만 생기고 정렬만 꺼진다. 항상 함께 준다 |
+| `rowDragField` 만 주고 `onRowOrderChange` 를 안 준다 | 손잡이만 생기고 정렬만 꺼진다. 항상 함께 준다(밖에 놓기만 하는 그리드는 `rowDropZones` 와 함께 준다) |
+| `rowDragMultiRow` 만 주고 `multiSelect` 를 안 준다 | 체크할 수 없어 늘 한 행만 끌린다. 둘을 함께 준다 |
+| 밖에 놓을 자리 요소를 `document.querySelector` 로 찾는다 | 화면에 같은 그리드가 둘이면 엉뚱한 요소가 잡힌다. `useRef` 로 잡은 요소를 `getContainer` 에서 돌려준다 |
 | 추가한 행이 맨 앞에 있을 줄 안다 | `nativeeditor_status: "inserted"` 행은 항상 맨 뒤로 정렬되고, `onRowClick` 에는 그 행의 rowKey 칸이 임시 ID(`__new_N`)로 바뀌어 온다 |
 | `onRowSelect` 의 두 번째 인자를 항상 배열로 쓴다 | 1건이면 객체, 그 밖에는 배열이다 |
 | `rowClickCheck` 를 편집 열이 있는 그리드에 쓴다 | `checkRowOnEdit` 을 쓴다 |

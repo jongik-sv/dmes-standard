@@ -102,6 +102,18 @@ export interface GridColumn {
   filter?: false | "text" | "number";
 }
 
+/** 그리드 행을 끌어 놓을 그리드 밖 자리(`AgDataGridProps.rowDropZones`). */
+export interface GridRowDropZone {
+  /** 놓을 자리 요소. 아직 그려지지 않았으면 null — 그동안은 놓을 수 없다. */
+  getContainer: () => HTMLElement | null;
+  /** 자리 위에서 끄는 동안 여러 번 부른다. 강조 표시에 쓴다. `event` 로 마우스 아래 요소를 찾을 수 있다. */
+  onDragging?: (rows: Record<string, unknown>[], event: MouseEvent) => void;
+  /** 자리를 벗어나거나 끌기를 취소했을 때. 강조를 지운다. */
+  onDragLeave?: () => void;
+  /** 자리 위에 놓았을 때. `rows` 는 끈 행들의 데이터(여러 행 끌기면 체크한 행 모두). */
+  onDrop: (rows: Record<string, unknown>[], event: MouseEvent) => void;
+}
+
 export interface AgDataGridProps {
   columns?: GridColumn[];
   data?: Record<string, unknown>[];
@@ -283,6 +295,19 @@ export interface AgDataGridProps {
    * 순서 상태의 주인은 호출자다 — 콜백에서 data 를 새 순서로 바꿔 넘긴다.
    */
   onRowOrderChange?: (orderedKeys: (string | number)[]) => void;
+  /**
+   * 체크한 여러 행을 함께 끈다(ag-grid rowDragMultiRow). `multiSelect` 와 함께 쓴다. 체크하지 않은 행의 손잡이를 끌면 그 행만 끈다.
+   * 끄는 동안 따라다니는 글은 여러 행이면 「N건」 이다.
+   */
+  rowDragMultiRow?: boolean;
+  /**
+   * 행을 그리드 밖(트리·다른 목록 등)에 끌어 놓을 자리. 손잡이는 `rowDragField` 로 둔다.
+   * `onRowOrderChange` 와 함께 쓰면 그리드 안에서는 순서를 바꾸고, 자리 위에 놓으면 그 자리의 `onDrop` 만 부른다.
+   * 이때 끄는 동안 행을 미리 옮기지 않고 놓을 위치만 표시한다(ag-grid suppressMoveWhenRowDragging) — 밖에 놓았는데 그리드 순서가 바뀌는 일을 막는다.
+   * `onRowOrderChange` 없이 쓰면 그리드 안 순서는 그대로이고 밖에 놓기만 한다.
+   * 자리 개수가 바뀔 때만 다시 등록한다. 콜백은 늘 최신 값을 쓰므로 인라인 함수를 넘겨도 된다.
+   */
+  rowDropZones?: GridRowDropZone[];
   /**
    * MDM 화면 값 검증(spec C2) — 켜면 편집 가능하고 MDM 컬럼 사전에 연결된 칸(포털 탭 공급자 안에서만)의 값이 바뀔 때 그 칸을 검사해
    * 오류 칸에 `cell-mdm-invalid` 클래스와 셀 툴팁(문구)을 단다. 기본 꺼짐. 저장 전 전체 검사는 화면이 `useMdmValidation().validateRows` 로 한다.

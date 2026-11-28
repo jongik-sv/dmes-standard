@@ -2,7 +2,7 @@
 
 메뉴·코드 계층처럼 부모-자식 구조를 접고 펼치는 트리로 보여 주고 한 노드를 고르게 할 때 쓴다.
 
-- import: `import { Tree, type TreeNode, type TreeProps } from "@dk-oasis/shared/tree";` 와 `import "@dk-oasis/shared/tree.css";`
+- import: `import { Tree, treeNodeIdAt, type TreeNode, type TreeProps } from "@dk-oasis/shared/tree";` 와 `import "@dk-oasis/shared/tree.css";`
 - 소스: `src/frontend/shared/src/components/tree/Tree.tsx` (스타일은 `tree.css`)
 - 내부 구현: Mantine `Tree` + `useTree`(단일 선택, 클릭으로 펼침 대신 화살표 아이콘으로 펼침). Part B 에서 SHOULD. 옛 오기 `TreeView` 는 존재하지 않는 심볼이라 import 하지 않는다
 
@@ -52,6 +52,28 @@ export function CateTree({ rows, onPick }: { rows: CateRow[]; onPick: (id: strin
 
 `expandedItems`·`selectedItems` 와 콜백을 모두 생략하면 트리가 펼침·선택 상태를 스스로 관리한다. 선택 값을 화면이 읽어야 하면 제어형으로 쓴다.
 
+### 끌어 놓기 대상(2026-11-26)
+
+그리드 행을 트리 노드에 끌어 놓게 하려면 트리를 감싼 상자를 그리드 `rowDropZones` 의 `getContainer` 로 주고, 끄는 동안 `treeNodeIdAt(event, 상자)` 로 마우스 아래 노드 id 를 찾아 `dropTargetId` 로 넘긴다. 놓을 수 없는 노드면 `dropBlocked` 를 함께 준다(빨간 점선). 트리는 놓기를 스스로 처리하지 않는다 — 무엇을 할지는 그리드 `onDrop` 에서 화면이 정한다.
+
+```tsx
+const boxRef = useRef<HTMLDivElement>(null);
+const [drop, setDrop] = useState<string | null>(null);
+<div ref={boxRef} style={{ overflowY: "auto" }}>
+  <Tree items={nodes} dropTargetId={drop} /* … */ />
+</div>
+<AgDataGrid
+  rowDragField="name"
+  rowDropZones={[{
+    getContainer: () => boxRef.current,
+    onDragging: (_rows, e) => setDrop(treeNodeIdAt(e, boxRef.current)),
+    onDragLeave: () => setDrop(null),
+    onDrop: (rows, e) => { setDrop(null); const id = treeNodeIdAt(e, boxRef.current); if (id) moveRows(rows, id); },
+  }]}
+  /* … */
+/>
+```
+
 ### 키보드
 
 방향키로 이동·펼침·접힘, Space 로 펼침 토글, Enter 로 선택한다. 트리 자체는 스크롤하지 않으므로 바깥 요소에 `overflowY: "auto"` 를 준다.
@@ -66,6 +88,10 @@ export function CateTree({ rows, onPick }: { rows: CateRow[]; onPick: (id: strin
 | onExpandedItemsChange | `(event: null, newExpanded: (string \| number)[]) => void` | - | 펼침 변경. 두 번째 인자의 id 는 문자열이다 |
 | onSelectedItemsChange | `(event: null, nodeId: string) => void` | - | 노드 클릭·Enter 선택. id 는 문자열이다 |
 | className | `string` | `""` | 루트에 덧붙일 클래스(`cm-tree` 는 항상 붙는다) |
+| dropTargetId | `string | number | null` | `null` | 끌어 놓기 대상으로 강조할 노드 id(파란 테두리) |
+| dropBlocked | `boolean` | `false` | `dropTargetId` 노드에 놓을 수 없음을 보인다(빨간 점선) |
+
+`treeNodeIdAt(point, root?)`: 화면 좌표(`clientX`·`clientY`) 아래 트리 노드 id. 트리 밖이면 null. `root` 를 주면 그 요소 안 노드만 찾는다.
 
 `TreeNode`: `id: string | number`, `label: string`, `children?: TreeNode[]`, 그 밖의 임의 필드(`[key: string]: unknown`)를 담을 수 있다.
 
@@ -89,4 +115,4 @@ export function CateTree({ rows, onPick }: { rows: CateRow[]; onPick: (id: strin
 
 - `src/frontend/m-mdm/pages/dmd/dataItemMng/ItemTreePanel.tsx:80-92`: 제어형 `Tree` + 스크롤 래퍼(`overflowY: "auto"`).
 - `src/frontend/m-mdm/pages/dmc/codeItemEdit/page.tsx:540-542`: `next.map(String)` 으로 펼침을 받는 표준 모양.
-- `src/frontend/m-mcm/page-components/csa/commMenuMng/page.tsx:1094-1102`: 메뉴 트리. 단, 같은 줄 근처에서 인라인 색(`#888`)을 쓰는 점은 표준과 다름.
+- `src/frontend/m-mcm/page-components/csa/commMenuMng/page.tsx`: 메뉴 트리. 메뉴 목록·「메뉴 셋에 없는 오브젝트」 그리드의 행을 폴더에 끌어 놓는 대상(`dropTargetId`·`dropBlocked`·`treeNodeIdAt`). 단, 트리 머리줄의 인라인 색(`#888`)은 표준과 다름.

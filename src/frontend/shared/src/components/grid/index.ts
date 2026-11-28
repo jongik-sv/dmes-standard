@@ -7,6 +7,7 @@ export {
   type AgDataGridProps,
   type AgDataGridFieldError,
   type GridColumn,
+  type GridRowDropZone,
   type MdmGridTooltipParams,
 } from "./AgDataGrid";
 export { GRID_HEADER_HEIGHT } from "./grid-header-height";
